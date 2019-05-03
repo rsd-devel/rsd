@@ -108,11 +108,15 @@ BIN_SIZE   = 0x10000
 # 詳細は ../../rsd-ld.script を参照
 ROM_COPY = $(OBJCOPY) \
 		-O binary --strip-all --strip-debug \
+    --only-section .text* \
+    --only-section .rodata* \
+    --only-section .eh_frame* \
+    --only-section .bss* \
+    --only-section .data* \
+    --only-section .sbss* \
+    --only-section .sdata* \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
-    #    --only-section .text* \
-    #		--only-section .rodata* \
-    #		--only-section .eh_frame* \
 
 # それ以外は RAM へ
 # RAM_COPY = $(OBJCOPY) \
