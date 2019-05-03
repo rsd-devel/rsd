@@ -38,7 +38,7 @@ ASM_SRCS  = $(SRC_DIRS:%=%/code.s)
 ASM_OBJS  = $(SRC_DIRS:%=%/code.o)
 ASM_ELFS  = $(SRC_DIRS:%=%/code.elf)
 ASM_ROM.BINS  = $(SRC_DIRS:%=%/code.rom.bin)
-ASM_RAM.BINS  = $(SRC_DIRS:%=%/code.ram.bin)
+# ASM_RAM.BINS  = $(SRC_DIRS:%=%/code.ram.bin)
 ASM_BINS  = $(SRC_DIRS:%=%/code.bin)
 ASM_DUMP  = $(SRC_DIRS:%=%/code.dump)
 ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
@@ -65,8 +65,8 @@ ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
 # ダミーは ROM が 0x1000 がはじまるため
 %.bin: %.elf $(DUMMY_ROM)
 	$(ROM_COPY) $< $(basename $<).rom.bin
-	$(RAM_COPY) $< $(basename $<).ram.bin
-	cat $(DUMMY_ROM) $(basename $<).rom.bin $(basename $<).ram.bin > $@	
+	# $(RAM_COPY) $< $(basename $<).ram.bin
+	cat $(DUMMY_ROM) $(basename $<).rom.bin > $@	
 
 # HEX に変換
 %.hex: %.bin

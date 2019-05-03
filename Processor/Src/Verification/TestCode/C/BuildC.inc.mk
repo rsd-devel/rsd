@@ -26,8 +26,8 @@ code.elf: $(OBJS) $(CRTOBJ) Makefile
 code.bin: code.elf $(DUMMY_ROM)
 	$(OBJDUMP) -D $< > $(basename $<).dump	# for debug
 	$(ROM_COPY) $< $(basename $<).rom.bin
-	$(RAM_COPY) $< $(basename $<).ram.bin
-	cat $(DUMMY_ROM) $(basename $<).rom.bin $(basename $<).ram.bin > $@	
+	#$(RAM_COPY) $< $(basename $<).ram.bin
+	cat $(DUMMY_ROM) $(basename $<).rom.bin > $@	
 
 code.hex: code.bin
 	$(BIN_TO_HEX) code.bin $@ $(BIN_SIZE)
