@@ -66,6 +66,8 @@ LIBGCC = \
 #
 CRTOBJ = $(RSD_TEST_CODE_ROOT)/rsd-crt.o
 CRTASM = $(RSD_TEST_CODE_ROOT)/rsd-crt.s
+LDOBJ = $(RSD_TEST_CODE_ROOT)/rsd-loader.o
+LDSRC = $(RSD_TEST_CODE_ROOT)/rsd-loader.c
 LDSCRIPT = $(RSD_TEST_CODE_ROOT)/rsd-ld.script
 
 # ROM の先頭 0x1000 までに結合するためのダミーの ROM
@@ -75,6 +77,10 @@ DUMMY_ROM = $(RSD_TEST_CODE_ROOT)/dummy_rom.bin
 # スタートアップルーチンのコンパイル
 $(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h
 	$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+
+$(LDOBJ): $(LDSRC)
+	$(CC) $(CFLAGS) -o $@ -c $<
+
 
 $(DUMMY_ROM):
 	head -c $(ROM_PADDING_SIZE) /dev/zero > $(DUMMY_ROM)
@@ -102,11 +108,11 @@ BIN_SIZE   = 0x10000
 # 詳細は ../../rsd-ld.script を参照
 ROM_COPY = $(OBJCOPY) \
 		-O binary --strip-all --strip-debug \
-		--only-section .text* \
-		--only-section .rodata* \
-		--only-section .eh_frame* \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
+    #    --only-section .text* \
+    #		--only-section .rodata* \
+    #		--only-section .eh_frame* \
 
 # それ以外は RAM へ
 # RAM_COPY = $(OBJCOPY) \

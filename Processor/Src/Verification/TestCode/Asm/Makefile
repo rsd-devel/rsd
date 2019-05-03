@@ -56,8 +56,8 @@ ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
 # CRTOBJ は必ず先頭に置く必要がある
 # また，$(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS) は
 # $(OBJS) が依存しているためその後ろに置く必要がある．
-%.elf: %.o $(CRTOBJ)
-	$(LD) -o $@ $(CRTOBJ) $< $(LIBC) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
+%.elf: %.o $(CRTOBJ) $(LDOBJ)
+	$(LD) -o $@ $(CRTOBJ) $(LDOBJ) $< $(LIBC) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
 	$(OBJDUMP) -D $@ > $(basename $<).dump	# for debug
 
 # ELF から必要なセクションを取り出した code.rom.bin/code.ram.bin を作る

@@ -9,8 +9,9 @@
 	.global _start
 	.global _end
 	
-	# 外部の main 
+	# 外部の main とローダ
 	.extern main
+	.extern _load
 
 	stack_top = 0x80020000
 
@@ -22,6 +23,7 @@ _end:
 	j _end
 
 _call_main:
+	call _load
 	call main
    	j _end
 

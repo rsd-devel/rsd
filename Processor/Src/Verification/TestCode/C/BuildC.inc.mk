@@ -17,8 +17,8 @@ all: code.hex
 # CRTOBJ は必ず先頭に置く必要がある
 # また，$(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS) は
 # $(OBJS) が依存しているためその後ろに置く必要がある．
-code.elf: $(OBJS) $(CRTOBJ) Makefile
-	$(LD) -o code.elf $(CRTOBJ) $(OBJS) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
+code.elf: $(OBJS) $(CRTOBJ) $(LDOBJ) Makefile
+	$(LD) -o code.elf $(CRTOBJ) $(LDOBJ) $(OBJS) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
 
 # ELF から必要なセクションを取り出した code.rom.bin/code.ram.bin を作る
 # cat を使って，先頭 4KB のダミー，ROM，RAM の順に結合
