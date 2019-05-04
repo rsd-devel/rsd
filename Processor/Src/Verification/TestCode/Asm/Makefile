@@ -58,7 +58,7 @@ ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
 # $(OBJS) が依存しているためその後ろに置く必要がある．
 %.elf: %.o $(CRTOBJ) $(LDOBJ)
 	$(LD) -o $@ $(CRTOBJ) $(LDOBJ) $< $(LIBC) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
-	$(OBJDUMP) -D $@ > $(basename $<).dump	# for debug
+	$(OBJDUMP) -S -D $@ > $(basename $<).dump	# for debug
 
 # ELF から必要なセクションを取り出した code.rom.bin/code.ram.bin を作る
 # cat を使って，先頭 4KB のダミー，ROM，RAM の順に結合

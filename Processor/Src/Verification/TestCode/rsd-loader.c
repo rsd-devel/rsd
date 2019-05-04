@@ -1,17 +1,19 @@
 #include <stdint.h>
 #include <string.h>
 
-extern void* __data_start;
-extern void* __data_end;
-extern void* __bss_start;
-extern void* __bss_end;
+extern int __rodata_end;
+extern int __data_start;
+extern int __data_end;
+extern int __bss_start;
+extern int __bss_end;
 
-const void* ram_start = 0x80000000;
+// const void* ram_start = 0x80000000;
+#define ram_start 0x80000000
 
 // シリアル出力の memory-mapped address
-const void* SERIAL_ADDRESS = 0x40002000;
-const int DIGIT_DEC = 256;
-const int DIGIT_HEX = 8;
+static const void* SERIAL_ADDRESS = 0x40002000;
+static const int DIGIT_DEC = 256;
+static const int DIGIT_HEX = 8;
 
 // シリアル出力のウェイト
 #define UART_WAIT 10
@@ -114,20 +116,14 @@ void* __attribute((weak)) memset(void* str_, int c, size_t n) {
 }
 
 void _load() {
-  serial_out_char('l');
-  serial_out_char('o');
-  serial_out_char('a');
-  serial_out_char('d');
-  serial_out_hex(ram_start);
+  serial_out_hex(&__rodata_end);
   serial_out_char('\n');
-  serial_out_hex(__data_start);
+  serial_out_hex(&__data_start);
   serial_out_char('\n');
-  serial_out_hex(__data_end);
+  serial_out_hex(&__data_end);
   serial_out_char('\n');
-  serial_out_hex(__bss_start);
+  serial_out_hex(&__data_end - &__data_start);
   serial_out_char('\n');
-  serial_out_hex(__bss_end);
-  serial_out_char('\n');
-  // memcpy(ram_start, __data_start, __data_end - __data_start);
-  // memset(__bss_start, 0, __bss_end - __bss_start);
+  memcpy(ram_start, &__rodata_end, &__data_end - &__data_start);
+  memset(&__bss_start, 0, &__bss_end - &__bss_start);
 }
