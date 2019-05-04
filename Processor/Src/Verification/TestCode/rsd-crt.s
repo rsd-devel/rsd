@@ -17,20 +17,21 @@
 
 	# entry point: 0x1000
 _start:
-	j _init_reg
+	j _init
 	# goal: 0x1004
 _end:
 	j _end
 
 _call_main:
-	call _load
 	call main
 	j _end
 
-_init_reg:
+_init:
 	# set trap vector
 	la a0, trap_vector
 	csrw mtvec, a0
+
+	call _load
 
 	# clear registers
 	li	x1, 0
