@@ -116,14 +116,8 @@ void* __attribute((weak)) memset(void* str_, int c, size_t n) {
 }
 
 void _load() {
-  serial_out_hex(&__rodata_end);
-  serial_out_char('\n');
-  serial_out_hex(&__data_start);
-  serial_out_char('\n');
-  serial_out_hex(&__data_end);
-  serial_out_char('\n');
-  serial_out_hex(&__data_end - &__data_start);
-  serial_out_char('\n');
-  memcpy(ram_start, &__rodata_end, &__data_end - &__data_start);
-  memset(&__bss_start, 0, &__bss_end - &__bss_start);
+  size_t data_size = (size_t)&__data_end - (size_t)&__data_start;
+  size_t bss_size = (size_t)&__bss_end - (size_t)&__bss_start;
+  memcpy(ram_start, &__rodata_end, data_size);
+  memset(&__bss_start, 0, bss_size);
 }
