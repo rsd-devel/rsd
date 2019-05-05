@@ -89,21 +89,17 @@ $(DUMMY_ROM):
 # テストコードのバイナリ設定
 
 # 生成するバイナリのアドレス
-# ROM, RAM の順に結合する
-# RAM は ELF 内の START_ADDR から END_ADDR までを取り出して作成する
+# RAM は ローダでROMから必要なデータをコピーしたり初期化したりするので関係ない
 ROM_PADDING_SIZE = 4096 # 0x1000
 ROM_START_ADDR = 0x00001000
 ROM_END_ADDR   = 0x00010000
-# RAM_START_ADDR = 0x80000000
-# RAM_END_ADDR   = 0x80018000
 
 ROM_SIZE   = 65536      # 0x1000 + (0x10000 - 0x1000) = 0x10000
-# RAM_SIZE   = 0x18000
 
 # BIN_SIZE は ROM+CODE の合計サイズ
 BIN_SIZE   = 0x10000
 
-# .text* と .rodata* だけ ROM として取り出すコマンド
+# .text* と .rodata* ，.bss，.dataなどを ROM として取り出すコマンド
 # （.text* は，名前が .text から始まるセクションすべて）
 # 詳細は ../../rsd-ld.script を参照
 ROM_COPY = $(OBJCOPY) \
@@ -118,14 +114,6 @@ ROM_COPY = $(OBJCOPY) \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
 
-# それ以外は RAM へ
-# RAM_COPY = $(OBJCOPY) \
-# 		-O binary --strip-all --strip-debug \
-# 		--remove-section .text* \
-# 		--remove-section .rodata* \
-# 		--remove-section .eh_frame* \
-# 		--set-start=$(RAM_START_ADDR) \
-# 		--pad-to=$(RAM_END_ADDR) \
 
 # --------
 # テストコード生成ツール

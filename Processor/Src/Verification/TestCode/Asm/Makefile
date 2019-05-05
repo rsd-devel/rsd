@@ -60,12 +60,11 @@ ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
 	$(LD) -o $@ $(CRTOBJ) $(LDOBJ) $< $(LIBC) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
 	$(OBJDUMP) -S -D $@ > $(basename $<).dump	# for debug
 
-# ELF から必要なセクションを取り出した code.rom.bin/code.ram.bin を作る
-# cat を使って，先頭 4KB のダミー，ROM，RAM の順に結合
+# ELF から必要なセクションを取り出した code.rom.bin を作る
+# cat を使って，先頭 4KB のダミー，ROM の順に結合
 # ダミーは ROM が 0x1000 がはじまるため
 %.bin: %.elf $(DUMMY_ROM)
 	$(ROM_COPY) $< $(basename $<).rom.bin
-	# $(RAM_COPY) $< $(basename $<).ram.bin
 	cat $(DUMMY_ROM) $(basename $<).rom.bin > $@	
 
 # HEX に変換
@@ -76,8 +75,8 @@ all: $(ASM_DSTS)
 
 
 clean:
-	rm $(ASM_DSTS) $(ASM_ELFS) $(ASM_DUMPS) $(ASM_BINS) $(ASM_ROM_BINS) $(ASM_RAM_BINS) $(ASM_OBJS) $(ASM_DUMP) -f
+	rm $(ASM_DSTS) $(ASM_ELFS) $(ASM_DUMPS) $(ASM_BINS) $(ASM_ROM_BINS) $(ASM_OBJS) $(ASM_DUMP) -f
 
 # 中間ファイルが残るように
-.PRECIOUS: $(ASM_DSTS) $(ASM_ELFS) $(ASM_DUMPS) $(ASM_BINS) $(ASM_ROM_BINS) $(ASM_RAM_BINS) $(ASM_OBJS)
+.PRECIOUS: $(ASM_DSTS) $(ASM_ELFS) $(ASM_DUMPS) $(ASM_BINS) $(ASM_ROM_BINS) $(ASM_OBJS)
 
