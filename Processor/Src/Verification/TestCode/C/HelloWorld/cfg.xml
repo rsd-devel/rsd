@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Config>
-  <MaxTestCycles>1000</MaxTestCycles>
+  <MaxTestCycles>5000</MaxTestCycles>
   <RegisterValues>
     <PC>0x1004</PC> <!-- lower 16 bits only -->
   </RegisterValues>
