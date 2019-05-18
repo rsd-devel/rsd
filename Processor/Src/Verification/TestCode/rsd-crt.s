@@ -31,6 +31,7 @@ _init:
 	la a0, trap_vector
 	csrw mtvec, a0
 
+	li	sp,0x80020000
 	call _load
 
 	# clear registers
