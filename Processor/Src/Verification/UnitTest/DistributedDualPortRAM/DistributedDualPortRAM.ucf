@@ -1,0 +1,30 @@
+# CLK
+NET "clk_p" LOC = AW2;
+NET "clk_n" LOC = AW1;
+
+# Green LED
+NET "rv[0]" LOC = AL30;
+NET "rv[1]" LOC = AP35;
+NET "rv[2]" LOC = AP36;
+NET "rv[3]" LOC = AL31;
+
+# Red LED
+
+# Push switch
+NET "we" LOC = AM17; # SW9
+
+# DIP switch
+NET "ra[0]" LOC = AU17; # SW8-1
+NET "ra[1]" LOC = AV16; # SW8-2
+NET "wa[0]" LOC = AL21; # SW8-3
+NET "wa[1]" LOC = AL20; # SW8-4
+NET "wv[0]" LOC = BB12; # SW14-1
+NET "wv[1]" LOC = BB13; # SW14-2
+NET "wv[2]" LOC = AL19; # SW14-3
+NET "wv[3]" LOC = AM18; # SW14-4
+
+# Created by Constraints Editor (xc6vlx760-ff1760-2) - 2013/08/06
+NET "clk_n" TNM_NET = clk_n;
+TIMESPEC TS_clk_n = PERIOD "clk_n" 10 ns HIGH 50%;
+NET "clk_p" TNM_NET = clk_p;
+TIMESPEC TS_clk_p = PERIOD "clk_p" TS_clk_n PHASE 5 ns HIGH 50%;

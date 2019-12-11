@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb-cygwin) Launch",
+            "type": "cppdbg",
+            "request": "launch",
+            "miDebuggerPath": "${env:RSD_CYGWIN_PATH}/bin/gdb.exe",
+            "program": "${workspaceRoot}/../Project/Verilator/obj_dir/VMain_Zynq_Wrapper.exe",
+            "args": [
+                "MAX_TEST_CYCLES=1000",
+                "TEST_CODE=Verification/TestCode/Asm/CSR",
+                "REG_CSV_FILE=Register.csv",
+                "RSD_LOG_FILE=RSD.log"
+            ],
+            "cwd": "${workspaceRoot}",
+            "stopAtEntry": false,
+            "environment": [],
+            "externalConsole": true,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}

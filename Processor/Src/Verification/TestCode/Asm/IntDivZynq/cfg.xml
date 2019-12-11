@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Config>
+  <MaxTestCycles>3000</MaxTestCycles>
+  <RegisterValues>
+      <R0>0x00000000</R0>
+      <R1>0x7FFFFFFF</R1>
+      <R2>0x80000000</R2>
+      <R3>0xFFFFFFFF</R3>
+      <R4>0x00000000</R4>
+      <R5>0x00000000</R5>
+      <R6>0x7FFFFFFF</R6>
+      <R7>0xFFFFFFFF</R7>
+      <R8>0x00000000</R8>
+      <R9>0x7FFFFFFF</R9>
+      <R10>0x7FFFFFFF</R10>
+      <R11>0x80000000</R11>
+      <R12>0x80000000</R12>
+      <R13>0x00000001</R13>
+      <R14>0x7FFFFFFF</R14>
+      <R15>0x00000000</R15>
+      <R16>0x00000000</R16>
+      <R17>0x00000000</R17>
+      <R18>0xFFFFFFFF</R18>
+      <R19>0x00000000</R19>
+      <R20>0x00000000</R20>
+      <R31>0x40002000</R31>
+      <PC>0x00001004</PC> 
+  </RegisterValues> 
+</Config> 

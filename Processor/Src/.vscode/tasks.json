@@ -1,0 +1,145 @@
+{
+    "version": "2.0.0",
+
+    // Configuration for cygwin
+    "windows": {
+        "options": {
+            "env": {
+                "CHERE_INVOKING": "1",
+                "LANG": "C"
+            },
+            "shell": {
+                "executable": "${env:RSD_CYGWIN_PATH}/bin/bash.exe",
+                "args": [
+                    "--login", "-c"
+                ]
+            }
+        }
+    },
+
+    "echoCommand": true,
+    "type": "shell",
+    "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+    },
+    "options": {
+        "cwd": "${workspaceRoot}"
+    },
+    "command": "make",
+    "tasks": [
+        {
+            "label": "make",
+            "command": "make",
+            
+            "args": ["-f", "Makefile.verilator.mk"],
+            //"args": ["-f", "Makefile"],
+            
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                // Verilator
+                {
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceRoot}"
+                    ],
+                    "pattern": {
+                        "regexp": "^%(Warning)-([^:]*): (.*):(\\d+):(.*)$",
+                        "severity": 1,
+                        "code": 2,
+                        "file": 3,
+                        "line": 4,
+                        "message": 5
+                    }
+                },
+                {
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceRoot}"
+                    ],
+                    "pattern": {
+                        "regexp": "^%(Error).*: (.*):(\\d+):(.*)$",
+                        "severity": 1,
+                        "file": 2,
+                        "line": 3,
+                        "message": 4
+                    }
+                },
+                {
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceRoot}"
+                    ],
+                    "pattern": {
+                        "regexp": "^%(Error).*: (.*)$",
+                        "severity": 1,
+                        "message": 2
+                    }
+                },
+                // Modelsim
+                {   // only line is included
+                    //"fileLocation": ["relative", "${fileDirname}"],
+                    "fileLocation": ["relative", "${workspaceRoot}"],
+                    "pattern": [
+                        {
+                            "regexp": "^[#\\s]*\\*\\*\\s+(Error\\s+\\([^\\)]+\\):|Error:\\s+\\([^\\)]+\\)|Error:|Warning:)\\s+(.*)\\((\\d+)\\):\\s+(.*)$",
+                            "file": 2,
+                            "line": 3,
+                            "message": 4
+                        },
+                    ]
+                },
+                {   // line+column are included
+                    "fileLocation": ["relative", "${fileDirname}"],
+                    "pattern": [
+                        {
+                            "regexp": "^[#\\s]*\\*\\*\\s+(Error\\s+\\([^\\)]+\\):|Error:\\s+\\([^\\)]+\\)|Error:|Warning:)\\s+(.*)\\((\\d+)\\.(\\d+)\\):\\s+(.*)$",
+                            "file": 2,
+                            "line": 3,
+                            "column": 4,
+                            "message": 5
+                        }
+                    ]
+                },
+                // gcc rules for files translated by verilator
+                {
+                    "fileLocation": [
+                        "relative",
+                        "${workspaceRoot}/../Project/Veriltor/obj_dir"
+                    ],
+                    "pattern": {
+                        "regexp": "^(.*):(\\d+):(\\d+):\\s+(warning|error|fatal error):\\s+(.*)$",
+                        "file": 1,
+                        "line": 2,
+                        "column": 3,
+                        "severity": 4
+                    }
+                }
+            ]
+        },
+        {
+            "label": "run",
+            "command": "make",
+            "args": ["run", "-f", "Makefile.verilator.mk"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "dump",
+            "command": "make",
+            "args": ["dump", "-f", "Makefile.verilator.mk"],
+            "problemMatcher": []
+        },
+        {
+            "label": "clean",
+            "command": "make",
+            "args": ["clean", "-f", "Makefile.verilator.mk"],
+            "problemMatcher": []
+        }
+    ]
+}

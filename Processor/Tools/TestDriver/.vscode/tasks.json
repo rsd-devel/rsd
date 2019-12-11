@@ -1,0 +1,43 @@
+{
+    "version": "2.0.0",
+
+    // Configuration for cygwin
+    "windows": {
+        "options": {
+            "env": {
+                "CHERE_INVOKING": "1",
+                "LANG": "C"
+            },
+            "shell": {
+                "executable": "${env:RSD_CYGWIN_PATH}/bin/bash.exe",
+                "args": [
+                    "--login", "-c"
+                ]
+            }
+        }
+    },
+
+    "echoCommand": true,
+    "type": "shell",
+    "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+    },
+
+    "options": {
+        "cwd": "${workspaceRoot}"
+    },
+
+    "tasks": [
+        {
+            "label": "test",
+            "command": "make",
+            "args": ["test"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+    ]
+    //"problemMatcher": "$tsc"
+}

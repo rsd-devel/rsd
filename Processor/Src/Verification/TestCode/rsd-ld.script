@@ -1,0 +1,25 @@
+OUTPUT_FORMAT("elf32-littleriscv");
+OUTPUT_ARCH("riscv")
+
+/* エントリポイント．_start は rsd-crt.s で定義 */
+ENTRY(_start);
+
+
+MEMORY {
+    ROM(rxai) :     ORIGIN = 0x00001000, LENGTH = 32k
+    RAM(wa) :       ORIGIN = 0x80000000, LENGTH = 32k
+}
+
+SECTIONS
+{
+    .text : { *(.text) }     > ROM
+    .rodata : { *(.rodata) } > ROM
+    
+    .data : { *(.data) } > RAM
+    . = ALIGN(4);
+    __bss_start = .;
+    .bss : {*(.bss)} > RAM
+    __bss_end = . ;
+    
+    .comment : { *(.comment) } > RAM
+}

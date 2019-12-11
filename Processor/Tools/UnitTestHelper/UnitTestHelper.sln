@@ -1,0 +1,23 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "UnitTestHelper", "UnitTestHelper.pyproj", "{F7A9CE77-4E39-40EC-90D6-C0D0572CCBD7}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{79275067-3AF4-412C-93AA-DAB9DDDF6F0D}"
+	ProjectSection(SolutionItems) = preProject
+		ReplacePath.py = ReplacePath.py
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F7A9CE77-4E39-40EC-90D6-C0D0572CCBD7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F7A9CE77-4E39-40EC-90D6-C0D0572CCBD7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

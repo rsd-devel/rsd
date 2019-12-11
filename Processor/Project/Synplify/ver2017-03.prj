@@ -1,0 +1,382 @@
+#--  Synopsys, Inc.
+#--  Version M-2017.03-SP1
+#--  Project file C:\Work\rsd-git\Processor\Project\Synplify\ver2017-03.prj
+#--  Written on Sun Aug  4 02:28:59 2019
+
+
+#project files
+add_file -verilog -vlog_std sysv "../../Src/SynthesisMacros.sv"
+add_file -verilog -vlog_std sysv "../../Src/BasicTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryMapTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/CacheSystemTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Decoder/OpFormat.sv"
+add_file -verilog -vlog_std sysv "../../Src/Decoder/MicroOp.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/BypassTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/FetchUnit/FetchUnitTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/LoadStoreUnitTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RenameLogicTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/SchedulerTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/PipelineTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/IO/IO_UnitTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Privileged/CSR_UnitTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Debug/DebugTypes.sv"
+add_file -verilog -vlog_std sysv "../../Src/Main_Zynq.sv"
+add_file -verilog -vlog_std sysv "../../Src/Main_Fpga.sv"
+add_file -verilog -vlog_std sysv "../../Src/Core.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FetchStage/PC.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FetchStage/NextPCStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FetchStage/NextPCStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FetchStage/FetchStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FetchStage/FetchStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/PreDecodeStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/PreDecodeStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/DecodeStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/DecodeStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/RenameStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/RenameStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/DispatchStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/DispatchStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ScheduleStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ScheduleStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerIssueStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerIssueStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerRegisterReadStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerRegisterReadStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerExecutionStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerExecutionStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerRegisterWriteStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/IntegerBackEnd/IntegerRegisterWriteStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerIssueStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerIssueStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerRegisterReadStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerRegisterReadStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerExecutionStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerExecutionStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/ComplexIntegerBackEnd/ComplexIntegerRegisterWriteStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryIssueStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryIssueStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegisterReadStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegisterReadStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryExecutionStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryExecutionStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryAccessStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryAccessStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryTagAccessStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryTagAccessStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegisterWriteStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegisterWriteStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/CommitStageIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/CommitStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/RegisterFile.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/RegisterFileIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/BypassController.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/BypassNetwork.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/BypassNetworkIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/RegisterFile/VectorBypassNetwork.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/BitCounter.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/IntALU.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/Shifter.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/MultiplierUnit.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/VectorUnit.sv"
+add_file -verilog -vlog_std sysv "../../Src/MulDivUnit/MulDivUnit.sv"
+add_file -verilog -vlog_std sysv "../../Src/MulDivUnit/MulDivUnitIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/LoadStoreUnit.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/LoadStoreUnitIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/LoadQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/StoreQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/LoadStoreUnit/StoreCommitter.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RenameLogic.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RenameLogicIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/ActiveListIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/ActiveList.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RMT.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RetirementRMT.sv"
+add_file -verilog -vlog_std sysv "../../Src/RenameLogic/RenameLogicCommitter.sv"
+add_file -verilog -vlog_std sysv "../../Src/Decoder/Decoder.sv"
+add_file -verilog -vlog_std sysv "../../Src/Decoder/DecodedBranchResolver.sv"
+add_file -verilog -vlog_std sysv "../../Src/FetchUnit/BTB.sv"
+add_file -verilog -vlog_std sysv "../../Src/FetchUnit/BranchPredictor.sv"
+add_file -verilog -vlog_std sysv "../../Src/FetchUnit/Gshare.sv"
+add_file -verilog -vlog_std sysv "../../Src/FetchUnit/Bimodal.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/SchedulerIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/IssueQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/ReplayQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/WakeupSelectIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/DestinationRAM.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/ReadyBitTable.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/Scheduler.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/SelectLogic.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/SourceCAM.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/WakeupLogic.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/WakeupPipelineRegister.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/ProducerMatrix.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/CacheSystemIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/DCache.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/DCacheIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/ICache.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/CachePrimitives.sv"
+add_file -verilog -vlog_std sysv "../../Src/Cache/MemoryAccessController.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/Memory.sv"
+add_file -verilog -vlog_std sysv "../../Src/ControllerIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Controller.sv"
+add_file -verilog -vlog_std sysv "../../Src/ResetController.sv"
+add_file -verilog -vlog_std sysv "../../Src/Privileged/InterruptController.sv"
+add_file -verilog -vlog_std sysv "../../Src/Privileged/CSR_Unit.sv"
+add_file -verilog -vlog_std sysv "../../Src/Privileged/CSR_UnitIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/IO/IO_Unit.sv"
+add_file -verilog -vlog_std sysv "../../Src/IO/IO_UnitIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/FlipFlop.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/FreeList.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/Queue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/RAM.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/LRU_Counter.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/Picker.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/Multiplier.sv"
+add_file -verilog -vlog_std sysv "../../Src/Debug/Debug.sv"
+add_file -verilog -vlog_std sysv "../../Src/Debug/DebugIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Debug/HardwareCounter.sv"
+add_file -verilog -vlog_std sysv "../../Src/Debug/HardwareCounterIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/ControlQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/Axi4LiteControlRegisterIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/Axi4LiteControlRegister.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/Axi4MemoryIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/Axi4Memory.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryReadReqQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryWriteDataQueue.sv"
+add_file "code.hex"
+add_file -verilog -vlog_std sysv "../../Src/Recovery/RecoveryManager.sv"
+add_file -verilog -vlog_std sysv "../../Src/Recovery/RecoveryManagerIF.sv"
+add_file -verilog -vlog_std sysv "../../Src/Scheduler/MemoryDependencyPredictor.sv"
+add_file -verilog -vlog_std sysv "../../Src/Main_Zynq_Wrapper.sv"
+add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryRequestQueue.sv"
+add_file -verilog -vlog_std sysv "../../Src/Primitives/Divider.sv"
+add_file -verilog -vlog_std sysv "../../Src/ExecUnit/DividerUnit.sv"
+
+
+
+#implementation: "Zedboard"
+impl -add Zedboard -type fpga
+
+#
+#implementation attributes
+
+set_option -vlog_std sysv
+set_option -project_relative_includes 1
+set_option -hdl_define -set RSD_SYNTHESIS_ZEDBOARD
+set_option -include_path {../../Src}
+
+#par_1 attributes
+set_option -job par_1 -add par
+
+#device options
+set_option -technology ZYNQ
+set_option -part XC7Z020
+set_option -package CLG484
+set_option -speed_grade -1
+set_option -part_companion ""
+
+#compilation/mapping options
+set_option -use_fsm_explorer 0
+set_option -top_module "Main_Zynq_Wrapper"
+
+# hdl_compiler_options
+set_option -distributed_compile 0
+
+# mapper_without_write_options
+set_option -frequency auto
+set_option -srs_instrumentation 1
+
+# mapper_options
+set_option -write_verilog 1
+set_option -write_vhdl 0
+
+# xilinx_options
+set_option -rw_check_on_ram 1
+set_option -optimize_ngc 1
+
+# Xilinx Virtex2
+set_option -run_prop_extract 1
+set_option -maxfan 10000
+set_option -disable_io_insertion 0
+set_option -pipe 1
+set_option -update_models_cp 0
+set_option -retiming 1
+set_option -no_sequential_opt 0
+set_option -fix_gated_and_generated_clocks 1
+
+# Xilinx Zynq
+set_option -use_vivado 1
+set_option -enable_prepacking 1
+
+# sequential_optimization_options
+set_option -symbolic_fsm_compiler 1
+
+# Compiler Options
+set_option -compiler_compatible 0
+set_option -resource_sharing 1
+set_option -multi_file_compilation_unit 1
+
+# Compiler Options
+set_option -auto_infer_blackbox 0
+
+#automatic place and route (vendor) options
+set_option -write_apr_constraint 1
+
+#set result format/file last
+project -result_file "Zedboard/rsd.vm"
+
+#design plan options
+
+
+#implementation: "Zedboard_post_synthesis"
+impl -add Zedboard_post_synthesis -type fpga
+
+#
+#implementation attributes
+
+set_option -vlog_std sysv
+set_option -project_relative_includes 1
+
+#
+#implementation parameter settings
+set_option -hdl_param -set MEM_INIT_HEX_FILE code.hex
+set_option -hdl_define -set RSD_POST_SYNTHESIS
+set_option -include_path {../../Src}
+
+#par_1 attributes
+set_option -job par_1 -add par
+
+#device options
+set_option -technology ZYNQ
+set_option -part XC7Z020
+set_option -package CLG484
+set_option -speed_grade -1
+set_option -part_companion ""
+
+#compilation/mapping options
+set_option -use_fsm_explorer 0
+set_option -top_module "Main_Zynq_Wrapper"
+
+# hdl_compiler_options
+set_option -distributed_compile 1
+
+# mapper_without_write_options
+set_option -frequency auto
+set_option -srs_instrumentation 1
+
+# mapper_options
+set_option -write_verilog 1
+set_option -write_vhdl 0
+
+# xilinx_options
+set_option -rw_check_on_ram 1
+set_option -optimize_ngc 1
+
+# Xilinx Virtex2
+set_option -run_prop_extract 1
+set_option -maxfan 10000
+set_option -disable_io_insertion 0
+set_option -pipe 1
+set_option -update_models_cp 0
+set_option -retiming 0
+set_option -no_sequential_opt 0
+set_option -fix_gated_and_generated_clocks 1
+
+# Xilinx Zynq
+set_option -use_vivado 1
+set_option -enable_prepacking 1
+
+# sequential_optimization_options
+set_option -symbolic_fsm_compiler 1
+
+# Compiler Options
+set_option -compiler_compatible 0
+set_option -resource_sharing 1
+set_option -multi_file_compilation_unit 1
+
+# Compiler Options
+set_option -auto_infer_blackbox 0
+
+#automatic place and route (vendor) options
+set_option -write_apr_constraint 1
+
+#set result format/file last
+project -result_file "Zedboard_post_synthesis/rsd.vm"
+
+#design plan options
+
+
+#implementation: "Microsemi"
+impl -add Microsemi -type fpga
+
+#
+#implementation attributes
+
+set_option -vlog_std sysv
+set_option -project_relative_includes 1
+set_option -hdl_define -set RSD_SYNTHESIS_ZEDBOARD
+set_option -include_path {../../Src}
+
+#device options
+set_option -technology SMARTFUSION2
+set_option -part M2S025
+set_option -package VF400
+set_option -speed_grade -1
+set_option -part_companion ""
+
+#compilation/mapping options
+set_option -use_fsm_explorer 0
+set_option -top_module "Main_Zynq_Wrapper"
+
+# hdl_compiler_options
+set_option -distributed_compile 0
+
+# mapper_without_write_options
+set_option -frequency auto
+set_option -srs_instrumentation 1
+
+# mapper_options
+set_option -write_verilog 1
+set_option -write_vhdl 0
+
+# actel_options
+set_option -rw_check_on_ram 0
+
+# Microsemi G4
+set_option -run_prop_extract 1
+set_option -maxfan 10000
+set_option -clock_globalthreshold 2
+set_option -async_globalthreshold 12
+set_option -globalthreshold 5000
+set_option -low_power_ram_decomp 0
+set_option -seqshift_to_uram 0
+set_option -disable_io_insertion 0
+set_option -opcond COMTC
+set_option -retiming 0
+set_option -report_path 4000
+set_option -update_models_cp 0
+set_option -preserve_registers 0
+
+# NFilter
+set_option -no_sequential_opt 0
+
+# sequential_optimization_options
+set_option -symbolic_fsm_compiler 1
+
+# Compiler Options
+set_option -compiler_compatible 0
+set_option -resource_sharing 1
+set_option -multi_file_compilation_unit 1
+
+# Compiler Options
+set_option -auto_infer_blackbox 0
+
+#automatic place and route (vendor) options
+set_option -write_apr_constraint 1
+
+#set result format/file last
+project -result_file "Microsemi/rsd.vm"
+
+#design plan options
+impl -active "Zedboard"

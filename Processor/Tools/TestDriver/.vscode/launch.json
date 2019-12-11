@@ -1,0 +1,26 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python",
+            "type": "python",
+            "request": "launch",
+            "stopOnEntry": false,
+            //"pythonPath": "${env:RSD_CYGWIN_PATH}/bin/python2.7.exe",
+            "pythonPath": "${config:python.pythonPath}",
+            "program": "${workspaceRoot}/RunTest.py",
+            "cwd": "./../../Src/",
+            "env": {},
+            "args": [
+                "--simulator=verilator",
+                "Verification/TestCode/Asm/ControlTransfer"
+            ],
+            "console": "integratedTerminal"
+            //"debugOptions": [
+            //    "WaitOnAbnormalExit",
+            //    "WaitOnNormalExit",
+            //    "RedirectOutput"
+            //]
+        }
+    ]
+}

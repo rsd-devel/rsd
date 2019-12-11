@@ -1,0 +1,36 @@
+test lw-1
+trap_vector!
+
+test lw-2
+trap_vector!
+
+test lw-3
+trap_vector!
+
+test lhu-1
+trap_vector!
+
+test lhu-2
+trap_vector!
+
+test lh-1
+trap_vector!
+
+test lh-2
+trap_vector!
+
+test sw-1
+trap_vector!
+
+test sw-2
+trap_vector!
+
+test sw-3
+trap_vector!
+
+test sh-1
+trap_vector!
+
+test sh-2
+trap_vector!
+

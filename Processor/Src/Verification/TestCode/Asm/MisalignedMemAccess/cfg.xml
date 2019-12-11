@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Config>
+  <MaxTestCycles>10000</MaxTestCycles>
+  <RegisterValues>
+    <R8>0x0000ADBE</R8> <!-- s0 -->
+    <R9>0x00000DDE</R9> <!-- s1 -->
+
+    <R12>0xDEADBEEF</R12> <!-- a2 -->
+    <R14>0xBAADF00D</R14> <!-- a4 -->
+
+    <R15>0x0DDEADBE</R15> <!-- a5 -->
+    <R16>0xF00DDEAD</R16> <!-- a6 -->
+    <R17>0xADF00DDE</R17> <!-- a7 -->
+    
+    <R18>0xFFFFADBE</R18> <!-- s2 -->
+      <PC>0x00001004</PC>
+  </RegisterValues>
+</Config>
