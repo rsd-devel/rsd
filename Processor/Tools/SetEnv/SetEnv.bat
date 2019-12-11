@@ -49,6 +49,6 @@ setx RSD_ARM_LINUX C:/Work/rsd-arm-linux
 :: Specify the root path of RSD-env, which is a closed repository that contains 
 :: external commercial packages/tools for RSD development.
 :: Currenttly, this repository is not opened.
-setx RSD_ENV C:/Work/RSD-env/
+:: setx RSD_ENV C:/Work/RSD-env/
 
 pause

@@ -31,7 +31,6 @@ code.bin: code.elf $(DUMMY_ROM)
 
 code.hex: code.bin
 	$(BIN_TO_HEX) code.bin $@ $(BIN_SIZE)
-	$(HEX_TO_IHEX) <$@ | perl -ple 's/_//g' >$(@:.hex=.ihex)
 
 
 
