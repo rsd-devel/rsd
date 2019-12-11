@@ -8,14 +8,12 @@ TARGETS = all clean
 # Copy files only if RSD_ENV is defined
 ifdef RSD_ENV
 COPIED_SRC_DIRS = \
-	Coremark \
-	Coremark_for_RV32I \
-	Coremark_for_Synthesis \
+	Dhrystone \
+	Dhrystone_for_Contest \
 
 COPY:
-	cp $(RSD_ENV)/Tools/Testbench/Coremark ./ -r -a
-	cp $(RSD_ENV)/Tools/Testbench/Coremark_for_RV32I ./ -r -a
-	cp $(RSD_ENV)/Tools/Testbench/Coremark_for_Synthesis ./ -r -a
+	cp $(RSD_ENV)/Tools/Testbench/Dhrystone ./ -r -a
+	cp $(RSD_ENV)/Tools/Testbench/Dhrystone_for_Contest ./ -r -a
 else
 COPIED_SRC_DIRS =
 COPY:

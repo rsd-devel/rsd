@@ -26,9 +26,13 @@
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_Synthesis/*
 
 /Processor/Src/Verification/TestCode/Dhrystone/*
+!/Processor/Src/Verification/TestCode/Dhrystone/Makefile
 
 /Processor/Src/Verification/TestCode/Zephyr/*
+!/Processor/Src/Verification/TestCode/Zephyr/Makefile
+
 /Processor/Src/Verification/TestCode/riscv-compliance/*
+!/Processor/Src/Verification/TestCode/riscv-compliance/Makefile
 
 /Processor/Src/*.log
 /Processor/Src/*.txt

@@ -32,7 +32,6 @@ LEVEL1_TESTS = \
 	test-RV32M-DividerTest \
 	test-HelloWorld \
 	test-Fibonacci \
-	test-Dhrystone \
 	test-Exception \
 
 #	test-RV32I-MisalignedMemAccess \
@@ -44,6 +43,7 @@ LEVEL2_TESTS = \
 	test-riscv-compliance \
 	test-Coremark \
 	test-Coremark_for_RV32I \
+	test-Dhrystone \
 	test-Zephyr \
 
 
