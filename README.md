@@ -28,18 +28,18 @@ The key features of RSD are as follows:
 
 ## Getting started 
 
-*  Install the following software for running simulation.    
+1.  Install the following software for running simulation.    
     * GNU Make and Python
     * Cygwin (if you use Windows)
     * Verilator or Mentor Modelsim/QuestaSim
 
-* Refer to scripts in Processor/Tools/SetEnv and set environment variables.
+2. Refer to scripts in Processor/Tools/SetEnv and set environment variables.
     * Use SetEnv.bat on Windows or SetEnv.sh on Linux
     * RSD_ROOT must be set for running simulation.
     * For Windows, RSD_CYGWIN_PATH should also be set
     * Set RSD_QUESTASIM_PATH when using Modelsim/QuestaSim
 
-* Go to Processor/Src and make as follows.
+3. Go to Processor/Src and make as follows.
     * For Verilator, add "-f Makefile.verilator" as follows.
         ```
         make
@@ -53,12 +53,12 @@ The key features of RSD are as follows:
         make kanata     # run simulation & outputs a konata log file
         ```
 
-* If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
+4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
     * Note that, the above sub-command is "kanata", not "konata".
 
-* You can see the execution pipeline of your simulation above with Konata.
+5. You can see the execution pipeline of your simulation above with Konata.
     * Konata is a pipeline visualizer and can be downloaded from [here](https://github.com/shioyadan/Konata/releases) 
-	* An example is shown below .
+	* An example is shown below.
     * ![konata](Docs/Images/konata.gif)
 
 
@@ -74,5 +74,5 @@ packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.
 ## References
 
 Susumu Mashimo, et al, "An Open Source FPGA-Optimized Out-of-Order RISC-V Soft 
-Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019.
+Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019. A pre-print version is [here](http://sv.rsg.ci.i.u-tokyo.ac.jp/pdfs/Mashimo-FPT'19.pdf).
 
