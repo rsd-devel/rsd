@@ -49,6 +49,6 @@ export RSD_ARM_LINUX=~/work/rsd-arm-linux
 # Specify the root path of RSD-env, which is a closed repository that contains 
 # external commercial packages/tools for RSD development.
 # Currently, this repository is not opened.
-export RSD_ENV=~/work/rsd-env/
+# export RSD_ENV=~/work/rsd-env/
 
 
