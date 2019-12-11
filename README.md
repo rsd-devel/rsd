@@ -42,9 +42,9 @@ The key features of RSD are as follows:
 3. Go to Processor/Src and make as follows.
     * For Verilator, add "-f Makefile.verilator" as follows.
         ```
-        make
-        make run        # run simulation
-        make kanata     # run simulation & outputs a konata log file
+        make -f Makefile.verilator
+        make -f Makefile.verilator run        # run simulation
+        make -f Makefile.verilator kanata     # run simulation & outputs a konata log file
         ```
     * For Modelsim/QuestaSim
         ```
