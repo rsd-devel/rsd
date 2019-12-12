@@ -77,5 +77,8 @@ hs*.dmp
 *.sublime-project
 *.sublime-workspace
 
+/.settings
+/.library_mapping.xml
+/.project
 
 Processor/Project/Synplify/*.prd

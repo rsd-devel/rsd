@@ -39,7 +39,7 @@ module TestIntALU;
         
         //        code    opA               opB         dataAssert
         `OP_TEST( AC_ADD, 32'hf,            32'h1,      32'h10       );
-        `OP_TEST( AC_ADD, 32'hffffffff,     32'h1,      32'h0,       ;
+        `OP_TEST( AC_ADD, 32'hffffffff,     32'h1,      32'h0        );
         `OP_TEST( AC_ADD, 32'hffffffff,     32'h0,      32'hffffffff );
         
         `OP_TEST( AC_SUB, 32'h00000000,     32'h1,      32'hffffffff );
