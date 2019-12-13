@@ -634,14 +634,16 @@ module DCache(
     logic lsuMakeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
-            dcReadAddrRegTagStg[i] = '0;
-            dcReadAddrRegDataStg[i] = '0;
+    `ifndef RSD_VIVADO_SIMULATION
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
+                dcReadAddrRegTagStg[i] = '0;
+                dcReadAddrRegDataStg[i] = '0;
+            end
+            dcWriteAddrReg = '0;
         end
-        dcWriteAddrReg = '0;
-    end
+    `endif
 `endif
 
     always_ff @(posedge port.clk) begin

@@ -28,10 +28,12 @@ module ProducerMatrix (
     IssueQueueOneHotPath [ISSUE_QUEUE_ENTRY_NUM-1:0] matrix;   // Don't care.
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        matrix = '0;
-    end
+    `ifndef RSD_VIVADO_SIMULATION
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            matrix = '0;
+        end
+    `endif
 `endif
 
     always_ff @(posedge clk) begin

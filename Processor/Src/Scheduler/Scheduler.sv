@@ -38,14 +38,16 @@ module Scheduler(
     logic canIssueDiv;
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        isInt = '0;
-        isComplex = '0;
-        isDiv = '0;
-        isLoad = '0;
-        isStore = '0;
-    end
+    `ifndef RSD_VIVADO_SIMULATION
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            isInt = '0;
+            isComplex = '0;
+            isDiv = '0;
+            isLoad = '0;
+            isStore = '0;
+        end
+    `endif
 `endif
 
     always_ff @(posedge port.clk) begin
