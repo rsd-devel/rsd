@@ -52,6 +52,12 @@ The key features of RSD are as follows:
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
+    * For Vivado, add "-f Makefile.vivado.mk" as follows.
+        ```
+        make -f Makefile.vivado.mk
+        make -f Makefile.vivado.mk run        # run simulation
+        make -f Makefile.vivado.mk kanata     # run simulation & outputs a konata log file
+        ```
 
 4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
     * Note that, the above sub-command is "kanata", not "konata".
