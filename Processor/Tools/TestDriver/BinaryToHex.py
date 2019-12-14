@@ -43,6 +43,9 @@ with open( hexFileName, 'w' ) as hexFile:
     # 各行内ではアドレスが大きい順で並ぶ必要があるので，適宜逆順にしながら出力する
     for offset in range(0, convertSize, ENTRY_BYTE_SIZE):
         tmpList = binData[offset : offset + ENTRY_BYTE_SIZE]
-        s = ''.join(map(lambda x: f"{x:02x}", tmpList[::-1])) + '\n'
+        if tmpList:
+            s = ''.join(map(lambda x: f"{x:02x}", tmpList[::-1])) + '\n'
+        else:
+            s = '0' * ENTRY_BYTE_SIZE * 2 + '\n'
         hexFile.write(s)
 
