@@ -70,3 +70,11 @@ kanata:
 
 clean:
 	rm -r -f $(PROJECT_WORK)
+
+
+# -------------------------------
+# Test related items are defined in this file
+RUN_TEST = @python ../Tools/TestDriver/RunTest.py --simulator=vivadosim
+RUN_TEST_OMIT_MSG = \
+	@python ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
+include Makefiles/TestCommands.inc.mk

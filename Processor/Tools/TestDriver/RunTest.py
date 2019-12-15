@@ -23,6 +23,10 @@ VERILATED_FILE_NAME = os.path.relpath(
     os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VMain_Zynq_Wrapper' )
 )
 
+VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
+    os.path.join( os.path.dirname( __file__ ), '../../Project/VivadoSim/work' )
+)
+
 
 class TestConfigError(Exception):
     """ Exception class """
@@ -187,6 +191,40 @@ class VerilatorSimulationDriver(object):
         os.system( cmd )
 
 
+class VivadoSimulationDriver(object):
+    TOP_MODULE_NAME    = 'TestMain'
+    XSIM_LOG_FILE_NAME = 'xsim.log'
+    XSIM               = 'xsim'
+    SOURCE_ROOT        = '../Src/'
+
+    def __init__(self, projectDirPath, testCodeDirPath, config, options):
+        self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
+        self.testCodeDirPath = testCodeDirPath  # Test code directory
+        self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
+
+        self.additionalOptionList = []
+        self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
+        self.additionalOptionList.append("-testplusarg TEST_CODE=%s"       % self.SOURCE_ROOT + (testCodeDirPath))
+        self.additionalOptionList.append("-testplusarg DUMMY_DATA_FILE=%s" % self.SOURCE_ROOT + "Verification/DummyData.hex")
+        self.additionalOptionList.append("-testplusarg ENABLE_PC_GOAL=%d"  % (config.enablePC_Goal))
+        self.omitStdout = options.omitQuestasimMessage
+        self.omitPrintCommand = options.quietMode
+
+    # Run simulation
+    def RunSimulation(self):
+        cmd = "cd %s && %s -runall %s %s %s" % (
+            self.projectDirPath,
+            self.XSIM,
+            " ".join( self.additionalOptionList ),
+            self.TOP_MODULE_NAME,
+            "> " + self.xsimLogPath if self.omitStdout else "| tee " + self.xsimLogPath
+        )
+
+        if (not self.omitPrintCommand):
+            print(cmd)
+        os.system( cmd )
+
+
 class RegisterValueComparator( object ):
     def __init__( self, testCodeName ):
         self.testCodeName = testCodeName
@@ -316,7 +354,9 @@ simName = "modelsim"
 if options.simulatorName is not None:
     simName = options.simulatorName
     if simName == "verilator":
-        pass
+        simName = "verilator"
+    elif simName == "vivadosim":
+        simName = "vivadosim"
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -343,6 +383,8 @@ for testCodePath in testCodePathList:
     simDriver = None
     if simName == "modelsim":
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
+    elif simName == "vivadosim":
+        simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
         simDriver = VerilatorSimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
     simDriver.RunSimulation()
