@@ -22,7 +22,7 @@ XELAB = xelab
 XSIM  = xsim
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../../../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
@@ -66,7 +66,7 @@ run:
 	cd $(PROJECT_WORK) && $(XSIM) -runall $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
 kanata:
-	cd $(PROJECT_WORK) && $(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
+	$(KANATA_CONVERTER) $(PROJECT_WORK)/$(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
 clean:
 	rm -r -f $(PROJECT_WORK)
