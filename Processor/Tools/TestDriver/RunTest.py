@@ -194,7 +194,7 @@ class VerilatorSimulationDriver(object):
 class VivadoSimulationDriver(object):
     TOP_MODULE_NAME    = 'TestMain'
     XSIM_LOG_FILE_NAME = 'xsim.log'
-    XSIM               = 'xsim'
+    XSIM               = os.environ['RSD_VIVADOSIM_PATH'] + '/xsim'
     SOURCE_ROOT        = '../Src/'
 
     def __init__(self, projectDirPath, testCodeDirPath, config, options):

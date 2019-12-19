@@ -17,9 +17,9 @@ UNIT_NAME         = Main
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
 
 # Simulation tools
-XVLOG = xvlog
-XELAB = xelab
-XSIM  = xsim
+XVLOG = $(RSD_VIVADOSIM_PATH)/xvlog
+XELAB = $(RSD_VIVADOSIM_PATH)/xelab
+XSIM  = $(RSD_VIVADOSIM_PATH)/xsim
 
 # Convert a RSD log to a Kanata log.
 KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
