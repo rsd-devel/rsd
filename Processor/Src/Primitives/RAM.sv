@@ -253,60 +253,66 @@ module InitializedBlockRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra,
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-
-`ifdef RSD_SYNTHESIS
-    Value array[ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
-`else
-    // This signal will be written in a test bench, so set public for verilator.
-    Value array[ENTRY_NUM] /*verilator public*/;
-`endif
-
-    Address raReg;
-
-    always_ff @(posedge clk) begin
-        if(we)
-            array[wa] <= wv;
-            
-        raReg <= ra;
-    end
-    
-    always_comb begin
-        rv = array[raReg];
-    end
-
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
-        end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
 
     generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && wa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(ra >= ENTRY_NUM),
-            ("Read from the outside of the RAM array.")
-        );
+        // generate で生成したモジュールにアクセスする場合は
+        // if や for にラベルを付与する必要がある
+        if (ENTRY_BIT_SIZE <= 128) begin : body
+            InitializedBlockRAM_ForNarrowRequest #(
+                .ENTRY_NUM (ENTRY_NUM),
+                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
+                .INIT_HEX_FILE (INIT_HEX_FILE)
+            ) ram (
+                .clk (clk),
+                .we (we),
+                .wa (wa),
+                .wv (wv),
+                .ra (ra),
+                .rv (rv)
+            );
+        end
+        else begin : body
+            InitializedBlockRAM_ForWideRequest #(
+                .ENTRY_NUM (ENTRY_NUM),
+                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
+                .INIT_HEX_FILE (INIT_HEX_FILE)
+            ) ram (
+                .clk (clk),
+                .we (we),
+                .wa (wa),
+                .wv (wv),
+                .ra (ra),
+                .rv (rv)
+            );
+        end
     endgenerate
+
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    `ifndef RSD_POST_SYNTHESIS
+    // Initialize memory data with file read data
+    function automatic void InitializeMemory(string INIT_HEX_FILE);
+        $readmemh(INIT_HEX_FILE, body.ram.array);
+    endfunction
+
+    function automatic void FillDummyData(string DUMMY_DATA_FILE, integer DUMMY_HEX_ENTRY_NUM);
+        integer entry;
+        for ( entry = 0; entry < body.ram.HEX_FILE_ARRAY_ENTRY_NUM; entry += DUMMY_HEX_ENTRY_NUM ) begin
+            $readmemh(
+                DUMMY_DATA_FILE,
+                body.ram.array,
+                entry, // 開始アドレス（エントリ番号）
+                entry + DUMMY_HEX_ENTRY_NUM - 1 // 終了アドレス（エントリ番号）
+            );
+        end
+    endfunction
+    `endif
+`endif
     
 endmodule : InitializedBlockRAM
 
 
 //
-// InitializedBlockRAM that supports a bandwidth of 64 bits or less
+// InitializedBlockRAM that supports a bandwidth of 128 bits or less
 //
 module InitializedBlockRAM_ForNarrowRequest #( 
     parameter ENTRY_NUM = 128, 
@@ -368,11 +374,12 @@ module InitializedBlockRAM_ForNarrowRequest #(
         end
     endfunction
 
+    localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
 `ifdef RSD_SYNTHESIS
-    HexArrayValue array[1 << HEX_FILE_INDEX_BIT_SIZE]; // synthesis syn_ramstyle = "block_ram"
+    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
 `else
     // This signal will be written in a test bench, so set public for verilator.
-    HexArrayValue array[1 << HEX_FILE_INDEX_BIT_SIZE] /*verilator public*/;
+    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM] /*verilator public*/;
 `endif
 
     Address raReg;
@@ -506,11 +513,12 @@ module InitializedBlockRAM_ForWideRequest #(
         end
     endfunction
 
+    localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
 `ifdef RSD_SYNTHESIS
-    HexArrayValue array[1 << HEX_FILE_INDEX_BIT_SIZE]; // synthesis syn_ramstyle = "block_ram"
+    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
 `else
     // This signal will be written in a test bench, so set public for verilator.
-    HexArrayValue array[1 << HEX_FILE_INDEX_BIT_SIZE] /*verilator public*/;
+    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM] /*verilator public*/;
 `endif
 
     Address raReg;
