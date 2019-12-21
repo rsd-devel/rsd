@@ -254,10 +254,11 @@ module InitializedBlockRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
+    localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
     generate
         // Add label to if and for clause to access the module that
         // generated dynamically
-        if (ENTRY_BIT_SIZE <= 128) begin : body
+        if (ENTRY_BIT_SIZE <= HEX_FILE_ENTRY_BIT_SIZE) begin : body
             InitializedBlockRAM_ForNarrowRequest #(
                 .ENTRY_NUM (ENTRY_NUM),
                 .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
