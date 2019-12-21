@@ -108,8 +108,9 @@ class SimulationDriver( object ):
     VSIM_LOG_FILE_NAME = 'vsim.log'
 
     def __init__(self, projectDirPath, testCodeDirPath, config, options):
-        self.projectDirPath = projectDirPath   # QuestaSimのプロジェクトディレクトリ
-        self.testCodeDirPath = testCodeDirPath # テストコードの存在するディレクトリ
+        self.projectDirPath = projectDirPath   # A project directory for QuestaSim
+        self.testCodeDirPath = testCodeDirPath # A directory where test code exists
+
         self.vsimLogPath = os.path.join(testCodeDirPath, self.VSIM_LOG_FILE_NAME)
 
         self.additionalOptionList = []
@@ -120,7 +121,7 @@ class SimulationDriver( object ):
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 
-    # シミュレーションを実行
+    # Perform simulation
     def RunSimulation(self):
         QUESTASIM_DIR_PATH = os.environ['RSD_QUESTASIM_PATH']
         VSIM_PATH = QUESTASIM_DIR_PATH + '/vsim -c +SEED=0'
@@ -150,8 +151,8 @@ class VerilatorSimulationDriver(object):
     VERILATOR_LOG_FILE_NAME = 'verilator.log'
 
     def __init__(self, verilatedBinPath, testCodeDirPath, config, options):
-        self.verilatedBinPath = verilatedBinPath   # QuestaSimのプロジェクトディレクトリ
-        self.testCodeDirPath = testCodeDirPath # テストコードの存在するディレクトリ
+        self.verilatedBinPath = verilatedBinPath    # A path to a verilated binary 
+        self.testCodeDirPath = testCodeDirPath      # A directory where test code exists
         self.verilatorLogPath = os.path.join(testCodeDirPath, self.VERILATOR_LOG_FILE_NAME)
 
         self.additionalOptionList = []
@@ -171,21 +172,6 @@ class VerilatorSimulationDriver(object):
             " ".join(self.additionalOptionList),
             "> " + self.verilatorLogPath if self.omitStdout else "| tee " + self.verilatorLogPath
         )
-        
-
-            #"""
-            #%s %s/%s.%s \
-            #TEST_CODE=%s \
-            #%s -do "run -all" %s
-            #""" % ( VSIM_PATH,
-            #self.projectDirPath,
-            #self.LIBRARY_NAME,
-            #self.TOP_MODULE_NAME,
-            #self.testCodeDirPath,
-            #" ".join( self.additionalOptionList ),
-            #"> " + self.vsimLogPath if omitStdout else "| tee " + self.vsimLogPath
-            #)
-
 
         if (not self.omitPrintCommand):
             print(cmd)
