@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-# QuestaSimを用いて雷上動プロセッサをテストする。
-# プロセッサ上でテストプログラムを実行し、実行結果の検証を行う。
+# A helper script for test RSD using QuestaSim/Verilator/VivadoSim.
+# It runs test programs and verify results
 
 import os, sys, subprocess
 from optparse import OptionParser
@@ -12,8 +12,6 @@ REG_OUT_FILE_NAME = 'reg.out.hex'
 SERIAL_OUT_FILE_NAME = 'serial.out.txt'
 SERIAL_REF_FILE_NAME = 'serial.ref.txt'
 
-QUESTASIM_DIR_PATH = os.environ['RSD_QUESTASIM_PATH']
-VSIM_PATH = QUESTASIM_DIR_PATH + '/vsim -c +SEED=0'
 # Warning! : vsim cannot use abspath as commandline argument
 QUESTASIM_PROJECT_DIR_PATH = os.path.relpath(
     os.path.join( os.path.dirname( __file__ ), '../../Project/ModelSim' )
@@ -21,6 +19,10 @@ QUESTASIM_PROJECT_DIR_PATH = os.path.relpath(
 
 VERILATED_FILE_NAME = os.path.relpath(
     os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VMain_Zynq_Wrapper' )
+)
+
+VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
+    os.path.join( os.path.dirname( __file__ ), '../../Project/VivadoSim/work' )
 )
 
 
@@ -106,8 +108,9 @@ class SimulationDriver( object ):
     VSIM_LOG_FILE_NAME = 'vsim.log'
 
     def __init__(self, projectDirPath, testCodeDirPath, config, options):
-        self.projectDirPath = projectDirPath   # QuestaSimのプロジェクトディレクトリ
-        self.testCodeDirPath = testCodeDirPath # テストコードの存在するディレクトリ
+        self.projectDirPath = projectDirPath   # A project directory for QuestaSim
+        self.testCodeDirPath = testCodeDirPath # A directory where test code exists
+
         self.vsimLogPath = os.path.join(testCodeDirPath, self.VSIM_LOG_FILE_NAME)
 
         self.additionalOptionList = []
@@ -118,8 +121,11 @@ class SimulationDriver( object ):
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 
-    # シミュレーションを実行
+    # Perform simulation
     def RunSimulation(self):
+        QUESTASIM_DIR_PATH = os.environ['RSD_QUESTASIM_PATH']
+        VSIM_PATH = QUESTASIM_DIR_PATH + '/vsim -c +SEED=0'
+
         cmd = """
             %s %s/%s.%s \
             +TEST_CODE=%s \
@@ -145,8 +151,8 @@ class VerilatorSimulationDriver(object):
     VERILATOR_LOG_FILE_NAME = 'verilator.log'
 
     def __init__(self, verilatedBinPath, testCodeDirPath, config, options):
-        self.verilatedBinPath = verilatedBinPath   # QuestaSimのプロジェクトディレクトリ
-        self.testCodeDirPath = testCodeDirPath # テストコードの存在するディレクトリ
+        self.verilatedBinPath = verilatedBinPath    # A path to a verilated binary 
+        self.testCodeDirPath = testCodeDirPath      # A directory where test code exists
         self.verilatorLogPath = os.path.join(testCodeDirPath, self.VERILATOR_LOG_FILE_NAME)
 
         self.additionalOptionList = []
@@ -166,21 +172,41 @@ class VerilatorSimulationDriver(object):
             " ".join(self.additionalOptionList),
             "> " + self.verilatorLogPath if self.omitStdout else "| tee " + self.verilatorLogPath
         )
-        
 
-            #"""
-            #%s %s/%s.%s \
-            #TEST_CODE=%s \
-            #%s -do "run -all" %s
-            #""" % ( VSIM_PATH,
-            #self.projectDirPath,
-            #self.LIBRARY_NAME,
-            #self.TOP_MODULE_NAME,
-            #self.testCodeDirPath,
-            #" ".join( self.additionalOptionList ),
-            #"> " + self.vsimLogPath if omitStdout else "| tee " + self.vsimLogPath
-            #)
+        if (not self.omitPrintCommand):
+            print(cmd)
+        os.system( cmd )
 
+
+class VivadoSimulationDriver(object):
+    TOP_MODULE_NAME    = 'TestMain'
+    XSIM_LOG_FILE_NAME = 'xsim.log'
+    SOURCE_ROOT        = '../Src/'
+
+    def __init__(self, projectDirPath, testCodeDirPath, config, options):
+        self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
+        self.testCodeDirPath = testCodeDirPath  # Test code directory
+        self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
+        self.xsimPath = os.environ['RSD_VIVADOSIM_PATH'] + '/xsim'
+
+        self.additionalOptionList = []
+        self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
+        self.additionalOptionList.append("-testplusarg TEST_CODE=%s"       % self.SOURCE_ROOT + (testCodeDirPath))
+        self.additionalOptionList.append("-testplusarg DUMMY_DATA_FILE=%s" % self.SOURCE_ROOT + "Verification/DummyData.hex")
+        self.additionalOptionList.append("-testplusarg ENABLE_PC_GOAL=%d"  % (config.enablePC_Goal))
+        self.omitStdout = options.omitQuestasimMessage
+        self.omitPrintCommand = options.quietMode
+
+
+    # Run simulation
+    def RunSimulation(self):
+        cmd = "cd %s && %s -runall %s %s %s" % (
+            self.projectDirPath,
+            self.xsimPath,
+            " ".join( self.additionalOptionList ),
+            self.TOP_MODULE_NAME,
+            "> " + self.xsimLogPath if self.omitStdout else "| tee " + self.xsimLogPath
+        )
 
         if (not self.omitPrintCommand):
             print(cmd)
@@ -298,7 +324,7 @@ parser.add_option('-l', '--rsd-log',
                   help="Specify an RSD log file name.")
 parser.add_option('-s', '--simulator',
                   action='store', type='string', dest='simulatorName',
-                  help="Specify the name of a simulator [questa/modelsim/verilator]. If this option is not specified, modelsim is used.")
+                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim]. If this option is not specified, modelsim is used.")
 parser.add_option('-q', '--quiet',
                   action='store_true', dest='quietMode', default=False,
                   help="Omit any messages of this script")
@@ -316,7 +342,9 @@ simName = "modelsim"
 if options.simulatorName is not None:
     simName = options.simulatorName
     if simName == "verilator":
-        pass
+        simName = "verilator"
+    elif simName == "vivadosim":
+        simName = "vivadosim"
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -343,6 +371,8 @@ for testCodePath in testCodePathList:
     simDriver = None
     if simName == "modelsim":
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
+    elif simName == "vivadosim":
+        simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
         simDriver = VerilatorSimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
     simDriver.RunSimulation()

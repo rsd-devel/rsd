@@ -760,6 +760,7 @@ module DistributedSharedMultiPortRAM #(
             ("Port (%x) read from or write to the outside of the RAM array.", 0)
         );
 
+`ifndef RSD_VIVADO_SIMULATION
         for (genvar i = 0; i < READ_NUM-1; i++) begin
             `RSD_ASSERT_CLK_FMT(
                 clk,
@@ -767,6 +768,7 @@ module DistributedSharedMultiPortRAM #(
                 ("Port (%x) read from the outside of the RAM array.", i+1)
             );
         end
+`endif
     endgenerate
         
 endmodule : DistributedSharedMultiPortRAM

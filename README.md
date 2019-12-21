@@ -31,7 +31,8 @@ The key features of RSD are as follows:
 1.  Install the following software for running simulation.    
     * GNU Make and Python
     * Cygwin (if you use Windows)
-    * Verilator or Mentor Modelsim/QuestaSim
+    * Verilator or Mentor Modelsim/QuestaSim or Xilinx Vivado
+        * When using Vivado, 2019.1 or a newer version is required.
 
 2. Refer to scripts in Processor/Tools/SetEnv and set environment variables.
     * Use SetEnv.bat on Windows or SetEnv.sh on Linux
@@ -40,19 +41,15 @@ The key features of RSD are as follows:
     * Set RSD_QUESTASIM_PATH when using Modelsim/QuestaSim
 
 3. Go to Processor/Src and make as follows.
-    * For Verilator, add "-f Makefile.verilator" as follows.
-        ```
-        make -f Makefile.verilator
-        make -f Makefile.verilator run        # run simulation
-        make -f Makefile.verilator kanata     # run simulation & outputs a konata log file
-        ```
     * For Modelsim/QuestaSim
         ```
         make
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
-
+    * For Verilator, add ```-f Makefile.verilator.mk``` like ```make -f Makefile.verilator.mk run```
+    * For Vivado, add ```-f Makefile.vivado.mk``` like ```make -f Makefile.vivado.mk run```
+        
 4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
     * Note that, the above sub-command is "kanata", not "konata".
 
