@@ -40,24 +40,14 @@ The key features of RSD are as follows:
     * Set RSD_QUESTASIM_PATH when using Modelsim/QuestaSim
 
 3. Go to Processor/Src and make as follows.
-    * For Verilator, add "-f Makefile.verilator" as follows.
-        ```
-        make -f Makefile.verilator
-        make -f Makefile.verilator run        # run simulation
-        make -f Makefile.verilator kanata     # run simulation & outputs a konata log file
-        ```
     * For Modelsim/QuestaSim
         ```
         make
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
-    * For Vivado, add "-f Makefile.vivado.mk" as follows.
-        ```
-        make -f Makefile.vivado.mk
-        make -f Makefile.vivado.mk run        # run simulation
-        make -f Makefile.vivado.mk kanata     # run simulation & outputs a konata log file
-        ```
+    * For Verilator, add ```-f Makefile.verilator.mk``` like ```make -f Makefile.verilator.mk run```
+    * For Vivado, add ```-f Makefile.vivado.mk``` like ```make -f Makefile.vivado.mk run```
 
 4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
     * Note that, the above sub-command is "kanata", not "konata".
