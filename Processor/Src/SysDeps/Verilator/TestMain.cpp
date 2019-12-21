@@ -152,8 +152,8 @@ int main(int argc, char** argv) {
     //uint32_t* mainMem = &(top->Main_Zynq_Wrapper->main->memory->body->array[0][0]);
     //assert(top->MemoryTypes->MEMORY_ENTRY_BIT_NUM == 128);
     //assert(sizeof(top->Main_Zynq_Wrapper->main->memory->body->array) == 128/8 * MEMORY_ENTRY_NUM);
-    // 追記：generate 内で生成したモジュールにアクセスする場合は
-    // (generate 節内で付与したラベル)__DOT__(モジュール名) を使う模様．
+    // To access the module generated in generate,
+    // use (Label given in generate section)__DOT__(module name)
     size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array) / sizeof(uint32_t);
     uint32_t* mainMem = (uint32_t*)(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array);
 

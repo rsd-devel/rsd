@@ -255,8 +255,8 @@ module InitializedBlockRAM #(
 );
 
     generate
-        // generate で生成したモジュールにアクセスする場合は
-        // if や for にラベルを付与する必要がある
+        // Add label to if and for clause to access the module that
+        // generated dynamically
         if (ENTRY_BIT_SIZE <= 128) begin : body
             InitializedBlockRAM_ForNarrowRequest #(
                 .ENTRY_NUM (ENTRY_NUM),
@@ -300,8 +300,8 @@ module InitializedBlockRAM #(
             $readmemh(
                 DUMMY_DATA_FILE,
                 body.ram.array,
-                entry, // 開始アドレス（エントリ番号）
-                entry + DUMMY_HEX_ENTRY_NUM - 1 // 終了アドレス（エントリ番号）
+                entry, // Begin address
+                entry + DUMMY_HEX_ENTRY_NUM - 1 // End address
             );
         end
     endfunction
