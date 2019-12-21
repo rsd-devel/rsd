@@ -391,6 +391,8 @@ module InitializedBlockRAM_ForNarrowRequest #(
     HexArrayValue hexFileWV;
     HexArrayEntryOffset hexFileWAOffset;
     HexArrayValue tmpWriteEntry;
+    // Hack for synplify: avoid being inferred as asymmetric RAM
+    HexArrayValue dummyRV/* synthesis syn_noprune=1 */;
 
     always_ff @(posedge clk) begin
         if (we) begin
@@ -398,6 +400,7 @@ module InitializedBlockRAM_ForNarrowRequest #(
         end
             
         raReg <= ra;
+        dummyRV <= hexFileRV;
     end
     
     // Read request
