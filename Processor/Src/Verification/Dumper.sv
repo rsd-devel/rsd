@@ -418,7 +418,7 @@ package DumperTypes;
                     );
                 end
                 else begin
-                    $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\op:0b%b, size:0b%b, signed:0b",
+                    $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\op:0b%b, size:0b%b, signed:0b%b",
                         str,
                         debugRegister.memExReg[i].addrOut,
                         debugRegister.memExReg[i].fuOpA,
