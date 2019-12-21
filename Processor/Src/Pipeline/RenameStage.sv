@@ -112,13 +112,15 @@ module RenameStage(
 
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < RENAME_WIDTH; i++) begin
-            pipeReg[i] = '0;
+    `ifndef RSD_VIVADO_SIMULATION
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < RENAME_WIDTH; i++) begin
+                pipeReg[i] = '0;
+            end
+            regRecoveredPC = '0;
         end
-        regRecoveredPC = '0;
-    end
+    `endif
 `endif
 
     always_ff@( posedge port.clk )   // synchronous rst
