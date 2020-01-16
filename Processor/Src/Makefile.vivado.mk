@@ -65,6 +65,12 @@ run:
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -runall $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
+run-gui:
+	# elaboration
+	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE) -debug all
+	# simulation
+	cd $(PROJECT_WORK) && $(XSIM) -gui $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
+
 kanata:
 	$(KANATA_CONVERTER) $(PROJECT_WORK)/$(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
