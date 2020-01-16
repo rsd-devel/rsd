@@ -569,9 +569,8 @@ module DistributedSharedMultiPortRAM #(
 endmodule : DistributedSharedMultiPortRAM
 
 
-
-// N-read / M-write (Live Value Table 使用)
-module DistributedMultiPortRAM #( 
+// N-read / M-write (Use Live Value Table)
+module LVT_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM = 3,
@@ -588,12 +587,11 @@ module DistributedMultiPortRAM #(
     typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     
-    localparam WRITE_NUM_BIT_SIZE = $clog2(WRITE_NUM);
+    // avoid logic[-1:0] when WRITE_NUM == 1
+    localparam WRITE_NUM_BIT_SIZE = WRITE_NUM == 1 ? 1 : $clog2(WRITE_NUM);
     typedef logic [WRITE_NUM_BIT_SIZE-1: 0] LiveValue;
-    
-    
 
-    // generate で生成すると，書き込み調停用の回路が作られない
+    // When using *generate*, a circuit for write arbitration is not created
     generate 
         
         if (WRITE_NUM > 1) begin
@@ -601,11 +599,16 @@ module DistributedMultiPortRAM #(
             LiveValue lvi[WRITE_NUM];
             LiveValue lvo[READ_NUM];
 
-            NarrowDistributedMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
-            //RegisterMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+            RegisterMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
                 lvt(clk, we, wa, lvi, ra, lvo);
+`else
+            // For Xilinx
+            XOR_DistributedMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
+                lvt(clk, we, wa, lvi, ra, lvo);
+`endif
 
-            // read/write 用に必要なだけデュプリケート
+            // Duplicate as many as needed for read/write
             for (genvar j = 0; j < WRITE_NUM; j++) begin
                 for ( genvar i = 0; i < READ_NUM; i++) begin
                     DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
@@ -623,7 +626,7 @@ module DistributedMultiPortRAM #(
         end
         else begin
             // For single write port RAM.
-            // read 用に必要なだけデュプリケート
+            // Duplicate as many as needed for read
             for (genvar i = 0; i < READ_NUM; i++) begin
                 DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                     rBank(clk, we[0], wa[0], wv[0], ra[i], rv[i]);
@@ -634,16 +637,27 @@ module DistributedMultiPortRAM #(
     
     // For Debug
 `ifndef RSD_SYNTHESIS
-        Value debugValue[ENTRY_NUM];
-        always_ff @ ( posedge clk ) begin
-            for(int i = 0; i < WRITE_NUM; i++) begin
-                if( we[i] )
-                    debugValue[ wa[i] ] <= wv[i];
-            end
+    // This signal will be written in a test bench, so set public for verilator.
+    Value debugValue[ ENTRY_NUM ] /*verilator public*/;  
+    always_ff @ ( posedge clk ) begin
+        for(int i = 0; i < WRITE_NUM; i++) begin
+            if( we[i] )
+                debugValue[ wa[i] ] <= wv[i];
         end
+    end
+
+    generate
+        for (genvar i = 0; i < READ_NUM; i++) begin
+            `RSD_ASSERT_CLK_FMT(
+                clk,
+                debugValue[ra[i]] == rv[i],
+                ("The read output of a port(%x) is incorrect.", i)
+            );
+        end
+    endgenerate
 `endif
     
-endmodule : DistributedMultiPortRAM
+endmodule : LVT_DistributedMultiPortRAM
 
 
 //
@@ -652,7 +666,7 @@ endmodule : DistributedMultiPortRAM
 // FPGA 2012
 //
 
-module NarrowDistributedMultiPortRAM #(
+module XOR_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 32, 
     parameter ENTRY_BIT_SIZE = 2, 
     parameter READ_NUM  = 8,
@@ -770,9 +784,79 @@ module NarrowDistributedMultiPortRAM #(
                 debugValue[ wa[i] ] <= wv[i];
         end
     end
+
+    generate
+        for (genvar i = 0; i < READ_NUM; i++) begin
+            `RSD_ASSERT_CLK_FMT(
+                clk,
+                debugValue[ra[i]] == rv[i],
+                ("The read output of a port(%x) is incorrect.", i)
+            );
+        end
+    endgenerate
 `endif
 
-endmodule : NarrowDistributedMultiPortRAM
+endmodule : XOR_DistributedMultiPortRAM
+
+
+// N-read / M-write (use Live Value Table)
+module DistributedMultiPortRAM #( 
+    parameter ENTRY_NUM = 64, 
+    parameter ENTRY_BIT_SIZE = 63, 
+    parameter READ_NUM = 3,
+    parameter WRITE_NUM = 3
+)( 
+    input logic clk,
+    input logic we[ WRITE_NUM ],
+    input logic [$clog2(ENTRY_NUM)-1: 0] wa[WRITE_NUM],
+    input logic [ENTRY_BIT_SIZE-1: 0] wv[WRITE_NUM],
+    input logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
+    output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
+);
+    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
+
+    generate 
+        if ((READ_NUM < 2 && WRITE_NUM && ENTRY_BIT_SIZE < 8) || 
+            (INDEX_BIT_SIZE <= 4 && ENTRY_BIT_SIZE > 64)) begin
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+            RegisterMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+                body(clk, we, wa, wv, ra, rv);
+`else
+            // For Xilinx
+            XOR_DistributedMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+                body(clk, we, wa, wv, ra, rv);
+`endif
+        end
+        else begin
+            LVT_DistributedMultiPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+                body(clk, we, wa, wv, ra, rv);
+        end
+    endgenerate
+
+    // For Debug
+`ifndef RSD_SYNTHESIS
+    Value debugValue[ENTRY_NUM] /*verilator public*/;
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < WRITE_NUM; i++) begin
+            if (we[i])
+                debugValue[ wa[i] ] <= wv[i];
+        end
+    end
+
+    generate
+        for (genvar i = 0; i < READ_NUM; i++) begin
+            `RSD_ASSERT_CLK_FMT(
+                clk,
+                debugValue[ra[i]] == rv[i],
+                ("The read output of a port(%x) is incorrect.", i)
+            );
+        end
+    endgenerate
+`endif
+    
+endmodule
 
 
 //
