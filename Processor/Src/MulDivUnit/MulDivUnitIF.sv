@@ -16,6 +16,8 @@ import OpFormatTypes::*;
 
 interface MulDivUnitIF(input logic clk, rst);
 
+    // dummy signal to prevent that some modports become empty
+    logic dummy;
     logic stall;
 
     DataPath dataInA[MULDIV_ISSUE_WIDTH];
@@ -40,7 +42,7 @@ interface MulDivUnitIF(input logic clk, rst);
     logic divResetFromMI_Stage[MULDIV_ISSUE_WIDTH];
     logic divResetFromMR_Stage[MULDIV_ISSUE_WIDTH];
     logic divResetFromMT_Stage[MULDIV_ISSUE_WIDTH];
-    
+
     logic divResetFromCI_Stage[MULDIV_ISSUE_WIDTH];
 
     modport MulDivUnit(
@@ -71,9 +73,14 @@ interface MulDivUnitIF(input logic clk, rst);
     );
 
     modport ComplexIntegerIssueStage(
+    input
+        dummy
+        ,
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     output
         divAcquire,
         divResetFromCI_Stage
+`endif
     );
 
     modport ComplexIntegerExecutionStage(
@@ -83,7 +90,9 @@ interface MulDivUnitIF(input logic clk, rst);
         divFinished,
         divBusy,
         divReserved,
-        divFree,
+        divFree
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
     output
         stall,
         dataInA,
@@ -94,12 +103,18 @@ interface MulDivUnitIF(input logic clk, rst);
         divReset,
         divReq,
         divRelease
+`endif
     );
 
     modport MemoryIssueStage(
+    input
+        dummy
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
     output
         divAcquire,
         divResetFromMI_Stage
+`endif
     );
 
     modport MemoryRegisterReadStage(
@@ -111,7 +126,9 @@ interface MulDivUnitIF(input logic clk, rst);
     input
         divBusy,
         divReserved,
-        divFree,
+        divFree
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
     output
         stall,
         dataInA,
@@ -121,12 +138,13 @@ interface MulDivUnitIF(input logic clk, rst);
         divCode,
         divReset,
         divReq
+`endif
     );
 
     modport MemoryTagAccessStage(
     input
         divFinished,
-    output 
+    output
         divResetFromMT_Stage
     );
 
@@ -134,9 +152,12 @@ interface MulDivUnitIF(input logic clk, rst);
     input
         mulDataOut,
         divDataOut,
-        divFinished,
-    output 
+        divFinished
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
+    output
         divRelease
+`endif
     );
 
 
