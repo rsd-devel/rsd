@@ -109,7 +109,7 @@ module TestMain;
     DataPath regData[ LSCALAR_NUM ];
 
     integer commitNumInLastCycle;
-    integer numCommittedARM_Op;
+    integer numCommittedRISCV_Op;
     integer numCommittedMicroOp;
     real realTmp;
 
@@ -163,7 +163,7 @@ module TestMain;
 
         // init variable
         dumpFlush = FALSE;
-        numCommittedARM_Op = 0;
+        numCommittedRISCV_Op = 0;
         numCommittedMicroOp = 0;
 
         // settings
@@ -268,7 +268,7 @@ module TestMain;
                 if ( debugRegister.cmReg[i].commit ) begin
                     numCommittedMicroOp += 1;
                     if ( debugRegister.cmReg[i].opId.mid == 0 ) begin
-                        numCommittedARM_Op += 1;
+                        numCommittedRISCV_Op += 1;
                     end
                 end
             end
@@ -290,11 +290,11 @@ module TestMain;
         if ( enableDumpRegCSV ) registerFileCSV_Dumper.Close();
 
         // Simulation Result
-        $display( "Num of committed RISC-V-ops : %d", numCommittedARM_Op );
+        $display( "Num of committed RISC-V-ops : %d", numCommittedRISCV_Op );
         $display( "Num of committed micro-ops : %d", numCommittedMicroOp );
         if ( cycle != 0 ) begin
-            $cast( realTmp, cycle );
-            $display( "IPC (RISC-V instruction): %f", numCommittedARM_Op / realTmp );
+            realTmp = cycle;
+            $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
 

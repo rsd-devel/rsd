@@ -30,7 +30,7 @@ input
     OOT_PC:
         return pcV;
     endcase
-endfunction;
+endfunction
 
 //
 // --- Memory Register Read Stage

@@ -63,7 +63,7 @@ package DumperTypes;
             m_cycle++;
             $fwrite( m_file, "C\t%d\n", 1 );
             $fwrite( m_file, "#\tcycle:%0d\n", m_cycle );
-        endfunction;
+        endfunction
 
         function automatic void DumpStage( integer stage, logic valid, logic stall, logic clear, integer sid, integer mid, string str );
             // Format: S    stage_id valid stall clear sid mid
@@ -480,7 +480,7 @@ package DumperTypes;
 `ifdef RSD_FUNCTIONAL_SIMULATION
                     // Memory access
                     if( debugRegister.maReg[i].executeLoad ) begin
-                        $sformat( str, "%s\\n#0x%0x = load()",
+                        $sformat( str, "%s\\n#0x%0x (vec:%0x) = load()",
                             str,
                             debugRegister.maReg[i].executedLoadData,
                             debugRegister.maReg[i].executedLoadVectorData
@@ -607,7 +607,7 @@ package DumperTypes;
             m_file = $fopen( fileName, "w" );
             $fwrite( m_file, "%s", m_str );
             $fclose( m_file );
-        endfunction;
+        endfunction
 
     endclass;
 
@@ -663,7 +663,7 @@ package DumperTypes;
         // サイクルを一つ進める
         function automatic void ProceedCycle();
             m_cycle++;
-        endfunction;
+        endfunction
 
         function automatic void Dump(
             input AddrPath pc,
