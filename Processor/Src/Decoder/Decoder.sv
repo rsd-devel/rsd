@@ -1097,6 +1097,7 @@ function automatic void RISCV_EmitSystemOp(
         // NOP 扱いにしておく
         opInfo.mopType = MOP_TYPE_INT;
         opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+        systemOp.envCode = ENV_BREAK;
     end
     else begin
         unique case(SystemFunct12'(isfSystem.funct12))
