@@ -262,7 +262,6 @@ set proj_dir [get_property directory [current_project]]
 # Set project properties
 set obj [current_project]
 set_property -name "board_part" -value "em.avnet.com:zed:part0:1.4" -objects $obj
-set_property -name "compxlib.questa_compiled_library_dir" -value "/home/matsuo/workspace/vivado/RSD_2019.2/project_1.cache/compile_simlib/questa" -objects $obj
 set_property -name "default_lib" -value "xil_defaultlib" -objects $obj
 set_property -name "enable_vhdl_2008" -value "1" -objects $obj
 set_property -name "ip_cache_permissions" -value "read write" -objects $obj
@@ -1269,7 +1268,7 @@ set_property -name "top" -value "TestMain" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
 set_property -name "top_lib" -value "xil_defaultlib" -objects $obj
 set_property -name "verilog_define" -value "RSD_VIVADO_SIMULATION RSD_POST_SYNTHESIS_SIMULATION" -objects $obj
-set_property -name "xsim.simulate.xsim.more_options" -value "-testplusarg RSD_LOG_FILE=RSD-post-synthesis.log -testplusarg SHOW_SERIAL_OUT=1 -testplusarg MAX_TEST_CYCLES=1000000" -objects $obj
+set_property -name "xsim.simulate.xsim.more_options" -value "-testplusarg MAX_TEST_CYCLES=1000000 -testplusarg TEST_CODE=./ -testplusarg ENABLE_PC_GOAL=1 -testplusarg SHOW_SERIAL_OUT=0 -testplusarg RSD_LOG_FILE=RSD-post-synthesis.log" -objects $obj
 
 # Set 'utils_1' fileset object
 set obj [get_filesets utils_1]
