@@ -40,7 +40,7 @@ input
     logic rxd,
 `endif
 
-`ifndef RSD_DISABLE_DEBUG_REGISTER
+`ifndef RSD_POST_SYNTHESIS
 output
     DebugRegister debugRegister,
 `endif
@@ -60,6 +60,10 @@ output
     logic txd
 `endif
 );
+
+`ifdef RSD_POST_SYNTHESIS
+   (* DONT_TOUCH="yes"*) logic [$bits(DebugRegister)-1:0] debugRegister;
+`endif
 
 `ifdef RSD_USE_EXTERNAL_MEMORY
     Axi4MemoryIF axi4MemoryIF();

@@ -144,6 +144,11 @@ module TestMain;
         .*
     );
 
+`ifdef RSD_POST_SYNTHESIS_SIMULATION
+    always_comb begin
+        debugRegister = main.debugRegister;
+    end
+`endif
     //
     // Dumpers
     //
