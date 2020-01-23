@@ -128,7 +128,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStageIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Scheduler/ProducerMatrix.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/Queue.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/RAM_Synplify.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/RAM_Vivado.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/RenameLogic/RMT.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Scheduler/ReadyBitTable.sv"
@@ -160,7 +159,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4LiteControlRegister.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4LiteControlRegisterIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/ControlQueue.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/RAM.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4MemoryIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryReadReqQueue.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryWriteDataQueue.sv"
@@ -382,7 +380,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../Src/Pipeline/PreDecodeStageIF.sv"] \
  [file normalize "${origin_dir}/../../../Src/Scheduler/ProducerMatrix.sv"] \
  [file normalize "${origin_dir}/../../../Src/Primitives/Queue.sv"] \
- [file normalize "${origin_dir}/../../../Src/Primitives/RAM_Synplify.sv"] \
  [file normalize "${origin_dir}/../../../Src/Primitives/RAM_Vivado.sv"] \
  [file normalize "${origin_dir}/../../../Src/RenameLogic/RMT.sv"] \
  [file normalize "${origin_dir}/../../../Src/Scheduler/ReadyBitTable.sv"] \
@@ -414,7 +411,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../Src/Memory/Axi4LiteControlRegister.sv"] \
  [file normalize "${origin_dir}/../../../Src/Memory/Axi4LiteControlRegisterIF.sv"] \
  [file normalize "${origin_dir}/../../../Src/Memory/ControlQueue.sv"] \
- [file normalize "${origin_dir}/../../../Src/Primitives/RAM.sv"] \
  [file normalize "${origin_dir}/../../../Src/Memory/Axi4MemoryIF.sv"] \
  [file normalize "${origin_dir}/../../../Src/Memory/MemoryReadReqQueue.sv"] \
  [file normalize "${origin_dir}/../../../Src/Memory/MemoryWriteDataQueue.sv"] \
@@ -944,11 +940,6 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
-set file "$origin_dir/../../../Src/Primitives/RAM_Synplify.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
-
 set file "$origin_dir/../../../Src/Primitives/RAM_Vivado.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
@@ -1100,11 +1091,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
 
 set file "$origin_dir/../../../Src/Memory/ControlQueue.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
-
-set file "$origin_dir/../../../Src/Primitives/RAM.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "SystemVerilog" -objects $file_obj
