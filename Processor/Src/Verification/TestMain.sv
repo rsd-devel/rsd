@@ -49,7 +49,7 @@ module TestMain;
     //
 
     `ifdef RSD_FUNCTIONAL_SIMULATION
-        `ifndef RSD_POST_SYNTHESIS
+        `ifndef RSD_POST_SYNTHESIS_SIMULATION
             // RetirementRMTからコミット済の論理レジスタの値を得る
             task GetCommittedRegisterValue(
                 input int commitNumInThisCycle,
@@ -207,7 +207,7 @@ module TestMain;
         // Initialize memory
         #STEP;
         `ifdef RSD_FUNCTIONAL_SIMULATION
-            `ifndef RSD_POST_SYNTHESIS
+            `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Fill memory with dummy data 
                 // see InitializedBlockRAM module in Primitives/RAM.sv in details
                 main.main.memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
@@ -246,7 +246,7 @@ module TestMain;
 
             // Dump values of logical register file to a CSV file.
             `ifdef RSD_FUNCTIONAL_SIMULATION
-                `ifndef RSD_POST_SYNTHESIS
+                `ifndef RSD_POST_SYNTHESIS_SIMULATION
                     if ( enableDumpRegCSV ) begin
                         registerFileCSV_Dumper.ProceedCycle();
 
@@ -296,7 +296,7 @@ module TestMain;
         end
 
         `ifdef RSD_FUNCTIONAL_SIMULATION
-            `ifndef RSD_POST_SYNTHESIS
+            `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Count the number of commit in the last cycle.
                 for ( count = 0; count < COMMIT_WIDTH; count++ ) begin
                     if ( !main.main.core.cmStage.commit[count] )

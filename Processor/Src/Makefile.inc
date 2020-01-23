@@ -133,7 +133,7 @@ VLOG_OPTIONS_RTL = \
 
 VLOG_OPTIONS_POST_SYNTHESIS = \
 	+define+RSD_FUNCTIONAL_SIMULATION \
-	+define+RSD_POST_SYNTHESIS \
+	+define+RSD_POST_SYNTHESIS_SIMULATION \
 
 # -lint: Checks a coding style
 # -pedanticerrors: Forces display of an error message (rather than a warning)
