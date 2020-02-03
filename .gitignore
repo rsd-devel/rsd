@@ -14,6 +14,7 @@
 /Processor/Project/Synplify/Zedboard
 /Processor/Project/Synplify/Zedboard_post_synthesis
 /Processor/Project/Synplify/Microsemi
+/Processor/Project/Synplify/*.prd
 
 /Processor/Project/DesignCompiler/*.svf
 /Processor/Project/DesignCompiler/*.ddc
@@ -31,32 +32,45 @@
 /Processor/Src/Verification/TestCode/Zephyr/*
 !/Processor/Src/Verification/TestCode/Zephyr/Makefile
 
-/Processor/Src/Verification/TestCode/riscv-compliance/*
-!/Processor/Src/Verification/TestCode/riscv-compliance/Makefile
+# riscv-compliance
+/Processor/ThirdParty/TestTargets/riscv-compliance/work
+
 
 /Processor/Src/*.log
 /Processor/Src/*.txt
 /Processor/Src/*.csv
 /Processor/Src/*.vcd
 /Processor/Src/wlft*
-
-transcript
-vsim.wlf
-*.vstf
-wave.do
 /Processor/Src/.Xil
-synlog.tcl
 
 /Processor/Src/Verification/TestCode/C/*/reg.out.hex
 /Processor/Src/Verification/TestCode/C/*/serial.out.txt
 /Processor/Src/Verification/TestCode/Asm/*/reg.out.hex
 /Processor/Src/Verification/TestCode/Asm/*/serial.out.txt
 
+
 /Processor/Tools/QEMU_SimDriver/GDB_CommandFile
 
-/Tools/SetEnv/MySetEnv.bat
-/Tools/SetEnv/MySetEnv.sh
+# Env
+/Processor/Tools/SetEnv/*.bat
+/Processor/Tools/SetEnv/*.sh
+!/Processor/Tools/SetEnv/SetEnv.bat
+!/Processor/Tools/SetEnv/SetEnv.sh
 
+# Modelsim/Questa
+wave.do
+synlog.tcl
+transcript
+vsim.wlf
+modelsim.ini
+
+# Vivado
+vivado*.jou
+vivado*.zip
+vivado*.str
+
+# Miscellaneous
+*.vstf
 *.pyc
 *.log
 *.o
@@ -64,15 +78,9 @@ synlog.tcl
 *.dump
 *.touch
 *.elf
-
 *.stackdump
 
-vivado*.jou
-vivado*.zip
-vivado*.str
-
-modelsim.ini
-
+# Editor/IDE
 hs*.dmp
 *.sublime-project
 *.sublime-workspace
@@ -81,4 +89,3 @@ hs*.dmp
 /.library_mapping.xml
 /.project
 
-Processor/Project/Synplify/*.prd
