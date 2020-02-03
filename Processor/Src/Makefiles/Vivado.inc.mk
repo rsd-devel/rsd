@@ -55,6 +55,7 @@ DEVICETREE_FILE = $(ARM_LINUX_BOOT)/devicetree.dtb
 FSBL_FILE = $(ARM_LINUX_BOOT)/fsbl.elf
 UBOOT_FILE = $(ARM_LINUX_BOOT)/u-boot.elf
 UKERNEL_FILE = $(ARM_LINUX_BOOT)/uImage
+ROOTFS_FILE = $(ARM_LINUX_ROOT)/ROOTFS.tar.gz
 
 KERNEL_BRANCH = v2019.2.01
 UBOOT_BRANCH = v2019.2
@@ -103,12 +104,14 @@ arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
 	$(MAKE) arm-linux-kernel
 	$(MAKE) arm-linux-device-tree
 	$(MAKE) arm-linux-bootbin
+	$(MAKE) arm-linux-download-rootfs
 
 arm-linux-clean:
 	$(MAKE) arm-linux-kernel-clean
 	$(MAKE) arm-linux-u-boot-clean
 	$(MAKE) arm-linux-initrd-clean
 	$(MAKE) arm-linux-bootbin-clean
+	$(MAKE) arm-linux-rootfs-clean
 
 # Do NOT use this command.
 arm-linux-clone-all: $(ARM_LINUX_ROOT) $(KERNEL_ROOT) $(UBOOT_ROOT) $(DTC_ROOT)/dtc $(INITRD) $(ARM_LINUX_BOOT)
@@ -174,6 +177,7 @@ arm-linux-all:
 	$(MAKE) arm-linux-kernel
 	$(MAKE) arm-linux-bitstream
 	$(MAKE) arm-linux-bootbin
+	$(MAKE) arm-linux-download-rootfs
 
 $(FSBL_FILE): $(VIVADO_FSBL_FILE)
 	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
@@ -243,3 +247,17 @@ arm-linux-bootbin:
 # Do NOT use this command.
 arm-linux-bootbin-clean:
 	rm -r -f $(ARM_LINUX_BOOT)
+
+# This command downloads the rootfs for ARM Linux (ROOTFS.tar.gz) from Google Drive.
+# This long command is required because Google Drive requires two steps below to download a large file:
+# 1. Get a code for downloading the file,
+# 2. Download the file using the code.
+$(ROOTFS_FILE):
+	wget --load-cookies /tmp/cookie "https://docs.google.com/uc?export=download&confirm=$(shell wget --quiet --save-cookies /tmp/cookie --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B" -O $(ROOTFS_FILE)
+
+# Do NOT use this command.
+arm-linux-download-rootfs: $(ROOTFS_FILE)
+
+# Do NOT use this command.
+arm-linux-rootfs-clean:
+	rm -f $(ROOTFS_FILE)
