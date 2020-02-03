@@ -1025,11 +1025,10 @@ function automatic void RISCV_EmitCSR_Op(
 
     // CSR 命令の即値だけは特殊なので REG にしておき，ユニット側で対処する
     memOp.csrCtrl.isImm = 
-        (opFunct3 inside {
-            SYSTEM_FUNCT3_CSR_RW, 
-            SYSTEM_FUNCT3_CSR_RS, 
-            SYSTEM_FUNCT3_CSR_RC
-        }) ? FALSE : TRUE;
+        (opFunct3 == SYSTEM_FUNCT3_CSR_RW ||
+        opFunct3 ==SYSTEM_FUNCT3_CSR_RS ||
+        opFunct3 ==SYSTEM_FUNCT3_CSR_RC
+        ) ? FALSE : TRUE;
     memOp.csrCtrl.imm = isfSystem.rs1;   // rs1 がちょうど即値になる
 
     opInfo.operand.memOp = memOp;

@@ -190,15 +190,14 @@ function automatic void DecideCommit(
                 end
                 else if (i == recoveryStart) begin
                     commit[i] =
-                        ( ((execState[i] inside {
-                            EXEC_STATE_REFETCH_THIS,
-                            EXEC_STATE_FAULT_LOAD_MISALIGNED,
-                            EXEC_STATE_FAULT_LOAD_VIOLATION,
-                            EXEC_STATE_FAULT_STORE_MISALIGNED,
-                            EXEC_STATE_FAULT_STORE_VIOLATION,
-                            EXEC_STATE_FAULT_INSN_ILLEGAL,
-                            EXEC_STATE_FAULT_INSN_VIOLATION
-                        }) || unableToStartRecovery) ? FALSE : TRUE);
+                        ( ((execState[i] == EXEC_STATE_REFETCH_THIS ||
+                            execState[i] == EXEC_STATE_FAULT_LOAD_MISALIGNED ||
+                            execState[i] == EXEC_STATE_FAULT_LOAD_VIOLATION ||
+                            execState[i] == EXEC_STATE_FAULT_STORE_MISALIGNED ||
+                            execState[i] == EXEC_STATE_FAULT_STORE_VIOLATION ||
+                            execState[i] == EXEC_STATE_FAULT_INSN_ILLEGAL ||
+                            execState[i] == EXEC_STATE_FAULT_INSN_VIOLATION
+                        ) || unableToStartRecovery) ? FALSE : TRUE);
                 end
                 else begin
                     commit[i] = FALSE;

@@ -14,7 +14,7 @@ import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
-import LoadStoreUnitTypes::*;
+//import LoadStoreUnitTypes::*;
 import DebugTypes::*;
 
 // シリアライズ命令が送られて来た場合，パイプラインを適切にストールさせる
