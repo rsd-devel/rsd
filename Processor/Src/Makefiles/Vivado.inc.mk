@@ -1,9 +1,3 @@
-
-# Target board name for synthesis
-TARGET_BOARD = Zedboard
-
-
-
 # -------------------------------
 
 # For Vivado
@@ -15,8 +9,9 @@ VIVADO_BOARD_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT)
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_POST_SYNTHESIS_PROJECT)
 VIVADO_BOARD_PROJECT_IMPL = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).runs/impl_1
 VIVADO_BOARD_PROJECT_SDK = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).sdk
-VIVADO_HDF_FILE = $(VIVADO_BOARD_PROJECT_SDK)/design_1_wrapper.hdf
+VIVADO_XSA_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/design_1_wrapper.xsa
 VIVADO_BIT_FILE = $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.bit
+VIVADO_FSBL_FILE = $(VIVADO_BOARD_PROJECT_SDK)/fsbl/Release/fsbl.elf
 
 # Synplify用
 
@@ -61,11 +56,10 @@ FSBL_FILE = $(ARM_LINUX_BOOT)/fsbl.elf
 UBOOT_FILE = $(ARM_LINUX_BOOT)/u-boot.elf
 UKERNEL_FILE = $(ARM_LINUX_BOOT)/uImage
 
-KERNEL_BRANCH = v2016.4
-UBOOT_BRANCH = v2016.4
-KERNEL_TAG = xilinx-v2016.4
-UBOOT_TAG = xilinx-v2016.4
-
+KERNEL_BRANCH = v2019.2.01
+UBOOT_BRANCH = v2019.2
+KERNEL_TAG = xilinx-v2019.2.01
+UBOOT_TAG = xilinx-v2019.2
 
 # -------------------------------
 # Vivado : Make RSD project, run synthesis and run implementation for TARGET_BOARD.
@@ -89,7 +83,8 @@ vivado-clean:
 # Do NOT use this command.
 # This command is called automatically if you need.
 vivado-create:
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/make_project.tcl
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source make_project.tcl
 
 $(VIVADO_PROJECT_FILE):
 	$(MAKE) vivado-create || $(MAKE) vivado-clean
@@ -102,24 +97,6 @@ $(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
 # -------------------------------
 # ARM-Linux : Make fsbl, initrd, u-boot, kernel, device-tree and boot.bin for TARGET_BOARD.
 #
-
-# カーネルのソースコードを変更したら，KERNEL_SRC_FILESとKERNEL_FILESのリストにそのファイルを追加
-KERNEL_SRC_FILES = \
-	$(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed.dts \
-	$(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi \
-
-KERNEL_FILES = \
-	$(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dts \
-	$(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi \
-
-# u-bootのソースコードを変更したら，UBOOT_SRC_FILESとUBOOT_FILESのリストにそのファイルを追加
-UBOOT_SRC_FILES = \
-	$(UBOOT_SRC_ROOT)/arch/arm/dts/zynq-zed.dts \
-	$(UBOOT_SRC_ROOT)/include/configs/zynq-common.h \
-
-UBOOT_FILES = \
-	$(UBOOT_ROOT)/arch/arm/dts/zynq-zed.dts \
-	$(UBOOT_ROOT)/include/configs/zynq-common.h \
 
 arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
 	$(MAKE) arm-linux-u-boot
@@ -142,8 +119,8 @@ $(ARM_LINUX_ROOT):
 
 $(KERNEL_ROOT):
 	$(MAKE) arm-linux-kernel-fetch; \
-	cp $(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed.dts $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dts; \
-	cp $(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi || $(MAKE) arm-linux-kernel-clean
+	cd $(KERNEL_ROOT); \
+	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff || $(MAKE) arm-linux-kernel-clean
 
 # Do NOT use this command.
 arm-linux-kernel-fetch:
@@ -157,8 +134,8 @@ arm-linux-kernel-clean:
 
 $(UBOOT_ROOT):
 	$(MAKE) arm-linux-u-boot-fetch; \
-	cp $(UBOOT_SRC_ROOT)/arch/arm/dts/zynq-zed.dts $(UBOOT_ROOT)/arch/arm/dts/zynq-zed.dts; \
-	cp $(UBOOT_SRC_ROOT)/include/configs/zynq-common.h $(UBOOT_ROOT)/include/configs/zynq-common.h || $(MAKE) arm-linux-u-boot-clean
+	cd $(UBOOT_ROOT); \
+	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff || $(MAKE) arm-linux-u-boot-clean
 
 # Do NOT use this command.
 arm-linux-u-boot-fetch:
@@ -198,12 +175,15 @@ arm-linux-all:
 	$(MAKE) arm-linux-bitstream
 	$(MAKE) arm-linux-bootbin
 
-$(FSBL_FILE): $(VIVADO_HDF_FILE)
-	xsdk -batch -source $(VIVADO_PROJECT_ROOT)/make_fsbl.tcl
-	cp $(VIVADO_BOARD_PROJECT_SDK)/zynq_fsbl/executable.elf $(ARM_LINUX_BOOT)/fsbl.elf
+$(FSBL_FILE): $(VIVADO_FSBL_FILE)
+	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
-$(VIVADO_HDF_FILE): $(VIVADO_BIT_FILE)
-#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_HDF_FILE)
+$(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
+	xsct $(VIVADO_PROJECT_ROOT)/make_fsbl.tcl
+
+$(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
+#	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
+#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
 #	@echo "(Re-)build hdf using Vivado!"
 #	exit 1
 
@@ -216,10 +196,6 @@ arm-linux-u-boot: $(UBOOT_ROOT)
 	$(MAKE) $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
 	$(MAKE) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
-
-#$(UBOOT_FILES): $(UBOOT_SRC_FILES)
-#	cp $(UBOOT_SRC_ROOT)/arch/arm/dts/zynq-zed.dts $(UBOOT_ROOT)/arch/arm/dts/zynq-zed.dts
-#	cp $(UBOOT_SRC_ROOT)/include/configs/zynq-common.h $(UBOOT_ROOT)/include/configs/zynq-common.h
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
 	$(MAKE) arm-linux-initrd
@@ -244,10 +220,6 @@ arm-linux-kernel: $(KERNEL_ROOT)
 	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
-#$(KERNEL_FILES): $(KERNEL_SRC_FILES)
-#	cp $(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed.dts $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dts
-#	cp $(KERNEL_SRC_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed-base.dtsi
-
 $(DEVICETREE_FILE): $(UKERNEL_FILE)
 	$(MAKE) arm-linux-device-tree
 
@@ -262,8 +234,6 @@ $(BIT_FILE): $(VIVADO_BIT_FILE)
 
 $(VIVADO_BIT_FILE): $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/make_bitstream.tcl
-#	@echo "(Re-)build bit using Vivado!"
-#	exit 1
 
 # Do NOT use this command.
 arm-linux-bootbin:

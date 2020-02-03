@@ -1,0 +1,7 @@
+image : {
+        [bootloader]fsbl.elf
+        boot.bit
+        u-boot.elf
+        [load=0x2a00000]devicetree.dtb
+        [load=0x3000000]uImage.bin
+}

@@ -15,6 +15,9 @@ setx RSD_ROOT C:/Work/RSD/
 :: Specify the path of Cygwin. 
 setx RSD_CYGWIN_PATH C:/cygwin/
 
+:: Specify the target Zynq board.
+:: Supported Zynq boards: Zedboard
+setx TARGET_BOARD Zedboard
 
 :: Specify the path of a directory that contains a gcc cross compiler binary for RISC-V. 
 setx RSD_GCC_PATH  C:/opt/gcc/riscv/7.1.0/bin
