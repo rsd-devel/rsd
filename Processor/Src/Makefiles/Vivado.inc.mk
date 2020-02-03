@@ -252,6 +252,8 @@ arm-linux-bootbin-clean:
 # This long command is required because Google Drive requires two steps below to download a large file:
 # 1. Get a code for downloading the file,
 # 2. Download the file using the code.
+# If ROOTFS.tar.gz is not downloaded successfully, please download it from the following link using a web browser.
+# https://drive.google.com/open?id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B
 $(ROOTFS_FILE):
 	wget --load-cookies /tmp/cookie "https://docs.google.com/uc?export=download&confirm=$(shell wget --quiet --save-cookies /tmp/cookie --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B" -O $(ROOTFS_FILE)
 
