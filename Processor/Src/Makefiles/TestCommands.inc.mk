@@ -46,6 +46,18 @@ LEVEL2_TESTS = \
 	test-Dhrystone \
 	test-Zephyr \
 
+test:
+	$(RUN_TEST) $(TEST_CODE)
+	@echo "==== Test Successful ===="
+
+test-all: test-1 test-2
+	@echo "==== Test Successful (all) ===="
+test-1: $(LEVEL1_TESTS)
+	@echo "==== Test Successful (test-1) ===="
+test-2: $(LEVEL2_TESTS)
+	@echo "==== Test Successful (test-2) ===="
+
+
 
 # TestCodeのビルドとクリーンアップ
 test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-compliance
@@ -105,26 +117,8 @@ test-clean-Zephyr:
 test-env-clean-Zephyr:
 	(cd Verification/TestCode/Zephyr; make env-clean)
 
-# riscv-compliance
-RSD_RISCV_COMPLIANCE_ROOT = $(RSD_ROOT)/Processor/ThirdParty/TestTargets/riscv-compliance
-test-build-riscv-compliance:
-	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE))
-test-clean-riscv-compliance:
-	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE) clean)
 
 
-# test / test-* コマンドでは、RSD.logは出力しない
-
-test:
-	$(RUN_TEST) $(TEST_CODE)
-	@echo "==== Test Successful ===="
-
-test-all: test-1 test-2
-	@echo "==== Test Successful (all) ===="
-test-1: $(LEVEL1_TESTS)
-	@echo "==== Test Successful (test-1) ===="
-test-2: $(LEVEL2_TESTS)
-	@echo "==== Test Successful (test-2) ===="
 
 test-RV32I-ControlTransfer:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransfer
@@ -265,6 +259,7 @@ RISCV_RV32I_COMPLIANCE_TESTS =    \
 
 #    I-FENCE.I-01 \
 
+RSD_RISCV_COMPLIANCE_ROOT = $(RSD_ROOT)/Processor/ThirdParty/TestTargets/riscv-compliance
 RISCV_RV32I_COMPLIANCE_TEST_TARGETS = $(RISCV_RV32I_COMPLIANCE_TESTS:%=test-riscv-compliance-%)
 
 .PHONY: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
@@ -273,3 +268,10 @@ $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS):
 
 test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 	@echo "==== Test Successful (test-riscv-compliance) ===="
+
+test-build-riscv-compliance:
+	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE))
+test-clean-riscv-compliance:
+	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE) clean)
+test-distclean-riscv-compliance:
+	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE) distclean)
