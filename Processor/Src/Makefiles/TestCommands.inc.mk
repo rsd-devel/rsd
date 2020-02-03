@@ -106,14 +106,11 @@ test-env-clean-Zephyr:
 	(cd Verification/TestCode/Zephyr; make env-clean)
 
 # riscv-compliance
+RSD_RISCV_COMPLIANCE_ROOT = $(RSD_ROOT)/Processor/ThirdParty/TestTargets/riscv-compliance
 test-build-riscv-compliance:
-	(cd Verification/TestCode/riscv-compliance; make copy)
-test-env-build-riscv-compliance:
-	(cd Verification/TestCode/riscv-compliance; make)
+	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE))
 test-clean-riscv-compliance:
-	(cd Verification/TestCode/riscv-compliance; make clean)
-test-env-clean-riscv-compliance:
-	(cd Verification/TestCode/riscv-compliance; make env-clean)
+	(cd $(RSD_RISCV_COMPLIANCE_ROOT); $(MAKE) clean)
 
 
 # test / test-* コマンドでは、RSD.logは出力しない
@@ -272,7 +269,7 @@ RISCV_RV32I_COMPLIANCE_TEST_TARGETS = $(RISCV_RV32I_COMPLIANCE_TESTS:%=test-risc
 
 .PHONY: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS):
-	@$(RUN_TEST_OMIT_MSG) Verification/TestCode/riscv-compliance/$(patsubst test-riscv-compliance-%,%,$@)
+	@$(RUN_TEST_OMIT_MSG) $(RSD_RISCV_COMPLIANCE_ROOT)/work/rv32i/$(patsubst test-riscv-compliance-%,%,$@)
 
 test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 	@echo "==== Test Successful (test-riscv-compliance) ===="
