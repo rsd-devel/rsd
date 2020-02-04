@@ -15,9 +15,6 @@ setx RSD_ROOT C:/Work/RSD/
 :: Specify the path of Cygwin. 
 setx RSD_CYGWIN_PATH C:/cygwin/
 
-:: Specify the target Zynq board.
-:: Supported Zynq boards: Zedboard
-setx TARGET_BOARD Zedboard
 
 :: Specify the path of a directory that contains a gcc cross compiler binary for RISC-V. 
 setx RSD_GCC_PATH  C:/opt/gcc/riscv/7.1.0/bin
@@ -37,10 +34,10 @@ setx RSD_DC_SHELL_BIN C:/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
 
 
 :: Specify the ISE folder in Vivado.
-setx RSD_VIVADO E:/Xilinx/Vivado/2016.4/ids_lite/ISE/
+setx RSD_VIVADO E:/Xilinx/Vivado/2019.2/ids_lite/ISE/
 
 :: Specify the path where CORE Generator/ngc2edif/xtclsh exists
-setx RSD_VIVADO_BIN E:/Xilinx/Vivado/2016.4/bin
+setx RSD_VIVADO_BIN E:/Xilinx/Vivado/2019.2/bin
 
 :: Specify the path of modelsim.ini.
 :: This file is generated when libraries for Modelsim are compiled in Vivado.

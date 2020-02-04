@@ -2,11 +2,11 @@
 
 /Processor/Project/Verilator/obj_dir
 /Processor/Project/ModelSim
-/Processor/Project/Vivado/Zedboard/rsd
-/Processor/Project/Vivado/Zedboard/rsd_post_synthesis
-/Processor/Project/Vivado/Zedboard/*.v
-/Processor/Project/Vivado/Zedboard/NA/
-/Processor/Project/Vivado/Zedboard/.Xil/
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd_post_synthesis
+/Processor/Project/Vivado/TargetBoards/Zedboard/*.v
+/Processor/Project/Vivado/TargetBoards/Zedboard/NA/
+/Processor/Project/Vivado/TargetBoards/Zedboard/.Xil/
 /Processor/Project/Synplify/Zedboard
 /Processor/Project/Synplify/Zedboard_post_synthesis
 /Processor/Project/Synplify/Microsemi

@@ -17,7 +17,7 @@
 #*****************************************************************************************
 
 # Set the reference directory for source file relative paths (by default the value is script directory path)
-set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/Zedboard"
+set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard"
 
 # Use origin directory path location variable, if specified in the tcl shell
 if { [info exists ::origin_dir_loc] } {
@@ -170,8 +170,8 @@ add_files -norecurse "$origin_dir/rsd/rsd.srcs/sources_1/bd/design_1/hdl/design_
 # set obj [get_filesets sources_1]
 # Add local files from the original project (-no_copy_sources specified)
 # set files [list \
-#  [file normalize "${origin_dir}/rsd/Processor/Project/Vivado/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/design_1.bd" ]\
-#  [file normalize "${origin_dir}/rsd/Processor/Project/Vivado/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.v" ]\
+#  [file normalize "${origin_dir}/rsd/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/design_1.bd" ]\
+#  [file normalize "${origin_dir}/rsd/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.v" ]\
 # ]
 # set added_files [add_files -fileset sources_1 $files]
 

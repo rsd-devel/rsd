@@ -32,7 +32,7 @@
 #*****************************************************************************************
 
 # Set the reference directory for source file relative paths (by default the value is script directory path)
-set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/Zedboard"
+set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard"
 
 # Use origin directory path location variable, if specified in the tcl shell
 if { [info exists ::origin_dir_loc] } {
