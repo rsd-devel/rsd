@@ -20,8 +20,8 @@ main:
     mv a3, sp
     
     # Memory Init
-    li a2, 0xDEADBEEF		#
-    sw a2, 0(a3)			# [0xEF, 0xBE, 0xAD, 0xDE]
+    li a2, 0xDEADBEEF       #
+    sw a2, 0(a3)            # [0xEF, 0xBE, 0xAD, 0xDE]
     li a4, 0xBAADF00D       # 
     sw a4, 4(a3)            # [0x0D, 0xF0, 0xAD, 0xBA]
     
@@ -165,12 +165,12 @@ trap_vector:
     csrrw a1, mepc, a1
 
     # 
-    csrrw a2, mcause, a2 		# a2 にmcause を入れる
+    csrrw a2, mcause, a2        # a2 にmcause を入れる
     andi a2, a2, 0xf            # mcauseの下位4bitだけを見る．reservedな値は知らない
     lw a3, 0(a0)                # a3 に例外起こした命令を入れる
-    li t0, 4					# LOAD_MISALIGNED = 4
+    li t0, 4                    # LOAD_MISALIGNED = 4
     beq a2, t0, unaligned_load
-    li t0, 6					# STORE_MISALIGNED = 6
+    li t0, 6                    # STORE_MISALIGNED = 6
     beq a2, t0, unaligned_store
 
     RSD_IO_WRITE_STR("invalid mcause!: ")
@@ -251,7 +251,7 @@ _cant_reach_here:
     j _cant_reach_here
 
 unaligned_sw:
-    mv s0, a7               # s0 <- reg[rs2]
+    mv s0, a7                   # s0 <- reg[rs2]
     andi s1, s0, 0xff
     sb s1, 0(a5)
 
@@ -270,7 +270,7 @@ unaligned_sw:
     j finish
 
 unaligned_sh:
-    mv s0, a7               # s0 <- reg[rs2]
+    mv s0, a7                   # s0 <- reg[rs2]
     andi s1, s0, 0xff
     sb s1, 0(a5)
 

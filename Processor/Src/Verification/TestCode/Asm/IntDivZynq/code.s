@@ -5,8 +5,8 @@
     .globl    main 
     .type     main, @function 
 main: 
-	mv		x22, x1 	# save SP
-	
+    mv      x22, x1     # save SP
+    
     li      x1, 0x7FFFFFFF      # INT_MAX (2147483647) 
     li      x2, 0x80000000      # INT_MIN (-2147483648) 
     li      x3, 0xFFFFFFFF      # UINT_MAX (4294967295) 
@@ -82,5 +82,5 @@ wait_store_complete:
     nop
 
 main3: 
-	jr x22	# mv x22, x1 (x1=sp) より，呼び出し元にもどる
+    jr x22  # mv x22, x1 (x1=sp) より，呼び出し元にもどる
     #j       main3              # ここでループして終了 

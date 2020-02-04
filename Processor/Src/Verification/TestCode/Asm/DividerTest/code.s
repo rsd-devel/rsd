@@ -5,17 +5,17 @@
     .globl    main 
     .type     main, @function 
 main:
-	# メモリ初期化
-	addi	sp, sp, -48
+    # メモリ初期化
+    addi    sp, sp, -48
     sw      zero, 0(sp)
     sw      zero, 16(sp)
-    sw      sp, 32(sp)			# 後でポインタとして使う 
+    sw      sp, 32(sp)          # 後でポインタとして使う 
 
     li      x10, 0xff           # 255 （被除数）
     sw      x10, 0(sp)          # いったんメモリに退避
     li      x11, 0x1
     slli    x11, x11, 15        # 2 ^ 15 = 32768 キャッシュのインデクスのちょうど１周分
-    sub		x11, sp, x11
+    sub     x11, sp, x11
     lw      x0, 0(x11)          # スラッシングさせる
     nop                         # キャッシュ・ミスするので，nopを挟んでタイミングを調整
     nop
@@ -149,5 +149,5 @@ main3: # div, mul が混ざったパターン
 
 main4:
     divu x31, x10, x12
-	ret
+    ret
     #j       main4                # ここでループして終了 

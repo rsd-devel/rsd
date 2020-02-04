@@ -4,15 +4,15 @@
     .globl    main
     .type     main, @function
 main:
-    li    a4, 0xFFFFFFFF 		# 01. a4 <- -1
-    li    a6, 0x40002000 	 	# 02. a6 <- 0x40002000
+    li    a4, 0xFFFFFFFF    # 01. a4 <- -1
+    li    a6, 0x40002000    # 02. a6 <- 0x40002000
     j     main2             # 03.
 end:
     j     end
 end2:
     j     end
 main2:
-    addi  a7, a7, 1 				# 04. a7 <- 1
+    addi  a7, a7, 1         # 04. a7 <- 1
     jal   a1, main3         # 05. a1 <- PC, 
 end3:
     j   end
@@ -36,7 +36,7 @@ main5:
 end6:
     j     end
 main6:
-    addi  a7, a7, 1 				# 16. a7 <- 5
+    addi  a7, a7, 1         # 16. a7 <- 5
     bge   a4, a0, end       # 17. a4(-1) < a0(0)
     bge   a0, a4, main7     # 18. a0(0) >= a4(-1) -> main7
 end7:
@@ -98,5 +98,5 @@ output:
     sw      x30, 0(a6)
     sw      x31, 0(a6)
 main11:
-	li a1, 0
-	ret
+    li a1, 0
+    ret
