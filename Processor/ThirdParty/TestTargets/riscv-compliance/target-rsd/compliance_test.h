@@ -48,6 +48,7 @@
     .data               ;\
 10000:                  ;\
     .string _STR        ;\
+    .align 4            ;\
     .text               ;\
     la a0, 10000b       ;\
     jal _rsd_write_str  ;\
