@@ -143,7 +143,7 @@ set file_names {
     ../../Src/Primitives/FlipFlop.sv
     ../../Src/Primitives/FreeList.sv
     ../../Src/Primitives/Queue.sv
-    ../../Src/Primitives/RAM.sv
+    ../../Src/Primitives/RAM_ASIC.sv
     ../../Src/Primitives/LRU_Counter.sv
     ../../Src/Primitives/Picker.sv
     ../../Src/Primitives/Multiplier.sv
