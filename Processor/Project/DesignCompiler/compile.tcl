@@ -157,7 +157,7 @@ set file_names {
 }
 
 foreach file_name $file_names {
-	analyze -format sverilog -define RSD_SYNTHESIS,RSD_SYNTHESIS_DESIGN_COMPILER $file_name
+	analyze -format sverilog -define RSD_SYNTHESIS,RSD_SYNTHESIS_DESIGN_COMPILER,RSD_DISABLE_DEBUG_REGISTER $file_name
 }
 
 
