@@ -26,6 +26,7 @@ memRead**には、読出結果が数サイクル遅れて出てくる。
 BlockRAMのレイテンシ + パイプラインの深さ
 */
 module Memory #(
+    parameter ENTRY_NUM = MEMORY_ENTRY_NUM,
     parameter INIT_HEX_FILE = ""    // Memory initialization file path
 )(
 input
