@@ -84,9 +84,11 @@ output
     MemAccessSerial memReadSerial; // メモリの読み出しデータのシリアル
     MemAccessResponse memAccessResponse; // メモリ書き込み完了通知
 
+    // Size of memory
     localparam ADDR_BIT_WIDTH = 15; // 32KB = 2 ^ 15
     localparam MEMORY_ENTRY_NUM = 
         1 << (ADDR_BIT_WIDTH - $clog2(MEMORY_ENTRY_BYTE_NUM));
+        
     Memory #(
         .ENTRY_NUM (MEMORY_ENTRY_NUM)
     ) memory (
@@ -170,9 +172,11 @@ output
         .debugRegister ( debugRegister )
     );
 
+`ifndef RSD_SYNTHESIS
     initial begin
         // NOTE: Now it is assumed that program loading finishes instantaneous.
         programLoaded = TRUE;
     end
+`endif
     
 endmodule : Main_ASIC

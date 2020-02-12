@@ -350,6 +350,7 @@ module InitializedBlockRAM_ForNarrowRequest #(
         hexFileWV = tmpWriteEntry;
     end
 
+`ifndef RSD_SYNTHESIS
     initial begin
         if (INIT_HEX_FILE != "") begin
             $readmemh(INIT_HEX_FILE, array);
@@ -360,6 +361,7 @@ module InitializedBlockRAM_ForNarrowRequest #(
             );
         end
     end
+`endif
 
     generate
         `RSD_ASSERT_CLK_FMT(
@@ -482,6 +484,7 @@ module InitializedBlockRAM_ForWideRequest #(
         end
     end
 
+`ifndef RSD_SYNTHESIS
     initial begin
         if (INIT_HEX_FILE != "") begin
             $readmemh(INIT_HEX_FILE, array);
@@ -492,6 +495,7 @@ module InitializedBlockRAM_ForWideRequest #(
             );
         end
     end
+`endif
 
     generate
         `RSD_ASSERT_CLK_FMT(
