@@ -2136,7 +2136,7 @@
     <spirit:fileSet>
       <spirit:name>xilinx_anylanguagesynthesis_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>../../../Synplify/Zedboard/rsd.vm</spirit:name>
+        <spirit:name>../../../../Synplify/Zedboard/rsd.vm</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
         <spirit:userFileType>IMPORTED_FILE</spirit:userFileType>
       </spirit:file>
@@ -2144,7 +2144,7 @@
     <spirit:fileSet>
       <spirit:name>xilinx_anylanguagebehavioralsimulation_view_fileset</spirit:name>
       <spirit:file>
-        <spirit:name>../../../Synplify/Zedboard/rsd.vm</spirit:name>
+        <spirit:name>../../../../Synplify/Zedboard/rsd.vm</spirit:name>
         <spirit:fileType>verilogSource</spirit:fileType>
         <spirit:userFileType>IMPORTED_FILE</spirit:userFileType>
       </spirit:file>
