@@ -12,7 +12,7 @@
 	# 外部の main 
 	.extern main
 
-	stack_top = 0x80020000
+	stack_top = 0x80004000
 
     # entry point: 0x1000
 _start:
@@ -62,7 +62,7 @@ _init_reg:
 	li  x29,0
 	li  x30,0
 	li  x31,0
-	li	sp,0x80020000
+	li	sp,0x80004000
 
     j _call_main
 

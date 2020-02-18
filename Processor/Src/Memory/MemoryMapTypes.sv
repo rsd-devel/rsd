@@ -111,7 +111,7 @@ typedef struct packed {
 // 0x0000_1000 - 0x0000_ffff -> 0x0_1000 -> 0x0_ffff
 //
 localparam LOG_ADDR_SECTION_0_BEGIN = 32'h0000_1000;
-localparam LOG_ADDR_SECTION_0_END   = 32'h0001_0000;
+localparam LOG_ADDR_SECTION_0_END   = 32'h0000_8000;
 localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
 
 // 下位アドレスを切り出してそのまま加算できるように，0x1000 分は無視
@@ -123,10 +123,10 @@ localparam PHY_ADDR_SECTION_0_BASE = 20'h0_0000;
 // 0x8000_0000 - 0x8003_ffff -> 0x1_0000 -> 0x4_ffff
 //
 localparam LOG_ADDR_SECTION_1_BEGIN = 32'h8000_0000;
-localparam LOG_ADDR_SECTION_1_END   = 32'h8004_0000;
-localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
+localparam LOG_ADDR_SECTION_1_END   = 32'h8000_8000;
+localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 16;
 
-localparam PHY_ADDR_SECTION_1_BASE = 20'h1_0000;
+localparam PHY_ADDR_SECTION_1_BASE = 20'h0_8000;
 
 
 //
