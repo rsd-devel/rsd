@@ -25,6 +25,10 @@ VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
     os.path.join( os.path.dirname( __file__ ), '../../Project/VivadoSim/work' )
 )
 
+VCS_PROJECT_DIR_PATH = os.path.relpath(
+    os.path.join( os.path.dirname( __file__ ), '../../Project/VCS' )
+)
+
 
 class TestConfigError(Exception):
     """ Exception class """
@@ -213,6 +217,38 @@ class VivadoSimulationDriver(object):
         os.system( cmd )
 
 
+class VCS_SimulationDriver(object):
+    VCS_LOG_FILE_NAME = 'vcs.log'
+    SIMV_PATH = "../Project/VCS/simv"
+
+    def __init__(self, projectDirPath, testCodeDirPath, config, options):
+        self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
+        self.testCodeDirPath = testCodeDirPath  # Test code directory
+        self.vcsLogPath     = os.path.join(testCodeDirPath, self.VCS_LOG_FILE_NAME)
+        self.simvPath = os.environ['RSD_VCS_BIN']
+
+        self.additionalOptionList = []
+        self.additionalOptionList.append("+MAX_TEST_CYCLES=%d" % config.maxTestCycles)
+        self.additionalOptionList.append("+TEST_CODE=%s"       % testCodeDirPath)
+        self.additionalOptionList.append("+DUMMY_DATA_FILE=%s" % "Verification/DummyData.hex")
+        self.additionalOptionList.append("+ENABLE_PC_GOAL=%d"  % config.enablePC_Goal)
+        self.omitStdout = options.omitQuestasimMessage
+        self.omitPrintCommand = options.quietMode
+
+
+    # Run simulation
+    def RunSimulation(self):
+        cmd = "%s %s %s" % (
+            self.SIMV_PATH,
+            " ".join( self.additionalOptionList ),
+            "> " + self.vcsLogPath if self.omitStdout else "| tee " + self.vcsLogPath
+        )
+
+        if (not self.omitPrintCommand):
+            print(cmd)
+        os.system( cmd )
+
+
 class RegisterValueComparator( object ):
     def __init__( self, testCodeName ):
         self.testCodeName = testCodeName
@@ -324,7 +360,7 @@ parser.add_option('-l', '--rsd-log',
                   help="Specify an RSD log file name.")
 parser.add_option('-s', '--simulator',
                   action='store', type='string', dest='simulatorName',
-                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim]. If this option is not specified, modelsim is used.")
+                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim/vcs]. If this option is not specified, modelsim is used.")
 parser.add_option('-q', '--quiet',
                   action='store_true', dest='quietMode', default=False,
                   help="Omit any messages of this script")
@@ -345,6 +381,8 @@ if options.simulatorName is not None:
         simName = "verilator"
     elif simName == "vivadosim":
         simName = "vivadosim"
+    elif simName == "vcs":
+        simName = "vcs"
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -373,6 +411,8 @@ for testCodePath in testCodePathList:
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
     elif simName == "vivadosim":
         simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
+    elif simName == "vcs":
+        simDriver = VCS_SimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
         simDriver = VerilatorSimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
     simDriver.RunSimulation()

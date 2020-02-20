@@ -1,8 +1,9 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
-
+`ifndef RSD_VCS_SIMULATION
 `timescale 1ns/1ps
+`endif
 
 parameter KANATA_CYCLE_DISPLACEMENT = 12;
 // Kanataのクロック表示とのズレを指定する

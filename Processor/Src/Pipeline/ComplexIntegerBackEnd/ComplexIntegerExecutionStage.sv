@@ -58,14 +58,16 @@ module ComplexIntegerExecutionStage(
     LocalPipeReg nextLocalPipeReg [ COMPLEX_ISSUE_WIDTH ][ COMPLEX_EXEC_STAGE_DEPTH-1 ];
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-            for (int j = 0; j < COMPLEX_EXEC_STAGE_DEPTH-1; j++) begin
-                localPipeReg[i][j] <= '0;
+    `ifndef RSD_DISABLE_INITIAL
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+                for (int j = 0; j < COMPLEX_EXEC_STAGE_DEPTH-1; j++) begin
+                    localPipeReg[i][j] <= '0;
+                end
             end
         end
-    end
+    `endif
 `endif
 
     always_ff@( posedge port.clk ) begin
@@ -91,12 +93,14 @@ module ComplexIntegerExecutionStage(
     ComplexIntegerExecutionStageRegPath pipeReg[COMPLEX_ISSUE_WIDTH];
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-            pipeReg[i] = '0;
+    `ifndef RSD_DISABLE_INITIAL
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+                pipeReg[i] = '0;
+            end
         end
-    end
+    `endif
 `endif
     always_ff@(posedge port.clk)   // synchronous rst
     begin

@@ -19,6 +19,9 @@
 /Processor/Project/DesignCompiler/*.ddc
 /Processor/Project/DesignCompiler/work/
 
+/Processor/Project/VCS/*
+/Processor/Src/ucli\.key
+
 
 # Coremark/Drhystone/Zephyr 関係は RSD-env からコピー
 /Processor/Src/Verification/TestCode/Coremark/Coremark/*

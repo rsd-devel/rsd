@@ -193,11 +193,13 @@ output
 
     
 `ifndef RSD_SYNTHESIS
-    initial begin
-        for (int i = 0; i < PIPELINE_DEPTH-1; i++) begin
-            pipeReg[i] <= '0;
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < PIPELINE_DEPTH-1; i++) begin
+                pipeReg[i] <= '0;
+            end
         end
-    end
+    `endif
 `endif
 
 endmodule : PipelinedDividerUnit

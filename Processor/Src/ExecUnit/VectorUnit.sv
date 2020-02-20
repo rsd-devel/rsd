@@ -51,12 +51,14 @@ output
         end
     end
 
-    `ifndef RSD_SYNTHESIS
-    initial begin
-        for ( int i = 0; i < PIPELINE_DEPTH-1; i++)
-            pipeReg[i] <= '0;
-    end
+`ifndef RSD_SYNTHESIS
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for ( int i = 0; i < PIPELINE_DEPTH-1; i++)
+                pipeReg[i] <= '0;
+        end
     `endif
+`endif
 endmodule
 
 

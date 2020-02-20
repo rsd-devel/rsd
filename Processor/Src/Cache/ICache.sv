@@ -446,7 +446,7 @@ module ICache(
     end
     
 `ifndef RSD_SYNTHESIS
-    `ifndef RSD_VIVADO_SIMULATION
+    `ifndef RSD_DISABLE_INITIAL
         initial begin
             regMissIndex <= '0;
             regMissTag <= '0;

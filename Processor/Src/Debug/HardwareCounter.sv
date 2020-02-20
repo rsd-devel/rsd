@@ -44,6 +44,7 @@ module SimpleHardwareCounter (
 `endif
 endmodule : SimpleHardwareCounter
 
+`ifndef RSD_VCS_SIMULATION
 //
 // すべてのHWカウンタを持つモジュール
 //
@@ -126,3 +127,5 @@ module HardwareCounter (
     end
 `endif
 endmodule : HardwareCounter
+
+`endif

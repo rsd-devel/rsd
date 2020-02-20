@@ -2,7 +2,15 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
 
+`ifndef RSD_VCS_SIMULATION
 `timescale 1ns/1ps
+`endif
+
+`ifdef RSD_VCS_SIMULATION
+    `define MAIN main
+`else
+    `define MAIN main.main
+`endif
 
 import DumperTypes::*;
 import BasicTypes::*;
@@ -65,13 +73,13 @@ module TestMain;
 
                 // Copy RMT to local variable.
                 for( int i = 0; i < LSCALAR_NUM; i++ ) begin
-                   phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
+                   phyRegNum[i] = `MAIN.core.retirementRMT.regRMT.debugValue[i];
                 end
 
                 // Update RRMT
-                alHeadPtr = main.main.core.activeList.headPtr;
+                alHeadPtr = `MAIN.core.activeList.headPtr;
                 for( int i = 0; i < commitNumInThisCycle; i++ ) begin
-                    alHead = main.main.core.activeList.activeList.debugValue[ alHeadPtr ];
+                    alHead = `MAIN.core.activeList.activeList.debugValue[ alHeadPtr ];
                     if ( alHead.writeReg ) begin
                         phyRegNum[ alHead.logDstRegNum ] = alHead.phyDstRegNum;
                     end
@@ -80,7 +88,7 @@ module TestMain;
 
                 // Get regData
                 for( int i = 0; i < LSCALAR_NUM; i++ ) begin
-                    regData[i] = main.main.core.registerFile.phyReg.debugValue[ phyRegNum[i] ];
+                    regData[i] = `MAIN.core.registerFile.phyReg.debugValue[ phyRegNum[i] ];
                 end
             endtask
         `endif
@@ -136,7 +144,7 @@ module TestMain;
     logic serialWE;
     SerialDataPath serialWriteData;
 
-    Main_Zynq_Wrapper main(
+    Main_ASIC main(
         .clk_p( clk ),
         .clk_n ( ~clk ),
         .negResetIn( ~rst ),
@@ -206,26 +214,29 @@ module TestMain;
 
         // Initialize memory
         #STEP;
-        `ifdef RSD_FUNCTIONAL_SIMULATION
-            `ifndef RSD_POST_SYNTHESIS
-                for ( entry = 0; entry < (1 << main.main.memory.body.HEX_FILE_INDEX_BIT_SIZE); entry += DUMMY_HEX_ENTRY_NUM ) begin
-                    $readmemh(
-                        DUMMY_DATA_FILE,
-                        main.main.memory.body.array,
-                        entry, // 開始アドレス（エントリ番号）
-                        entry + DUMMY_HEX_ENTRY_NUM - 1 // 終了アドレス（エントリ番号）
-                    );
-                end
-                // ファイル内容は物理メモリ空間の先頭から連続して展開される
-                // ファイル先頭 64KB は ROM とみなされ，残りが RAM の空間に展開される
-                //   Physical 0x0_0000 - 0x0_ffff -> Logical 0x0000_0000 - 0x0000_ffff: ROM (64KB)
-                //   Physical 0x1_0000 - 0x4_ffff -> Logical 0x8000_0000 - 0x8003_ffff: RAM (256KB)
-                // たとえば 128KB のファイルの場合，
-                // 先頭 64KB は 論理空間の 0x0000_0000 - 0x0000_FFFF に，
-                // 後続 64KB は 論理空間の 0x8000_0000 - 0x8000_FFFF に展開されることになる
-                $readmemh( codeFileName, main.main.memory.body.array );
-            `endif
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    `ifndef RSD_POST_SYNTHESIS
+        `ifndef RSD_VCS_SIMULATION
+            for ( entry = 0; entry < (1 << `MAIN.memory.body.HEX_FILE_INDEX_BIT_SIZE); entry += DUMMY_HEX_ENTRY_NUM ) begin
+                $readmemh(
+                    DUMMY_DATA_FILE,
+                    `MAIN.memory.body.array,
+                    entry, // 開始アドレス（エントリ番号）
+                    entry + DUMMY_HEX_ENTRY_NUM - 1 // 終了アドレス（エントリ番号）
+                );
+            end
         `endif
+            // ファイル内容は物理メモリ空間の先頭から連続して展開される
+            // ファイル先頭 64KB は ROM とみなされ，残りが RAM の空間に展開される
+            //   Physical 0x0_0000 - 0x0_ffff -> Logical 0x0000_0000 - 0x0000_ffff: ROM (64KB)
+            //   Physical 0x1_0000 - 0x4_ffff -> Logical 0x8000_0000 - 0x8003_ffff: RAM (256KB)
+            // たとえば 128KB のファイルの場合，
+            // 先頭 64KB は 論理空間の 0x0000_0000 - 0x0000_FFFF に，
+            // 後続 64KB は 論理空間の 0x8000_0000 - 0x8000_FFFF に展開されることになる
+            $readmemh( codeFileName, `MAIN.memory.body.array );
+    `endif
+`endif
+
 
         //
         // Simulation body
@@ -254,9 +265,9 @@ module TestMain;
                         registerFileCSV_Dumper.ProceedCycle();
 
                         for ( int i = 0; i < COMMIT_WIDTH; i++ ) begin
-                            if ( main.main.core.cmStage.commit[i] ) begin
+                            if ( `MAIN.core.cmStage.commit[i] ) begin
                                 GetCommittedRegisterValue( i, regData );
-                                registerFileCSV_Dumper.Dump( main.main.core.cmStage.alReadData[i].pc, regData );
+                                registerFileCSV_Dumper.Dump( `MAIN.core.cmStage.alReadData[i].pc, regData );
                             end
                         end
                     end
@@ -302,7 +313,7 @@ module TestMain;
             `ifndef RSD_POST_SYNTHESIS
                 // Count the number of commit in the last cycle.
                 for ( count = 0; count < COMMIT_WIDTH; count++ ) begin
-                    if ( !main.main.core.cmStage.commit[count] )
+                    if ( !`MAIN.core.cmStage.commit[count] )
                         break;
                 end
                 commitNumInLastCycle = count;

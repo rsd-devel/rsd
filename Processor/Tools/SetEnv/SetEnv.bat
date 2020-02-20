@@ -32,6 +32,9 @@ setx SYNOPSYS_BIN C:/dev/env/hdl/Synopsys/fpga_I2013091/bin/
 :: Specify the path of "dc_shell" for Design Compiler.
 setx RSD_DC_SHELL_BIN C:/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
 
+:: Specify the path of Synopsys VCS
+setx VCS_HOME C:/opt/cad/synopsys/N-2017.12-SP2
+setx RSD_VCS_BIN C:/opt/cad/synopsys/N-2017.12-SP2/bin/vcs
 
 :: Specify the ISE folder in Vivado.
 setx RSD_VIVADO E:/Xilinx/Vivado/2016.4/ids_lite/ISE/

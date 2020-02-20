@@ -28,7 +28,7 @@ module ProducerMatrix (
     IssueQueueOneHotPath [ISSUE_QUEUE_ENTRY_NUM-1:0] matrix;   // Don't care.
 
 `ifndef RSD_SYNTHESIS
-    `ifndef RSD_VIVADO_SIMULATION
+    `ifndef RSD_DISABLE_INITIAL
         // Don't care these values, but avoiding undefined status in Questa.
         initial begin
             matrix = '0;

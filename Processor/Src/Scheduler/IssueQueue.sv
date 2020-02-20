@@ -188,11 +188,13 @@ module IssueQueue (
 
     //以下は選択的フラッシュのための機構
 `ifndef RSD_SYNTHESIS
-    initial begin
-        for (int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
-            alPtrReg[i]<='0;
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
+                alPtrReg[i]<='0;
+            end
         end
-    end
+    `endif
 `endif
 
     //alPtrRegにIssueQueueの各エントリのActiveListPtrを複製しておく

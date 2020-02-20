@@ -31,6 +31,9 @@ export SYNOPSYS_BIN=~/opt/cad/synopsys/fpga_J-2014.09-SP1/bin/
 # Specify the path of "dc_shell" for Design Compiler.
 export RSD_DC_SHELL_BIN=~/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
 
+# Specify the path of Synopsys VCS
+export VCS_HOME=/opt/cad/synopsys/N-2017.12-SP2
+export RSD_VCS_BIN=$VCS_HOME/bin/vcs
 
 # Specify the ISE folder in Vivado.
 export RSD_VIVADO=~/opt/cad/xilinx/Vivado/2016.4/ids_lite/ISE

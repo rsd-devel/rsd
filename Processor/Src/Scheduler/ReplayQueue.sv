@@ -153,7 +153,7 @@ module ReplayQueue(
     logic mshrMakeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
-    `ifndef RSD_VIVADO_SIMULATION
+    `ifndef RSD_DISABLE_INITIAL
         // Don't care these values, but avoiding undefined status in Questa.
         initial begin
             replayEntryReg = '0;

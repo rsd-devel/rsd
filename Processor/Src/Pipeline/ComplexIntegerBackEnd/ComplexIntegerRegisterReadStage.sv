@@ -30,12 +30,14 @@ module ComplexIntegerRegisterReadStage(
     ComplexIntegerRegisterReadStageRegPath pipeReg[COMPLEX_ISSUE_WIDTH];
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-            pipeReg[i] = '0;
+    `ifndef RSD_DISABLE_INITIAL
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+                pipeReg[i] = '0;
+            end
         end
-    end
+    `endif
 `endif
 
     always_ff@( posedge port.clk )   // synchronous rst

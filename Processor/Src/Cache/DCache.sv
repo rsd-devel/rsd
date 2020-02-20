@@ -634,7 +634,7 @@ module DCache(
     logic lsuMakeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
-    `ifndef RSD_VIVADO_SIMULATION
+    `ifndef RSD_DISABLE_INITIAL
         // Don't care these values, but avoiding undefined status in Questa.
         initial begin
             for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
@@ -976,12 +976,14 @@ module DCacheMissHandler(
     DCacheLinePath mergedLine[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
-    // Don't care these values, but avoiding undefined status in Questa.
-    initial begin
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            mshr[i] = '0;
+    `ifndef RSD_DISABLE_INITIAL
+        // Don't care these values, but avoiding undefined status in Questa.
+        initial begin
+            for (int i = 0; i < MSHR_NUM; i++) begin
+                mshr[i] = '0;
+            end
         end
-    end
+    `endif
 `endif
 
     // MSHR

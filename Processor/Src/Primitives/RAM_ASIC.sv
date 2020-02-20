@@ -34,7 +34,7 @@ module BlockDualPortRAM #(
     
     Value array[ENTRY_NUM];
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         rv <= array[ra];
         if(we) 
             array[wa] <= wv;
@@ -197,7 +197,7 @@ module InitializedBlockRAM #(
 
     Address raReg;
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if(we)
             array[wa] <= wv;
             
@@ -208,18 +208,19 @@ module InitializedBlockRAM #(
         rv = array[raReg];
     end
 
-`ifndef RSD_SYNTHESIS_DESIGN_COMPILER
-    // ???: Cannot be used initial clause when synthesis for ASIC
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
+`ifndef RSD_SYNTHESIS 
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            if (INIT_HEX_FILE != "") begin
+                $readmemh(INIT_HEX_FILE, array);
+            end
+            else begin
+                $display(
+                    "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
+                );
+            end
         end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
+    `endif
 `endif
 
     generate
@@ -318,7 +319,7 @@ module InitializedBlockRAM_ForNarrowRequest #(
     HexArrayEntryOffset hexFileWAOffset;
     HexArrayValue tmpWriteEntry;
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if (we) begin
             array[hexFileWA] <= hexFileWV;
         end
@@ -351,16 +352,18 @@ module InitializedBlockRAM_ForNarrowRequest #(
     end
 
 `ifndef RSD_SYNTHESIS
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            if (INIT_HEX_FILE != "") begin
+                $readmemh(INIT_HEX_FILE, array);
+            end
+            else begin
+                $display(
+                    "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
+                );
+            end
         end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
+    `endif
 `endif
 
     generate
@@ -427,10 +430,12 @@ module InitializedBlockRAM_ForWideRequest #(
     typedef logic [HEX_FILE_ENTRY_BIT_SIZE-1: 0] HexArrayValue;
 
     // Raise an error if the bandwidth is smaller than or equal to 128 bits
+`ifndef RSD_VCS_SIMULATION
     `RSD_STATIC_ASSERT(
         HEX_FILE_ENTRY_BIT_WIDTH <= ENTRY_BIT_WIDTH, 
         "Set ENTRY_BIT_SIZE more than 128 bits"
     );
+`endif
 
     function automatic HexArrayIndex GetHexArrayIndexFromAddress(Address addr, CountPath count);
         if (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) begin
@@ -485,16 +490,18 @@ module InitializedBlockRAM_ForWideRequest #(
     end
 
 `ifndef RSD_SYNTHESIS
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            if (INIT_HEX_FILE != "") begin
+                $readmemh(INIT_HEX_FILE, array);
+            end
+            else begin
+                $display(
+                    "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
+                );
+            end
         end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
+    `endif
 `endif
 
     generate
@@ -575,7 +582,7 @@ module DistributedDualPortRAM #(
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];  // synthesis syn_ramstyle = "select_ram"
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if(we)
             array[wa] <= wv;
     end
@@ -585,13 +592,15 @@ module DistributedDualPortRAM #(
     end
 
 `ifndef RSD_SYNTHESIS
-    initial begin
-        for (int i = 0; i < ENTRY_NUM; i++) begin
-            for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
-                array[i][j] = 0;
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < ENTRY_NUM; i++) begin
+                for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
+                    array[i][j] = 0;
+                end
             end
         end
-    end
+    `endif
 `endif
 
     generate
@@ -622,7 +631,7 @@ module RegisterDualPortRAM #(
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "registers"
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if(we)
             array[wa] <= wv;
     end
@@ -632,13 +641,15 @@ module RegisterDualPortRAM #(
     end
 
 `ifndef RSD_SYNTHESIS
-    initial begin
-        for (int i = 0; i < (ENTRY_NUM); i++) begin
-            for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
-                array[i][j] = 0;
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < (ENTRY_NUM); i++) begin
+                for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
+                    array[i][j] = 0;
+                end
             end
         end
-    end
+    `endif
 `endif
 
     generate
@@ -697,6 +708,7 @@ module DistributedSharedMultiPortRAM #(
         );
 
 `ifndef RSD_VIVADO_SIMULATION
+    `ifndef RSD_VCS_SIMULATION
         for (genvar i = 0; i < READ_NUM-1; i++) begin
             `RSD_ASSERT_CLK_FMT(
                 clk,
@@ -704,6 +716,7 @@ module DistributedSharedMultiPortRAM #(
                 ("Port (%x) read from the outside of the RAM array.", i+1)
             );
         end
+    `endif
 `endif
     endgenerate
         
@@ -932,7 +945,7 @@ module RegisterMultiPortRAM #(
 
     generate 
         for (genvar i = 0; i < WRITE_NUM; i++) begin
-            always_ff @(posedge clk) begin
+            always @(posedge clk) begin
                 if (we[i])
                     array[ wa[i] ] <= wv[i];
             end
@@ -989,15 +1002,19 @@ module DistributedMultiBankRAM #(
     // For Debug
     // This signal will be written in a test bench, so set public for verilator.
     Value debugValue[ ENTRY_NUM ] /*verilator public*/;
-    initial begin
-        for (int i = 0; i < ENTRY_NUM; i++) begin
-            for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
-                debugValue[i][j] = 0;
+
+
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < ENTRY_NUM; i++) begin
+                for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
+                    debugValue[i][j] = 0;
+                end
             end
         end
-    end
+    `endif
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         for (int i = 0; i < WRITE_NUM; i++) begin
             if (we[i])
                 debugValue[ wa[i] ] <= wv[i];
@@ -1187,13 +1204,16 @@ module BlockMultiBankRAM #(
     // For Debug
     // This signal will be written in a test bench, so set public for verilator.
     Value debugValue[ ENTRY_NUM ] /*verilator public*/;
-    initial begin
-        for (int i = 0; i < ENTRY_NUM; i++) begin
-            for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
-                debugValue[i][j] = 0;
+
+    `ifndef RSD_DISABLE_INITIAL
+        initial begin
+            for (int i = 0; i < ENTRY_NUM; i++) begin
+                for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
+                    debugValue[i][j] = 0;
+                end
             end
         end
-    end
+    `endif
 
     Value rvReg[READ_NUM];
     always_ff @(posedge clk) begin

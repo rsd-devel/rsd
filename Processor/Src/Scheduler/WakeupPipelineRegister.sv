@@ -54,6 +54,7 @@ module WakeupPipelineRegister(
     IssueQueueOneHotPath flushIQ_Entry;
 
 `ifndef RSD_SYNTHESIS
+    `ifndef RSD_DISABLE_INITIAL
     // Don't care these values, but avoiding undefined status in Questa.
     initial begin
         for( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
@@ -82,6 +83,7 @@ module WakeupPipelineRegister(
             end
         end
     end
+    `endif
 `endif
 
     always_ff @( posedge port.clk ) begin
