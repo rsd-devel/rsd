@@ -75,19 +75,6 @@ output
     AddrPath memoryRA;
 
     // Body
-`ifdef RSD_SYNTHESIS_DESIGN_COMPILER
-    BlockDualPortRAM #(
-        .ENTRY_NUM (ENTRY_NUM),
-        .ENTRY_BIT_SIZE (MEMORY_ENTRY_BIT_NUM)
-    ) body (
-        .clk( clk ),
-        .we( memoryWE ),
-        .wa( memoryWA[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
-        .wv( memoryWV ),
-        .ra( memoryRA[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
-        .rv( ramReadData )
-    );
-`else
     InitializedBlockRAM_ForNarrowRequest #( 
         .ENTRY_NUM( MEMORY_ENTRY_NUM ),
         .INIT_HEX_FILE( INIT_HEX_FILE ),
@@ -100,7 +87,6 @@ output
         .ra( memoryRA[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
         .rv( ramReadData )
     );
-`endif
 
     // Push memory request temporarily to queue
     logic pushRequestQueue;
