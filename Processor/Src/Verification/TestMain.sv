@@ -144,6 +144,7 @@ module TestMain;
     logic serialWE;
     SerialDataPath serialWriteData;
 
+`ifdef RSD_VCS_SIMULATION
     Main_ASIC main(
         .clk_p( clk ),
         .clk_n ( ~clk ),
@@ -151,6 +152,15 @@ module TestMain;
         .posResetOut( rstOut ),
         .*
     );
+`else
+    Main_Zynq_Wrapper main(
+        .clk_p( clk ),
+        .clk_n ( ~clk ),
+        .negResetIn( ~rst ),
+        .posResetOut( rstOut ),
+        .*
+    );
+`endif
 
     //
     // Dumpers
