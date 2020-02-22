@@ -243,7 +243,7 @@ module Gshare(
 
             // To avoid writing to the same bank (avoid error message)
             for (int i = 0; i < FETCH_WIDTH; i++) begin
-                phtRA[i] = i;
+                phtRA[i] = resetIndex + INT_ISSUE_WIDTH + i;
             end
 
             pushPhtQueue = FALSE;

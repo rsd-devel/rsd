@@ -112,7 +112,7 @@ typedef struct packed {
 //
 localparam LOG_ADDR_SECTION_0_BEGIN = 32'h0000_1000;
 localparam LOG_ADDR_SECTION_0_END   = 32'h0000_8000;
-localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
+localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 15;
 
 // 下位アドレスを切り出してそのまま加算できるように，0x1000 分は無視
 localparam PHY_ADDR_SECTION_0_BASE = 20'h0_0000;
@@ -124,7 +124,7 @@ localparam PHY_ADDR_SECTION_0_BASE = 20'h0_0000;
 //
 localparam LOG_ADDR_SECTION_1_BEGIN = 32'h8000_0000;
 localparam LOG_ADDR_SECTION_1_END   = 32'h8000_8000;
-localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 16;
+localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 15;
 
 localparam PHY_ADDR_SECTION_1_BASE = 20'h0_8000;
 
@@ -199,7 +199,7 @@ function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
         // Section 0 (ROM?)
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_SECTION_0_BASE + 
-            logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH:0];
+            logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH-1:0];
     end
     else if (LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr < LOG_ADDR_SECTION_1_END) begin
         // Section 1 (RAM?)

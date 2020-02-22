@@ -96,7 +96,7 @@ module MemoryDependencyPredictor(
 
             // To avoid writing to the same bank (avoid error message)
             for (int i = 0; i < RENAME_WIDTH; i++) begin
-                mdtRA[i] = i;
+                mdtRA[i] = resetIndex + STORE_ISSUE_WIDTH + i;
             end
         end
     end

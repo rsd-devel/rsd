@@ -1200,43 +1200,43 @@ module BlockMultiBankRAM #(
         end
     endgenerate
 
-`ifndef RSD_SYNTHESIS
-    // For Debug
-    // This signal will be written in a test bench, so set public for verilator.
-    Value debugValue[ ENTRY_NUM ] /*verilator public*/;
+// `ifndef RSD_SYNTHESIS
+//     // For Debug
+//     // This signal will be written in a test bench, so set public for verilator.
+//     Value debugValue[ ENTRY_NUM ] /*verilator public*/;
 
-    `ifndef RSD_DISABLE_INITIAL
-        initial begin
-            for (int i = 0; i < ENTRY_NUM; i++) begin
-                for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
-                    debugValue[i][j] = 0;
-                end
-            end
-        end
-    `endif
+//     `ifndef RSD_DISABLE_INITIAL
+//         initial begin
+//             for (int i = 0; i < ENTRY_NUM; i++) begin
+//                 for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
+//                     debugValue[i][j] = 0;
+//                 end
+//             end
+//         end
+//     `endif
 
-    Value rvReg[READ_NUM];
-    always_ff @(posedge clk) begin
-        for (int i = 0; i < READ_NUM; i++) begin
-            rvReg[i] <= debugValue[ ra[i] ];
-        end
-        for (int i = 0; i < WRITE_NUM; i++) begin
-            if (we[i])
-                debugValue[ wa[i] ] <= wv[i];
-        end
+//     Value rvReg[READ_NUM];
+//     always_ff @(posedge clk) begin
+//         for (int i = 0; i < READ_NUM; i++) begin
+//             rvReg[i] <= debugValue[ ra[i] ];
+//         end
+//         for (int i = 0; i < WRITE_NUM; i++) begin
+//             if (we[i])
+//                 debugValue[ wa[i] ] <= wv[i];
+//         end
 
-    end
+//     end
 
-    generate
-        for (genvar i = 0; i < READ_NUM; i++) begin
-            `RSD_ASSERT_CLK_FMT(
-                clk,
-                rvReg[i] == rv[i],
-                ("The read output of a port(%x) is incorrect", i)
-            );
-        end
-    endgenerate
-`endif
+//     generate
+//         for (genvar i = 0; i < READ_NUM; i++) begin
+//             `RSD_ASSERT_CLK_FMT(
+//                 clk,
+//                 rvReg[i] == rv[i],
+//                 ("The read output of a port(%x) is incorrect", i)
+//             );
+//         end
+//     endgenerate
+// `endif
 
 endmodule : BlockMultiBankRAM
 
@@ -1326,6 +1326,12 @@ module BlockMultiBankRAM_Body #(
                     raBank[b] = ra[i];
                     break;
                 end
+            end
+        end
+
+        for (int b = 0; b < BANK_NUM; b++) begin
+            if (raBank[b] == waBank[b]) begin
+                weBank[b] = FALSE;
             end
         end
 

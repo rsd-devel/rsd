@@ -165,7 +165,7 @@ module BTB(
 
             // To avoid writing to the same bank (avoid error message)
             for (int i = 0; i < FETCH_WIDTH; i++) begin
-                btbRA[i] = i;
+                btbRA[i] = resetIndex + INT_ISSUE_WIDTH + i;
             end
             
             pushBtbQueue = FALSE;
