@@ -1,0 +1,47 @@
+diff --git a/arch/arm/boot/dts/zynq-7000.dtsi b/arch/arm/boot/dts/zynq-7000.dtsi
+old mode 100644
+new mode 100755
+index fe8e87b..f8dab9a
+--- a/arch/arm/boot/dts/zynq-7000.dtsi
++++ b/arch/arm/boot/dts/zynq-7000.dtsi
+@@ -422,5 +422,20 @@
+ 			reg = <0xf8005000 0x1000>;
+ 			timeout-sec = <10>;
+ 		};
++
++		rsdram: ramuio@10000000 {
++            compatible = "generic-uio";
++            reg = <0x10000000 0x10000000>;
++        };
++
++		pl2ps: pl2psuio@43c00000 {
++            compatible = "generic-uio";
++            reg = <0x43c00000 0x1000>;
++        };
++
++		ps2pl: ps2pluio@43c10000 {
++            compatible = "generic-uio";
++            reg = <0x43c10000 0x1000>;
++        };
+ 	};
+ };
+diff --git a/arch/arm/boot/dts/zynq-zed.dts b/arch/arm/boot/dts/zynq-zed.dts
+old mode 100644
+new mode 100755
+index b9df9b3..b59113d
+--- a/arch/arm/boot/dts/zynq-zed.dts
++++ b/arch/arm/boot/dts/zynq-zed.dts
+@@ -19,11 +19,11 @@
+ 
+ 	memory@0 {
+ 		device_type = "memory";
+-		reg = <0x0 0x20000000>;
++		reg = <0x0 0x10000000>;
+ 	};
+ 
+ 	chosen {
+-		bootargs = "";
++		bootargs = "mem=256M root=/dev/mmcblk0p2 rw earlyprintk rootfstype=ext4 rootwait devtmpfs.mount=1 uio_pdrv_genirq.of_id=generic-uio";
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 

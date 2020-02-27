@@ -213,13 +213,10 @@ input
         dataArrayByteWE_In,
         dataArrayWE,
     output
-        initMSHR,
-        initMSHR_Addr,
         tagArrayDataOut,
         tagArrayValidOut,
         dataArrayDataOut,
-        dataArrayDirtyOut,
-        memAccessResult
+        dataArrayDirtyOut
     );
 
 

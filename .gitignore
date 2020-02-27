@@ -2,15 +2,11 @@
 
 /Processor/Project/Verilator/obj_dir
 /Processor/Project/ModelSim
-/Processor/Project/Zedboard/Vivado/rsd_zedboard
-/Processor/Project/Zedboard/Vivado/rsd_post_synthesis
-/Processor/Project/Zedboard/Vivado/rsd
-/Processor/Project/Zedboard/Vivado/*.v
-/Processor/Project/Zedboard/Synplify/rev_1
-/Processor/Project/Zedboard/Synplify/post_synthesis
-/Processor/Project/Vivado/Zedboard/rsd
-/Processor/Project/Vivado/Zedboard/rsd_post_synthesis
-/Processor/Project/Vivado/Zedboard/*.v
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd_post_synthesis
+/Processor/Project/Vivado/TargetBoards/Zedboard/*.v
+/Processor/Project/Vivado/TargetBoards/Zedboard/NA/
+/Processor/Project/Vivado/TargetBoards/Zedboard/.Xil/
 /Processor/Project/Synplify/Zedboard
 /Processor/Project/Synplify/Zedboard_post_synthesis
 /Processor/Project/Synplify/Microsemi
@@ -54,8 +50,8 @@ synlog.tcl
 
 /Processor/Tools/QEMU_SimDriver/GDB_CommandFile
 
-/Tools/SetEnv/MySetEnv.bat
-/Tools/SetEnv/MySetEnv.sh
+/Processor/Tools/SetEnv/MySetEnv.bat
+/Processor/Tools/SetEnv/MySetEnv.sh
 
 *.pyc
 *.log
@@ -67,9 +63,10 @@ synlog.tcl
 
 *.stackdump
 
-vivado*.jou
-vivado*.zip
-vivado*.str
+vivado*jou
+vivado*zip
+vivado*str
+vivado*log
 
 modelsim.ini
 
@@ -80,5 +77,7 @@ hs*.dmp
 /.settings
 /.library_mapping.xml
 /.project
+/.history
 
 Processor/Project/Synplify/*.prd
+

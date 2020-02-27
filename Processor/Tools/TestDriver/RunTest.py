@@ -187,7 +187,7 @@ class VivadoSimulationDriver(object):
         self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
         self.testCodeDirPath = testCodeDirPath  # Test code directory
         self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
-        self.xsimPath = os.environ['RSD_VIVADOSIM_PATH'] + '/xsim'
+        self.xsimPath = os.environ['RSD_VIVADO_BIN'] + '/xsim'
 
         self.additionalOptionList = []
         self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
