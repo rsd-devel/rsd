@@ -1,8 +1,7 @@
 
+`include "XilinxMacros.vh"
 
 localparam LED_WIDTH = 8;
-
-`include "XilinxMacros.vh"
 
 module RSD(
 input
@@ -14,91 +13,91 @@ input
     wire  axi4MemoryIF_M_AXI_ACLK,
     wire  axi4MemoryIF_M_AXI_ARESETN,
 output
-    wire [1 : 0] axi4MemoryIF_M_AXI_AWID,
-    wire [31 : 0] axi4MemoryIF_M_AXI_AWADDR,
-    wire [7 : 0] axi4MemoryIF_M_AXI_AWLEN,
-    wire [2 : 0] axi4MemoryIF_M_AXI_AWSIZE,
-    wire [1 : 0] axi4MemoryIF_M_AXI_AWBURST,
+    wire [`MEMORY_AXI4_WRITE_ID_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWID,
+    wire [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0] axi4MemoryIF_M_AXI_AWADDR,
+    wire [`MEMORY_AXI4_AWLEN_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWLEN,
+    wire [`MEMORY_AXI4_AWSIZE_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWSIZE,
+    wire [`MEMORY_AXI4_AWBURST_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWBURST,
     wire  axi4MemoryIF_M_AXI_AWLOCK,
-    wire [3 : 0] axi4MemoryIF_M_AXI_AWCACHE,
-    wire [2 : 0] axi4MemoryIF_M_AXI_AWPROT,
-    wire [3 : 0] axi4MemoryIF_M_AXI_AWQOS,
-    wire [0 : 1] axi4MemoryIF_M_AXI_AWUSER,
+    wire [`MEMORY_AXI4_AWCACHE_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWCACHE,
+    wire [`MEMORY_AXI4_AWPROT_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWPROT,
+    wire [`MEMORY_AXI4_AWQOS_WIDTH-1 : 0] axi4MemoryIF_M_AXI_AWQOS,
+    wire [`MEMORY_AXI4_AWUSER_WIDTH-1 : 1] axi4MemoryIF_M_AXI_AWUSER,
     wire  axi4MemoryIF_M_AXI_AWVALID,
 input
     wire  axi4MemoryIF_M_AXI_AWREADY,
 output
-    wire [63 : 0] axi4MemoryIF_M_AXI_WDATA,
-    wire [7 : 0] axi4MemoryIF_M_AXI_WSTRB,
+    wire [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0] axi4MemoryIF_M_AXI_WDATA,
+    wire [`MEMORY_AXI4_DATA_BIT_NUM/8-1 : 0] axi4MemoryIF_M_AXI_WSTRB,
     wire  axi4MemoryIF_M_AXI_WLAST,
-    wire [0 : 1] axi4MemoryIF_M_AXI_WUSER,
+    wire [`MEMORY_AXI4_WUSER_WIDTH-1 : 1] axi4MemoryIF_M_AXI_WUSER,
     wire  axi4MemoryIF_M_AXI_WVALID,
 input
     wire  axi4MemoryIF_M_AXI_WREADY,
-    wire [1 : 0] axi4MemoryIF_M_AXI_BID,
-    wire [1 : 0] axi4MemoryIF_M_AXI_BRESP,
-    wire [0 : 1] axi4MemoryIF_M_AXI_BUSER,
+    wire [`MEMORY_AXI4_WRITE_ID_WIDTH-1 : 0] axi4MemoryIF_M_AXI_BID,
+    wire [`MEMORY_AXI4_BRESP_WIDTH-1 : 0] axi4MemoryIF_M_AXI_BRESP,
+    wire [`MEMORY_AXI4_BUSER_WIDTH-1 : 0] axi4MemoryIF_M_AXI_BUSER,
     wire  axi4MemoryIF_M_AXI_BVALID,
 output
     wire  axi4MemoryIF_M_AXI_BREADY,
-    wire [1 : 0] axi4MemoryIF_M_AXI_ARID,
-    wire [31 : 0] axi4MemoryIF_M_AXI_ARADDR,
-    wire [7 : 0] axi4MemoryIF_M_AXI_ARLEN,
-    wire [2 : 0] axi4MemoryIF_M_AXI_ARSIZE,
-    wire [1 : 0] axi4MemoryIF_M_AXI_ARBURST,
+    wire [`MEMORY_AXI4_READ_ID_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARID,
+    wire [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0] axi4MemoryIF_M_AXI_ARADDR,
+    wire [`MEMORY_AXI4_ARLEN_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARLEN,
+    wire [`MEMORY_AXI4_ARSIZE_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARSIZE,
+    wire [`MEMORY_AXI4_ARBURST_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARBURST,
     wire  axi4MemoryIF_M_AXI_ARLOCK,
-    wire [3 : 0] axi4MemoryIF_M_AXI_ARCACHE,
-    wire [2 : 0] axi4MemoryIF_M_AXI_ARPROT,
-    wire [3 : 0] axi4MemoryIF_M_AXI_ARQOS,
-    wire [0 : 1] axi4MemoryIF_M_AXI_ARUSER,
+    wire [`MEMORY_AXI4_ARCACHE_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARCACHE,
+    wire [`MEMORY_AXI4_ARPROT_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARPROT,
+    wire [`MEMORY_AXI4_ARQOS_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARQOS,
+    wire [`MEMORY_AXI4_ARUSER_WIDTH-1 : 0] axi4MemoryIF_M_AXI_ARUSER,
     wire  axi4MemoryIF_M_AXI_ARVALID,
 input
     wire  axi4MemoryIF_M_AXI_ARREADY,
-    wire [1 : 0] axi4MemoryIF_M_AXI_RID,
-    wire [63 : 0] axi4MemoryIF_M_AXI_RDATA,
-    wire [1 : 0] axi4MemoryIF_M_AXI_RRESP,
+    wire [`MEMORY_AXI4_READ_ID_WIDTH-1 : 0] axi4MemoryIF_M_AXI_RID,
+    wire [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0] axi4MemoryIF_M_AXI_RDATA,
+    wire [`MEMORY_AXI4_RRESP_WIDTH-1 : 0] axi4MemoryIF_M_AXI_RRESP,
     wire  axi4MemoryIF_M_AXI_RLAST,
-    wire [0 : 1] axi4MemoryIF_M_AXI_RUSER,
+    wire [`MEMORY_AXI4_RUSER_WIDTH-1 : 0] axi4MemoryIF_M_AXI_RUSER,
     wire  axi4MemoryIF_M_AXI_RVALID,
 output
     wire  axi4MemoryIF_M_AXI_RREADY,
 input
     wire axi4LitePlToPsControlRegisterIF_S_AXI_ACLK,
     wire axi4LitePlToPsControlRegisterIF_S_AXI_ARESETN,
-    wire [6 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_ARADDR,
-    wire [2 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_ARPROT,
+    wire [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_ARADDR,
+    wire [`PS_PL_CTRL_REG_AWPROT_WIDTH-1 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_ARPROT,
     wire  axi4LitePlToPsControlRegisterIF_S_AXI_ARVALID,
 output
     wire  axi4LitePlToPsControlRegisterIF_S_AXI_ARREADY,
-    wire [31 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_RDATA,
-    wire [1 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_RRESP,
+    wire [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_RDATA,
+    wire [`PS_PL_CTRL_REG_RRESP_WIDTH-1 : 0] axi4LitePlToPsControlRegisterIF_S_AXI_RRESP,
     wire  axi4LitePlToPsControlRegisterIF_S_AXI_RVALID,
 input
     wire  axi4LitePlToPsControlRegisterIF_S_AXI_RREADY,
     wire axi4LitePsToPlControlRegisterIF_S_AXI_ACLK,
     wire axi4LitePsToPlControlRegisterIF_S_AXI_ARESETN,
-    wire [6 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_AWADDR,
-    wire [2 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_AWPROT,
+    wire [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_AWADDR,
+    wire [`PS_PL_CTRL_REG_AWPROT_WIDTH-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_AWPROT,
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_AWVALID,
 output
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_AWREADY,
 input
-    wire [31 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WDATA,
-    wire [3 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WSTRB,
+    wire [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WDATA,
+    wire [(`PS_PL_CTRL_REG_DATA_BIT_SIZE/8)-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WSTRB,
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_WVALID,
 output
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_WREADY,
-    wire [1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_BRESP,
+    wire [`PS_PL_CTRL_REG_BRESP_WIDTH-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_BRESP,
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_BVALID,
 input
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_BREADY,
-    wire [6 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_ARADDR,
-    wire [2 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_ARPROT,
+    wire [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_ARADDR,
+    wire [`PS_PL_CTRL_REG_ARPROT_WIDTH-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_ARPROT,
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_ARVALID,
 output
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_ARREADY,
-    wire [31 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_RDATA,
-    wire [1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_RRESP,
+    wire [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_RDATA,
+    wire [`PS_PL_CTRL_REG_RRESP_WIDTH-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_RRESP,
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_RVALID,
 input
     wire  axi4LitePsToPlControlRegisterIF_S_AXI_RREADY
