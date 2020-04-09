@@ -40,7 +40,6 @@ TEST_MODULES = \
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．
 MODULES = \
-	Main_Vivado.v \
 	Main_Zynq_Wrapper.sv \
 	Main_Zynq.sv \
 	Core.sv \

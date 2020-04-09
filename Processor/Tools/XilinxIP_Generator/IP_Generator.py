@@ -11,6 +11,7 @@ def parse_makefile_for_core_sources():
     file_name = os.environ['RSD_ROOT'] + "/Processor/Src/Makefiles/CoreSources.inc.mk"
     sources = []
     is_header = False
+    print("Parsing %s..." % file_name)
     with open(file_name) as fin:
         for line in fin:
             line = line.split("#")[0] # Remove comment

@@ -2176,6 +2176,11 @@
     <ns0:fileSet>
       <ns0:name>xilinx_anylanguagesynthesis_view_fileset</ns0:name>
       <ns0:file>
+        <ns0:name>../../../../../../Src/Main_Vivado.v</ns0:name>
+        <ns0:fileType>systemVerilogSource</ns0:fileType>
+        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
+      </ns0:file>
+      <ns0:file>
         <ns0:name>../../../../../../Src/BasicTypes.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
@@ -2247,11 +2252,6 @@
       </ns0:file>
       <ns0:file>
         <ns0:name>../../../../../../Src/Debug/DebugTypes.sv</ns0:name>
-        <ns0:fileType>systemVerilogSource</ns0:fileType>
-        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
-      </ns0:file>
-      <ns0:file>
-        <ns0:name>../../../../../../Src/Main_Vivado.v</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
