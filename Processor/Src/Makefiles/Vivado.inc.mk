@@ -77,7 +77,7 @@ VIVADO_PROJECT_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/rsd.xpr
 SYNPLIFY_NETLIST = $(SYNPLIFY_PROJECT_ROOT)/rsd.vm
 
 # vivadoプロジェクトを作成して開く．すでに作成されている場合は開くのみ．
-vivado: $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_FILE)
+vivado: $(VIVADO_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado $(VIVADO_PROJECT_FILE) &
 
 # vivadoプロジェクトの削除
@@ -91,6 +91,11 @@ vivado-clean:
 # Do NOT use this command.
 # This command is called automatically if you need.
 vivado-create:
+	python3 $(TOOLS_ROOT)/XilinxIP_Generator/IP_Generator.py
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_project.tcl
+
+vivado-create-using-synplify-netlist: $(SYNPLIFY_NETLIST)
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source make_project.tcl
 
@@ -243,7 +248,7 @@ xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 $(BIT_FILE): $(VIVADO_BIT_FILE)
 	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
 
-$(VIVADO_BIT_FILE): $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_FILE)
+$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/make_bitstream.tcl
 
 # Do NOT use this command.

@@ -4,6 +4,7 @@
 /Processor/Project/ModelSim
 /Processor/Project/Vivado/TargetBoards/Zedboard/rsd
 /Processor/Project/Vivado/TargetBoards/Zedboard/rsd_post_synthesis
+/Processor/Project/Vivado/TargetBoards/Zedboard/code.hex
 /Processor/Project/Vivado/TargetBoards/Zedboard/*.v
 /Processor/Project/Vivado/TargetBoards/Zedboard/NA/
 /Processor/Project/Vivado/TargetBoards/Zedboard/.Xil/
@@ -80,4 +81,5 @@ hs*.dmp
 /.history
 
 Processor/Project/Synplify/*.prd
+
 
