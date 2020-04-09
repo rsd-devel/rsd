@@ -1,34 +1,45 @@
 
 //
-// RSDがAXI4を用いてメモリアクセスする場合のAXI4バスのパラメータ
+// AXI4 bus parameters for RSD
 //
 
-// RSDのメモリ空間とPS(ARM)のメモリ空間のオフセット
-// PS(ARM)のプロセスはここで指定したアドレス以降の空間をRSDとの明示的データ共有以外の目的で使用してはいけない．
+// Offset of RSD memory space and PS (ARM) memory space
+// Processes of PS (ARM) must not use the space after the address specified here 
+// for any purpose unless explicit data sharing with the RSD.
 
 `define MEMORY_AXI4_BASE_ADDR 32'h10000000
-// AXI4バスのデータ幅
+
+// Data width of Axi4 bus
 `define MEMORY_AXI4_DATA_BIT_NUM 64
 
-`define MEMORY_AXI4_BURST_LEN (MEMORY_ENTRY_BIT_NUM/`MEMORY_AXI4_DATA_BIT_NUM)
-`define MEMORY_AXI4_BURST_BIT_NUM $clog2(`MEMORY_AXI4_BURST_LEN)
-
-`define MEMORY_AXI4_READ_ID_WIDTH 2
+// # of Maximum outstanding read process.
+// Maximum number of requests from D-Cache is MSHR_NUM, request from I-Cache is 1, 
+// maximum number of requests is MSHR_NUM+1
+`define MEMORY_AXI4_READ_ID_WIDTH 2 // NOTE: This value must be the same as 
+                                    // CacheSystemTypes::MEM_ACCESS_SERIAL_BIT_SIZE;
 `define MEMORY_AXI4_READ_ID_NUM (1<<`MEMORY_AXI4_READ_ID_WIDTH)
 
-`define MEMORY_AXI4_WRITE_ID_WIDTH 1
+// # of Maximum outstanding write process is power of 2.
+// Currently, the next write cannot be performed until a write completion response comes,
+// so only one write request can be processed at a time.
+// However, because the address request (aw handshake) can be performed in advance 
+// by receiving and buffering the write request from RSD, 
+// it is preferable that this value is equal to # of MSHR
+`define MEMORY_AXI4_WRITE_ID_WIDTH 1 // NOTE: This value must be the same as 
+                                     // CacheSystemTypes::MEM_WRITE_SERIAL_BIT_SIZE;
 `define MEMORY_AXI4_WRITE_ID_NUM (1<<`MEMORY_AXI4_WRITE_ID_WIDTH)
 
+// Address width of AXI4
 `define MEMORY_AXI4_ADDR_BIT_SIZE 32
 
-// *USERはすべて未使用のため，専用線は削除
+// *USER buses are not used currently
 `define MEMORY_AXI4_AWUSER_WIDTH 0
 `define MEMORY_AXI4_ARUSER_WIDTH 0
 `define MEMORY_AXI4_WUSER_WIDTH 0
 `define MEMORY_AXI4_RUSER_WIDTH 0
 `define MEMORY_AXI4_BUSER_WIDTH 0
 
-// Axi4Memory
+// Data width of input/output of Axi4MemoryIF
 `define MEMORY_AXI4_ADDR_BIT_SIZE 32
 `define MEMORY_AXI4_AWLEN_WIDTH 8
 `define MEMORY_AXI4_AWSIZE_WIDTH 3
@@ -36,7 +47,6 @@
 `define MEMORY_AXI4_AWCACHE_WIDTH 4
 `define MEMORY_AXI4_AWPROT_WIDTH 3
 `define MEMORY_AXI4_AWQOS_WIDTH 2
-
 `define MEMORY_AXI4_BRESP_WIDTH 2
 `define MEMORY_AXI4_ARLEN_WIDTH 8
 `define MEMORY_AXI4_ARSIZE_WIDTH 3
@@ -45,26 +55,25 @@
 `define MEMORY_AXI4_ARPROT_WIDTH 3
 `define MEMORY_AXI4_ARQOS_WIDTH 4
 `define MEMORY_AXI4_RRESP_WIDTH 2
+`define MEMORY_AXI4_WSTRB_WIDTH (`MEMORY_AXI4_DATA_BIT_NUM/8)
 
-// Axi4LiteControlRegister
-
-
-// PS-PL Memoryサイズ
+// Size of PS-PL Memory
 `define PS_PL_MEMORY_DATA_BIT_SIZE 32
 `define PS_PL_MEMORY_ADDR_BIT_SIZE 11
 `define PS_PL_MEMORY_ADDR_LSB (`PS_PL_MEMORY_DATA_BIT_SIZE/32)+1 // 32-bit: 2, 64-bit: 3
 `define PS_PL_MEMORY_SIZE 1<<(`PS_PL_MEMORY_ADDR_BIT_SIZE-`PS_PL_MEMORY_ADDR_LSB) // 512
 
-// PS-PL ControlRegister
+// Data width of input/output of ControlRegisterIF
 `define PS_PL_CTRL_REG_DATA_BIT_SIZE 32
 `define PS_PL_CTRL_REG_ADDR_BIT_SIZE 7
 `define PS_PL_CTRL_REG_ADDR_LSB (`PS_PL_CTRL_REG_DATA_BIT_SIZE/32)+1 // 32-bit: 2, 64-bit: 3
 `define PS_PL_CTRL_REG_SIZE (1<<(`PS_PL_CTRL_REG_ADDR_BIT_SIZE-`PS_PL_CTRL_REG_ADDR_LSB)) // 32
-
 `define PS_PL_CTRL_REG_AWPROT_WIDTH 3
 `define PS_PL_CTRL_REG_BRESP_WIDTH 2
 `define PS_PL_CTRL_REG_ARPROT_WIDTH 3
 `define PS_PL_CTRL_REG_RRESP_WIDTH 2
+`define PS_PL_CTRL_REG_WSTRB_WIDTH (`PS_PL_CTRL_REG_DATA_BIT_SIZE/8)
+
 
 // PS-PL ControlQueue
 `define PS_PL_CTRL_QUEUE_DATA_BIT_SIZE `PS_PL_CTRL_REG_DATA_BIT_SIZE
@@ -72,11 +81,11 @@
 `define PS_PL_CTRL_QUEUE_SIZE 1<<`PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE // 64
 
 
-// Synplify2017で論理合成する際は，
-// トップ・レベル・モジュールの入出力ポートにインターフェースを使うと，
-// Vivadoで合成できなくなる．
-// そのため，インターフェース使わずに入出力ポートを記述する必要があるが，
-// 非常に煩雑になるため，この部分をマクロに落とし込んで使用する．
+// Hacking for Synplify2017...
+// When interface is used in top level module, 
+// Vivado cannot synthesis RSD correctly from synplify netlist.
+// Hence, we have to define input/output ports without interface.
+// However, this process is very dirty, so we uses macro to define in/out ports
 `define EXPAND_AXI4MEMORY_PORT \
 input \
     logic  axi4MemoryIF_M_AXI_ACLK, \
@@ -97,7 +106,7 @@ input \
     logic  axi4MemoryIF_M_AXI_AWREADY, \
 output \
     logic [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0] axi4MemoryIF_M_AXI_WDATA, \
-    logic [`MEMORY_AXI4_DATA_BIT_NUM/8-1 : 0] axi4MemoryIF_M_AXI_WSTRB, \
+    logic [`MEMORY_AXI4_WSTRB_WIDTH-1 : 0] axi4MemoryIF_M_AXI_WSTRB, \
     logic  axi4MemoryIF_M_AXI_WLAST, \
     logic [`MEMORY_AXI4_WUSER_WIDTH-1 : 0] axi4MemoryIF_M_AXI_WUSER, \
     logic  axi4MemoryIF_M_AXI_WVALID, \
@@ -201,7 +210,7 @@ output \
     logic  axi4LitePsToPlControlRegisterIF_S_AXI_AWREADY, \
 input \
     logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WDATA, \
-    logic [(`PS_PL_CTRL_REG_DATA_BIT_SIZE/8)-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WSTRB, \
+    logic [`PS_PL_CTRL_REG_WSTRB_WIDTH-1 : 0] axi4LitePsToPlControlRegisterIF_S_AXI_WSTRB, \
     logic  axi4LitePsToPlControlRegisterIF_S_AXI_WVALID, \
 output \
     logic  axi4LitePsToPlControlRegisterIF_S_AXI_WREADY, \

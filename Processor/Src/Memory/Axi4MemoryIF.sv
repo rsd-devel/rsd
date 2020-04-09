@@ -60,7 +60,7 @@ interface Axi4MemoryIF;
     // Write strobes. This signal indicates which byte
     // lanes hold valid data. There is one write strobe
     // bit for each eight bits of the write data bus.
-    logic [`MEMORY_AXI4_DATA_BIT_NUM/8-1 : 0] M_AXI_WSTRB;
+    logic [`MEMORY_AXI4_WSTRB_WIDTH-1 : 0] M_AXI_WSTRB;
     // Write last. This signal indicates the last transfer in a write burst.
     logic  M_AXI_WLAST;
     // Optional User-defined signal in the write data channel.

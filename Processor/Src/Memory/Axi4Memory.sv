@@ -54,15 +54,19 @@ output
         end                                                           
       endfunction                                                     
 
+    // The burst length of AXI4
+    // RSDのメモリアクセス単位はキャッシュライン幅単位なので，それをAXI4バスのデータ幅で割った数
+    localparam MEMORY_AXI4_BURST_LEN = MEMORY_ENTRY_BIT_NUM/`MEMORY_AXI4_DATA_BIT_NUM;
+
     // C_TRANSACTIONS_NUM is the width of the index counter for 
     // number of write or read transaction.
-     localparam integer C_TRANSACTIONS_NUM = clogb2(`MEMORY_AXI4_BURST_LEN-1);
+     localparam integer C_TRANSACTIONS_NUM = clogb2(MEMORY_AXI4_BURST_LEN-1);
 
     // Burst length for transactions, in `MEMORY_AXI4_DATA_BIT_NUMs.
     // Non-2^n lengths will eventually cause bursts across 4K address boundaries.
      localparam integer C_MASTER_LENGTH    = 12;
     // total number of burst transfers is master length divided by burst length and burst size
-     localparam integer C_NO_BURSTS_REQ = C_MASTER_LENGTH-clogb2((`MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM /8)-1);
+     localparam integer C_NO_BURSTS_REQ = C_MASTER_LENGTH-clogb2((MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM /8)-1);
     // Example State machine to initialize counter, initialize write transactions, 
     // initialize read transactions and comparison of read data with the 
     // written data words.
@@ -99,9 +103,9 @@ output
     reg [C_TRANSACTIONS_NUM : 0]     write_index;
     //read beat count in a burst
     reg [C_TRANSACTIONS_NUM : 0]     read_index;
-    //size of `MEMORY_AXI4_BURST_LEN length burst in bytes
+    //size of MEMORY_AXI4_BURST_LEN length burst in bytes
     wire [C_TRANSACTIONS_NUM+2 : 0]     burst_size_bytes;
-    //The burst counters are used to track the number of burst transfers of `MEMORY_AXI4_BURST_LEN burst length needed to transfer 2^C_MASTER_LENGTH bytes of data.
+    //The burst counters are used to track the number of burst transfers of MEMORY_AXI4_BURST_LEN burst length needed to transfer 2^C_MASTER_LENGTH bytes of data.
     reg [C_NO_BURSTS_REQ : 0]     write_burst_counter;
     reg [C_NO_BURSTS_REQ : 0]     read_burst_counter;
     reg      start_single_burst_write;
@@ -327,7 +331,7 @@ output
     //The AXI address is a concatenation of the target base address + active offset range
     assign port.M_AXI_AWADDR    = `MEMORY_AXI4_BASE_ADDR + axi_awaddr;
     //Burst LENgth is number of transaction beats, minus 1
-    assign port.M_AXI_AWLEN    = `MEMORY_AXI4_BURST_LEN - 1;
+    assign port.M_AXI_AWLEN    = MEMORY_AXI4_BURST_LEN - 1;
     //Size should be `MEMORY_AXI4_DATA_BIT_NUM, in 2^SIZE bytes, otherwise narrow bursts are used
     assign port.M_AXI_AWSIZE    = clogb2((`MEMORY_AXI4_DATA_BIT_NUM/8)-1);
     //INCR burst type is usually used, except for keyhole bursts
@@ -357,7 +361,7 @@ output
     assign port.M_AXI_ARID    = popedMemoryReadReq.id;//'b0;
     assign port.M_AXI_ARADDR    = `MEMORY_AXI4_BASE_ADDR + axi_araddr;
     //Burst LENgth is number of transaction beats, minus 1
-    assign port.M_AXI_ARLEN    = `MEMORY_AXI4_BURST_LEN - 1;
+    assign port.M_AXI_ARLEN    = MEMORY_AXI4_BURST_LEN - 1;
     //Size should be `MEMORY_AXI4_DATA_BIT_NUM, in 2^n bytes, otherwise narrow bursts are used
     assign port.M_AXI_ARSIZE    = clogb2((`MEMORY_AXI4_DATA_BIT_NUM/8)-1);
     //INCR burst type is usually used, except for keyhole bursts
@@ -377,7 +381,7 @@ output
     //Example design I/O
     // assign TXN_DONE    = compare_done;
     //Burst size in bytes
-    assign burst_size_bytes    = `MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM/8;
+    assign burst_size_bytes    = MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM/8;
     // assign init_txn_pulse    = (!init_txn_ff2) && init_txn_ff;
 
 
@@ -510,7 +514,7 @@ output
         // count reaches the penultimate count to synchronize                           
         // with the last write data when write_index is b1111                           
         // else if (&(write_index[C_TRANSACTIONS_NUM-1:1])&& ~write_index[0] && wnext)  
-        else if (((write_index == `MEMORY_AXI4_BURST_LEN-2 && `MEMORY_AXI4_BURST_LEN >= 2) && wnext) || (`MEMORY_AXI4_BURST_LEN == 1 ))
+        else if (((write_index == MEMORY_AXI4_BURST_LEN-2 && MEMORY_AXI4_BURST_LEN >= 2) && wnext) || (MEMORY_AXI4_BURST_LEN == 1 ))
           begin                                                                         
             axi_wlast <= 1'b1;                                                          
           end                                                                           
@@ -518,7 +522,7 @@ output
         // accepted by the slave with a valid response                                  
         else if (wnext)                                                                 
           axi_wlast <= 1'b0;                                                            
-        else if (axi_wlast && `MEMORY_AXI4_BURST_LEN == 1)                                   
+        else if (axi_wlast && MEMORY_AXI4_BURST_LEN == 1)                                   
           axi_wlast <= 1'b0;                                                            
         else                                                                            
           axi_wlast <= axi_wlast;                                                       
@@ -533,7 +537,7 @@ output
           begin                                                                         
             write_index <= 0;                                                           
           end                                                                           
-        else if (wnext && (write_index != `MEMORY_AXI4_BURST_LEN-1))                         
+        else if (wnext && (write_index != MEMORY_AXI4_BURST_LEN-1))                         
           begin                                                                         
             write_index <= write_index + 1;                                             
           end                                                                           
@@ -711,7 +715,7 @@ output
     //       begin                                                             
     //         read_index <= 0;                                                
     //       end                                                               
-    //     else if (rnext && (read_index != `MEMORY_AXI4_BURST_LEN-1))              
+    //     else if (rnext && (read_index != MEMORY_AXI4_BURST_LEN-1))              
     //       begin                                                             
     //         read_index <= read_index + 1;                                   
     //       end                                                               
@@ -1033,7 +1037,7 @@ output
                                                                                                                 
     //     //The reads_done should be associated with a rready response                                            
     //     //else if (port.M_AXI_BVALID && axi_bready && (write_burst_counter == {(C_NO_BURSTS_REQ-1){1}}) && axi_wlast)
-    //     else if (port.M_AXI_RVALID && axi_rready && (read_index == `MEMORY_AXI4_BURST_LEN-1) && (read_burst_counter[C_NO_BURSTS_REQ]))
+    //     else if (port.M_AXI_RVALID && axi_rready && (read_index == MEMORY_AXI4_BURST_LEN-1) && (read_burst_counter[C_NO_BURSTS_REQ]))
     //       reads_done <= 1'b1;                                                                                   
     //     else                                                                                                    
     //       reads_done <= reads_done;                                                                             
@@ -1042,5 +1046,18 @@ output
     // Add user logic here
 
     // User logic ends
+
+    // The data width of AXI4 bus and memory access serial must be the same value
+    `RSD_STATIC_ASSERT(
+        `MEMORY_AXI4_READ_ID_WIDTH == MEM_ACCESS_SERIAL_BIT_SIZE, 
+        ("The data width of AXI4 read ID(%x) and memory access serial(%x) are not matched.", 
+          `MEMORY_AXI4_READ_ID_WIDTH, MEM_ACCESS_SERIAL_BIT_SIZE)
+    );
+
+    `RSD_STATIC_ASSERT(
+        `MEMORY_AXI4_WRITE_ID_WIDTH == MEM_WRITE_SERIAL_BIT_SIZE, 
+        ("The data width of AXI4 write ID(%x) and memory write serial(%x) are not matched.", 
+          `MEMORY_AXI4_WRITE_ID_WIDTH, MEM_WRITE_SERIAL_BIT_SIZE)
+    );
 
     endmodule

@@ -34,7 +34,7 @@ interface Axi4LiteControlRegisterIF;
     // Write strobes. This signal indicates which byte lanes hold
         // valid data. There is one write strobe bit for each eight
         // bits of the write data bus.    
-    logic [(`PS_PL_CTRL_REG_DATA_BIT_SIZE/8)-1 : 0] S_AXI_WSTRB;
+    logic [`PS_PL_CTRL_REG_WSTRB_WIDTH-1 : 0] S_AXI_WSTRB;
     // Write valid. This signal indicates that valid write
         // data and strobes are available.
     logic  S_AXI_WVALID;
