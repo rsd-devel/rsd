@@ -130,7 +130,7 @@ post-synthesis-clean:
 # These commands are called automatically if needed.
 post-synthesis-create:
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_post_synthesis_project.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_post_synthesis_project_for_vivado.tcl
 
 $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
