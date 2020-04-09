@@ -7,6 +7,7 @@ DUMMY_DATA_FILE = $(SOURCE_ROOT)Verification/DummyData.hex
 
 
 # Directory to run simulation
+TOOLS_ROOT   = ../Tools/
 PROJECT_WORK = ../Project/VivadoSim/work
 
 SOURCE_ROOT  = ../Src/
@@ -24,9 +25,7 @@ XSIM  = $(RSD_VIVADO_BIN)/xsim
 # Convert a RSD log to a Kanata log.
 KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
-RSD_LOG_FILE_POST_SYNTHESIS 	= RSD-post-synthesis.log
 KANATA_LOG_FILE_RTL = Kanata.log
-KANATA_LOG_FILE_POST_SYNTHESIS 	= Kanata-post-synthesis.log
 
 MAKEFILE = Makefile.vivado.mk
 MAKE = make -f $(MAKEFILE)
@@ -83,15 +82,21 @@ clean:
 
 
 # -------------------------------
+# Vivado synthesis related items are defined in this file
+include Makefiles/Vivado.inc.mk
+
+# -------------------------------
 # Post synthesis simulation
 #
-VIVADO_PROJECT_ROOT = ../Project/Vivado/Zedboard
-VIVADO_SCRIPTS = $(VIVADO_PROJECT_ROOT)/Script
+VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/Zedboard
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/rsd_post_synthesis
 VIVADO_POST_SYNTHESIS_PROJECT_FILE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.xpr
 POST_SYNTHESIS_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/synth_1/Main_Zynq_Wrapper.dcp
 POST_SYNTHESIS_CODE_HEX = $(TEST_CODE)/code.hex
 POST_SYNTHESIS_WORK = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.sim/sim_1/synth/func/xsim
+
+RSD_LOG_FILE_POST_SYNTHESIS 	= $(POST_SYNTHESIS_WORK)/RSD-post-synthesis.log
+KANATA_LOG_FILE_POST_SYNTHESIS 	= Kanata-post-synthesis.log
 
 # Run and verify post-synthesis simulation
 post-synthesis: post-synthesis-run
@@ -104,14 +109,16 @@ post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 
 # Run post-synthesis simulation
 post-synthesis-run: $(POST_SYNTHESIS_MODULE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_SCRIPTS)/sim_post_synthesis.tcl
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/sim_post_synthesis.tcl
 
-post-synthesis-kanata: $(POST_SYNTHESIS_WORK)/$(RSD_LOG_FILE_POST_SYNTHESIS)
-	$(KANATA_CONVERTER) $(POST_SYNTHESIS_WORK)/$(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
+post-synthesis-kanata: #$(RSD_LOG_FILE_POST_SYNTHESIS)
+	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
 
 # Run post-synthesis simulation with GUI
 post-synthesis-run-gui: $(POST_SYNTHESIS_MODULE)
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source $(VIVADO_SCRIPTS)/sim_post_synthesis.tcl
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/sim_post_synthesis.tcl
 
 # Remove post-synthesis simulation related files
 post-synthesis-clean:
@@ -124,19 +131,19 @@ post-synthesis-clean:
 # Do NOT use this command.
 # This command is called automatically if needed.
 post-synthesis-create:
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_SCRIPTS)/create_post_synthesis_project.tcl
-
-post-synthesis-compile: $(POST_SYNTHESIS_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_post_synthesis_project.tcl
 
 $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_SCRIPTS)/run_post_synthesis.tcl
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/run_post_synthesis.tcl
 	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 	$(MAKE) post-synthesis-create || $(MAKE) post-synthesis-clean
 
-$(POST_SYNTHESIS_WORK)/$(RSD_LOG_FILE_POST_SYNTHESIS): post-synthesis-run
+$(RSD_LOG_FILE_POST_SYNTHESIS): post-synthesis-run
 
 # -------------------------------
 # Test related items are defined in this file

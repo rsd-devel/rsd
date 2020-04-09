@@ -174,4 +174,5 @@ MODULES = \
 	
 HEADERS = \
 	BasicMacros.sv \
-	SynthesisMacros.svh \
+	SynthesisMacros.svh \
+	XilinxMacros.vh \

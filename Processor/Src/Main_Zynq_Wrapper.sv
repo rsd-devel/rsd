@@ -10,6 +10,8 @@
 
 `ifndef RSD_SYNTHESIS_ATLYS
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import CacheSystemTypes::*;
 import MemoryTypes::*;

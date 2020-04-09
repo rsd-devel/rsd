@@ -5,6 +5,8 @@
 
 `timescale 1 ns / 1 ps
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryMapTypes::*;
 import MemoryTypes::*;
@@ -21,31 +23,31 @@ module Axi4LitePlToPsControlRegister
 );
 
     // AXI4LITE signals
-    logic [PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_araddr;
+    logic [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_araddr;
     logic axi_arready;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] axi_rdata;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] axi_rdata;
     logic [1: 0] axi_rresp;
     logic axi_rvalid;
 
 
     // Example-specific design signals
-    // local parameter for addressing 32 bit / 64 bit PS_PL_CTRL_REG_DATA_BIT_SIZE
+    // local parameter for addressing 32 bit / 64 bit `PS_PL_CTRL_REG_DATA_BIT_SIZE
     // PS_PL_MEMORY_ADDR_LSB is used for addressing 32/64 bit registers/memories
     // PS_PL_MEMORY_ADDR_LSB = 2 for 32 bits (n downto 2)
     // PS_PL_MEMORY_ADDR_LSB = 3 for 64 bits (n downto 3)
-    // localparam integer PS_PL_MEMORY_ADDR_LSB = (PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1;
+    // localparam integer PS_PL_MEMORY_ADDR_LSB = (`PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1;
     // localparam integer OPT_MEM_ADDR_BITS = 4;
     logic slv_reg_rden;
 
 
     // Control register
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] mem [PS_PL_CTRL_REG_SIZE];
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] mem [`PS_PL_CTRL_REG_SIZE];
 
     logic push;
     logic pop;
     logic full;
     logic empty;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] headData;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] headData;
 
     // I/O Connections assignments
 
@@ -136,19 +138,19 @@ module Axi4LitePlToPsControlRegister
           // output the read dada 
           if (slv_reg_rden)
             begin
-              axi_rdata <= mem[axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB]];     // register read data
+              axi_rdata <= mem[axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB]];     // register read data
             end   
         end
     end    
 
     assign pop = (axi_rvalid && 
                   port.S_AXI_RREADY &&
-                  (axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == 1) &&
+                  (axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == 1) &&
                   ~empty) ? 1'd1 : 1'd0;
 
     assign push = we & ~full;
 
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] committedInstCnt;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] committedInstCnt;
     PC_Path prevLastCommittedPC;
 
     always_ff @( posedge port.S_AXI_ACLK )
@@ -198,7 +200,7 @@ module Axi4LitePlToPsControlRegister
 
     // BlockDualPortRAM #( 
     //     .ENTRY_NUM(PS_PL_MEMORY_SIZE), 
-    //     .ENTRY_BIT_SIZE(PS_PL_CTRL_REG_DATA_BIT_SIZE)
+    //     .ENTRY_BIT_SIZE(`PS_PL_CTRL_REG_DATA_BIT_SIZE)
     // ) ram ( 
     //     port.S_AXI_ACLK,
     //     slv_reg_wren,
@@ -222,7 +224,7 @@ module Axi4LitePsToPlControlRegister
     logic done // program load is done
 );
 
-    localparam WORD_NUM = MEMORY_ENTRY_BIT_NUM/PS_PL_CTRL_REG_DATA_BIT_SIZE;
+    localparam WORD_NUM = MEMORY_ENTRY_BIT_NUM/`PS_PL_CTRL_REG_DATA_BIT_SIZE;
     localparam WORD_NUM_BIT_SIZE = $clog2(WORD_NUM);
     
     localparam FULL_OFFSET             = 0;
@@ -236,42 +238,42 @@ module Axi4LitePsToPlControlRegister
     localparam RSD_RUN_OFFSET          = 6;
 
     // AXI4LITE signals
-    logic [PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_awaddr;
+    logic [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_awaddr;
     logic axi_awready;
     logic axi_wready;
     logic [1 : 0] axi_bresp;
     logic axi_bvalid;
-    logic [PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_araddr;
+    logic [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1: 0] axi_araddr;
     logic axi_arready;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] axi_rdata;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] axi_rdata;
     logic [1 : 0] axi_rresp;
     logic axi_rvalid;
 
     // Example-specific design signals
-    // local parameter for addressing 32 bit / 64 bit PS_PL_CTRL_REG_DATA_BIT_SIZE
-    // PS_PL_CTRL_REG_ADDR_LSB is used for addressing 32/64 bit registers/memories
-    // PS_PL_CTRL_REG_ADDR_LSB = 2 for 32 bits (n downto 2)
-    // PS_PL_CTRL_REG_ADDR_LSB = 3 for 64 bits (n downto 3)
-    // localparam integer PS_PL_CTRL_REG_ADDR_LSB = (PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1;
+    // local parameter for addressing 32 bit / 64 bit `PS_PL_CTRL_REG_DATA_BIT_SIZE
+    // `PS_PL_CTRL_REG_ADDR_LSB is used for addressing 32/64 bit registers/memories
+    // `PS_PL_CTRL_REG_ADDR_LSB = 2 for 32 bits (n downto 2)
+    // `PS_PL_CTRL_REG_ADDR_LSB = 3 for 64 bits (n downto 3)
+    // localparam integer `PS_PL_CTRL_REG_ADDR_LSB = (`PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1;
     // localparam integer OPT_MEM_ADDR_BITS = 4;
     logic slv_reg_rden;
     logic slv_reg_wren;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1:0] reg_data_out;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1:0] reg_data_out;
     logic aw_en;
 
     logic pop;
     logic full;
     logic empty;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] headData;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] headData;
 
     logic push;
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] pushedData;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] pushedData;
 
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] memory_wordcount;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] memory_wordcount;
     logic [WORD_NUM_BIT_SIZE-1:0]             poped_datacount;
 
     // Control register
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] mem [PS_PL_CTRL_REG_SIZE];
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] mem [`PS_PL_CTRL_REG_SIZE];
 
     // I/O Connections assignments
 
@@ -499,9 +501,9 @@ module Axi4LitePsToPlControlRegister
     always_ff @( posedge port.S_AXI_ACLK )
     begin
         if (~port.S_AXI_ARESETN) begin
-            for (int i=0;i<PS_PL_CTRL_REG_SIZE;i++) begin
+            for (int i=0;i<`PS_PL_CTRL_REG_SIZE;i++) begin
                 if (i == PROGRAM_WORDSIZE_OFFSET) begin
-                    mem[i] <= {PS_PL_CTRL_REG_DATA_BIT_SIZE{1'd1}};
+                    mem[i] <= {`PS_PL_CTRL_REG_DATA_BIT_SIZE{1'd1}};
                 end
                 else begin
                     mem[i] <= 0;
@@ -509,26 +511,26 @@ module Axi4LitePsToPlControlRegister
             end
         end
         else if (slv_reg_wren) begin
-            mem[axi_awaddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB]] <= port.S_AXI_WDATA;
+            mem[axi_awaddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB]] <= port.S_AXI_WDATA;
         end
     end
 
     always_comb
     begin
-        if (axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == FULL_OFFSET) begin
-            reg_data_out = {{(PS_PL_CTRL_REG_DATA_BIT_SIZE-1){1'd0}}, full};
+        if (axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == FULL_OFFSET) begin
+            reg_data_out = {{(`PS_PL_CTRL_REG_DATA_BIT_SIZE-1){1'd0}}, full};
         end
-        else if (axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == MEMORY_WORDCOUNT_OFFSET) begin
+        else if (axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == MEMORY_WORDCOUNT_OFFSET) begin
             reg_data_out = memory_wordcount;
         end
-        else if (axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == EMPTY_OFFSET) begin
-            reg_data_out = {{(PS_PL_CTRL_REG_DATA_BIT_SIZE-1){1'd0}}, empty};
+        else if (axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == EMPTY_OFFSET) begin
+            reg_data_out = {{(`PS_PL_CTRL_REG_DATA_BIT_SIZE-1){1'd0}}, empty};
         end
-        else if (axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == POPED_DATACOUNT_OFFSET) begin
-            reg_data_out = {{(PS_PL_CTRL_REG_DATA_BIT_SIZE-WORD_NUM_BIT_SIZE){1'd0}}, poped_datacount};
+        else if (axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == POPED_DATACOUNT_OFFSET) begin
+            reg_data_out = {{(`PS_PL_CTRL_REG_DATA_BIT_SIZE-WORD_NUM_BIT_SIZE){1'd0}}, poped_datacount};
         end
         else begin
-            reg_data_out = mem[axi_araddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB]];
+            reg_data_out = mem[axi_araddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB]];
         end
     end
 
@@ -542,15 +544,15 @@ module Axi4LitePsToPlControlRegister
             pushedData <= port.S_AXI_WDATA;
             push       <= 
                 (slv_reg_wren && 
-                 (axi_awaddr[PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:PS_PL_CTRL_REG_ADDR_LSB] == PUSHED_DATA_OFFSET)) ? 1 : 0;
+                 (axi_awaddr[`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1:`PS_PL_CTRL_REG_ADDR_LSB] == PUSHED_DATA_OFFSET)) ? 1 : 0;
         end
     end
 
     generate
-    if (ADDR_WIDTH>PS_PL_CTRL_REG_DATA_BIT_SIZE) begin
-        assign memory_addr = {{(ADDR_WIDTH-PS_PL_CTRL_REG_DATA_BIT_SIZE){1'd0}}, mem[MEMORY_ADDR_OFFSET]};
+    if (ADDR_WIDTH>`PS_PL_CTRL_REG_DATA_BIT_SIZE) begin
+        assign memory_addr = {{(ADDR_WIDTH-`PS_PL_CTRL_REG_DATA_BIT_SIZE){1'd0}}, mem[MEMORY_ADDR_OFFSET]};
     end
-    else if (ADDR_WIDTH==PS_PL_CTRL_REG_DATA_BIT_SIZE) begin
+    else if (ADDR_WIDTH==`PS_PL_CTRL_REG_DATA_BIT_SIZE) begin
         assign memory_addr = mem[MEMORY_ADDR_OFFSET];
     end
     else begin
@@ -565,7 +567,7 @@ module Axi4LitePsToPlControlRegister
             poped_datacount <= 0;
         end
         else if (pop) begin
-            memory_data     <= {memory_data[MEMORY_ENTRY_BIT_NUM-PS_PL_CTRL_REG_DATA_BIT_SIZE-1:0], headData};
+            memory_data     <= {memory_data[MEMORY_ENTRY_BIT_NUM-`PS_PL_CTRL_REG_DATA_BIT_SIZE-1:0], headData};
             if (poped_datacount == (WORD_NUM-1)) begin
                 poped_datacount <= 0;
             end

@@ -6,6 +6,8 @@
 // Axi4LiteControlRegisterIF
 //
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryTypes::*;
 
@@ -16,11 +18,11 @@ interface Axi4LiteControlRegisterIF;
     // Global Reset Signal. This Signal is Active LOW
     logic S_AXI_ARESETN;
     // Write address (issued by master, acceped by Slave)
-    logic [PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] S_AXI_AWADDR;
+    logic [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] S_AXI_AWADDR;
     // Write channel Protection type. This signal indicates the
         // privilege and security level of the transaction, and whether
         // the transaction is a data access or an instruction access.
-    logic [2 : 0] S_AXI_AWPROT;
+    logic [`PS_PL_CTRL_REG_AWPROT_WIDTH-1 : 0] S_AXI_AWPROT;
     // Write address valid. This signal indicates that the master signaling
         // valid write address and control information.
     logic  S_AXI_AWVALID;
@@ -28,11 +30,11 @@ interface Axi4LiteControlRegisterIF;
         // to accept an address and associated control signals.
     logic  S_AXI_AWREADY;
     // Write data (issued by master, acceped by Slave) 
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] S_AXI_WDATA;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] S_AXI_WDATA;
     // Write strobes. This signal indicates which byte lanes hold
         // valid data. There is one write strobe bit for each eight
         // bits of the write data bus.    
-    logic [(PS_PL_CTRL_REG_DATA_BIT_SIZE/8)-1 : 0] S_AXI_WSTRB;
+    logic [(`PS_PL_CTRL_REG_DATA_BIT_SIZE/8)-1 : 0] S_AXI_WSTRB;
     // Write valid. This signal indicates that valid write
         // data and strobes are available.
     logic  S_AXI_WVALID;
@@ -41,7 +43,7 @@ interface Axi4LiteControlRegisterIF;
     logic  S_AXI_WREADY;
     // Write response. This signal indicates the status
         // of the write transaction.
-    logic [1 : 0] S_AXI_BRESP;
+    logic [`PS_PL_CTRL_REG_BRESP_WIDTH-1 : 0] S_AXI_BRESP;
     // Write response valid. This signal indicates that the channel
         // is signaling a valid write response.
     logic  S_AXI_BVALID;
@@ -49,11 +51,11 @@ interface Axi4LiteControlRegisterIF;
         // can accept a write response.
     logic  S_AXI_BREADY;
     // Read address (issued by master, acceped by Slave)
-    logic [PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] S_AXI_ARADDR;
+    logic [`PS_PL_CTRL_REG_ADDR_BIT_SIZE-1 : 0] S_AXI_ARADDR;
     // Protection type. This signal indicates the privilege
         // and security level of the transaction, and whether the
         // transaction is a data access or an instruction access.
-    logic [2 : 0] S_AXI_ARPROT;
+    logic [`PS_PL_CTRL_REG_ARPROT_WIDTH-1 : 0] S_AXI_ARPROT;
     // Read address valid. This signal indicates that the channel
         // is signaling valid read address and control information.
     logic  S_AXI_ARVALID;
@@ -61,10 +63,10 @@ interface Axi4LiteControlRegisterIF;
         // ready to accept an address and associated control signals.
     logic  S_AXI_ARREADY;
     // Read data (issued by slave)
-    logic [PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] S_AXI_RDATA;
+    logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1 : 0] S_AXI_RDATA;
     // Read response. This signal indicates the status of the
         // read transfer.
-    logic [1 : 0] S_AXI_RRESP;
+    logic [`PS_PL_CTRL_REG_RRESP_WIDTH-1 : 0] S_AXI_RRESP;
     // Read valid. This signal indicates that the channel is
         // signaling the required read data.
     logic  S_AXI_RVALID;

@@ -6,6 +6,8 @@
 // ControlQueue
 //
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryTypes::*;
 
@@ -15,20 +17,20 @@ input
     logic rst,
     logic push,
     logic pop,
-    logic [ PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] pushedData,
+    logic [ `PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] pushedData,
 output
     logic full,
     logic empty,
-    logic [ PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] headData
+    logic [ `PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] headData
 );
 
-    typedef logic [PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE-1:0] IndexPath;
+    typedef logic [`PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE-1:0] IndexPath;
 
     IndexPath headPtr;
     IndexPath tailPtr;
 
     // size, initial head, initial tail, initial count
-    QueuePointer #( PS_PL_CTRL_QUEUE_SIZE, 0, 0, 0 )
+    QueuePointer #( `PS_PL_CTRL_QUEUE_SIZE, 0, 0, 0 )
         pointer(
             .clk( clk ),
             .rst( rst ),
@@ -41,7 +43,7 @@ output
         );
         
 
-    logic [ PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] controlQueue[ PS_PL_CTRL_QUEUE_SIZE ]; // synthesis syn_ramstyle = "select_ram"
+    logic [ `PS_PL_CTRL_QUEUE_DATA_BIT_SIZE-1:0 ] controlQueue[ `PS_PL_CTRL_QUEUE_SIZE ]; // synthesis syn_ramstyle = "select_ram"
 
     always_ff @( posedge clk ) begin
         if( push ) begin

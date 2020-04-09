@@ -1,6 +1,7 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+`include "XilinxMacros.vh"
 
 package MemoryTypes;
 
@@ -54,46 +55,39 @@ localparam MEMORY_READ_PROCESS_LATENCY = 2;
 // - メモリ読出/書込アクセスの処理時間をカウント
 typedef logic [1:0] MemoryProcessLatencyCount;
 
+// localparam MEMORY_AXI4_BASE_ADDR = 32'h10000000; // 256MB
 
-//
-// RSDがAXI4を用いてメモリアクセスする場合のAXI4バスのパラメータ
-//
-
-// RSDのメモリ空間とPS(ARM)のメモリ空間のオフセット
-// PS(ARM)のプロセスはここで指定したアドレス以降の空間をRSDとの明示的データ共有以外の目的で使用してはいけない．
-localparam MEMORY_AXI4_BASE_ADDR = 32'h10000000; // 256MB
-
-localparam MEMORY_AXI4_DATA_BIT_NUM = 64; // AXI4バスのデータ幅
+// localparam MEMORY_AXI4_DATA_BIT_NUM = 64; // AXI4バスのデータ幅
 
 // AXI4のバースト数
 // RSDのメモリアクセス単位はキャッシュライン幅単位なので，それをAXI4バスのデータ幅で割った数
-localparam MEMORY_AXI4_BURST_LEN = MEMORY_ENTRY_BIT_NUM/MEMORY_AXI4_DATA_BIT_NUM;
-localparam MEMORY_AXI4_BURST_BIT_NUM = $clog2( MEMORY_AXI4_BURST_LEN );
+// localparam MEMORY_AXI4_BURST_LEN = MEMORY_ENTRY_BIT_NUM/MEMORY_AXI4_DATA_BIT_NUM;
+// localparam MEMORY_AXI4_BURST_BIT_NUM = $clog2( MEMORY_AXI4_BURST_LEN );
 
 // 同時にoutstanding可能なトランザクションの最大数を決める
 // D-Cacheからの要求の最大数はMSHR_NUM，I-Cacheからの要求は1，最大要求数はMSHR_NUM+1となる
-localparam MEMORY_AXI4_READ_ID_WIDTH = CacheSystemTypes::MEM_ACCESS_SERIAL_BIT_SIZE;
-localparam MEMORY_AXI4_READ_ID_NUM = (1 << MEMORY_AXI4_READ_ID_WIDTH);
+// localparam MEMORY_AXI4_READ_ID_WIDTH = CacheSystemTypes::MEM_ACCESS_SERIAL_BIT_SIZE;
+// localparam MEMORY_AXI4_READ_ID_NUM = (1 << MEMORY_AXI4_READ_ID_WIDTH);
 
 // 書き込みの総数は2のべき乗
 // 現状，書き込み完了応答があるまで次の書き込みはできないため，InOに1つずつしか書き込みできない
 // しかし，RSDからの書き込み要求を受け取ってバッファすることでアドレス要求(aw handshake)を先行して行えるので，
 // MSHRと同数にするのが好ましい
-localparam MEMORY_AXI4_WRITE_ID_WIDTH = CacheSystemTypes::MEM_WRITE_SERIAL_BIT_SIZE;
-localparam MEMORY_AXI4_WRITE_ID_NUM = (1 << MEMORY_AXI4_WRITE_ID_WIDTH);
+// localparam MEMORY_AXI4_WRITE_ID_WIDTH = CacheSystemTypes::MEM_WRITE_SERIAL_BIT_SIZE;
+// localparam MEMORY_AXI4_WRITE_ID_NUM = (1 << MEMORY_AXI4_WRITE_ID_WIDTH);
 
-localparam MEMORY_AXI4_ADDR_BIT_SIZE = MEMORY_ADDR_BIT_SIZE; // AXI4のアドレス幅
+// localparam MEMORY_AXI4_ADDR_BIT_SIZE = MEMORY_ADDR_BIT_SIZE; // AXI4のアドレス幅
 
 // *USERはすべて未使用のため，専用線は削除
-localparam MEMORY_AXI4_AWUSER_WIDTH = 0;
-localparam MEMORY_AXI4_ARUSER_WIDTH = 0;
-localparam MEMORY_AXI4_WUSER_WIDTH = 0;
-localparam MEMORY_AXI4_RUSER_WIDTH = 0;
-localparam MEMORY_AXI4_BUSER_WIDTH = 0;
+// localparam MEMORY_AXI4_AWUSER_WIDTH = 0;
+// localparam MEMORY_AXI4_ARUSER_WIDTH = 0;
+// localparam MEMORY_AXI4_WUSER_WIDTH = 0;
+// localparam MEMORY_AXI4_RUSER_WIDTH = 0;
+// localparam MEMORY_AXI4_BUSER_WIDTH = 0;
 
 typedef struct packed {
-    logic [MEMORY_AXI4_READ_ID_WIDTH-1: 0] id; // AXI4用のリクエストID
-    logic [MEMORY_AXI4_ADDR_BIT_SIZE-1: 0] addr;
+    logic [`MEMORY_AXI4_READ_ID_WIDTH-1: 0] id; // AXI4用のリクエストID
+    logic [`MEMORY_AXI4_ADDR_BIT_SIZE-1: 0] addr;
 } MemoryReadReq;
 
 // To add variable latency memory access
@@ -113,21 +107,21 @@ typedef struct packed {
 
 
 // PS-PL Memoryサイズ
-localparam PS_PL_MEMORY_DATA_BIT_SIZE = 32;
-localparam PS_PL_MEMORY_ADDR_BIT_SIZE = 11;
-localparam PS_PL_MEMORY_ADDR_LSB = (PS_PL_MEMORY_DATA_BIT_SIZE/32) + 1; // 32-bit: 2, 64-bit: 3
-localparam PS_PL_MEMORY_SIZE = 1 << (PS_PL_MEMORY_ADDR_BIT_SIZE-PS_PL_MEMORY_ADDR_LSB); // 512
+// localparam PS_PL_MEMORY_DATA_BIT_SIZE = 32;
+// localparam PS_PL_MEMORY_ADDR_BIT_SIZE = 11;
+// localparam PS_PL_MEMORY_ADDR_LSB = (PS_PL_MEMORY_DATA_BIT_SIZE/32) + 1; // 32-bit: 2, 64-bit: 3
+// localparam PS_PL_MEMORY_SIZE = 1 << (PS_PL_MEMORY_ADDR_BIT_SIZE-PS_PL_MEMORY_ADDR_LSB); // 512
 
-// PS-PL ControlRegister
-localparam PS_PL_CTRL_REG_DATA_BIT_SIZE = 32;
-localparam PS_PL_CTRL_REG_ADDR_BIT_SIZE = 7;
-localparam PS_PL_CTRL_REG_ADDR_LSB = (PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1; // 32-bit: 2, 64-bit: 3
-localparam PS_PL_CTRL_REG_SIZE = 1 << (PS_PL_CTRL_REG_ADDR_BIT_SIZE-PS_PL_CTRL_REG_ADDR_LSB); // 32
+// // PS-PL ControlRegister
+// localparam PS_PL_CTRL_REG_DATA_BIT_SIZE = 32;
+// localparam PS_PL_CTRL_REG_ADDR_BIT_SIZE = 7;
+// localparam PS_PL_CTRL_REG_ADDR_LSB = (PS_PL_CTRL_REG_DATA_BIT_SIZE/32) + 1; // 32-bit: 2, 64-bit: 3
+// localparam PS_PL_CTRL_REG_SIZE = 1 << (PS_PL_CTRL_REG_ADDR_BIT_SIZE-PS_PL_CTRL_REG_ADDR_LSB); // 32
 
-// PS-PL ControlQueue
-localparam PS_PL_CTRL_QUEUE_DATA_BIT_SIZE = PS_PL_CTRL_REG_DATA_BIT_SIZE;
-localparam PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE = 6;
-localparam PS_PL_CTRL_QUEUE_SIZE = 1 << PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE; // 64
+// // PS-PL ControlQueue
+// localparam PS_PL_CTRL_QUEUE_DATA_BIT_SIZE = PS_PL_CTRL_REG_DATA_BIT_SIZE;
+// localparam PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE = 6;
+// localparam PS_PL_CTRL_QUEUE_SIZE = 1 << PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE; // 64
 
 
 endpackage
