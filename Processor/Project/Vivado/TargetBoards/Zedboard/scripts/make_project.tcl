@@ -159,7 +159,7 @@ update_ip_catalog -rebuild
 
 # Generate desgin_1 
 set origin_dir_b $origin_dir
-source "$origin_dir/design_1.tcl"
+source "$origin_dir/scripts/design_1.tcl"
 regenerate_bd_layout
 save_bd_design
 set origin_dir $origin_dir_b

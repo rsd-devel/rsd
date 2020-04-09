@@ -97,7 +97,7 @@ vivado-create:
 
 vivado-create-using-synplify-netlist: $(SYNPLIFY_NETLIST)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source make_project.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/make_project.tcl
 
 $(VIVADO_PROJECT_FILE):
 	$(MAKE) vivado-create || $(MAKE) vivado-clean
@@ -195,7 +195,7 @@ $(FSBL_FILE): $(VIVADO_FSBL_FILE)
 	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
-	xsct $(VIVADO_PROJECT_ROOT)/make_fsbl.tcl
+	xsct $(VIVADO_PROJECT_ROOT)/scripts/make_fsbl.tcl
 
 $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
 #	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
@@ -249,7 +249,7 @@ $(BIT_FILE): $(VIVADO_BIT_FILE)
 	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
 
 $(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/make_bitstream.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/make_bitstream.tcl
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:

@@ -108,13 +108,11 @@ post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) & 
 
 # Run post-synthesis simulation
-post-synthesis-run: $(POST_SYNTHESIS_MODULE)
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/sim_post_synthesis.tcl
+post-synthesis-run: $(RSD_LOG_FILE_POST_SYNTHESIS)
 
-post-synthesis-kanata: #$(RSD_LOG_FILE_POST_SYNTHESIS)
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
-
+# Generate post-synthesis Kanata log file
+post-synthesis-kanata: $(KANATA_LOG_FILE_POST_SYNTHESIS)
+	
 # Run post-synthesis simulation with GUI
 post-synthesis-run-gui: $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
@@ -128,8 +126,8 @@ post-synthesis-clean:
 	rm -f vivado*.zip
 	rm -f vivado*.str
 
-# Do NOT use this command.
-# This command is called automatically if needed.
+# Do NOT use these commands.
+# These commands are called automatically if needed.
 post-synthesis-create:
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_post_synthesis_project.tcl
@@ -143,7 +141,13 @@ $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 	$(MAKE) post-synthesis-create || $(MAKE) post-synthesis-clean
 
-$(RSD_LOG_FILE_POST_SYNTHESIS): post-synthesis-run
+$(RSD_LOG_FILE_POST_SYNTHESIS): $(POST_SYNTHESIS_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/sim_post_synthesis.tcl
+	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
+
+$(KANATA_LOG_FILE_POST_SYNTHESIS): $(RSD_LOG_FILE_POST_SYNTHESIS)
+	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
 
 # -------------------------------
 # Test related items are defined in this file

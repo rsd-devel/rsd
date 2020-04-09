@@ -483,7 +483,7 @@ move_dashboard_gadget -name {methodology_1} -row 2 -col 1
 set_property  ip_repo_paths  $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd_ip/Vivado [current_project]
 update_ip_catalog
 
-source "$env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/design_1.tcl"
+source "$env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/scripts/design_1.tcl"
 update_compile_order -fileset sources_1
 make_wrapper -files [get_files $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/design_1.bd] -top
 add_files -norecurse $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.v
