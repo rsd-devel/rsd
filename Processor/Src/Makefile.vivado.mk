@@ -116,7 +116,7 @@ post-synthesis-kanata: $(KANATA_LOG_FILE_POST_SYNTHESIS)
 # Run post-synthesis simulation with GUI
 post-synthesis-run-gui: $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/sim_post_synthesis.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl
 
 # Remove post-synthesis simulation related files
 post-synthesis-clean:
@@ -130,12 +130,12 @@ post-synthesis-clean:
 # These commands are called automatically if needed.
 post-synthesis-create:
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_post_synthesis_project_for_vivado.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivado.tcl
 
 $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/run_post_synthesis.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/run_post_synthesis.tcl
 	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
@@ -143,7 +143,7 @@ $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 
 $(RSD_LOG_FILE_POST_SYNTHESIS): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/sim_post_synthesis.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl
 	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
 
 $(KANATA_LOG_FILE_POST_SYNTHESIS): $(RSD_LOG_FILE_POST_SYNTHESIS)

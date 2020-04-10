@@ -93,11 +93,11 @@ vivado-clean:
 vivado-create:
 	python3 $(TOOLS_ROOT)/XilinxIP_Generator/IP_Generator.py
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_project_for_synthesis_with_vivado_only.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project_for_synthesis_with_vivado_only.tcl
 
 vivado-create-using-synplify-netlist: $(SYNPLIFY_NETLIST)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/create_project_using_synplify_netlist.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project_using_synplify_netlist.tcl
 
 $(VIVADO_PROJECT_FILE):
 	$(MAKE) vivado-create || $(MAKE) vivado-clean
@@ -195,7 +195,7 @@ $(FSBL_FILE): $(VIVADO_FSBL_FILE)
 	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
-	xsct $(VIVADO_PROJECT_ROOT)/scripts/make_fsbl.tcl
+	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 
 $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
 #	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
