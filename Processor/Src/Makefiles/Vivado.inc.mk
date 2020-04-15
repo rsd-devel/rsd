@@ -93,7 +93,7 @@ vivado-clean:
 vivado-create:
 	python3 $(TOOLS_ROOT)/XilinxIP_Generator/IP_Generator.py
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project_for_synthesis_with_vivado_only.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl
 
 vivado-create-using-synplify-netlist: $(SYNPLIFY_NETLIST)
 	@cd $(VIVADO_PROJECT_ROOT); \
@@ -249,7 +249,7 @@ $(BIT_FILE): $(VIVADO_BIT_FILE)
 	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
 
 $(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/generate_bitstream.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:

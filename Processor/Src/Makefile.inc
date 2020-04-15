@@ -267,7 +267,7 @@ post-synthesis-main: $(LIBRARY_WORK_POST_SYNTHESIS) Makefile $(DEPS_POST_SYNTHES
 # Do NOT use this command.
 # This command is called automatically if you need.
 vivado-post-synthesis-create:
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/post_synthesis/create_project_for_questa.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/post_synthesis/create_project_for_questasim.tcl
 
 $(LIBRARY_WORK_POST_SYNTHESIS):
 	mkdir $(PROJECT_WORK) -p
@@ -278,7 +278,7 @@ $(SYNPLIFY_POST_SYNTHESIS_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
 	exit 1
 
 $(POST_SYNTHESIS_MODULE): $(SYNPLIFY_POST_SYNTHESIS_NETLIST) $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/post_synthesis/run_post_synthesis.tcl
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/post_synthesis/run_synthesis.tcl
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 	$(MAKE) vivado-post-synthesis-create || $(MAKE) vivado-post-synthesis-clean
