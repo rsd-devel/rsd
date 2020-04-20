@@ -144,7 +144,7 @@ module TestMain;
         .*
     );
 
-`ifdef RSD_POST_SYNTHESIS_SIMULATION
+`ifdef RSD_SYNTHESIS_VIVADO
     always_comb begin
         debugRegister = main.debugRegister;
     end

@@ -207,4 +207,4 @@ $(LIBRARY_WORK_RTL):
 #
 clean:
 	mkdir $(PROJECT_WORK) -p
-	rm -f -r $(LIBRARY_WORK_RTL) $(LIBRARY_WORK_POST_SYNTHESIS)
+	rm -f -r $(LIBRARY_WORK_RTL)

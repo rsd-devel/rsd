@@ -42,7 +42,7 @@ input
     logic rxd,
 `endif
 
-`ifndef RSD_POST_SYNTHESIS
+`ifndef RSD_SYNTHESIS_VIVADO
 output
     DebugRegister debugRegister,
 `endif
@@ -63,7 +63,7 @@ output
 `endif
 );
 
-`ifdef RSD_POST_SYNTHESIS
+`ifdef RSD_SYNTHESIS_VIVADO
    (* DONT_TOUCH="yes"*) logic [$bits(DebugRegister)-1:0] debugRegister;
 `endif
 

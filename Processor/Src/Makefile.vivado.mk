@@ -84,6 +84,9 @@ clean:
 
 # -------------------------------
 # Synthesis
+# This procedure uses Vivado only.
+#   1. Create Vivado Custom IP of RSD by using our script
+#   2. Synthesize RSD using Vivado
 #
 
 # -------------------------------
@@ -99,6 +102,9 @@ $(VIVADO_PROJECT_FILE):
 # -------------------------------
 # Post synthesis simulation
 #
+# -------------------------------
+# Synthesis
+# This procedure uses Vivado only.
 VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/Zedboard
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/rsd_post_synthesis
 VIVADO_POST_SYNTHESIS_PROJECT_FILE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.xpr

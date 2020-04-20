@@ -50,17 +50,8 @@ VSIM_OPTIONS_RTL = \
 	+RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \
 	+DEBUG_LOG_FILE=$(DEBUG_LOG_FILE_RTL) \
 
-VSIM_OPTIONS_POST_SYNTHESIS = \
-	+RSD_LOG_FILE=$(RSD_LOG_FILE_POST_SYNTHESIS) \
-	+DEBUG_LOG_FILE=$(DEBUG_LOG_FILE_POST_SYNTHESIS) \
-	-modelsimini $(RSD_MODELSIM_INI) \
-	-L simprims_ver \
-	-L unisims_ver \
-
 VSIM_OPTIONS_DUMP = \
 	+REG_CSV_FILE=$(REG_CSV_FILE) \
-
-
 
 
 
@@ -90,9 +81,3 @@ include Makefiles/TestCommands.inc.mk
 #        This is only for pre-translate simulation.
 dump:
 	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) $(VSIM_OPTIONS_DUMP) -do "run -all"
-
-
-# -------------------------------
-# Vivado synthesis related items are defined in this file
-include Makefiles/Vivado.inc.mk
-
