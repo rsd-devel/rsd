@@ -36,6 +36,7 @@ TYPES = \
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
 	Verification/TestMain.sv \
+	Verification/Dumper.sv \
 
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．

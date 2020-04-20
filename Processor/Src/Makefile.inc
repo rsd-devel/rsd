@@ -99,6 +99,7 @@ UNISIMS = \
 	SRLC32E.v \
 	XOR2.v \
 	DSP48E1.v \
+	RAM256X1S.v \
 
 
 # glbl モジュール．コンパイル時のターゲットに指定する必要がある．
