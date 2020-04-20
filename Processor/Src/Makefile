@@ -19,11 +19,8 @@ TOP_MODULE        = $(UNIT_NAME)
 
 # Output files
 RSD_LOG_FILE_RTL       			= RSD.log
-RSD_LOG_FILE_POST_SYNTHESIS 	= RSD-post-synthesis.log
 KANATA_LOG_FILE_RTL       		= Kanata.log
-KANATA_LOG_FILE_POST_SYNTHESIS 	= Kanata-post-synthesis.log
 DEBUG_LOG_FILE_RTL       		= Debug.log
-DEBUG_LOG_FILE_POST_SYNTHESIS 	= Debug-post-synthesis.log
 REG_CSV_FILE 					= Register.csv
 
 
@@ -81,9 +78,6 @@ kanata: rtl-kanata
 
 rtl-kanata: rtl-run
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
-
-post-synthesis-kanata: post-synthesis-run
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
 
 # -------------------------------
 # Test related items are defined in this file

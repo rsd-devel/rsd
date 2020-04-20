@@ -113,7 +113,7 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
- "[file normalize "$origin_dir/../../Synplify/Zedboard_post_synthesis/rsd.vm"]"\
+ "[file normalize "$origin_dir/../../../Synplify/Zedboard_post_synthesis/rsd.vm"]"\
 ]
 add_files -norecurse -fileset $obj $files
 

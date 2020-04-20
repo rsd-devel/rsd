@@ -12,6 +12,7 @@ VIVADO_BOARD_PROJECT = rsd
 VIVADO_POST_SYNTHESIS_PROJECT = rsd_post_synthesis
 
 VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/$(TARGET_BOARD)
+VIVADO_PROJECT_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/rsd.xpr
 VIVADO_BOARD_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT)
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_POST_SYNTHESIS_PROJECT)
 VIVADO_BOARD_PROJECT_IMPL = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).runs/impl_1
@@ -19,12 +20,6 @@ VIVADO_BOARD_PROJECT_SDK = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).
 VIVADO_XSA_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/design_1_wrapper.xsa
 VIVADO_BIT_FILE = $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.bit
 VIVADO_FSBL_FILE = $(VIVADO_BOARD_PROJECT_SDK)/fsbl/Release/fsbl.elf
-
-# Synplify用
-
-SYNPLIFY_ROOT = ../Project/Synplify
-SYNPLIFY_PROJECT_ROOT = $(SYNPLIFY_ROOT)/$(TARGET_BOARD)
-SYNPLIFY_POST_SYNTHESIS_PROJECT_ROOT = $(SYNPLIFY_ROOT)/$(TARGET_BOARD)_post_synthesis
 
 # Linux(ARM)用
 
@@ -73,9 +68,6 @@ UBOOT_TAG = xilinx-v2019.2
 # Vivado : Make RSD project, run synthesis and run implementation for TARGET_BOARD.
 #
 
-VIVADO_PROJECT_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/rsd.xpr
-SYNPLIFY_NETLIST = $(SYNPLIFY_PROJECT_ROOT)/rsd.vm
-
 # vivadoプロジェクトを作成して開く．すでに作成されている場合は開くのみ．
 vivado: $(VIVADO_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado $(VIVADO_PROJECT_FILE) &
@@ -88,24 +80,6 @@ vivado-clean:
 	rm -f vivado*.zip
 	rm -f vivado*.str
 
-# Do NOT use this command.
-# This command is called automatically if you need.
-vivado-create:
-	python3 $(TOOLS_ROOT)/XilinxIP_Generator/IP_Generator.py
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl
-
-vivado-create-using-synplify-netlist: $(SYNPLIFY_NETLIST)
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project_using_synplify_netlist.tcl
-
-$(VIVADO_PROJECT_FILE):
-	$(MAKE) vivado-create || $(MAKE) vivado-clean
-
-$(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
-	@ echo "(Re-)build post-synthesis netlist using Synplify!"
-	$(MAKE) vivado-clean
-	@ exit 1
 
 # -------------------------------
 # ARM-Linux : Make fsbl, initrd, u-boot, kernel, device-tree and boot.bin for TARGET_BOARD.
