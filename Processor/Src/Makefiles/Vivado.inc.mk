@@ -143,7 +143,7 @@ $(DTC_ROOT)/dtc:
 xilinx-arm-linux-dtc:
 	git clone https://git.kernel.org/pub/scm/utils/dtc/dtc.git $(DTC_ROOT)
 	@cd $(DTC_ROOT); \
-	$(MAKE) CC=gcc CXX=g++
+	make CC=gcc CXX=g++
 
 # Do NOT use this command.
 xilinx-arm-linux-dtc-clean:
@@ -183,8 +183,8 @@ $(UBOOT_FILE): $(UBOOT_ROOT)
 # Do NOT use this command.
 xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
 	cd $(UBOOT_ROOT); \
-	$(MAKE) $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
-	$(MAKE) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
@@ -205,8 +205,8 @@ $(UKERNEL_FILE):
 # Do NOT use this command.
 xilinx-arm-linux-kernel: $(KERNEL_ROOT)
 	cd $(KERNEL_ROOT); \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
 	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
@@ -216,7 +216,7 @@ $(DEVICETREE_FILE): $(UKERNEL_FILE)
 # Do NOT use this command.
 xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 	cd $(KERNEL_ROOT); \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(DEVICETREE_CONFIG).dtb
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(DEVICETREE_CONFIG).dtb
 	cp $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dtb $(ARM_LINUX_BOOT)/devicetree.dtb
 
 $(BIT_FILE): $(VIVADO_BIT_FILE)
