@@ -95,7 +95,7 @@ include Makefiles/Vivado.inc.mk
 
 # Create Vivado project file for synthesis
 $(VIVADO_PROJECT_FILE):
-	python3 $(TOOLS_ROOT)/XilinxIP_Generator/IP_Generator.py # Generate Xilinx IP of RSD
+	python3 $(TOOLS_ROOT)/XilinxTools/IP_Generator.py # Generate Xilinx IP of RSD
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl
 
@@ -196,6 +196,7 @@ post-synthesis-clean:
 # Do NOT use these commands.
 # These commands are called automatically if needed.
 post-synthesis-create:
+	python3 $(TOOLS_ROOT)/XilinxTools/VivadoProjectCreator.py # Auto-generate project
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivadosim.tcl
 
