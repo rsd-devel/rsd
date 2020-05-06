@@ -3,6 +3,7 @@
 
 import os
 import re
+import sys
 
 def parse_makefile_for_core_sources():
     file_name = os.environ['RSD_ROOT'] + "/Processor/Src/Makefiles/CoreSources.inc.mk"
@@ -38,8 +39,9 @@ def write_footer(fout):
         fout.write(fin.read())
 
 # Target
+TARGET_BOARD = sys.argv[1]
 project_file = os.environ['RSD_ROOT'] + \
-    "/Processor/Project/Vivado/TargetBoards/" + os.environ["TARGET_BOARD"] + \
+    "/Processor/Project/Vivado/TargetBoards/" + TARGET_BOARD + \
     "/scripts/post_synthesis/create_project_for_vivadosim.tcl"
 
 # Read source file list from Makefile
@@ -48,6 +50,8 @@ srcs = parse_makefile_for_core_sources()
 # Generate project
 with open(project_file, mode="w") as fout:
     write_header(fout)
+
+    # Write out source file list
     for src in srcs:
         fout.write(' [file normalize "${origin_dir}/../../../../Src/%s"] \\\n' \
             % src["name"])

@@ -26,11 +26,12 @@ def parse_makefile_for_core_sources():
 
     return sources
 
+TARGET_BOARD = sys.argv[1]
 srcs = parse_makefile_for_core_sources()
 
-template_file =  os.environ['RSD_ROOT'] + "/Processor/Tools/XilinxIP_Generator/ip_template.xml"
+template_file =  os.environ['RSD_ROOT'] + "/Processor/Tools/XilinxTools/ip_template.xml"
 ip_path = os.environ['RSD_ROOT'] + "/Processor/Project/Vivado/TargetBoards/" + \
-    os.environ["TARGET_BOARD"] + "/rsd_ip/Vivado/"
+    TARGET_BOARD + "/rsd_ip/Vivado/"
 target_file = ip_path + "/component.xml"
 
 readbuf = ""
