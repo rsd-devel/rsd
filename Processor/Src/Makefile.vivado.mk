@@ -197,6 +197,7 @@ post-synthesis-clean:
 # These commands are called automatically if needed.
 post-synthesis-create:
 	python3 $(TOOLS_ROOT)/XilinxTools/VivadoProjectCreator.py $(TARGET_BOARD)
+	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivadosim.tcl
 

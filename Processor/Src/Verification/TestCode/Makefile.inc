@@ -53,7 +53,7 @@ LDFLAGS= \
 
 LIBC =
 LIBGCC = \
-	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/7.1.1 \
+	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/$(RSD_GCC_VERSION) \
 	-lgcc \
 	-lgcov \
 	-L$(RSD_GCC_NATIVE)/../riscv32-unknown-elf/lib \

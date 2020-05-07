@@ -20,7 +20,8 @@ setx RSD_CYGWIN_PATH C:/cygwin/
 setx RSD_GCC_PATH  C:/opt/gcc/riscv/7.1.0/bin
 :: Specify the prefix of the file name of the compiler binary.
 setx RSD_GCC_PREFIX riscv32-unknown-elf-
-
+:: Specify the version number of the RISC-V gcc cross compiler.
+setx RSD_GCC_VERSION 8.1.0
 
 :: Specify the binary path of Modelsim or QuestaSim.
 setx RSD_QUESTASIM_PATH C:/dev/env/hdl/Mentor/questa_sim64_10.2c/win64/
