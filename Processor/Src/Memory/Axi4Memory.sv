@@ -5,6 +5,9 @@
 
 `timescale 1 ns / 1 ps
 
+`include "BasicMacros.sv"
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryTypes::*;
 import CacheSystemTypes::*;
@@ -29,14 +32,14 @@ output
 );
 
     // RD/WR addr must be buffered for the correct operation.
-    logic [MEMORY_AXI4_ADDR_BIT_SIZE-1:0] next_addr;
+    logic [`MEMORY_AXI4_ADDR_BIT_SIZE-1:0] next_addr;
 
     always_ff @(posedge port.M_AXI_ACLK) begin
         if (port.M_AXI_ARESETN == 0) begin
             next_addr <= '0;
         end
         else begin
-            next_addr <= memAccessAddr[MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
+            next_addr <= memAccessAddr[`MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
         end
     end
 
@@ -52,15 +55,19 @@ output
         end                                                           
       endfunction                                                     
 
+    // The burst length of AXI4
+    // RSDのメモリアクセス単位はキャッシュライン幅単位なので，それをAXI4バスのデータ幅で割った数
+    localparam MEMORY_AXI4_BURST_LEN = MEMORY_ENTRY_BIT_NUM/`MEMORY_AXI4_DATA_BIT_NUM;
+
     // C_TRANSACTIONS_NUM is the width of the index counter for 
     // number of write or read transaction.
      localparam integer C_TRANSACTIONS_NUM = clogb2(MEMORY_AXI4_BURST_LEN-1);
 
-    // Burst length for transactions, in MEMORY_AXI4_DATA_BIT_NUMs.
+    // Burst length for transactions, in `MEMORY_AXI4_DATA_BIT_NUMs.
     // Non-2^n lengths will eventually cause bursts across 4K address boundaries.
      localparam integer C_MASTER_LENGTH    = 12;
     // total number of burst transfers is master length divided by burst length and burst size
-     localparam integer C_NO_BURSTS_REQ = C_MASTER_LENGTH-clogb2((MEMORY_AXI4_BURST_LEN*MEMORY_AXI4_DATA_BIT_NUM/8)-1);
+     localparam integer C_NO_BURSTS_REQ = C_MASTER_LENGTH-clogb2((MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM /8)-1);
     // Example State machine to initialize counter, initialize write transactions, 
     // initialize read transactions and comparison of read data with the 
     // written data words.
@@ -80,17 +87,17 @@ output
 
     // AXI4LITE signals
     //AXI4 internal temp signals
-    // reg [MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_awaddr;
-    logic [MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_awaddr;
+    // reg [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_awaddr;
+    logic [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_awaddr;
     // reg      axi_awvalid;
     logic axi_awvalid;
-    //reg [MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     axi_wdata;
-    logic [MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     axi_wdata;
+    //reg [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     axi_wdata;
+    logic [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     axi_wdata;
     reg      axi_wlast;
     reg      axi_wvalid;
     reg      axi_bready;
-    //reg [MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_araddr;
-    logic [MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_araddr;
+    //reg [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_araddr;
+    logic [`MEMORY_AXI4_ADDR_BIT_SIZE-1 : 0]     axi_araddr;
     reg      axi_arvalid;
     reg      axi_rready;
     //write beat count in a burst
@@ -111,7 +118,7 @@ output
     reg      read_mismatch;
     reg      burst_write_active;
     reg      burst_read_active;
-    reg [MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     expected_rdata;
+    reg [`MEMORY_AXI4_DATA_BIT_NUM-1 : 0]     expected_rdata;
     //Interface response error flags
     wire      write_resp_error;
     wire      read_resp_error;
@@ -128,10 +135,10 @@ output
     // Readリクエストのための定義
     // 1なら使用済みreadReqIDをpushする
     logic pushFreeReadReqID;
-    logic [MEMORY_AXI4_READ_ID_WIDTH-1: 0] pushedFreeReadReqID;
+    logic [`MEMORY_AXI4_READ_ID_WIDTH-1: 0] pushedFreeReadReqID;
     // 1ならフリーのreadReqIDをpopする
     logic popFreeReadReqID;
-    logic [MEMORY_AXI4_READ_ID_WIDTH-1: 0] popedFreeReadReqID;
+    logic [`MEMORY_AXI4_READ_ID_WIDTH-1: 0] popedFreeReadReqID;
     // 1ならmemoryReadReqIDFreeListがfull
     logic readReqIDFreeListFull;
     // 1ならmemoryReadReqIDFreeListが空
@@ -153,7 +160,7 @@ output
     //
     MemoryEntryDataPath nextMemoryReadData;
     logic memoryReadDataTableWE;
-    logic [MEMORY_AXI4_READ_ID_WIDTH-1: 0] memoryReadDataID;
+    logic [`MEMORY_AXI4_READ_ID_WIDTH-1: 0] memoryReadDataID;
     MemoryEntryDataPath memoryReadData;
     
 
@@ -161,8 +168,8 @@ output
 // --- memoryReadReqIDFreeList
 //
     FreeList #(
-        .SIZE(MEMORY_AXI4_READ_ID_NUM),
-        .ENTRY_WIDTH(MEMORY_AXI4_READ_ID_WIDTH)
+        .SIZE(`MEMORY_AXI4_READ_ID_NUM),
+        .ENTRY_WIDTH(`MEMORY_AXI4_READ_ID_WIDTH)
     ) memoryReadReqIDFreeList ( 
         .clk(port.M_AXI_ACLK),
         .rst(~port.M_AXI_ARESETN),
@@ -205,7 +212,7 @@ output
     assign pushedMemoryReadReq.id = popedFreeReadReqID;
 
     // coreからのリードリクエストのアドレスをmemoryReadReqQueueに入力する
-    assign pushedMemoryReadReq.addr = memAccessAddr[MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
+    assign pushedMemoryReadReq.addr = memAccessAddr[`MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
 
     // freelistからreadReqIDがpopされた場合，coreからリクエストが来ていて，かつ受付可能であることを意味しているのでpush
     assign pushMemoryReadReq = popFreeReadReqID;
@@ -217,7 +224,7 @@ output
 // --- memoryReadDataTable
 //
     DistributedDualPortRAM #( 
-        .ENTRY_NUM(MEMORY_AXI4_READ_ID_NUM), 
+        .ENTRY_NUM(`MEMORY_AXI4_READ_ID_NUM), 
         .ENTRY_BIT_SIZE(MEMORY_ENTRY_BIT_NUM)
     ) memoryReadDataTable ( 
         .clk(port.M_AXI_ACLK),
@@ -234,11 +241,11 @@ output
     assign memoryReadDataID = port.M_AXI_RID;
     // データがメモリから届いたら，テーブルのエントリの上位ビットに挿入する
     generate 
-        if (MEMORY_ENTRY_BIT_NUM == MEMORY_AXI4_DATA_BIT_NUM) begin
+        if (MEMORY_ENTRY_BIT_NUM == `MEMORY_AXI4_DATA_BIT_NUM) begin
             assign nextMemoryReadData = port.M_AXI_RDATA;
         end
         else begin
-            assign nextMemoryReadData = {port.M_AXI_RDATA, memoryReadData[MEMORY_ENTRY_BIT_NUM-1: MEMORY_AXI4_DATA_BIT_NUM]};
+            assign nextMemoryReadData = {port.M_AXI_RDATA, memoryReadData[MEMORY_ENTRY_BIT_NUM-1: `MEMORY_AXI4_DATA_BIT_NUM]};
         end
     endgenerate
 
@@ -315,7 +322,7 @@ output
     assign axi_awvalid = memAccessWE;
 
     // coreからのライトリクエストと同時にくるアドレスをバスに出力する
-    assign axi_awaddr = memAccessAddr[MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
+    assign axi_awaddr = memAccessAddr[`MEMORY_AXI4_ADDR_BIT_SIZE-1:0];
 
     // I/O Connections assignments
 
@@ -323,11 +330,11 @@ output
     // 対応するデータをmemoryWriteDataQueueにpushするポインタがIDとなる
     assign port.M_AXI_AWID    = memoryWriteDataQueueTailPtr;//'b0;
     //The AXI address is a concatenation of the target base address + active offset range
-    assign port.M_AXI_AWADDR    = MEMORY_AXI4_BASE_ADDR + axi_awaddr;
+    assign port.M_AXI_AWADDR    = `MEMORY_AXI4_BASE_ADDR + axi_awaddr;
     //Burst LENgth is number of transaction beats, minus 1
     assign port.M_AXI_AWLEN    = MEMORY_AXI4_BURST_LEN - 1;
-    //Size should be MEMORY_AXI4_DATA_BIT_NUM, in 2^SIZE bytes, otherwise narrow bursts are used
-    assign port.M_AXI_AWSIZE    = clogb2((MEMORY_AXI4_DATA_BIT_NUM/8)-1);
+    //Size should be `MEMORY_AXI4_DATA_BIT_NUM, in 2^SIZE bytes, otherwise narrow bursts are used
+    assign port.M_AXI_AWSIZE    = clogb2((`MEMORY_AXI4_DATA_BIT_NUM/8)-1);
     //INCR burst type is usually used, except for keyhole bursts
     // Burst type (AWBURST) is INCR (2'b01). 
     assign port.M_AXI_AWBURST    = 2'b01;
@@ -343,7 +350,7 @@ output
     //Write Data(W)
     assign port.M_AXI_WDATA    = axi_wdata;
     //All bursts are complete and aligned in this example
-    assign port.M_AXI_WSTRB    = {(MEMORY_AXI4_DATA_BIT_NUM/8){1'b1}};
+    assign port.M_AXI_WSTRB    = {(`MEMORY_AXI4_DATA_BIT_NUM/8){1'b1}};
     assign port.M_AXI_WLAST    = axi_wlast;
     // WUSER is ignored.
     assign port.M_AXI_WUSER    = 'b0;
@@ -353,11 +360,11 @@ output
     //Read Address (AR)
     // memoryReadReqQueueの先頭に発行するリードリクエストのidが入っている
     assign port.M_AXI_ARID    = popedMemoryReadReq.id;//'b0;
-    assign port.M_AXI_ARADDR    = MEMORY_AXI4_BASE_ADDR + axi_araddr;
+    assign port.M_AXI_ARADDR    = `MEMORY_AXI4_BASE_ADDR + axi_araddr;
     //Burst LENgth is number of transaction beats, minus 1
     assign port.M_AXI_ARLEN    = MEMORY_AXI4_BURST_LEN - 1;
-    //Size should be MEMORY_AXI4_DATA_BIT_NUM, in 2^n bytes, otherwise narrow bursts are used
-    assign port.M_AXI_ARSIZE    = clogb2((MEMORY_AXI4_DATA_BIT_NUM/8)-1);
+    //Size should be `MEMORY_AXI4_DATA_BIT_NUM, in 2^n bytes, otherwise narrow bursts are used
+    assign port.M_AXI_ARSIZE    = clogb2((`MEMORY_AXI4_DATA_BIT_NUM/8)-1);
     //INCR burst type is usually used, except for keyhole bursts
     // Burst type (ARBURST) is INCR (2'b01). 
     assign port.M_AXI_ARBURST    = 2'b01;
@@ -375,7 +382,7 @@ output
     //Example design I/O
     // assign TXN_DONE    = compare_done;
     //Burst size in bytes
-    assign burst_size_bytes    = MEMORY_AXI4_BURST_LEN * MEMORY_AXI4_DATA_BIT_NUM/8;
+    assign burst_size_bytes    = MEMORY_AXI4_BURST_LEN * `MEMORY_AXI4_DATA_BIT_NUM/8;
     // assign init_txn_pulse    = (!init_txn_ff2) && init_txn_ff;
 
 
@@ -541,7 +548,7 @@ output
 
     generate 
         // バースト転送のため書き込みデータを1転送ごとにシフトしていく
-        if (MEMORY_ENTRY_BIT_NUM == MEMORY_AXI4_DATA_BIT_NUM) begin
+        if (MEMORY_ENTRY_BIT_NUM == `MEMORY_AXI4_DATA_BIT_NUM) begin
             always_ff @(posedge port.M_AXI_ACLK)                                                      
             begin                                                                             
                 if (port.M_AXI_ARESETN == 0)                                                         
@@ -564,12 +571,12 @@ output
                 memoryWriteData <= popedMemoryWriteData;
                 else if (wnext)
                 // 1ワード(AXIバス幅単位)の送信が終わったら送信するデータをシフトする
-                memoryWriteData <= {{MEMORY_AXI4_DATA_BIT_NUM{1'd0}}, memoryWriteData[MEMORY_ENTRY_BIT_NUM-1:MEMORY_AXI4_DATA_BIT_NUM]};
+                memoryWriteData <= {{`MEMORY_AXI4_DATA_BIT_NUM{1'd0}}, memoryWriteData[MEMORY_ENTRY_BIT_NUM-1:`MEMORY_AXI4_DATA_BIT_NUM]};
             end         
         end
     endgenerate 
     
-      assign axi_wdata = memoryWriteData[MEMORY_AXI4_DATA_BIT_NUM-1: 0]; 
+      assign axi_wdata = memoryWriteData[`MEMORY_AXI4_DATA_BIT_NUM-1: 0]; 
                                                                                         
     // /* Write Data Generator                                                             
     //  Data pattern is only a simple incrementing count from 0 for each burst  */         
@@ -582,7 +589,7 @@ output
     //     // else if (wnext)                                                                 
     //     //   axi_wdata <= axi_wdata + 1;                                                   
     //     else                                                                            
-    //       axi_wdata <= memoryWriteData[MEMORY_AXI4_DATA_BIT_NUM-1: 0];                                                       
+    //       axi_wdata <= memoryWriteData[`MEMORY_AXI4_DATA_BIT_NUM-1: 0];                                                       
     //   end                                                                             
 
       always_ff @(posedge port.M_AXI_ACLK)                                                      
@@ -1040,5 +1047,18 @@ output
     // Add user logic here
 
     // User logic ends
+
+    // The data width of AXI4 bus and memory access serial must be the same value
+    `RSD_STATIC_ASSERT(
+        `MEMORY_AXI4_READ_ID_WIDTH == MEM_ACCESS_SERIAL_BIT_SIZE, 
+        ("The data width of AXI4 read ID(%x) and memory access serial(%x) are not matched.", 
+          `MEMORY_AXI4_READ_ID_WIDTH, MEM_ACCESS_SERIAL_BIT_SIZE)
+    );
+
+    `RSD_STATIC_ASSERT(
+        `MEMORY_AXI4_WRITE_ID_WIDTH == MEM_WRITE_SERIAL_BIT_SIZE, 
+        ("The data width of AXI4 write ID(%x) and memory write serial(%x) are not matched.", 
+          `MEMORY_AXI4_WRITE_ID_WIDTH, MEM_WRITE_SERIAL_BIT_SIZE)
+    );
 
     endmodule

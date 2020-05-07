@@ -36,6 +36,7 @@ TYPES = \
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
 	Verification/TestMain.sv \
+	Verification/Dumper.sv \
 
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．
@@ -170,4 +171,10 @@ MODULES = \
 	Memory/MemoryReadReqQueue.sv \
 	Memory/MemoryWriteDataQueue.sv \
 	Memory/MemoryRequestQueue.sv \
-	
+
+# Header files
+# This list is used when generating Vivado custom IP of RSD
+HEADERS = \
+	BasicMacros.sv \
+	SynthesisMacros.svh \
+	XilinxMacros.vh \

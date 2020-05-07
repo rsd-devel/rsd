@@ -20,7 +20,8 @@ export RSD_ROOT=~/work/rsd-git/
 export RSD_GCC_PATH=/opt/gcc/riscv/7.1.0/bin
 # Specify the prefix of the file name of the compiler binary.
 export RSD_GCC_PREFIX=riscv32-unknown-elf-
-
+# Specify the version number of the RISC-V gcc cross compiler.
+export RSD_GCC_VERSION=8.1.0
 
 # Specify the binary path of Modelsim or QuestaSim.
 export RSD_QUESTASIM_PATH=~/opt/cad/mentor/questasim_2019.4.2_x64/questasim/bin
