@@ -71,6 +71,7 @@ $(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
 #	3. Launch post-synthesis simulation on QuestaSim
 
 include Makefile.inc
+include Makefiles/CoreSources.inc.mk
 
 SYNPLIFY_ROOT = ../Project/Synplify
 SYNPLIFY_POST_SYNTHESIS_PROJECT_ROOT = $(SYNPLIFY_ROOT)/Zedboard_post_synthesis

@@ -32,11 +32,11 @@ TYPES = \
 	Debug/DebugTypes.sv \
 
 # テスト時のみ使用し、合成時は使用しない module の定義があるファイルを指定する．
-# ここの順番は適当でも大丈夫．
+# TestMainはDumperに依存するので後にくること
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
-	Verification/TestMain.sv \
 	Verification/Dumper.sv \
+	Verification/TestMain.sv \
 
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．

@@ -295,8 +295,8 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Privileged/CSR_UnitTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Debug/DebugTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Verification/TestBenchClockGenerator.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Verification/TestMain.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Verification/Dumper.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/Verification/TestMain.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Main_Zynq_Wrapper.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Main_Zynq.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Core.sv"] \
@@ -515,12 +515,12 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
-set file "$origin_dir/../../../../Src/Verification/TestMain.sv"
+set file "$origin_dir/../../../../Src/Verification/Dumper.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
-set file "$origin_dir/../../../../Src/Verification/Dumper.sv"
+set file "$origin_dir/../../../../Src/Verification/TestMain.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
