@@ -91,6 +91,82 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
 endfunction
 
 //
+// NRUState, Access -> NRUState
+// NRUState         -> Evicted way (one-hot)
+//
+function automatic DCacheNRUAccessStatePath UpdateNRUState( DCacheNRUAccessStatePath NRUState, DCacheWayPath way );
+
+    if ( (NRUState | (1 << way)) == (1 << DCACHE_WAY_NUM) - 1 ) begin
+        // if all NRU state bits are high, NRU state needs to clear
+        return 1 << way;
+    end
+    else begin
+        // Update indicated NRU state bit
+        return NRUState | (1 << way);
+    end
+endfunction
+
+function automatic DCacheNRUAccessStatePath DecideWayToEvictByNRUState( DCacheNRUAccessStatePath NRUState );
+    // return the position of the rightmost 0-bit
+    // e.g. NRUState = 10011 -> return 00100
+    return (NRUState | NRUState + 1) ^ NRUState;
+endfunction
+
+module DCacheNRUStateArray(
+    input  logic                    clk, rst, rstStart,
+    input  logic                    NRUStateWE[DCACHE_ARRAY_PORT_NUM],
+    input  DCacheIndexPath          NRUIndex[DCACHE_ARRAY_PORT_NUM],
+    input  DCacheNRUAccessStatePath NRUStateDataIn[DCACHE_ARRAY_PORT_NUM],
+    output DCacheNRUAccessStatePath NRUStateDataOut [DCACHE_ARRAY_PORT_NUM]
+);
+    DCacheIndexPath rstIndex;
+    logic we[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath NRUStateIndex[DCACHE_ARRAY_PORT_NUM];
+    DCacheNRUAccessStatePath NRUStateData[DCACHE_ARRAY_PORT_NUM];
+
+    // NRUStateArray array
+    BlockTrueDualPortRAM #(
+        .ENTRY_NUM( DCACHE_INDEX_NUM ),
+        .ENTRY_BIT_SIZE( $bits( DCacheNRUAccessStatePath ) )
+    ) nruStateArray (
+        .clk( clk ),
+        .we( we ),
+        .rwa( NRUStateIndex ),
+        .wv( NRUStateData ),
+        .rv( NRUStateDataOut )
+    );
+
+    always_comb begin
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            we[p] = FALSE;
+        end
+
+        if (rst) begin
+            // Port 0 is used for reset.
+            we[0] = TRUE;
+            NRUStateIndex[0] = rstIndex;
+            NRUStateData[0] = '0;
+        end
+        else begin
+            we = NRUStateWE;
+            NRUStateIndex = NRUIndex;
+            NRUStateData = NRUStateDataIn;
+        end
+    end
+
+    // Reset Index
+    always_ff @(posedge clk) begin
+        if (rstStart) begin
+            rstIndex <= '0;
+        end
+        else begin
+            rstIndex <= rstIndex + 1;
+        end
+    end
+
+endmodule : DCacheNRUStateArray
+
+//
 // The arbiter of the ports of the main memory.
 //
 module DCacheMemoryReqPortArbiter(DCacheIF.DCacheMemoryReqPortArbiter port);
@@ -245,7 +321,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCachePortMultiplexerTagOut muxTagOut[DCACHE_MUX_PORT_NUM];
     DCachePortMultiplexerDataOut muxDataOut[DCACHE_MUX_PORT_NUM];
 
-    logic tagHit[DCACHE_ARRAY_PORT_NUM];
+    logic tagHit[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic mshrConflict[DCACHE_ARRAY_PORT_NUM];
 
     logic mshrAddrHit[DCACHE_ARRAY_PORT_NUM];
@@ -255,13 +331,36 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCacheLinePath portMSHRData[MSHR_NUM];
     logic portMSHRCanBeInvalid[MSHR_NUM];
 
+    DCacheWayPath hitWay[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath selectWayTagStg[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath selectWayDataStg[DCACHE_ARRAY_PORT_NUM];
+
+    // DCacheNRUStateArray
+    DCacheNRUAccessStatePath updatedNRUState[DCACHE_ARRAY_PORT_NUM], readNRUState[DCACHE_ARRAY_PORT_NUM];
+    logic nruStateWE[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath nruIndex[DCACHE_ARRAY_PORT_NUM];
+    logic                    isSameNRUIndex[DCACHE_ARRAY_PORT_NUM];
+    logic                    isHit[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath            wayToEvict[DCACHE_ARRAY_PORT_NUM];
+    DCacheNRUAccessStatePath wayToEvictOneHot[DCACHE_ARRAY_PORT_NUM];
+
     // *** Hack for Synplify...
     // Signals in an interface are set to temproraly signals for avoiding
     // errors outputted by Synplify.
-    DCacheTagPath   tagArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
-    logic           tagArrayValidOutTmp[DCACHE_ARRAY_PORT_NUM];
-    logic           dataArrayDirtyOutTmp[DCACHE_ARRAY_PORT_NUM];
-    DCacheLinePath  dataArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
+    DCacheTagPath   tagArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayDirtyOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheLinePath  dataArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+
+    DCacheNRUStateArray nruStateArray(
+        .clk( port.clk ),
+        .rst( port.rst ),
+        .rstStart( port.rstStart ),
+        .NRUStateWE     ( nruStateWE ),
+        .NRUIndex       ( nruIndex ),
+        .NRUStateDataIn ( updatedNRUState ),
+        .NRUStateDataOut( readNRUState )
+    );
 
 
     always_ff @(posedge port.clk) begin
@@ -287,6 +386,14 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             else begin
                 portOutRegTagStg[i] <= port.cacheArrayOutSel[i];
                 portOutRegDataStg[i] <= portOutRegTagStg[i];
+            end
+        end
+
+        for (int i = 0; i < DCACHE_MUX_PORT_NUM; i++) begin
+            if (port.rst) begin
+                selectWayTagStg[i] <= '0;
+            end else begin
+                selectWayDataStg[i] <= selectWayTagStg[i];
             end
         end
 
@@ -323,10 +430,28 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // Tag array inputs
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
-            port.tagArrayWE[p]      = muxIn[ portIn ].tagWE;
+            if (muxIn[ portIn ].tagWE) begin // Write miss data by MSHR
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    if (muxIn[ portIn ].evictWay == way) begin
+                        port.tagArrayWE[way][p] = muxIn[ portIn ].tagWE;
+                    end else begin
+                        port.tagArrayWE[way][p] = FALSE;
+                    end
+                end
+            end else begin
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    port.tagArrayWE[way][p] = muxIn[ portIn ].tagWE;
+                end
+            end
             port.tagArrayIndexIn[p] = muxIn[ portIn ].indexIn;
             port.tagArrayDataIn[p]  = muxIn[ portIn ].tagDataIn;
             port.tagArrayValidIn[p] = muxIn[ portIn ].tagValidIn;
+        end
+
+        // NRU access
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            portIn = port.cacheArrayInSel[p];
+            nruIndex[p] = muxIn[ portIn ].indexIn; // NRU read index
         end
 
 
@@ -366,22 +491,72 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 end
             end
 
-            tagHit[p] =
-                (tagArrayDataOutTmp[p] == muxInReg[p].tagDataIn) &&
-                tagArrayValidOutTmp[p] &&
-                !mshrConflict[p];
+            hitWay[p] = '0;
+            isHit[p] = FALSE;
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                tagHit[way][p] =
+                    (tagArrayDataOutTmp[way][p] == muxInReg[p].tagDataIn) &&
+                    tagArrayValidOutTmp[way][p] &&
+                    !mshrConflict[p];
+                if (tagHit[way][p]) begin
+                    hitWay[p] = way;
+                    isHit[p] = TRUE;
+                end
+            end
+        end
+
+        // NRU access
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            updatedNRUState[p] = UpdateNRUState(readNRUState[p], hitWay[p]);
+            wayToEvictOneHot[p] = DecideWayToEvictByNRUState(readNRUState[p]);
+
+            isSameNRUIndex[p] = FALSE;
+            for (int q = 0; q < p; q++) begin
+                if (muxInReg[p].indexIn == muxInReg[q].indexIn) begin
+                    isSameNRUIndex[p] = TRUE;
+                    break;
+                end
+            end
+
+            if (isHit[p] && muxInReg[p].nruStateWE && !isSameNRUIndex[p]) begin // write
+                nruStateWE[p] = TRUE;
+                nruIndex[p] = muxInReg[p].indexIn; // NRU write index
+            end else begin // read
+                nruStateWE[p] = FALSE;
+            end
+
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                if (wayToEvictOneHot[p][way]) begin
+                    wayToEvict[p] = way;
+                    break;
+                end
+            end
+        end
+
+        // Select way
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            if (muxInReg[p].tagWE) begin
+                selectWayTagStg[p] = muxInReg[p].evictWay;
+            end else begin
+                if (isHit[p]) begin
+                    selectWayTagStg[p] = hitWay[p];
+                end else begin
+                    selectWayTagStg[p] = wayToEvict[p];
+                end
+            end
         end
 
         // Tag array outputs
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
-            muxTagOut[r].tagDataOut  = tagArrayDataOutTmp[ portOutRegTagStg[r] ];
-            muxTagOut[r].tagValidOut = tagArrayValidOutTmp[ portOutRegTagStg[r] ];
-            muxTagOut[r].tagHit = tagHit[ portOutRegTagStg[r] ];
+            muxTagOut[r].tagDataOut  = tagArrayDataOutTmp[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
+            muxTagOut[r].tagValidOut = tagArrayValidOutTmp[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
+            muxTagOut[r].tagHit = tagHit[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
             muxTagOut[r].mshrConflict = mshrConflict[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrReadHit = mshrReadHit[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrAddrHit = mshrAddrHit[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrAddrHitMSHRID = mshrAddrHitMSHRID[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrReadData = mshrReadData[ portOutRegTagStg[r] ];
+            muxTagOut[r].selectWay = selectWayTagStg[ portOutRegTagStg[r] ];
         end
 
 
@@ -393,9 +568,16 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             port.dataArrayDataIn[p]     = muxInReg[p].dataDataIn;
             port.dataArrayDirtyIn[p]    = muxInReg[p].dataDirtyIn;
-            port.dataArrayByteWE_In[p]  = muxInReg[p].dataByteWE;
-            port.dataArrayWE[p]         =
-                muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && tagHit[p]);
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                if (selectWayTagStg[p] == way) begin
+                    port.dataArrayByteWE_In[way][p] = muxInReg[p].dataByteWE;
+                    port.dataArrayWE[way][p]        =
+                        muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && tagHit[way][p]);
+                end else begin
+                    port.dataArrayByteWE_In[way][p] = '0;
+                    port.dataArrayWE[way][p]        = '0;
+                end
+            end
             port.dataArrayIndexIn[p]    = muxInReg[p].indexIn;
         end
 
@@ -405,8 +587,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         dataArrayDataOutTmp = port.dataArrayDataOut;
         dataArrayDirtyOutTmp = port.dataArrayDirtyOut;
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
-            muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ portOutRegDataStg[r] ];
-            muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ portOutRegDataStg[r] ];
+            muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
+            muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
         end
     end
 
@@ -431,24 +613,24 @@ endmodule : DCacheArrayPortMultiplexer
 //
 module DCacheArray(DCacheIF.DCacheArray port);
     // Data array signals
-    logic dataArrayWE[DCACHE_ARRAY_PORT_NUM];
-    logic dataArrayByteWE[DCACHE_LINE_BYTE_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic dataArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic dataArrayByteWE[DCACHE_LINE_BYTE_NUM][DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath dataArrayIndex[DCACHE_ARRAY_PORT_NUM];
     BytePath        dataArrayIn[DCACHE_LINE_BYTE_NUM][DCACHE_ARRAY_PORT_NUM];
-    BytePath        dataArrayOut[DCACHE_LINE_BYTE_NUM][DCACHE_ARRAY_PORT_NUM];
+    BytePath        dataArrayOut[DCACHE_LINE_BYTE_NUM][DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
-    logic           dataArrayDirtyOut[DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // *** Hack for Synplify...
-    DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_ARRAY_PORT_NUM];
+    DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath dataArrayInTmp[DCACHE_ARRAY_PORT_NUM];
-    DCacheLinePath dataArrayOutTmp[DCACHE_ARRAY_PORT_NUM];
+    DCacheLinePath dataArrayOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // Tag array signals
-    logic tagArrayWE[DCACHE_ARRAY_PORT_NUM];
+    logic tagArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath tagArrayIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheTagValidPath tagArrayIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheTagValidPath tagArrayOut[DCACHE_ARRAY_PORT_NUM];
+    DCacheTagValidPath tagArrayOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // Reset signals
     DCacheIndexPath rstIndex;
@@ -462,48 +644,49 @@ module DCacheArray(DCacheIF.DCacheArray port);
 
 
     generate
-        // Data array instance
-        for (genvar i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
+        for (genvar way = 0; way < DCACHE_WAY_NUM; way++) begin
+            // Data array instance
+            for (genvar i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
+                BlockTrueDualPortRAM #(
+                    .ENTRY_NUM( DCACHE_INDEX_NUM ),
+                    .ENTRY_BIT_SIZE( $bits(BytePath) )
+                    //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
+                ) dataArray (
+                    .clk( port.clk ),
+                    .we( dataArrayByteWE[i][way] ),
+                    .rwa( dataArrayIndex ),
+                    .wv( dataArrayIn[i] ),
+                    .rv( dataArrayOut[i][way] )
+                );
+            end
+
+            // Dirty array instance
+            // The dirty array is synchronized with the data array.
             BlockTrueDualPortRAM #(
                 .ENTRY_NUM( DCACHE_INDEX_NUM ),
-                .ENTRY_BIT_SIZE( $bits(BytePath) )
+                .ENTRY_BIT_SIZE( 1 )
                 //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
-            ) dataArray (
+            ) dirtyArray (
                 .clk( port.clk ),
-                .we( dataArrayByteWE[i] ),
+                .we( dataArrayWE[way] ),
                 .rwa( dataArrayIndex ),
-                .wv( dataArrayIn[i] ),
-                .rv( dataArrayOut[i] )
+                .wv( dataArrayDirtyIn ),
+                .rv( dataArrayDirtyOut[way] )
+            );
+
+            // Tag array instance
+            BlockTrueDualPortRAM #(
+                .ENTRY_NUM( DCACHE_INDEX_NUM ),
+                .ENTRY_BIT_SIZE( $bits(DCacheTagValidPath) )
+                //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
+            ) tagArray (
+                .clk( port.clk ),
+                .we( tagArrayWE[way] ),
+                .rwa( tagArrayIndex ),
+                .wv( tagArrayIn ),
+                .rv( tagArrayOut[way] )
             );
         end
-
-        // Dirty array instance
-        // The dirty array is synchronized with the data array.
-        BlockTrueDualPortRAM #(
-            .ENTRY_NUM( DCACHE_INDEX_NUM ),
-            .ENTRY_BIT_SIZE( 1 )
-            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
-        ) dirtyArray (
-            .clk( port.clk ),
-            .we( dataArrayWE ),
-            .rwa( dataArrayIndex ),
-            .wv( dataArrayDirtyIn ),
-            .rv( dataArrayDirtyOut )
-        );
-
-        // Tag array instance
-        BlockTrueDualPortRAM #(
-            .ENTRY_NUM( DCACHE_INDEX_NUM ),
-            .ENTRY_BIT_SIZE( $bits(DCacheTagValidPath) )
-            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
-        ) tagArray (
-            .clk( port.clk ),
-            .we( tagArrayWE ),
-            .rwa( tagArrayIndex ),
-            .wv( tagArrayIn ),
-            .rv( tagArrayOut )
-        );
-
     endgenerate
 
 
@@ -513,7 +696,9 @@ module DCacheArray(DCacheIF.DCacheArray port);
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             dataArrayIndex[p] = port.dataArrayIndexIn[p];
             dataArrayDirtyIn[p] = port.dataArrayDirtyIn[p];
-            dataArrayWE[p] = port.dataArrayWE[p];
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                dataArrayWE[way][p] = port.dataArrayWE[way][p];
+            end
         end
 
         // *** Hack for Synplify...
@@ -524,10 +709,14 @@ module DCacheArray(DCacheIF.DCacheArray port);
 
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
-                dataArrayByteWE[i][p] = port.dataArrayWE[p] && dataArrayByteWE_Tmp[p][i];
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    dataArrayByteWE[i][way][p] = port.dataArrayWE[way][p] && dataArrayByteWE_Tmp[way][p][i];
+                end
                 for (int b = 0; b < 8; b++) begin
                     dataArrayIn[i][p][b] = dataArrayInTmp[p][i*8 + b];
-                    dataArrayOutTmp[p][i*8 + b] = dataArrayOut[i][p][b];
+                    for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                        dataArrayOutTmp[way][p][i*8 + b] = dataArrayOut[i][way][p][b];
+                    end
                 end
             end
         end
@@ -539,35 +728,47 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // Tag signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             tagArrayIndex[p]    = port.tagArrayIndexIn[p];
-            tagArrayWE[p]       = port.tagArrayWE[p];
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                tagArrayWE[way][p] = port.tagArrayWE[way][p];
+            end
             tagArrayIn[p].tag   = port.tagArrayDataIn[p];
             tagArrayIn[p].valid = port.tagArrayValidIn[p];
 
-            port.tagArrayDataOut[p]  = tagArrayOut[p].tag;
-            port.tagArrayValidOut[p] = tagArrayOut[p].valid;
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                port.tagArrayDataOut[way][p]  = tagArrayOut[way][p].tag;
+                port.tagArrayValidOut[way][p] = tagArrayOut[way][p].valid;
+            end
         end
 
 
         // Reset
         if (port.rst) begin
             for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-                for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
-                    dataArrayByteWE[i][p] = FALSE;
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
+                        dataArrayByteWE[i][way][p] = FALSE;
+                    end
+                    tagArrayWE[way][p] = FALSE;
                 end
-                tagArrayWE[p] = FALSE;
             end
 
             // Port 0 is used for reset.
             for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
-                dataArrayByteWE[i][0] = TRUE;
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    dataArrayByteWE[i][way][0] = TRUE;
+                end
                 dataArrayIn[i][0] = 8'hcd;
             end
-            dataArrayWE[0] = TRUE;
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                dataArrayWE[way][0] = TRUE;
+            end
             dataArrayIndex[0] = rstIndex;
             dataArrayDirtyIn[0] = FALSE;
 
             tagArrayIndex[0] = rstIndex;
-            tagArrayWE[0] = TRUE;
+            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                tagArrayWE[way][0] = TRUE;
+            end
             tagArrayIn[0].tag = 0;
             tagArrayIn[0].valid = FALSE;
 
@@ -726,6 +927,8 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataWE_OnTagHit = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].evictWay = '0;
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].nruStateWE = TRUE;
         end
 
         // --- In the tag access stage (MemoryTagAccessStage)
@@ -778,6 +981,8 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].dataDirtyIn = TRUE;
             // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].evictWay = '0;
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].nruStateWE = TRUE;
 
             lsu.dcWriteReqAck = port.lsuCacheGrt[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
         end
@@ -1078,6 +1283,8 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
             port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
+            port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
+            port.mshrCacheMuxIn[i].nruStateWE = FALSE;
 
             // Memory request signals
             port.mshrMemReq[i] = FALSE;
@@ -1108,6 +1315,8 @@ module DCacheMissHandler(
                         nextMSHR[i].canBeInvalid = FALSE;
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
                         nextMSHR[i].isUncachable = port.isUncachable[i];
+
+                        nextMSHR[i].evictWay = '0;
 
                         // Dont'care
                         //nextMSHR[i].line = '0;
@@ -1164,7 +1373,7 @@ module DCacheMissHandler(
                         // Skip receiving data and writing back.
                         nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
                     end
-
+                    nextMSHR[i].evictWay = port.mshrCacheMuxTagOut[i].selectWay;
                 end
 
 
@@ -1338,6 +1547,8 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
+                    port.mshrCacheMuxIn[i].nruStateWE = FALSE;
+                    port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
 
                     if (port.mshrCacheGrt[i]) begin
                         // If my request is granted, miss handling finishes.

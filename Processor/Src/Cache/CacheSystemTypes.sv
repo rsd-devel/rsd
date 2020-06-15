@@ -15,7 +15,8 @@ package CacheSystemTypes;
     // Main cache parameters.
     // The remaining cache parameters must be fixed or calculated by the following
     // parameters.
-    localparam DCACHE_INDEX_BIT_WIDTH = 9;   // The number of index bits 11:16B*1^11=32KB 9:16*1^9=8KB
+    localparam DCACHE_WAY_NUM = 2;           // Way Num
+    localparam DCACHE_INDEX_BIT_WIDTH = 9 - $clog2(DCACHE_WAY_NUM);   // The number of index bits
     localparam DCACHE_LINE_BYTE_NUM = 8;    // Line size
     localparam MSHR_NUM = 2;                 // The nubmer of MSHR entries.
 
@@ -47,6 +48,16 @@ package CacheSystemTypes;
         logic valid;
         DCacheTagPath tag;
     } DCacheTagValidPath;
+
+    // Way bits
+    localparam DCACHE_WAY_BIT_NUM = (DCACHE_WAY_NUM != 1) ? $clog2(DCACHE_WAY_NUM)-1 : 0;
+    typedef logic [DCACHE_WAY_BIT_NUM:0] DCacheWayPath;
+
+    // NRU Access state bits
+    // (N-way NRU -> N bits)
+    // These bits correspond to the cache way:
+    //   if bit[way] == 1 then the way is referenced recently
+    typedef logic [DCACHE_WAY_NUM-1:0] DCacheNRUAccessStatePath;
 
     // Subset of index for MSHR identifier in ReplayQueue
     // This value MUST be less than or equal to DCACHE_INDEX_BIT_WIDTH.
@@ -129,6 +140,8 @@ package CacheSystemTypes;
 
         // TRUE if this is uncachable access.
         logic isUncachable;
+
+        logic evictWay;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
@@ -148,6 +161,8 @@ package CacheSystemTypes;
         // To notify MSHR that this request is by allocator load.
         logic           makeMSHRCanBeInvalid;
 
+        DCacheWayPath   evictWay;
+        logic           nruStateWE;
     } DCachePortMultiplexerIn;
 
     typedef struct packed   // DCachePortMultiplexerTagOut
@@ -160,6 +175,7 @@ package CacheSystemTypes;
         MSHR_IndexPath  mshrAddrHitMSHRID;
         logic           mshrReadHit;
         DCacheLinePath  mshrReadData;
+        DCacheWayPath   selectWay;
     } DCachePortMultiplexerTagOut;
 
     typedef struct packed   // DCachePortMultiplexerDataOut

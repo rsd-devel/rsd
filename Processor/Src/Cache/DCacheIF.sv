@@ -19,21 +19,21 @@ input
     logic rstStart
 );
     // Tag array
-    logic           tagArrayWE[DCACHE_ARRAY_PORT_NUM];
+    logic           tagArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath tagArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
     DCacheTagPath   tagArrayDataIn [DCACHE_ARRAY_PORT_NUM];
     logic           tagArrayValidIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheTagPath   tagArrayDataOut[DCACHE_ARRAY_PORT_NUM];
-    logic           tagArrayValidOut[DCACHE_ARRAY_PORT_NUM];
+    DCacheTagPath   tagArrayDataOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic           tagArrayValidOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // Data array
-    logic           dataArrayWE[DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath dataArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath  dataArrayDataIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheLinePath  dataArrayDataOut[DCACHE_ARRAY_PORT_NUM];
-    DCacheByteEnablePath dataArrayByteWE_In[DCACHE_ARRAY_PORT_NUM];
+    DCacheLinePath  dataArrayDataOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheByteEnablePath dataArrayByteWE_In[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic  dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
-    logic  dataArrayDirtyOut[DCACHE_ARRAY_PORT_NUM];
+    logic  dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
 
     // Port arbiter input/output
@@ -115,6 +115,7 @@ input
     input
         clk,
         rst,
+        rstStart,
         mshrCacheMuxIn,
         lsuMuxIn,
         tagArrayDataOut,
