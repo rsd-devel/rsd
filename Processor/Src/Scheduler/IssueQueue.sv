@@ -123,7 +123,7 @@ module IssueQueue (
 `endif
 
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( ISSUE_QUEUE_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits( IntIssueQueueEntry ) ),
         .READ_NUM( INT_ISSUE_WIDTH ),
@@ -138,7 +138,7 @@ module IssueQueue (
     );
 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( ISSUE_QUEUE_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits( ComplexIssueQueueEntry ) ),
         .READ_NUM( COMPLEX_ISSUE_WIDTH ),
@@ -153,7 +153,7 @@ module IssueQueue (
     );
 `endif
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( ISSUE_QUEUE_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits( MemIssueQueueEntry ) ),
         .READ_NUM( MEM_ISSUE_WIDTH ),

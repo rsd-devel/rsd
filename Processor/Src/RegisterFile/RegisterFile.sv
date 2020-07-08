@@ -23,7 +23,7 @@ module RegisterFile(
     PScalarRegNumPath srcRegNum  [ REG_READ_NUM ];
     PRegDataPath srcRegData [ REG_READ_NUM ];
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( PSCALAR_NUM ),
         .ENTRY_BIT_SIZE( $bits(PRegDataPath) ),
         .READ_NUM( REG_READ_NUM ),
@@ -122,7 +122,7 @@ module RegisterFile(
     PVecDataPath      dstVecData [ VEC_WRITE_NUM ];
     PVectorRegNumPath srcVecNum  [ VEC_READ_NUM ];
     PVecDataPath      srcVecData [ VEC_READ_NUM ];
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( PVECTOR_NUM ),
         .ENTRY_BIT_SIZE( $bits(PVecDataPath) ),
         .READ_NUM( VEC_READ_NUM ),

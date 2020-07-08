@@ -120,7 +120,7 @@ module ActiveList(
     ActiveListEntry readData[COMMIT_WIDTH];
 
     //DistributedMultiPortRAM #(
-    DistributedMultiBankRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( ACTIVE_LIST_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits( ActiveListEntry ) ),
         .READ_NUM( COMMIT_WIDTH  ),
@@ -300,7 +300,7 @@ module ActiveList(
     
     ExecutionState headExecState[COMMIT_WIDTH];
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM(ACTIVE_LIST_ENTRY_NUM),
         .ENTRY_BIT_SIZE($bits(logic)),
         .READ_NUM(COMMIT_WIDTH),
@@ -379,7 +379,7 @@ module ActiveList(
 
 
     // Record ExecState of all instructions in ActiveList
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM(ACTIVE_LIST_ENTRY_NUM),
         .ENTRY_BIT_SIZE($bits(ExecutionState)),
         .READ_NUM(COMMIT_WIDTH),

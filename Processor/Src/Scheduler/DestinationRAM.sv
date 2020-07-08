@@ -28,7 +28,7 @@ module DestinationRAM (WakeupSelectIF.DestinationRAM port);
     IssueQueueIndexPath readPtr[WAKEUP_WIDTH];
     Entry readData[WAKEUP_WIDTH];
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         .ENTRY_NUM( ISSUE_QUEUE_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits(Entry) ),
         .READ_NUM( WAKEUP_WIDTH ),

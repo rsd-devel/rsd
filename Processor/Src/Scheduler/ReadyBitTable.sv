@@ -47,7 +47,7 @@ module ReadyBitTable #(
     logic readyRV[READY_READ_NUM];
     RegNumPath readyRA[READY_READ_NUM];
 
-    DistributedMultiPortRAM #(
+    RegisterMultiPortRAM #(
         1 << REG_NUM_BIT_WIDTH, 1, READY_READ_NUM, READY_WRITE_NUM
     )
     radyBitTable(clk, readyWE, readyWA, readyWV, readyRA, readyRV);
