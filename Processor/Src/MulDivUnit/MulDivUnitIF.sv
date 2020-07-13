@@ -75,8 +75,8 @@ interface MulDivUnitIF(input logic clk, rst);
     modport ComplexIntegerIssueStage(
     input
         dummy
-        ,
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
     output
         divAcquire,
         divResetFromCI_Stage
