@@ -123,10 +123,10 @@ RAM_COPY = $(OBJCOPY) \
 
 # バイナリファイルを、RSDのシミュレーションで使える形式のhexに変換
 BIN_TO_HEX = \
-	python $(RSD_TEST_TOOL_ROOT)/BinaryToHex.py
+	python3 $(RSD_TEST_TOOL_ROOT)/BinaryToHex.py
 
 HEX_TO_IHEX = \
-  python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
+	python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
 
 
 # --------
