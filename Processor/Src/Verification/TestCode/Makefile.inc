@@ -53,7 +53,7 @@ LDFLAGS= \
 
 LIBC =
 LIBGCC = \
-	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/7.1.1 \
+	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/8.1.0 \
 	-lgcc \
 	-lgcov \
 	-L$(RSD_GCC_NATIVE)/../riscv32-unknown-elf/lib \
@@ -105,6 +105,7 @@ ROM_COPY = $(OBJCOPY) \
 		--only-section .text* \
 		--only-section .rodata* \
 		--only-section .eh_frame* \
+		--only-section .srodata* \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
 
@@ -114,6 +115,7 @@ RAM_COPY = $(OBJCOPY) \
 		--remove-section .text* \
 		--remove-section .rodata* \
 		--remove-section .eh_frame* \
+		--remove-section .srodata* \
 		--set-start=$(RAM_START_ADDR) \
 		--pad-to=$(RAM_END_ADDR) \
 

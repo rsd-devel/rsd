@@ -81,3 +81,4 @@ hs*.dmp
 
 Processor/Project/Synplify/*.prd
 
+/Processor/Src/Verification/TestCode/C/ServoTask/
