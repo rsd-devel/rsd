@@ -1119,6 +1119,27 @@ module RegisterMultiPortRAM #(
         end
     end
 
+    // For Debug
+`ifndef RSD_SYNTHESIS
+    Value debugValue[ENTRY_NUM] /*verilator public*/;
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < WRITE_NUM; i++) begin
+            if (we[i])
+                debugValue[ wa[i] ] <= wv[i];
+        end
+    end
+
+    generate
+        for (genvar i = 0; i < READ_NUM; i++) begin
+            `RSD_ASSERT_CLK_FMT(
+                clk,
+                debugValue[ra[i]] == rv[i],
+                ("The read output of a port(%x) is incorrect.", i)
+            );
+        end
+    endgenerate
+`endif
+
 endmodule : RegisterMultiPortRAM
 
 
