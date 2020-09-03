@@ -21,5 +21,7 @@
 ## Contributors
 
 * Hendrik Eeckhaut - @heeckhau
+* Tim Ansell - @mithro
+* Felix Yan - @felixonmars
 
 

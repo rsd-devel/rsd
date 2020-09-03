@@ -32,7 +32,7 @@
 #*****************************************************************************************
 
 # Set the reference directory for source file relative paths (by default the value is script directory path)
-set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/Zedboard"
+set origin_dir "$env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard"
 
 # Use origin directory path location variable, if specified in the tcl shell
 if { [info exists ::origin_dir_loc] } {
@@ -113,7 +113,7 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
- "[file normalize "$origin_dir/../../Synplify/Zedboard_post_synthesis/rsd.vm"]"\
+ "[file normalize "$origin_dir/../../../Synplify/Zedboard_post_synthesis/rsd.vm"]"\
 ]
 add_files -norecurse -fileset $obj $files
 

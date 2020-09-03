@@ -6,6 +6,8 @@
 // MemoryWriteDataQueue
 //
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryTypes::*;
 
@@ -20,17 +22,17 @@ output
     logic full,
     logic empty,
     MemoryEntryDataPath headData,
-    logic [MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] headPtr,
-    logic [MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] tailPtr
+    logic [`MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] headPtr,
+    logic [`MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] tailPtr
 );
 
-    // typedef logic [MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] IndexPath;
+    // typedef logic [`MEMORY_AXI4_WRITE_ID_WIDTH-1: 0] IndexPath;
 
     // IndexPath headPtr;
     // IndexPath tailPtr;
 
     // size, initial head, initial tail, initial count
-    QueuePointer #( MEMORY_AXI4_WRITE_ID_NUM, 0, 0, 0 )
+    QueuePointer #( `MEMORY_AXI4_WRITE_ID_NUM, 0, 0, 0 )
         pointer(
             .clk( clk ),
             .rst( rst ),
@@ -43,7 +45,7 @@ output
         );
         
 
-    logic [ MEMORY_ENTRY_BIT_NUM-1:0 ] memoryWriteDataQueue[ MEMORY_AXI4_WRITE_ID_NUM ]; // synthesis syn_ramstyle = "select_ram"
+    logic [ MEMORY_ENTRY_BIT_NUM-1:0 ] memoryWriteDataQueue[ `MEMORY_AXI4_WRITE_ID_NUM ]; // synthesis syn_ramstyle = "select_ram"
 
     always_ff @( posedge clk ) begin
         if( push ) begin

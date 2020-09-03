@@ -53,7 +53,7 @@ LDFLAGS= \
 
 LIBC =
 LIBGCC = \
-	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/7.1.1 \
+	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/$(RSD_GCC_VERSION) \
 	-lgcc \
 	-lgcov \
 	-L$(RSD_GCC_NATIVE)/../riscv32-unknown-elf/lib \
@@ -104,13 +104,14 @@ BIN_SIZE   = 0x10000
 # 詳細は ../../rsd-ld.script を参照
 ROM_COPY = $(OBJCOPY) \
 		-O binary --strip-all --strip-debug \
-    --only-section .text* \
-    --only-section .rodata* \
-    --only-section .eh_frame* \
-    --only-section .bss* \
-    --only-section .data* \
-    --only-section .sbss* \
-    --only-section .sdata* \
+        --only-section .text* \
+        --only-section .rodata* \
+        --only-section .eh_frame* \
+        --only-section .bss* \
+        --only-section .data* \
+        --only-section .sbss* \
+        --only-section .sdata* \
+		--only-section .srodata* \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
 

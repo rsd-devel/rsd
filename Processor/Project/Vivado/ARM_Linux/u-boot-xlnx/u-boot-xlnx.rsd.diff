@@ -1,0 +1,47 @@
+diff --git a/arch/arm/dts/zynq-zed.dts b/arch/arm/dts/zynq-zed.dts
+old mode 100644
+new mode 100755
+index b9df9b3..3a121dd
+--- a/arch/arm/dts/zynq-zed.dts
++++ b/arch/arm/dts/zynq-zed.dts
+@@ -19,11 +19,11 @@
+ 
+ 	memory@0 {
+ 		device_type = "memory";
+-		reg = <0x0 0x20000000>;
++		reg = <0x0 0x10000000>;
+ 	};
+ 
+ 	chosen {
+-		bootargs = "";
++		bootargs = "mem=256M uio_pdrv_genirq.of_id=generic-uio";
+ 		stdout-path = "serial0:115200n8";
+ 	};
+ 
+diff --git a/configs/zynq_zed_defconfig b/configs/zynq_zed_defconfig
+old mode 100644
+new mode 100755
+index 20bbb7b..c9781d2
+--- a/configs/zynq_zed_defconfig
++++ b/configs/zynq_zed_defconfig
+@@ -66,3 +66,4 @@ CONFIG_USB_GADGET_PRODUCT_NUM=0x0300
+ CONFIG_CI_UDC=y
+ CONFIG_USB_GADGET_DOWNLOAD=y
+ CONFIG_USB_FUNCTION_THOR=y
++CONFIG_OF_EMBED=y
+diff --git a/include/configs/zynq-common.h b/include/configs/zynq-common.h
+old mode 100644
+new mode 100755
+index 9494267..b40e097
+--- a/include/configs/zynq-common.h
++++ b/include/configs/zynq-common.h
+@@ -286,8 +286,7 @@
+ 			"echo Copying Linux from SD to RAM... && " \
+ 			"load mmc 0 ${kernel_load_address} ${kernel_image} && " \
+ 			"load mmc 0 ${devicetree_load_address} ${devicetree_image} && " \
+-			"load mmc 0 ${ramdisk_load_address} ${ramdisk_image} && " \
+-			"bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
++			"bootm ${kernel_load_address} - ${devicetree_load_address}; " \
+ 		"fi\0" \
+ 	"usbboot=run xilinxcmd && if usb start; then " \
+ 			"run uenvboot; " \

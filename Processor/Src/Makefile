@@ -19,11 +19,8 @@ TOP_MODULE        = $(UNIT_NAME)
 
 # Output files
 RSD_LOG_FILE_RTL       			= RSD.log
-RSD_LOG_FILE_POST_SYNTHESIS 	= RSD-post-synthesis.log
 KANATA_LOG_FILE_RTL       		= Kanata.log
-KANATA_LOG_FILE_POST_SYNTHESIS 	= Kanata-post-synthesis.log
 DEBUG_LOG_FILE_RTL       		= Debug.log
-DEBUG_LOG_FILE_POST_SYNTHESIS 	= Debug-post-synthesis.log
 REG_CSV_FILE 					= Register.csv
 
 
@@ -53,17 +50,8 @@ VSIM_OPTIONS_RTL = \
 	+RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \
 	+DEBUG_LOG_FILE=$(DEBUG_LOG_FILE_RTL) \
 
-VSIM_OPTIONS_POST_SYNTHESIS = \
-	+RSD_LOG_FILE=$(RSD_LOG_FILE_POST_SYNTHESIS) \
-	+DEBUG_LOG_FILE=$(DEBUG_LOG_FILE_POST_SYNTHESIS) \
-	-modelsimini $(RSD_MODELSIM_INI) \
-	-L simprims_ver \
-	-L unisims_ver \
-
 VSIM_OPTIONS_DUMP = \
 	+REG_CSV_FILE=$(REG_CSV_FILE) \
-
-
 
 
 
@@ -82,9 +70,6 @@ kanata: rtl-kanata
 rtl-kanata: rtl-run
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
-post-synthesis-kanata: post-synthesis-run
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
-
 # -------------------------------
 # Test related items are defined in this file
 RUN_TEST = python ../Tools/TestDriver/RunTest.py
@@ -96,9 +81,3 @@ include Makefiles/TestCommands.inc.mk
 #        This is only for pre-translate simulation.
 dump:
 	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) $(VSIM_OPTIONS_DUMP) -do "run -all"
-
-
-# -------------------------------
-# Vivado synthesis related items are defined in this file
-include Makefiles/Vivado.inc.mk
-

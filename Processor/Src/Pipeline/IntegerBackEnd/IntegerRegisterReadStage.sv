@@ -54,7 +54,7 @@ input
     OOT_PC:
         return pcV;
     endcase
-endfunction;
+endfunction
 
 //
 // --- Integer Register Read Stage

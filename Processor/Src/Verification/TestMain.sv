@@ -49,7 +49,7 @@ module TestMain;
     //
 
     `ifdef RSD_FUNCTIONAL_SIMULATION
-        `ifndef RSD_POST_SYNTHESIS
+        `ifndef RSD_POST_SYNTHESIS_SIMULATION
             // RetirementRMTからコミット済の論理レジスタの値を得る
             task GetCommittedRegisterValue(
                 input int commitNumInThisCycle,
@@ -109,7 +109,7 @@ module TestMain;
     DataPath regData[ LSCALAR_NUM ];
 
     integer commitNumInLastCycle;
-    integer numCommittedARM_Op;
+    integer numCommittedRISCV_Op;
     integer numCommittedMicroOp;
     real realTmp;
 
@@ -144,6 +144,11 @@ module TestMain;
         .*
     );
 
+`ifdef RSD_SYNTHESIS_VIVADO
+    always_comb begin
+        debugRegister = main.debugRegister;
+    end
+`endif
     //
     // Dumpers
     //
@@ -163,7 +168,7 @@ module TestMain;
 
         // init variable
         dumpFlush = FALSE;
-        numCommittedARM_Op = 0;
+        numCommittedRISCV_Op = 0;
         numCommittedMicroOp = 0;
 
         // settings
@@ -207,15 +212,12 @@ module TestMain;
         // Initialize memory
         #STEP;
         `ifdef RSD_FUNCTIONAL_SIMULATION
-            `ifndef RSD_POST_SYNTHESIS
-                for ( entry = 0; entry < (1 << main.main.memory.body.HEX_FILE_INDEX_BIT_SIZE); entry += DUMMY_HEX_ENTRY_NUM ) begin
-                    $readmemh(
-                        DUMMY_DATA_FILE,
-                        main.main.memory.body.array,
-                        entry, // 開始アドレス（エントリ番号）
-                        entry + DUMMY_HEX_ENTRY_NUM - 1 // 終了アドレス（エントリ番号）
-                    );
-                end
+            `ifndef RSD_POST_SYNTHESIS_SIMULATION
+                // Fill memory with dummy data 
+                // see InitializedBlockRAM module in Primitives/RAM.sv in details
+                main.main.memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
+
+
                 // ファイル内容は物理メモリ空間の先頭から連続して展開される
                 // ファイル先頭 64KB は ROM とみなされ，残りが RAM の空間に展開される
                 //   Physical 0x0_0000 - 0x0_ffff -> Logical 0x0000_0000 - 0x0000_ffff: ROM (64KB)
@@ -223,7 +225,7 @@ module TestMain;
                 // たとえば 128KB のファイルの場合，
                 // 先頭 64KB は 論理空間の 0x0000_0000 - 0x0000_FFFF に，
                 // 後続 64KB は 論理空間の 0x8000_0000 - 0x8000_FFFF に展開されることになる
-                $readmemh( codeFileName, main.main.memory.body.array );
+                main.main.memory.body.InitializeMemory(codeFileName);
             `endif
         `endif
 
@@ -249,7 +251,7 @@ module TestMain;
 
             // Dump values of logical register file to a CSV file.
             `ifdef RSD_FUNCTIONAL_SIMULATION
-                `ifndef RSD_POST_SYNTHESIS
+                `ifndef RSD_POST_SYNTHESIS_SIMULATION
                     if ( enableDumpRegCSV ) begin
                         registerFileCSV_Dumper.ProceedCycle();
 
@@ -268,7 +270,7 @@ module TestMain;
                 if ( debugRegister.cmReg[i].commit ) begin
                     numCommittedMicroOp += 1;
                     if ( debugRegister.cmReg[i].opId.mid == 0 ) begin
-                        numCommittedARM_Op += 1;
+                        numCommittedRISCV_Op += 1;
                     end
                 end
             end
@@ -290,16 +292,16 @@ module TestMain;
         if ( enableDumpRegCSV ) registerFileCSV_Dumper.Close();
 
         // Simulation Result
-        $display( "Num of committed RISC-V-ops : %d", numCommittedARM_Op );
+        $display( "Num of committed RISC-V-ops : %d", numCommittedRISCV_Op );
         $display( "Num of committed micro-ops : %d", numCommittedMicroOp );
         if ( cycle != 0 ) begin
-            $cast( realTmp, cycle );
-            $display( "IPC (RISC-V instruction): %f", numCommittedARM_Op / realTmp );
+            realTmp = cycle;
+            $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
 
         `ifdef RSD_FUNCTIONAL_SIMULATION
-            `ifndef RSD_POST_SYNTHESIS
+            `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Count the number of commit in the last cycle.
                 for ( count = 0; count < COMMIT_WIDTH; count++ ) begin
                     if ( !main.main.core.cmStage.commit[count] )
