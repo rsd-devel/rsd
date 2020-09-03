@@ -49,7 +49,7 @@ CFLAGS = \
 	-march=rv32im \
 
 LDFLAGS= \
-    -static \
+	-static \
 
 LIBC =
 LIBGCC = \
@@ -104,14 +104,14 @@ BIN_SIZE   = 0x10000
 # 詳細は ../../rsd-ld.script を参照
 ROM_COPY = $(OBJCOPY) \
 		-O binary --strip-all --strip-debug \
-        --only-section .text* \
-        --only-section .rodata* \
-        --only-section .eh_frame* \
-        --only-section .bss* \
-        --only-section .data* \
-        --only-section .sbss* \
-        --only-section .sdata* \
+		--only-section .text* \
+		--only-section .rodata* \
 		--only-section .srodata* \
+		--only-section .eh_frame* \
+		--only-section .bss* \
+		--only-section .data* \
+		--only-section .sbss* \
+		--only-section .sdata* \
 		--set-start=$(ROM_START_ADDR) \
 		--pad-to=$(ROM_END_ADDR) \
 
@@ -125,7 +125,7 @@ BIN_TO_HEX = \
 	python3 $(RSD_TEST_TOOL_ROOT)/BinaryToHex.py
 
 HEX_TO_IHEX = \
-  python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
+	python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
 
 
 # --------

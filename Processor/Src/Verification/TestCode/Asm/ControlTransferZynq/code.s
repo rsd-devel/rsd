@@ -65,38 +65,5 @@ main10:
 end11:
     j     end
 output:
-    sw      x0, 0(a6)
-    sw      x1, 0(a6)
-    sw      x2, 0(a6)
-    sw      x3, 0(a6)
-    sw      x4, 0(a6)
-    sw      x5, 0(a6)
-    sw      x6, 0(a6)
-    sw      x7, 0(a6)
-    sw      x8, 0(a6)
-    sw      x9, 0(a6)
-    sw      x10, 0(a6)
-    sw      x11, 0(a6)
-    sw      x12, 0(a6)
-    sw      x13, 0(a6)
-    sw      x14, 0(a6)
-    sw      x15, 0(a6)
-    sw      x16, 0(a6)
-    sw      x17, 0(a6)
-    sw      x18, 0(a6)
-    sw      x19, 0(a6)
-    sw      x20, 0(a6)
-    sw      x21, 0(a6)
-    sw      x22, 0(a6)
-    sw      x23, 0(a6)
-    sw      x24, 0(a6)
-    sw      x25, 0(a6)
-    sw      x26, 0(a6)
-    sw      x27, 0(a6)
-    sw      x28, 0(a6)
-    sw      x29, 0(a6)
-    sw      x30, 0(a6)
-    sw      x31, 0(a6)
-main11:
     li a1, 0
     ret
