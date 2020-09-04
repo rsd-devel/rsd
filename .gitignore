@@ -78,6 +78,7 @@ hs*.dmp
 /.library_mapping.xml
 /.project
 /.history
+/.vscode/
 
 Processor/Project/Synplify/*.prd
 

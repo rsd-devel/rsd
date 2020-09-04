@@ -14,6 +14,7 @@ SRC_DIRS = \
 	HelloWorld \
 	HardwareCounter \
 	Exception \
+	MemoryFence \
 
 
 # TARGETS の中のどれかに該当した場合，SRC_DIRS が依存元となる
