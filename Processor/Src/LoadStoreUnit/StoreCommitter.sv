@@ -85,6 +85,7 @@ module StoreCommitter(
         LSQ_BlockWordEnablePath wordWE;
         LSQ_WordByteEnablePath byteWE;
         logic isIO;
+        logic isUncachable;
     } StgReg;
 
     StgReg tagStagePipeReg;
@@ -173,8 +174,10 @@ module StoreCommitter(
     logic dcWriteReq;
     PhyAddrPath dcWriteAddr;
     DCacheLinePath dcWriteData;
+    logic dcWriteUncachable;
     logic isIO;
     logic [DCACHE_LINE_BYTE_NUM-1:0] dcWriteByteWE;
+    logic isUncachable;
     StoreQueueIndexPath retiredStoreQueuePtr;
     // --- SQ stage.
     always_comb begin
@@ -200,6 +203,13 @@ module StoreCommitter(
                     port.retiredStoreLSQ_BlockAddr, port.retiredStoreWordWE
                 )
             );
+        
+        isUncachable =
+            IsPhyAddrUncachable(
+                LSQ_ToFullPhyAddrFromBlockAddrAndWordWE(
+                    port.retiredStoreLSQ_BlockAddr, port.retiredStoreWordWE
+                )
+            );
 
         port.busyInRecovery = phase == PHASE_RECOVER;
 
@@ -211,6 +221,7 @@ module StoreCommitter(
         end
         else begin
             nextTagStagePipeReg.isIO = isIO;
+            nextTagStagePipeReg.isUncachable = isUncachable;
 
             // Push an store access to the store commit pipeline.
             if (!port.retiredStoreCondEnabled || isIO) begin
@@ -249,6 +260,8 @@ module StoreCommitter(
                 GenerateDCacheLine(tagStagePipeReg.data);
             dcWriteByteWE =
                 GenerateDCacheWriteEnable(tagStagePipeReg.wordWE, tagStagePipeReg.byteWE, tagStagePipeReg.blockAddr);
+            dcWriteUncachable = 
+                tagStagePipeReg.isUncachable;
         end
         else begin
             dcWriteAddr =
@@ -257,12 +270,15 @@ module StoreCommitter(
                 GenerateDCacheLine(port.retiredStoreData);
             dcWriteByteWE =
                 GenerateDCacheWriteEnable(port.retiredStoreWordWE, port.retiredStoreByteWE, port.retiredStoreLSQ_BlockAddr);
+            dcWriteUncachable =
+                isUncachable;
         end
 
         port.dcWriteReq = dcWriteReq;
         port.dcWriteData = dcWriteData;
         port.dcWriteByteWE = dcWriteByteWE;
         port.dcWriteAddr = dcWriteAddr;
+        port.dcWriteUncachable = dcWriteUncachable;
     end
 
     // --- Tag stage
