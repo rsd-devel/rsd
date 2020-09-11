@@ -1092,14 +1092,12 @@ module RegisterMultiPortRAM #(
     Value array[ENTRY_NUM];
 `endif 
 
-    generate 
-        for (genvar i = 0; i < WRITE_NUM; i++) begin
-            always_ff @(posedge clk) begin
-                if (we[i])
-                    array[ wa[i] ] <= wv[i];
-            end
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < WRITE_NUM; i++) begin
+            if (we[i])
+                array[ wa[i] ] <= wv[i];
         end
-    endgenerate
+    end
 
     always_comb begin
         for (int i = 0; i < READ_NUM; i++) begin
