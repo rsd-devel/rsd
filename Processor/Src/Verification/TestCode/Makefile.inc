@@ -16,6 +16,23 @@ RSD_ENV_NATIVE = $(shell cygpath -u "$$RSD_ENV")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
+RSD_GCC_VERSION = $(shell ls ${RSD_GCC_PATH} | grep -E "^${RSD_GCC_PREFIX}\gcc\-[0-9\.]+" | sed -r 's/([^ ]+)-elf-gcc-([0-9\.]+)/\2/')
+RSD_GCC_NAME = $(shell echo ${RSD_GCC_PREFIX} | sed -e 's/-$$//')
+
+# Check required environment variables
+ifndef RSD_GCC_PATH
+$(error RSD_GCC_PATH is not set.)
+endif
+ifndef RSD_GCC_PREFIX
+$(error RSD_GCC_PREFIX is not set.)
+endif
+ifndef RSD_GCC_VERSION
+$(error RSD_GCC_VERSION is empty.)
+endif
+ifndef RSD_GCC_NAME
+$(error RSD_GCC_NAME is empty.)
+endif
+
 RSD_TEST_CODE_ROOT = $(RSD_ROOT_NATIVE)/Processor/Src/Verification/TestCode
 RSD_TOOL_ROOT      = $(RSD_ROOT_NATIVE)/Processor/Tools
 RSD_TEST_TOOL_ROOT = $(RSD_ROOT_NATIVE)/Processor/Tools/TestDriver
@@ -53,10 +70,10 @@ LDFLAGS= \
 
 LIBC =
 LIBGCC = \
-	-L$(RSD_GCC_NATIVE)/../lib/gcc/riscv32-unknown-elf/$(RSD_GCC_VERSION) \
+	-L$(RSD_GCC_NATIVE)/../lib/gcc/${RSD_GCC_NAME}/$(RSD_GCC_VERSION) \
 	-lgcc \
 	-lgcov \
-	-L$(RSD_GCC_NATIVE)/../riscv32-unknown-elf/lib \
+	-L$(RSD_GCC_NATIVE)/../${RSD_GCC_NAME}/lib \
 	-lm
 
 
