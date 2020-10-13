@@ -141,7 +141,7 @@ package CacheSystemTypes;
         // TRUE if this is uncachable access.
         logic isUncachable;
 
-        logic evictWay;
+        DCacheWayPath evictWay;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
