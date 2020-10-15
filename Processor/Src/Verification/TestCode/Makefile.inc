@@ -16,7 +16,7 @@ RSD_ENV_NATIVE = $(shell cygpath -u "$$RSD_ENV")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
-RSD_GCC_VERSION = $(shell ls ${RSD_GCC_PATH} | grep -E "^${RSD_GCC_PREFIX}\gcc\-[0-9\.]+" | sed -r 's/([^ ]+)-elf-gcc-([0-9\.]+)/\2/')
+RSD_GCC_VERSION = $(shell ls ${RSD_GCC_PATH} | grep -E "^${RSD_GCC_PREFIX}\gcc\-[0-9\.]+" | sed -r 's/([^ ]+)-gcc-([0-9\.]+)/\2/')
 RSD_GCC_NAME = $(shell echo ${RSD_GCC_PREFIX} | sed -e 's/-$$//')
 
 # Check required environment variables
@@ -27,10 +27,10 @@ ifndef RSD_GCC_PREFIX
 $(error RSD_GCC_PREFIX is not set.)
 endif
 ifndef RSD_GCC_VERSION
-$(error RSD_GCC_VERSION is empty.)
+$(error RSD_GCC_PATH and/or RSD_GCC_PREFIX have a wront value.)
 endif
 ifndef RSD_GCC_NAME
-$(error RSD_GCC_NAME is empty.)
+$(error RSD_GCC_PREFIX has a wront value.)
 endif
 
 RSD_TEST_CODE_ROOT = $(RSD_ROOT_NATIVE)/Processor/Src/Verification/TestCode
