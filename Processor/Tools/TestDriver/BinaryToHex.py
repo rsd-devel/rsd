@@ -23,7 +23,7 @@ ENTRY_BYTE_SIZE = 16
 # Entry point
 #
 if len(sys.argv) < 3:
-    print "Usage: %s BinaryFileName HexFileName [ Size ]" % ( sys.argv[0] )
+    print(f"Usage: {sys.argv[0]} BinaryFileName HexFileName [ Size ]")
 
 binFileName = sys.argv[1]
 hexFileName = sys.argv[2]
@@ -38,24 +38,14 @@ if len(sys.argv) >= 4:
 else:
     convertSize = len( binData )
 
-# Generate a hex string.
-strListPerByte = []
-for ptr in range( 0, convertSize ):
-    ( byteData, ) = struct.unpack( "<B", binData[ ptr ] )
-    byteDataString = "%02x" % ( byteData )
-    strListPerByte.append(byteDataString)
 
-strListPerEntry = []
-for offset in range(0, convertSize, ENTRY_BYTE_SIZE):
-    tmpList = strListPerByte[ offset : offset + ENTRY_BYTE_SIZE ]
-    # 行内ではアドレスが大きい順に並ぶようにするため、
-    # スライスの3つ目のパラメータで逆順にする
-    entryString = ''.join( tmpList[::-1] )
-    strListPerEntry.append(entryString)
+with open( hexFileName, 'w' ) as hexFile:
+    # 各行内ではアドレスが大きい順で並ぶ必要があるので，適宜逆順にしながら出力する
+    for offset in range(0, convertSize, ENTRY_BYTE_SIZE):
+        tmpList = binData[offset : offset + ENTRY_BYTE_SIZE]
+        if tmpList:
+            s = ''.join(map(lambda x: f"{x:02x}", tmpList[::-1])) + '\n'
+        else:
+            s = '0' * ENTRY_BYTE_SIZE * 2 + '\n'
+        hexFile.write(s)
 
-strHexFile = '\n'.join( strListPerEntry )
-
-# Write a hex file.
-hexFile = open( hexFileName, 'wb' )
-hexFile.write( strHexFile )
-hexFile.close()

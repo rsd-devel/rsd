@@ -11,7 +11,7 @@
     .type     main, @function
 main:
     mv      a0, sp
-    add		a0, a0, -16
+    add     a0, a0, -16
     
     li      a1, 0x80880008
     li      a2, 0x08808880

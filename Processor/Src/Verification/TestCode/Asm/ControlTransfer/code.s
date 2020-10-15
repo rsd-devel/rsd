@@ -15,7 +15,7 @@ main2:
     addi  a7, a7, 1
     jal   a1, main3
 end3:
-    j   end
+    j     end
 main3:
     addi  a7, a7, 1
     beq   a1, a2, end
@@ -65,6 +65,6 @@ main10:
 end11:
     j     end
 main11:
-	li a1, 0
+    li    a1, 0
     #j     main11
     ret

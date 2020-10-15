@@ -14,12 +14,21 @@ SECTIONS
 {
     .text : { *(.text) }     > ROM
     .rodata : { *(.rodata) } > ROM
-    
-    .data : { *(.data) } > RAM
+    .srodata : { *(.srodata) } > ROM
+    __rodata_end = .;
+    .data : { 
+      __data_start = .;
+      *(.data)
+      *(.sdata)
+      __data_end = .;
+    } > RAM  AT> ROM 
     . = ALIGN(4);
-    __bss_start = .;
-    .bss : {*(.bss)} > RAM
-    __bss_end = . ;
+    .bss : { 
+      __bss_start = .;
+      *(.bss)
+      *(.sbss)
+      __bss_end = . ;
+    } > RAM AT> ROM
     
-    .comment : { *(.comment) } > RAM
+    .comment : { *(.comment) } > ROM
 }

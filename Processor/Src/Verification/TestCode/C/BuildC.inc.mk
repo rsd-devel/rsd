@@ -17,17 +17,16 @@ all: code.hex
 # CRTOBJ は必ず先頭に置く必要がある
 # また，$(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS) は
 # $(OBJS) が依存しているためその後ろに置く必要がある．
-code.elf: $(OBJS) $(CRTOBJ) Makefile
-	$(LD) -o code.elf $(CRTOBJ) $(OBJS) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
+code.elf: $(OBJS) $(CRTOBJ) $(LDOBJ) Makefile
+	$(LD) -o code.elf $(CRTOBJ) $(LDOBJ) $(OBJS) $(LIBGCC) $(LIBC) -T$(LDSCRIPT) $(LDFLAGS)
 
-# ELF から必要なセクションを取り出した code.rom.bin/code.ram.bin を作る
-# cat を使って，先頭 4KB のダミー，ROM，RAM の順に結合
+# ELF から必要なセクションを取り出した code.rom.bin を作る
+# cat を使って，先頭 4KB のダミー，ROM の順に結合
 # ダミーは ROM が 0x1000 がはじまるため
 code.bin: code.elf $(DUMMY_ROM)
 	$(OBJDUMP) -D $< > $(basename $<).dump	# for debug
 	$(ROM_COPY) $< $(basename $<).rom.bin
-	$(RAM_COPY) $< $(basename $<).ram.bin
-	cat $(DUMMY_ROM) $(basename $<).rom.bin $(basename $<).ram.bin > $@	
+	cat $(DUMMY_ROM) $(basename $<).rom.bin > $@	
 
 code.hex: code.bin
 	$(BIN_TO_HEX) code.bin $@ $(BIN_SIZE)
@@ -35,5 +34,5 @@ code.hex: code.bin
 
 
 clean:
-	rm $(OBJS) code.hex code.dump code.bin code.rom.bin code.ram.bin code.elf -f
+	rm $(OBJS) code.hex code.dump code.bin code.rom.bin code.elf -f
 	
