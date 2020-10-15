@@ -26,7 +26,7 @@ main2:
 end3:
     j       end3
 main3:
-	addi 	a0, sp, -4			# メモリ保存位置
+    addi    a0, sp, -4          # メモリ保存位置
     andi    a6, zero, 0xffffffff  # RegImm ゼロレジスタ参照
     
     sw      a1, 0(a0)           # メモリ定数作成
@@ -36,5 +36,5 @@ main3:
     #lw      a7, 0x400(zero)     # load ゼロレジスタ参照
     #lw      s2, 0x400(zero)     # load ゼロレジスタ参照
 end4:
-	ret
+    ret
     #j       end4               # ここでループして終了

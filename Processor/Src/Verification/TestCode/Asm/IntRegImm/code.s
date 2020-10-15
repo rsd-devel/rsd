@@ -49,5 +49,5 @@ main2:
     add     a7, a7, a6           # a7=0x80000001+0x1000=0x80001001
     #auipc   a6, 0                # a6に次のPCをコピー
 main3:
-	ret
+    ret
     #j       main3                # ここでループして終了

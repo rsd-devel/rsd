@@ -49,5 +49,5 @@ main2:
     add     a7, a7, a5           # a7=0x8000001E+0xFFFFFFFF=0x8000001D
     nop
 main3:
-	ret
+    ret
     #j       main3                # ここでループして終了
