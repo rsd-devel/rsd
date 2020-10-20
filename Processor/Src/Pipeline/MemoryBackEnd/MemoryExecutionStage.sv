@@ -26,6 +26,7 @@ module MemoryExecutionStage(
     MemoryExecutionStageIF.ThisStage port,
     MemoryRegisterReadStageIF.NextStage prev,
     LoadStoreUnitIF.MemoryExecutionStage loadStoreUnit,
+    CacheFlushManagementUnitIF.MemoryExecutionStage cacheFlush,
     MulDivUnitIF.MemoryExecutionStage mulDivUnit,
     BypassNetworkIF.MemoryExecutionStage bypass,
     RecoveryManagerIF.MemoryExecutionStage recovery,
@@ -86,6 +87,9 @@ module MemoryExecutionStage(
     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
 
+    // FENCE.I
+    logic cacheFlushReq;
+
     always_comb begin
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
@@ -119,7 +123,6 @@ module MemoryExecutionStage(
             // --- Bypass
             // 制御
             bypass.memCtrlIn[i] = pipeReg[i].bCtrl;
-
 
             // Register valid bits.
             // If invalid regisers are read, regValid is negated and this op must be replayed.
@@ -157,6 +160,18 @@ module MemoryExecutionStage(
             // To notify MSHR that the requester is its allocator load.
             loadStoreUnit.makeMSHRCanBeInvalid[i] = makeMSHRCanBeInvalid[i];
         end
+
+        // FENCE.I (with ICache and DCache flush)
+        // FENCE.I must be issued to the lane 0;
+        cacheFlushReq = FALSE;
+        if (pipeReg[0].valid && (memOpInfo[0].opType == MEM_MOP_TYPE_FENCE) && memOpInfo[0].isFenceI) begin
+            cacheFlushReq = TRUE;
+            if (!cacheFlush.cacheFlushComplete) begin
+                // FENCEI must be replayed after cache flush is completed.
+                regValid[0] = FALSE;
+            end
+        end
+        cacheFlush.cacheFlushReq = cacheFlushReq;
     end
 
     //
@@ -178,7 +193,9 @@ module MemoryExecutionStage(
     end
 `endif
 
+    //
     // CSR access
+    //
     generate
         // Since a CSR op is serialized, so multiple CSR ops are not issued.
         for (genvar i = 1; i < MEM_ISSUE_WIDTH; i++) begin : assertionBlock

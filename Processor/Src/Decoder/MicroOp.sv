@@ -175,8 +175,9 @@ typedef struct packed // MiscMemMicroOpOperand
     LRegNumPath srcRegNumB;    // 第2オペランド
 
     logic fence;
+    logic fenceI;
 
-    logic [15:0] padding;        // Padding field.
+    logic [14:0] padding;        // Padding field.
     logic [17:0] riscv_padding; // RISCV用のpadding
 } MiscMemMicroOpOperand;
 
