@@ -6,6 +6,21 @@
 // 2-read/write set-associative data cache
 //
 
+// --- Uncachable load/store
+// Uncachable loads always receive data from a data bus. They never update cache.
+// Uncachable stores always write data directly to memory. 
+// They first receive data from the data bus in a cache line granularity, 
+// update the cache line, and then send it back to the data bus. They never update cache.
+//
+// MSHRs play a key role as below:
+// Every uncachable load/store misses in cache and allocates an MSHR.
+// The MSHR issues a memory read request to the data bus in a cache line granularity.
+// A load receives data from the MSHR and deallocates it.
+// A store merges its data and the loaded cache line, and then the MSHR sends the merged data to the data bus.
+//
+// Uncachable stores must firstly load data from a data bus for simplicity of the current implementation, 
+// in which the current implementation always send a write request to the AXI data bus in cache line granularity.
+
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
@@ -1275,7 +1290,7 @@ module DCacheMissHandler(
                     if (mshr[i].isUncachable) begin
                         // An uncachable store does not update cache and 
                         // writes the updated cache line back to memory.
-                        nextMSHR[i].phase = MSHR_PHASE_LATEST_WRITE_TO_MEM;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
                     end
                     else begin
                         // A cachable store updates cache using the updated cache line.
@@ -1284,31 +1299,31 @@ module DCacheMissHandler(
                 end
 
                 // 6. (Uncachable store) Issue a write request to write the updated cache line.
-                MSHR_PHASE_LATEST_WRITE_TO_MEM: begin
+                MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM: begin
                     port.mshrMemReq[i] = TRUE;
                     port.mshrMemMuxIn[i].we = TRUE;
                     port.mshrMemMuxIn[i].addr = ToLineAddrFromFullAddr(mshr[i].newAddr);
 
                     if (port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack) begin
                         nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
-                        nextMSHR[i].phase = MSHR_PHASE_LATEST_WRITE_COMPLETE;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
                     end
                     else begin
                         // Waiting until the request is accepted.
-                        nextMSHR[i].phase = MSHR_PHASE_LATEST_WRITE_TO_MEM;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
                     end
 
                 end
 
                 // 6.5. (Uncachable store) Wait until the updated cache line is written to memory.
-                MSHR_PHASE_LATEST_WRITE_COMPLETE: begin
+                MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE: begin
                     port.mshrMemReq[i] = FALSE;
                     if (mshr[i].newValid &&
                         !(port.memAccessResponse.valid &&
                         mshr[i].memWSerial == port.memAccessResponse.serial)
                     ) begin
-                        // Wait MSHR_PHASE_LATEST_WRITE_COMPLETE.
-                        nextMSHR[i].phase = MSHR_PHASE_LATEST_WRITE_COMPLETE;
+                        // Wait MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
                     end
                     else begin
                         nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;

@@ -68,20 +68,28 @@ output
         end
         if (regPhase == PHASE_NORMAL) begin
             if (opInfo[0].serialized && valid[0]) begin
-                if (opInfo[0].operand.miscMemOp.fence && (!activeListEmpty || !storeQueueEmpty)) begin
-                    // Wait for all previous ops to be committed
-                    // AND all committed stores in SQ to be written back
-                    serialize = TRUE;   
-                    nextPhase = PHASE_NORMAL;
-                end
-                else if (!activeListEmpty) begin
-                    // Wait for all previous ops to be committed
-                    serialize = TRUE;   
-                    nextPhase = PHASE_NORMAL;
-                end
-                else begin
-                    // deassert serialize" for dispatch  
-                    nextPhase = PHASE_WAIT_OWN;
+                if (opInfo[0].operand.miscMemOp.fence) begin // Fence
+                    if (!activeListEmpty || !storeQueueEmpty) begin
+                        // Fence must wait for all previous ops to be committed
+                        // AND all committed stores in SQ to be written back
+                        serialize = TRUE;   
+                        nextPhase = PHASE_NORMAL;
+                    end
+                    else begin
+                        // deassert serialize" for dispatch    
+                        nextPhase = PHASE_WAIT_OWN;
+                    end
+                end 
+                else begin // Non-fence
+                    if (!activeListEmpty) begin
+                        // Wait for all previous ops to be committed
+                        serialize = TRUE;   
+                        nextPhase = PHASE_NORMAL;
+                    end
+                    else begin
+                        // deassert serialize" for dispatch  
+                        nextPhase = PHASE_WAIT_OWN;
+                    end
                 end
             end
         end

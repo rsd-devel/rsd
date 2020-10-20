@@ -85,12 +85,13 @@ typedef enum logic[1:0]  {
 
 //
 // Physical Address
-// 1 bit の uncachable 識別, mem/IO 識別と，残りの物理アドレスで表限
+// The most significant two bits of the physical memory address is used distinguish between 
+// accesses to a normal memory region, memory-mapped IO region, and uncachable region.
 localparam PHY_ADDR_WIDTH = 22;  // 22 bits: 1bit uncachable flag + 1bit IO flag + 1MB memory space
 localparam PHY_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_ADDR_WIDTH);
 localparam PHY_ADDR_BYTE_WIDTH = PHY_ADDR_WIDTH / BYTE_WIDTH;
 
-localparam PHY_RAW_ADDR_WIDTH = PHY_ADDR_WIDTH - 2;  // 20
+localparam PHY_RAW_ADDR_WIDTH = PHY_ADDR_WIDTH - 2;  // 20 + isIO (1 bit) + isUncachable (1 bit)
 localparam PHY_RAW_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_RAW_ADDR_WIDTH);
 localparam PHY_RAW_ADDR_BYTE_WIDTH = PHY_RAW_ADDR_WIDTH / BYTE_WIDTH;
 

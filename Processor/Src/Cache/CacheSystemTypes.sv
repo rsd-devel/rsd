@@ -91,8 +91,8 @@ package CacheSystemTypes;
 
         MSHR_PHASE_MISS_READ_MEM_REQUEST = 7,     // Read from a main memory to a cache.
         MSHR_PHASE_MISS_READ_MEM_RECEIVE = 8,     // Read from a main memory to a cache.
-        MSHR_PHASE_LATEST_WRITE_TO_MEM = 9,       // (Uncachable store) Write data to a main memory.
-        MSHR_PHASE_LATEST_WRITE_COMPLETE = 10,    // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 9,       // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 10,    // (Uncachable store) Write data to a main memory.
         // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE 
         // must be the highest numbers in the following order.
         MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 11, // (Cachable load/store) Write data to a cache.
