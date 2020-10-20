@@ -6,6 +6,21 @@
 // 2-read/write set-associative data cache
 //
 
+// --- Uncachable load/store
+// Uncachable loads always receive data from a data bus. They never update cache.
+// Uncachable stores always write data directly to memory. 
+// They first receive data from the data bus in a cache line granularity, 
+// update the cache line, and then send it back to the data bus. They never update cache.
+//
+// MSHRs play a key role as below:
+// Every uncachable load/store misses in cache and allocates an MSHR.
+// The MSHR issues a memory read request to the data bus in a cache line granularity.
+// A load receives data from the MSHR and deallocates it.
+// A store merges its data and the loaded cache line, and then the MSHR sends the merged data to the data bus.
+//
+// Uncachable stores must firstly load data from a data bus for simplicity of the current implementation, 
+// in which the current implementation always send a write request to the AXI data bus in cache line granularity.
+
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
@@ -574,6 +589,7 @@ module DCache(
     logic hit[DCACHE_LSU_PORT_NUM];
     logic missReq[DCACHE_LSU_PORT_NUM];
     PhyAddrPath missAddr[DCACHE_LSU_PORT_NUM];
+    logic missIsUncachable[DCACHE_LSU_PORT_NUM];
 
 
     // Tag array
@@ -604,9 +620,11 @@ module DCache(
     PhyAddrPath dcReadAddrRegDataStg[DCACHE_LSU_READ_PORT_NUM];
     logic dcReadReqReg[DCACHE_LSU_READ_PORT_NUM];
     logic lsuCacheGrtReg[DCACHE_LSU_PORT_NUM];
+    logic dcReadUncachableReg[DCACHE_LSU_READ_PORT_NUM];
 
     logic dcWriteReqReg;
     PhyAddrPath dcWriteAddrReg;
+    logic dcWriteUncachableReg;
 
 
     logic lsuLoadHasAllocatedMSHR[DCACHE_LSU_READ_PORT_NUM];
@@ -640,8 +658,10 @@ module DCache(
             for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
                 dcReadAddrRegTagStg[i] = '0;
                 dcReadAddrRegDataStg[i] = '0;
+                dcReadUncachableReg[i] = '0;
             end
             dcWriteAddrReg = '0;
+            dcWriteUncachableReg = '0;
         end
     `endif
 `endif
@@ -662,12 +682,14 @@ module DCache(
             for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
                 dcReadReqReg[i] <= lsu.dcReadReq[i];
                 dcReadAddrRegTagStg[i] <= lsu.dcReadAddr[i];
+                dcReadUncachableReg[i] <= lsu.dcReadUncachable[i];
             end
 
             dcReadAddrRegDataStg <= dcReadAddrRegTagStg;
 
             dcWriteReqReg <= lsu.dcWriteReq;
             dcWriteAddrReg <= lsu.dcWriteAddr;
+            dcWriteUncachableReg <= lsu.dcWriteUncachable;
         end
     end
 
@@ -798,6 +820,7 @@ module DCache(
                 lsuCacheGrtReg[i] && 
                 !lsu.dcReadCancelFromMT_Stage[i];
             missAddr[i] = dcReadAddrRegTagStg[i];
+            missIsUncachable[i] = dcReadUncachableReg[i];
         end
 
         // Write requests from a store queue commitor.
@@ -805,6 +828,7 @@ module DCache(
             assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
             missReq[i] = !hit[i] && !port.lsuMuxTagOut[i].mshrConflict && dcWriteReqReg && lsuCacheGrtReg[i];
             missAddr[i] = dcWriteAddrReg;
+            missIsUncachable[i] = dcWriteUncachableReg;
         end
 
     end
@@ -819,6 +843,7 @@ module DCache(
     logic portInitMSHR[MSHR_NUM];
     PhyAddrPath portInitMSHR_Addr[MSHR_NUM];
     logic portIsAllocatedByStore[MSHR_NUM];
+    logic portIsUncachable[MSHR_NUM];
 
     always_comb begin
 
@@ -862,6 +887,7 @@ module DCache(
             portInitMSHR[i] = FALSE;
             portInitMSHR_Addr[i] = '0;
             portIsAllocatedByStore[i] = FALSE;
+            portIsUncachable[i] = FALSE;
         end
 
         for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
@@ -876,6 +902,7 @@ module DCache(
                 if (!port.mshrValid[m] && !portInitMSHR[m]) begin
                     portInitMSHR[m] = TRUE;
                     portInitMSHR_Addr[m] = missAddr[i];
+                    portIsUncachable[m] = missIsUncachable[i];
                     if (i < DCACHE_LSU_READ_PORT_NUM) begin
                         lsuLoadHasAllocatedMSHR[i] = TRUE;
                         lsuLoadMSHRID[i] = m;
@@ -894,6 +921,7 @@ module DCache(
             port.initMSHR[i] = portInitMSHR[i];
             port.initMSHR_Addr[i] = portInitMSHR_Addr[i];
             port.isAllocatedByStore[i] = portIsAllocatedByStore[i];
+            port.isUncachable[i] = portIsUncachable[i];
         end
 
         // Output control signals
@@ -1066,8 +1094,8 @@ module DCacheMissHandler(
                     if (port.initMSHR[i]) begin
                         // 1. MSHR 登録
                         // Initial phase
+
                         nextMSHR[i].valid = TRUE;
-                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQEUST;
                         nextMSHR[i].newAddr = port.initMSHR_Addr[i];
                         nextMSHR[i].newValid = FALSE;
                         nextMSHR[i].victimValid = FALSE;
@@ -1079,10 +1107,19 @@ module DCacheMissHandler(
 
                         nextMSHR[i].canBeInvalid = FALSE;
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
+                        nextMSHR[i].isUncachable = port.isUncachable[i];
 
                         // Dont'care
                         //nextMSHR[i].line = '0;
 
+                        if (port.isUncachable[i]) begin
+                            // Uncachable access does not update cache;
+                            // therefore phases for evicting a victim are skipped.
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                        end
+                        else begin
+                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQEUST;
+                        end
                     end
                 end
 
@@ -1231,7 +1268,13 @@ module DCacheMissHandler(
                         if (mshr[i].isAllocatedByStore) begin
                             nextMSHR[i].phase = MSHR_PHASE_MISS_MERGE_STORE_DATA;
                         end
+                        else if (mshr[i].isUncachable) begin
+                            // An uncachable load does not update cache and 
+                            // receives data via this MSHR entry directly.
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                        end
                         else begin
+                            // A cachable load updates cache using the fetched cache line.
                             nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
                         end
                     end
@@ -1243,35 +1286,74 @@ module DCacheMissHandler(
                     MergeStoreDataToLine(mergedLine[i], mshr[i].line,
                         portStoredLineData, portStoredLineByteWE);
                     nextMSHR[i].line = mergedLine[i];
-                    nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+
+                    if (mshr[i].isUncachable) begin
+                        // An uncachable store does not update cache and 
+                        // writes the updated cache line back to memory.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    end
+                    else begin
+                        // A cachable store updates cache using the updated cache line.
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                    end
                 end
 
+                // 6. (Uncachable store) Issue a write request to write the updated cache line.
+                MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM: begin
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = ToLineAddrFromFullAddr(mshr[i].newAddr);
 
-                // 6. ミスデータのキャッシュへの書き込み
+                    if (port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack) begin
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    end
+                    else begin
+                        // Waiting until the request is accepted.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    end
+
+                end
+
+                // 6.5. (Uncachable store) Wait until the updated cache line is written to memory.
+                MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE: begin
+                    port.mshrMemReq[i] = FALSE;
+                    if (mshr[i].newValid &&
+                        !(port.memAccessResponse.valid &&
+                        mshr[i].memWSerial == port.memAccessResponse.serial)
+                    ) begin
+                        // Wait MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    end
+                    else begin
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    end
+                end
+
+                // 6. (Cachable load/store) ミスデータのキャッシュへの書き込み
                 MSHR_PHASE_MISS_WRITE_CACHE_REQUEST: begin
-                    // Fille the cache array.
+                    // Fill the cache array.
                     port.mshrCacheReq[i] = TRUE;
                     port.mshrCacheMuxIn[i].tagWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
 
-
-
                     if (port.mshrCacheGrt[i]) begin
                         // If my request is granted, miss handling finishes.
-                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_FINISH;
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
                     else begin
                         nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
                     end
                 end
 
-                // 7.データアレイへの書き込みと解放可能条件を待って MSHR 解放
+                // 7.
+                // * (Cachable) データアレイへの書き込みと解放可能条件を待って MSHR 解放
                 // 現在の開放可能条件は
                 // ・割り当て者がLoadでそのLoadへのデータの受け渡しが完了した場合
-                // ・割り当て者がStoreの場合 (該当Storeのデータはこの時点でキャッシュに書き込まれている)
-                MSHR_PHASE_MISS_WRITE_CACHE_FINISH: begin
+                // ・割り当て者がStoreの場合 (該当Storeのデータはこの時点でキャッシュ or Memoryに書き込まれている)
+                MSHR_PHASE_MISS_HANDLING_COMPLETE: begin
                     if (mshr[i].canBeInvalid || mshr[i].isAllocatedByStore) begin
                         nextMSHR[i].phase = MSHR_PHASE_INVALID;
                         nextMSHR[i].valid = FALSE;

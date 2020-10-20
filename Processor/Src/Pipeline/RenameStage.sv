@@ -25,7 +25,7 @@ import DebugTypes::*;
 // 先頭しかみていない
 module RenameStageSerializer(
 input 
-    logic clk, rst, stall, clear, activeListEmpty,
+    logic clk, rst, stall, clear, activeListEmpty, storeQueueEmpty,
     OpInfo [RENAME_WIDTH-1:0] opInfo, // Unpacked array of structure corrupts in Modelsim.
     logic [RENAME_WIDTH-1:0] valid,
 output 
@@ -68,20 +68,34 @@ output
         end
         if (regPhase == PHASE_NORMAL) begin
             if (opInfo[0].serialized && valid[0]) begin
-                // Wait for all previous ops to be committed
-                if (!activeListEmpty) begin
-                    serialize = TRUE;   
-                    nextPhase = PHASE_NORMAL;
-                end
-                else begin
-                    // deassert serialize" for dispatch  
-                    nextPhase = PHASE_WAIT_OWN;
+                if (opInfo[0].operand.miscMemOp.fence) begin // Fence
+                    if (!activeListEmpty || !storeQueueEmpty) begin
+                        // Fence must wait for all previous ops to be committed
+                        // AND all committed stores in SQ to be written back
+                        serialize = TRUE;   
+                        nextPhase = PHASE_NORMAL;
+                    end
+                    else begin
+                        // deassert serialize" for dispatch    
+                        nextPhase = PHASE_WAIT_OWN;
+                    end
+                end 
+                else begin // Non-fence
+                    if (!activeListEmpty) begin
+                        // Wait for all previous ops to be committed
+                        serialize = TRUE;   
+                        nextPhase = PHASE_NORMAL;
+                    end
+                    else begin
+                        // deassert serialize" for dispatch  
+                        nextPhase = PHASE_WAIT_OWN;
+                    end
                 end
             end
         end
         else begin
             // Wait for a serialized op to be committed
-            if (!activeListEmpty) begin
+            if (!activeListEmpty || !storeQueueEmpty) begin
                 serialize = TRUE;
                 nextPhase = PHASE_WAIT_OWN;
             end
@@ -162,6 +176,7 @@ module RenameStage(
     logic isBranch[RENAME_WIDTH];
 
     logic activeListEmpty;
+    logic storeQueueEmpty;
 
     always_comb begin
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
@@ -186,10 +201,11 @@ module RenameStage(
         stall = ctrl.rnStage.stall;
         clear = ctrl.rnStage.clear;
         activeListEmpty = activeList.validEntryNum == 0;
+        storeQueueEmpty = loadStoreUnit.storeQueueEmpty;
     end
 
     RenameStageSerializer serializer(
-        port.clk, port.rst, stall, clear, activeListEmpty,
+        port.clk, port.rst, stall, clear, activeListEmpty, storeQueueEmpty,
         opInfo, 
         valid,
         serialize

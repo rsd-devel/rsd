@@ -86,6 +86,8 @@ input
     logic mshrCanBeInvalid[MSHR_NUM];
     logic isAllocatedByStore[MSHR_NUM];
 
+    logic isUncachable[MSHR_NUM];
+
     // MSHRをAllocateしたLoad命令がMemoryRegisterReadStageでflushされた場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalidByMemoryRegisterReadStage[MSHR_NUM];
 
@@ -181,6 +183,7 @@ input
         memAccessResponse,
         mshrCanBeInvalid,
         isAllocatedByStore,
+        isUncachable,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
         makeMSHRCanBeInvalidByReplayQueue,
@@ -243,7 +246,10 @@ input
         memSerial,
         memWSerial,
         memAccessResponse,
+        initMSHR,
+        initMSHR_Addr,
         isAllocatedByStore,
+        isUncachable,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
         makeMSHRCanBeInvalidByReplayQueue,

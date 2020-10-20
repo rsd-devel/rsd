@@ -32,6 +32,7 @@ SRC_DIRS = \
 	Timer \
 	Fault \
 	MisalignedMemAccess \
+	UncachableLoadAndStore \
 
 # 中間ファイルのリスト
 ASM_SRCS  = $(SRC_DIRS:%=%/code.s)

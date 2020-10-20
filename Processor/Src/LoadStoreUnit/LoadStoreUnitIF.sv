@@ -92,6 +92,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
 
     PhyAddrPath dcReadAddr[LOAD_ISSUE_WIDTH];
     DCacheLinePath dcReadData[LOAD_ISSUE_WIDTH];
+    logic dcReadUncachable[LOAD_ISSUE_WIDTH];
 
     // Forward されたのでメインメモリアクセスや MSHR 確保をキャンセルする 
     // MSHR を確保してしまうと，フォワードしたロードの方はヒット扱いでリタイアするので
@@ -111,6 +112,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     PhyAddrPath dcWriteAddr;
     DCacheLinePath dcWriteData;
     DCacheByteEnablePath dcWriteByteWE;
+    logic dcWriteUncachable;
 
     // MSHRからのLoad
     logic mshrAddrHit[LOAD_ISSUE_WIDTH];
@@ -152,7 +154,9 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteData,
         dcWriteAddr,
         dcWriteByteWE,
+        dcWriteUncachable,
         dcReadAddr,
+        dcReadUncachable,
         dcReadCancelFromMT_Stage,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
         makeMSHRCanBeInvalid,
@@ -266,6 +270,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteData,
         dcWriteAddr,
         dcWriteByteWE,
+        dcWriteUncachable,
         retiredStoreQueuePtr,
         releaseStoreQueueHead,
         busyInRecovery,
@@ -298,6 +303,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         allocatable,
         allocatedLoadQueuePtr,
         allocatedStoreQueuePtr,
+        storeQueueEmpty,
     output
         allocateLoadQueue,
         allocateStoreQueue
@@ -314,6 +320,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     output
         dcReadReq,
         dcReadAddr,
+        dcReadUncachable,
         makeMSHRCanBeInvalid
     );
 

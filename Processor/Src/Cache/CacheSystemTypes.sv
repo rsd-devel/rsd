@@ -78,21 +78,25 @@ package CacheSystemTypes;
 
     typedef enum logic [3:0]
     {
-        MSHR_PHASE_INVALID = 0,                 // This entry is invalid
+        MSHR_PHASE_INVALID = 0,                   // This entry is invalid
 
         // Victim is read from the cache.
-        MSHR_PHASE_VICTIM_REQEUST       = 1,    //
-        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 2,    //
-        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 3,    // Receive dirty data.
-        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 4,    // Victim is written to a main memory.
-        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 5,   // Wait until victim writeback is complete.
+        MSHR_PHASE_VICTIM_REQEUST       = 1,      //
+        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 2,      //
+        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 3,      // Receive dirty data.
+        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 4,      // Victim is written to a main memory.
+        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 5,     // Wait until victim writeback is complete.
 
-        MSHR_PHASE_MISS_MERGE_STORE_DATA = 6,   // Merge the allocator store's data and the fetched line.
+        MSHR_PHASE_MISS_MERGE_STORE_DATA = 6,     // Merge the allocator store's data and the fetched line.
 
-        MSHR_PHASE_MISS_READ_MEM_REQUEST = 7,   // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 8,   // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 9, // Write data to a cache.
-        MSHR_PHASE_MISS_WRITE_CACHE_FINISH = 10
+        MSHR_PHASE_MISS_READ_MEM_REQUEST = 7,     // Read from a main memory to a cache.
+        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 8,     // Read from a main memory to a cache.
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 9,       // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 10,    // (Uncachable store) Write data to a main memory.
+        // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE 
+        // must be the highest numbers in the following order.
+        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 11, // (Cachable load/store) Write data to a cache.
+        MSHR_PHASE_MISS_HANDLING_COMPLETE = 12
 
     } MSHR_Phase;
 
@@ -116,12 +120,15 @@ package CacheSystemTypes;
         // Line data is shared by "new" and "victim".
         DCacheLinePath line;
 
-        // A MSHR entry can be invalid when
+        // An MSHR entry can be invalid when
         // its allocator is load and has bypassed data.
         logic canBeInvalid;
 
-        // A MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
+        // An MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
         logic isAllocatedByStore;
+
+        // TRUE if this is uncachable access.
+        logic isUncachable;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
