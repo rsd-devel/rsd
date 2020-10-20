@@ -80,6 +80,7 @@ module MemoryExecutionStage(
     AddrPath addrOut[ MEM_ISSUE_WIDTH ];
     MemoryMapType memMapType[MEM_ISSUE_WIDTH];
     PhyAddrPath phyAddrOut[MEM_ISSUE_WIDTH];
+    logic isUncachable[MEM_ISSUE_WIDTH];
 
     // MSHRをAllocateした命令からのメモリリクエストかどうか
     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
@@ -113,7 +114,7 @@ module MemoryExecutionStage(
             addrOut[i] = fuOpA[i].data + { {ADDR_SIGN_EXTENTION_WIDTH{memOpInfo[i].addrIn[ADDR_OPERAND_IMM_WIDTH-1]}}, memOpInfo[i].addrIn };
             phyAddrOut[i] = ToPhyAddrFromLogical(addrOut[i]);
             memMapType[i] = GetMemoryMapType(addrOut[i]);
-
+            isUncachable[i] = IsPhyAddrUncachable(phyAddrOut[i]);
 
             // --- Bypass
             // 制御
@@ -150,6 +151,8 @@ module MemoryExecutionStage(
 
             //loadStoreUnit.dcReadAddr[i] = addrOut[i];
             loadStoreUnit.dcReadAddr[i] = phyAddrOut[i];
+
+            loadStoreUnit.dcReadUncachable[i] = isUncachable[i];
 
             // To notify MSHR that the requester is its allocator load.
             loadStoreUnit.makeMSHRCanBeInvalid[i] = makeMSHRCanBeInvalid[i];
