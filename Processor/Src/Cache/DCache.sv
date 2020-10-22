@@ -391,7 +391,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
         for (int i = 0; i < DCACHE_MUX_PORT_NUM; i++) begin
             if (port.rst) begin
-                selectWayTagStg[i] <= '0;
+                selectWayDataStg[i] <= '0;
             end else begin
                 selectWayDataStg[i] <= selectWayTagStg[i];
             end
