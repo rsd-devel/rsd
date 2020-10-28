@@ -34,6 +34,7 @@ LEVEL1_TESTS = \
 	test-HelloWorld \
 	test-Fibonacci \
 	test-Exception \
+	test-DCache \
 
 #	test-RV32I-MisalignedMemAccess \
 
@@ -192,6 +193,8 @@ test-Dhrystone-for-contest:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone_for_Contest
 test-Exception:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Exception
+test-DCache:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
 
 
 # Zephyr のテストターゲット
