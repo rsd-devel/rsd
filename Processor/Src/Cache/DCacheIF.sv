@@ -100,6 +100,23 @@ input
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
 
+    // NRU<>DCacheArrayPortMultiplexer
+    DCacheNRUAccessStatePath updatedNRUState[DCACHE_ARRAY_PORT_NUM], readNRUState[DCACHE_ARRAY_PORT_NUM];
+    logic nruStateWE[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath nruIndex[DCACHE_ARRAY_PORT_NUM];
+
+    modport DCacheNRUStateArray(
+    input
+        clk,
+        rst,
+        rstStart,
+        nruStateWE,
+        nruIndex,
+        updatedNRUState,
+    output
+        readNRUState
+    );
+
     modport DCacheArrayPortArbiter(
     input
         lsuCacheReq,
@@ -128,6 +145,7 @@ input
         mshrValid,
         mshrPhase,
         mshrData,
+        readNRUState,
     output
         mshrCacheMuxTagOut,
         mshrCacheMuxDataOut,
@@ -142,7 +160,10 @@ input
         dataArrayDataIn,
         dataArrayDirtyIn,
         dataArrayByteWE_In,
-        mshrCanBeInvalid
+        mshrCanBeInvalid,
+        nruStateWE,
+        nruIndex,
+        updatedNRUState
     );
 
 

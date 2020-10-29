@@ -112,13 +112,8 @@ function automatic DCacheNRUAccessStatePath DecideWayToEvictByNRUState( DCacheNR
     return (NRUState | NRUState + 1) ^ NRUState;
 endfunction
 
-module DCacheNRUStateArray(
-    input  logic                    clk, rst, rstStart,
-    input  logic                    NRUStateWE[DCACHE_ARRAY_PORT_NUM],
-    input  DCacheIndexPath          NRUIndex[DCACHE_ARRAY_PORT_NUM],
-    input  DCacheNRUAccessStatePath NRUStateDataIn[DCACHE_ARRAY_PORT_NUM],
-    output DCacheNRUAccessStatePath NRUStateDataOut [DCACHE_ARRAY_PORT_NUM]
-);
+module DCacheNRUStateArray(DCacheIF.DCacheNRUStateArray port);
+
     DCacheIndexPath rstIndex;
     logic we[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath NRUStateIndex[DCACHE_ARRAY_PORT_NUM];
@@ -129,11 +124,11 @@ module DCacheNRUStateArray(
         .ENTRY_NUM( DCACHE_INDEX_NUM ),
         .ENTRY_BIT_SIZE( $bits( DCacheNRUAccessStatePath ) )
     ) nruStateArray (
-        .clk( clk ),
+        .clk( port.clk ),
         .we( we ),
-        .rwa( NRUStateIndex ),
-        .wv( NRUStateData ),
-        .rv( NRUStateDataOut )
+        .rwa( port.nruIndex ),
+        .wv( port.updatedNRUState ),
+        .rv( port.readNRUState )
     );
 
     always_comb begin
@@ -141,22 +136,22 @@ module DCacheNRUStateArray(
             we[p] = FALSE;
         end
 
-        if (rst) begin
+        if (port.rst) begin
             // Port 0 is used for reset.
             we[0] = TRUE;
             NRUStateIndex[0] = rstIndex;
             NRUStateData[0] = '0;
         end
         else begin
-            we = NRUStateWE;
-            NRUStateIndex = NRUIndex;
-            NRUStateData = NRUStateDataIn;
+            we = port.nruStateWE;
+            NRUStateIndex = port.nruIndex;
+            NRUStateData = port.updatedNRUState;
         end
     end
 
     // Reset Index
-    always_ff @(posedge clk) begin
-        if (rstStart) begin
+    always_ff @(posedge port.clk) begin
+        if (port.rstStart) begin
             rstIndex <= '0;
         end
         else begin
@@ -336,9 +331,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCacheWayPath selectWayDataStg[DCACHE_ARRAY_PORT_NUM];
 
     // DCacheNRUStateArray
-    DCacheNRUAccessStatePath updatedNRUState[DCACHE_ARRAY_PORT_NUM], readNRUState[DCACHE_ARRAY_PORT_NUM];
-    logic nruStateWE[DCACHE_ARRAY_PORT_NUM];
-    DCacheIndexPath nruIndex[DCACHE_ARRAY_PORT_NUM];
     logic                    isSameNRUIndex[DCACHE_ARRAY_PORT_NUM];
     logic                    isHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath            wayToEvict[DCACHE_ARRAY_PORT_NUM];
@@ -351,16 +343,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath  dataArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
-
-    DCacheNRUStateArray nruStateArray(
-        .clk( port.clk ),
-        .rst( port.rst ),
-        .rstStart( port.rstStart ),
-        .NRUStateWE     ( nruStateWE ),
-        .NRUIndex       ( nruIndex ),
-        .NRUStateDataIn ( updatedNRUState ),
-        .NRUStateDataOut( readNRUState )
-    );
 
 
     always_ff @(posedge port.clk) begin
@@ -451,7 +433,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // NRU access
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
-            nruIndex[p] = muxIn[ portIn ].indexIn; // NRU read index
+            port.nruIndex[p] = muxIn[ portIn ].indexIn; // NRU read index
         end
 
 
@@ -507,8 +489,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
         // NRU access
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            updatedNRUState[p] = UpdateNRUState(readNRUState[p], hitWay[p]);
-            wayToEvictOneHot[p] = DecideWayToEvictByNRUState(readNRUState[p]);
+            port.updatedNRUState[p] = UpdateNRUState(port.readNRUState[p], hitWay[p]);
+            wayToEvictOneHot[p] = DecideWayToEvictByNRUState(port.readNRUState[p]);
 
             isSameNRUIndex[p] = FALSE;
             for (int q = 0; q < p; q++) begin
@@ -519,10 +501,10 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             end
 
             if (isHit[p] && muxInReg[p].nruStateWE && !isSameNRUIndex[p]) begin // write
-                nruStateWE[p] = TRUE;
-                nruIndex[p] = muxInReg[p].indexIn; // NRU write index
+                port.nruStateWE[p] = TRUE;
+                port.nruIndex[p] = muxInReg[p].indexIn; // NRU write index
             end else begin // read
-                nruStateWE[p] = FALSE;
+                port.nruStateWE[p] = FALSE;
             end
 
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
@@ -804,6 +786,8 @@ module DCache(
     DCacheMemoryReqPortMultiplexer memMux(port);
 
     DCacheMissHandler missHandler(port);
+
+    DCacheNRUStateArray nruStateArray(port);
 
 
     // Stored data
