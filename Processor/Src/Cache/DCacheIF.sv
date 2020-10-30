@@ -100,21 +100,24 @@ input
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
 
-    // NRU<>DCacheArrayPortMultiplexer
-    DCacheNRUAccessStatePath updatedNRUState[DCACHE_ARRAY_PORT_NUM], readNRUState[DCACHE_ARRAY_PORT_NUM];
-    logic nruStateWE[DCACHE_ARRAY_PORT_NUM];
+    // DCacheEvictWaySelector<>DCacheArrayPortMultiplexer
+    logic           isHit[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   hitWay[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   wayToEvict[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath nruIndex[DCACHE_ARRAY_PORT_NUM];
+    logic           nruStateWE[DCACHE_ARRAY_PORT_NUM];
 
-    modport DCacheNRUStateArray(
+    modport DCacheEvictWaySelector(
     input
         clk,
         rst,
         rstStart,
-        nruStateWE,
+        isHit,
+        hitWay,
         nruIndex,
-        updatedNRUState,
+        nruStateWE,
     output
-        readNRUState
+        wayToEvict
     );
 
     modport DCacheArrayPortArbiter(
@@ -145,7 +148,7 @@ input
         mshrValid,
         mshrPhase,
         mshrData,
-        readNRUState,
+        wayToEvict,
     output
         mshrCacheMuxTagOut,
         mshrCacheMuxDataOut,
@@ -161,9 +164,10 @@ input
         dataArrayDirtyIn,
         dataArrayByteWE_In,
         mshrCanBeInvalid,
-        nruStateWE,
+        isHit,
+        hitWay,
         nruIndex,
-        updatedNRUState
+        nruStateWE
     );
 
 
