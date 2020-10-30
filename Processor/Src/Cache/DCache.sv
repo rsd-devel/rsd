@@ -500,10 +500,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 end
             end
 
-            if (isHit[p] && muxInReg[p].nruStateWE && !isSameNRUIndex[p]) begin // write
+            // If tag hits and lsu is doing that access, update NRU state.
+            if (isHit[p] && muxInReg[p].nruStateWE && !isSameNRUIndex[p]) begin
                 port.nruStateWE[p] = TRUE;
                 port.nruIndex[p] = muxInReg[p].indexIn; // NRU write index
-            end else begin // read
+            end else begin
                 port.nruStateWE[p] = FALSE;
             end
 
@@ -515,7 +516,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             end
         end
 
-        // Select way
+        // When there is a hit way, select the hit way.
+        // If not, select the way to be evicted.
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             if (muxInReg[p].tagWE) begin
                 selectWayTagStg[p] = muxInReg[p].evictWay;
@@ -1357,6 +1359,7 @@ module DCacheMissHandler(
                         // Skip receiving data and writing back.
                         nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
                     end
+                    // Save the victim way.
                     nextMSHR[i].evictWay = port.mshrCacheMuxTagOut[i].selectWay;
                 end
 
@@ -1532,6 +1535,7 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
                     port.mshrCacheMuxIn[i].nruStateWE = FALSE;
+                    // Use the saved evict way.
                     port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
 
                     if (port.mshrCacheGrt[i]) begin

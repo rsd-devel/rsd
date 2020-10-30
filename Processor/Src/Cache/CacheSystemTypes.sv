@@ -141,6 +141,7 @@ package CacheSystemTypes;
         // TRUE if this is uncachable access.
         logic isUncachable;
 
+        // An MSHR entry which is indicating the way to be evicted in DCache.
         DCacheWayPath evictWay;
     } MissStatusHandlingRegister;
 
@@ -161,7 +162,10 @@ package CacheSystemTypes;
         // To notify MSHR that this request is by allocator load.
         logic           makeMSHRCanBeInvalid;
 
+        // To notify DCache which way will be evicted.
         DCacheWayPath   evictWay;
+
+        // If true, it tells DCache that lsu is doing the access.
         logic           nruStateWE;
     } DCachePortMultiplexerIn;
 
@@ -175,6 +179,7 @@ package CacheSystemTypes;
         MSHR_IndexPath  mshrAddrHitMSHRID;
         logic           mshrReadHit;
         DCacheLinePath  mshrReadData;
+        // To notify MSHR which way will be evicted.
         DCacheWayPath   selectWay;
     } DCachePortMultiplexerTagOut;
 
