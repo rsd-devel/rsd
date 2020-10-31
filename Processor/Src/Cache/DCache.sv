@@ -148,21 +148,21 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
 
         // NRU access
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], port.hitWay[p]);
+            nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], port.repHitWay[p]);
             wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
 
             isSameNRUIndex[p] = FALSE;
             for (int q = 0; q < p; q++) begin
-                if (port.nruIndex[p] == port.nruIndex[q]) begin
+                if (port.repIndex[p] == port.repIndex[q]) begin
                     isSameNRUIndex[p] = TRUE;
                     break;
                 end
             end
 
             // If tag hits and lsu is doing that access, update NRU state.
-            if (port.isHit[p] && port.nruStateWE[p] && !isSameNRUIndex[p]) begin
+            if (port.repIsHit[p] && port.repStateWE[p] && !isSameNRUIndex[p]) begin
                 we[p] = TRUE;
-                nruStateIndex[p] = port.nruIndex[p]; // NRU write index
+                nruStateIndex[p] = port.repIndex[p]; // NRU write index
             end else begin
                 we[p] = FALSE;
             end
@@ -170,7 +170,7 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
             // Select evict way
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
                 if (wayToEvictOneHot[p][way]) begin
-                    port.wayToEvict[p] = way;
+                    port.repWayToEvict[p] = way;
                     break;
                 end
             end
@@ -454,8 +454,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // NRU access
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
-            port.nruIndex[p]   = muxIn[ portIn ].indexIn;  // NRU read index
-            port.nruStateWE[p] = muxInReg[p].nruStateWE;
+            port.repIndex[p]   = muxIn[ portIn ].indexIn;  // NRU read index
+            port.repStateWE[p] = muxInReg[p].nruStateWE;
         end
 
 
@@ -495,16 +495,16 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 end
             end
 
-            port.hitWay[p] = '0;
-            port.isHit[p] = FALSE;
+            port.repHitWay[p] = '0;
+            port.repIsHit[p] = FALSE;
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
                 tagHit[way][p] =
                     (tagArrayDataOutTmp[way][p] == muxInReg[p].tagDataIn) &&
                     tagArrayValidOutTmp[way][p] &&
                     !mshrConflict[p];
                 if (tagHit[way][p]) begin
-                    port.hitWay[p] = way;
-                    port.isHit[p] = TRUE;
+                    port.repHitWay[p] = way;
+                    port.repIsHit[p] = TRUE;
                 end
             end
         end
@@ -515,10 +515,10 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             if (muxInReg[p].tagWE) begin
                 selectWayTagStg[p] = muxInReg[p].evictWay;
             end else begin
-                if (port.isHit[p]) begin
-                    selectWayTagStg[p] = port.hitWay[p];
+                if (port.repIsHit[p]) begin
+                    selectWayTagStg[p] = port.repHitWay[p];
                 end else begin
-                    selectWayTagStg[p] = port.wayToEvict[p];
+                    selectWayTagStg[p] = port.repWayToEvict[p];
                 end
             end
         end
