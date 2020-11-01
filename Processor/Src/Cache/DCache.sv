@@ -509,12 +509,15 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             end
         end
 
-        // When there is a hit way, select the hit way.
-        // If not, select the way to be evicted.
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            // When tagWE is 1, MSHR writes misdata.
+            // Therefore, select the evict way that was decided when lsu accessed the cache.
             if (muxInReg[p].tagWE) begin
                 selectWayTagStg[p] = muxInReg[p].evictWay;
             end else begin
+                // When hit, the hit way is read.
+                // When miss, it is necessary to read the data in order to write out a dirty line by eviction.
+                // Specify the evict way to read it.
                 if (port.repIsHit[p]) begin
                     selectWayTagStg[p] = port.repHitWay[p];
                 end else begin
