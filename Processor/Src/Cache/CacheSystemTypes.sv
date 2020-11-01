@@ -167,7 +167,7 @@ package CacheSystemTypes;
 
         // If true, it tells DCache that lsu is doing the access.
         // Update the data structure used for data replacement when accessing from lsu.
-        logic           nruStateWE;
+        logic           stateWE;
     } DCachePortMultiplexerIn;
 
     typedef struct packed   // DCachePortMultiplexerTagOut

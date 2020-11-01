@@ -455,7 +455,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
             port.repIndex[p]   = muxIn[ portIn ].indexIn;  // NRU read index
-            port.repStateWE[p] = muxInReg[p].nruStateWE;
+            port.repStateWE[p] = muxInReg[p].stateWE;
         end
 
 
@@ -910,7 +910,7 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].nruStateWE = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].stateWE = TRUE;
         end
 
         // --- In the tag access stage (MemoryTagAccessStage)
@@ -964,7 +964,7 @@ module DCache(
             // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].nruStateWE = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].stateWE = TRUE;
 
             lsu.dcWriteReqAck = port.lsuCacheGrt[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
         end
@@ -1266,7 +1266,7 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
             port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
             port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
-            port.mshrCacheMuxIn[i].nruStateWE = FALSE;
+            port.mshrCacheMuxIn[i].stateWE = FALSE;
 
             // Memory request signals
             port.mshrMemReq[i] = FALSE;
@@ -1530,7 +1530,7 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
-                    port.mshrCacheMuxIn[i].nruStateWE = FALSE;
+                    port.mshrCacheMuxIn[i].stateWE = FALSE;
                     // Use the saved evict way.
                     port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
 
