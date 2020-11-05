@@ -144,6 +144,15 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
             we[0] = TRUE;
             nruStateIndex[0] = rstIndex;
             nruStateDataIn[0] = '0;
+
+            for (int p = 1; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+                we[p] = FALSE;
+                nruStateIndex[p] = '0;
+                nruStateDataIn[p] = '0;
+            end
+            for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+                port.repWayToEvict[p] = '0;
+            end
         end
 
         // NRU access
@@ -169,6 +178,7 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
 
             // Select evict way
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                port.repWayToEvict[p] = '0;
                 if (wayToEvictOneHot[p][way]) begin
                     port.repWayToEvict[p] = way;
                     break;
