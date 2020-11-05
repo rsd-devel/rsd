@@ -154,35 +154,36 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 port.repWayToEvict[p] = '0;
             end
         end
+        else begin
+            // NRU access
+            for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+                nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], port.repHitWay[p]);
+                wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
 
-        // NRU access
-        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], port.repHitWay[p]);
-            wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
-
-            isSameNRUIndex[p] = FALSE;
-            for (int q = 0; q < p; q++) begin
-                if (port.repIndex[p] == port.repIndex[q]) begin
-                    isSameNRUIndex[p] = TRUE;
-                    break;
+                isSameNRUIndex[p] = FALSE;
+                for (int q = 0; q < p; q++) begin
+                    if (port.repIndex[p] == port.repIndex[q]) begin
+                        isSameNRUIndex[p] = TRUE;
+                        break;
+                    end
                 end
-            end
 
-            nruStateIndex[p] = port.repIndex[p]; // NRU read/write index
+                nruStateIndex[p] = port.repIndex[p]; // NRU read/write index
 
-            // If tag hits and lsu is doing that access, update NRU state.
-            if (port.repIsHit[p] && port.repStateWE[p] && !isSameNRUIndex[p]) begin
-                we[p] = TRUE;
-            end else begin
-                we[p] = FALSE;
-            end
+                // If tag hits and lsu is doing that access, update NRU state.
+                if (port.repIsHit[p] && port.repStateWE[p] && !isSameNRUIndex[p]) begin
+                    we[p] = TRUE;
+                end else begin
+                    we[p] = FALSE;
+                end
 
-            // Select evict way
-            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                port.repWayToEvict[p] = '0;
-                if (wayToEvictOneHot[p][way]) begin
-                    port.repWayToEvict[p] = way;
-                    break;
+                // Select evict way
+                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                    port.repWayToEvict[p] = '0;
+                    if (wayToEvictOneHot[p][way]) begin
+                        port.repWayToEvict[p] = way;
+                        break;
+                    end
                 end
             end
         end
