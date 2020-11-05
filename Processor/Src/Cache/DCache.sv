@@ -168,10 +168,11 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 end
             end
 
+            nruStateIndex[p] = port.repIndex[p]; // NRU read/write index
+
             // If tag hits and lsu is doing that access, update NRU state.
             if (port.repIsHit[p] && port.repStateWE[p] && !isSameNRUIndex[p]) begin
                 we[p] = TRUE;
-                nruStateIndex[p] = port.repIndex[p]; // NRU write index
             end else begin
                 we[p] = FALSE;
             end
