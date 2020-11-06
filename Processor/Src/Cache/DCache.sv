@@ -152,6 +152,8 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
             end
             for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
                 port.repWayToEvict[p] = '0;
+                wayToEvictOneHot[p] = '0;
+                isSameNRUIndex[p] = TRUE;
             end
         end
         else begin
@@ -178,8 +180,8 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 end
 
                 // Select evict way
+                port.repWayToEvict[p] = '0;
                 for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                    port.repWayToEvict[p] = '0;
                     if (wayToEvictOneHot[p][way]) begin
                         port.repWayToEvict[p] = way;
                         break;
