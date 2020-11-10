@@ -141,8 +141,14 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
     );
 
     always_comb begin
+        // Initialize.
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            we[p] = FALSE;
+            we[p]               = FALSE;
+            nruStateIndex[p]    = '0;
+            nruStateDataIn[p]   = '0;
+            repWayToEvictTmp[p] = '0;
+            wayToEvictOneHot[p] = '0;
+            isSameNRUIndex[p]   = FALSE;
         end
 
         // Inputs.
@@ -156,17 +162,6 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
             we[0] = TRUE;
             nruStateIndex[0] = rstIndex;
             nruStateDataIn[0] = '0;
-
-            for (int p = 1; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-                we[p] = FALSE;
-                nruStateIndex[p] = '0;
-                nruStateDataIn[p] = '0;
-            end
-            for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-                repWayToEvictTmp[p] = '0;
-                wayToEvictOneHot[p] = '0;
-                isSameNRUIndex[p] = TRUE;
-            end
         end
         else begin
             // NRU access
@@ -174,7 +169,6 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repHitWayTmp[p]);
                 wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
 
-                isSameNRUIndex[p] = FALSE;
                 for (int q = 0; q < p; q++) begin
                     if (repIndexTmp[p] == repIndexTmp[q]) begin
                         isSameNRUIndex[p] = TRUE;
@@ -192,7 +186,6 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 end
 
                 // Select evict way
-                repWayToEvictTmp[p] = '0;
                 for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
                     if (wayToEvictOneHot[p][way]) begin
                         repWayToEvictTmp[p] = way;
