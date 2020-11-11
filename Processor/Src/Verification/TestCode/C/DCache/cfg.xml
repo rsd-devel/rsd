@@ -3,6 +3,6 @@
   <MaxTestCycles>10000000</MaxTestCycles>
   <RegisterValues>
     <PC>0x1004</PC> <!-- lower 16 bits only -->
-    <R11>0x90</R11>
+    <R11>0x48</R11>
   </RegisterValues>
 </Config>
