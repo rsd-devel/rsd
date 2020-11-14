@@ -53,6 +53,8 @@ int GetCommittedRegisterValue(
     for(int i = 0; i < LSCALAR_NUM; i++) {
         regData[i] = core->registerFile->phyReg->debugValue[phyRegNum[i]];
     }
+    
+    return 0;
 }
 
 
