@@ -104,7 +104,8 @@ input
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repWayToEvict[DCACHE_ARRAY_PORT_NUM];
-    DCacheIndexPath repIndex[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath repReadIndex[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
     logic           repStateWE[DCACHE_ARRAY_PORT_NUM];
 
     modport DCacheEvictWaySelector(
@@ -114,7 +115,8 @@ input
         rstStart,
         repIsHit,
         repHitWay,
-        repIndex,
+        repReadIndex,
+        repWriteIndex,
         repStateWE,
     output
         repWayToEvict
@@ -166,7 +168,8 @@ input
         mshrCanBeInvalid,
         repIsHit,
         repHitWay,
-        repIndex,
+        repReadIndex,
+        repWriteIndex,
         repStateWE
     );
 
