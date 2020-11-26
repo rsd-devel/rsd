@@ -165,9 +165,10 @@ package CacheSystemTypes;
         // To notify DCache which way will be evicted.
         DCacheWayPath   evictWay;
 
-        // If true, it tells DCache that lsu is doing the access.
-        // Update the data structure used for data replacement when accessing from lsu.
-        logic           stateWE;
+        // If true, it tells DCache that MSHR or LSU is doing the access.
+        // Update the data structure used for data replacement when accessing from lsu and MSHR.
+        logic           isMSHR;
+        logic           isLSU;
     } DCachePortMultiplexerIn;
 
     typedef struct packed   // DCachePortMultiplexerTagOut

@@ -124,10 +124,12 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
 
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   repEvictWay[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repWayToEvict[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath repReadIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
-    logic           repStateWE[DCACHE_ARRAY_PORT_NUM];
+    logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
+    logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
 
     // NRUStateArray array
     BlockTrueDualPortRAM #(
@@ -155,9 +157,11 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
         // Inputs.
         repIsHit      = port.repIsHit;
         repHitWay     = port.repHitWay;
+        repEvictWay   = port.repEvictWay;
         repReadIndex  = port.repReadIndex;
         repWriteIndex = port.repWriteIndex;
-        repStateWE    = port.repStateWE;
+        repIsMSHR     = port.repIsMSHR;
+        repIsLSU      = port.repIsLSU;
 
         if (port.rst) begin
             // Port 0 is used for reset.
@@ -168,7 +172,12 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
         else begin
             // NRU access
             for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-                nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repHitWay[p]);
+                if (repIsHit[p]) begin
+                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repHitWay[p]);
+                end else begin
+                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repEvictWay[p]);
+                end
+
                 wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
 
                 for (int q = 0; q < p; q++) begin
@@ -179,7 +188,8 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                 end
 
                 // If tag hits and lsu is doing that access, update NRU state.
-                if (repIsHit[p] && repStateWE[p] && !isSameNRUIndex[p]) begin
+                // If MSHR is doing that accsss, update NRU state.
+                if ((repIsMSHR[p] && !isSameNRUIndex[p]) || (repIsLSU[p] && repIsHit[p] && !isSameNRUIndex[p])) begin
                     we[p] = TRUE;
                     nruStateIndex[p] = repWriteIndex[p]; // NRU write index
                 end else begin
@@ -391,10 +401,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   repEvictWay[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repWayToEvict[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath repReadIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
-    logic           repStateWE[DCACHE_ARRAY_PORT_NUM];
+    logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
+    logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
 
     always_ff @(posedge port.clk) begin
 
@@ -486,7 +498,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             portIn = port.cacheArrayInSel[p];
             repReadIndex[p]  = muxIn[portIn].indexIn; // NRU read index
             repWriteIndex[p] = muxInReg[p].indexIn;   // NRU write index
-            repStateWE[p] = muxInReg[p].stateWE;
+            repIsMSHR[p]     = muxIn[portIn].isMSHR;
+            repIsLSU[p]      = muxIn[portIn].isLSU;
         end
 
 
@@ -598,9 +611,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // Outputs
         port.repIsHit      = repIsHit;
         port.repHitWay     = repHitWay;
+        port.repEvictWay   = repWayToEvict;
         port.repReadIndex  = repReadIndex;
         port.repWriteIndex = repWriteIndex;
-        port.repStateWE    = repStateWE;
+        port.repIsMSHR     = repIsMSHR;
+        port.repIsLSU      = repIsLSU;
 
         // ---Data array access stage (D$DATA, MemoryAccessStage).
         // Data array outputs
@@ -950,7 +965,8 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].stateWE = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isMSHR = FALSE;
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isLSU  = TRUE;
         end
 
         // --- In the tag access stage (MemoryTagAccessStage)
@@ -1004,7 +1020,8 @@ module DCache(
             // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].stateWE = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isMSHR = FALSE;
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isLSU  = TRUE;
 
             lsu.dcWriteReqAck = port.lsuCacheGrt[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
         end
@@ -1306,7 +1323,8 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
             port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
             port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
-            port.mshrCacheMuxIn[i].stateWE = FALSE;
+            port.mshrCacheMuxIn[i].isMSHR = FALSE;
+            port.mshrCacheMuxIn[i].isLSU = FALSE;
 
             // Memory request signals
             port.mshrMemReq[i] = FALSE;
@@ -1373,6 +1391,7 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE = FALSE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+                    port.mshrCacheMuxIn[i].isMSHR = TRUE;
 
                     nextMSHR[i].phase =
                         port.mshrCacheGrt[i] ?
@@ -1570,7 +1589,6 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
-                    port.mshrCacheMuxIn[i].stateWE = FALSE;
                     // Use the saved evict way.
                     port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
 
