@@ -6,7 +6,7 @@
 #define ALIGNED_SIZE         DCACHE_LINE_BYTE_NUM * DCACHE_INDEX_NUM
 #define ARRAY_SIZE           16
 
-volatile uint8_t array[ALIGNED_SIZE * WAY_NUM];
+volatile uint8_t array[ALIGNED_SIZE * WAY_NUM] __attribute__ ((aligned (ALIGNED_SIZE)));
 
 uint32_t test() {
     // write
