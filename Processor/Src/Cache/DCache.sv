@@ -498,8 +498,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             portIn = port.cacheArrayInSel[p];
             repReadIndex[p]  = muxIn[portIn].indexIn; // NRU read index
             repWriteIndex[p] = muxInReg[p].indexIn;   // NRU write index
-            repIsMSHR[p]     = muxIn[portIn].isMSHR;
-            repIsLSU[p]      = muxIn[portIn].isLSU;
+            repIsMSHR[p]     = muxInReg[p].isMSHR;
+            repIsLSU[p]      = muxInReg[p].isLSU;
         end
 
 
