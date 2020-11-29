@@ -496,10 +496,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // NRU access
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
-            repReadIndex[p]  = muxIn[portIn].indexIn; // NRU read index
-            repWriteIndex[p] = muxInReg[p].indexIn;   // NRU write index
-            repIsMSHR[p]     = muxInReg[p].isMSHR;
-            repIsLSU[p]      = muxInReg[p].isLSU;
+            repReadIndex[p] = muxIn[portIn].indexIn; // NRU read index
         end
 
 
@@ -606,6 +603,13 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 end
             end
             port.dataArrayIndexIn[p]    = muxInReg[p].indexIn;
+        end
+
+        // NRU access
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            repWriteIndex[p] = muxInReg[p].indexIn; // NRU write index
+            repIsMSHR[p]     = muxInReg[p].isMSHR;
+            repIsLSU[p]      = muxInReg[p].isLSU;
         end
 
         // Outputs
