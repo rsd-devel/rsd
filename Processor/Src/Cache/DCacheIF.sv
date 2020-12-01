@@ -53,6 +53,7 @@ input
     // Multiplexer
     DCacheMuxPortIndexPath  cacheArrayInSel[DCACHE_ARRAY_PORT_NUM];
     DCacheArrayPortIndex    cacheArrayOutSel[DCACHE_MUX_PORT_NUM];
+    logic                   cacheArrayGrant[DCACHE_MUX_PORT_NUM];
 
     // MSHR<>Memory
     logic mshrMemReq[MSHR_NUM];
@@ -109,6 +110,7 @@ input
     DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
     logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
     logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
+    logic           repUpdateReq[DCACHE_ARRAY_PORT_NUM];
 
     modport DCacheEvictWaySelector(
     input
@@ -122,6 +124,7 @@ input
         repWriteIndex,
         repIsMSHR,
         repIsLSU,
+        repUpdateReq,
     output
         repWayToEvict
     );
@@ -134,7 +137,8 @@ input
         lsuCacheGrt,
         mshrCacheGrt,
         cacheArrayInSel,
-        cacheArrayOutSel
+        cacheArrayOutSel,
+        cacheArrayGrant
     );
 
     modport DCacheArrayPortMultiplexer(
@@ -149,6 +153,7 @@ input
         dataArrayDataOut,
         cacheArrayInSel,
         cacheArrayOutSel,
+        cacheArrayGrant,
         dataArrayDirtyOut,
         mshrAddr,
         mshrValid,
@@ -176,7 +181,8 @@ input
         repReadIndex,
         repWriteIndex,
         repIsMSHR,
-        repIsLSU
+        repIsLSU,
+        repUpdateReq
     );
 
 

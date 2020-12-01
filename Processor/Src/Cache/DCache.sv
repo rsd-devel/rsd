@@ -130,6 +130,7 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
     DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
     logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
     logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
+    logic           repUpdateReq[DCACHE_ARRAY_PORT_NUM];
 
     // NRUStateArray array
     BlockTrueDualPortRAM #(
@@ -162,6 +163,7 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
         repWriteIndex = port.repWriteIndex;
         repIsMSHR     = port.repIsMSHR;
         repIsLSU      = port.repIsLSU;
+        repUpdateReq  = port.repUpdateReq;
 
         if (port.rst) begin
             // Port 0 is used for reset.
@@ -189,7 +191,8 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
 
                 // If tag hits and lsu is doing that access, update NRU state.
                 // If MSHR is doing that accsss, update NRU state.
-                if ((repIsMSHR[p] && !isSameNRUIndex[p]) || (repIsLSU[p] && repIsHit[p] && !isSameNRUIndex[p])) begin
+                if ((repIsMSHR[p] && repUpdateReq[p] && !isSameNRUIndex[p]) ||
+                    (repIsLSU[p] && repIsHit[p] && repUpdateReq[p] && !isSameNRUIndex[p])) begin
                     we[p] = TRUE;
                     nruStateIndex[p] = repWriteIndex[p]; // NRU write index
                 end else begin
@@ -310,11 +313,13 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
     logic grant[DCACHE_MUX_PORT_NUM];
     DCacheMuxPortIndexPath cacheArrayInSel[DCACHE_ARRAY_PORT_NUM];
     DCacheArrayPortIndex   cacheArrayOutSel[DCACHE_MUX_PORT_NUM];
+    logic                  cacheArrayGrant[DCACHE_MUX_PORT_NUM];
 
     always_comb begin
         // Clear
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
             cacheArrayOutSel[r] = '0;
+            cacheArrayGrant[r] = FALSE;
             grant[r] = FALSE;
         end
 
@@ -335,6 +340,7 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
                     grant[r] = TRUE;
                     cacheArrayInSel[p] = r;
                     cacheArrayOutSel[r] = p;
+                    cacheArrayGrant[r] = TRUE;
                     break;
                 end
             end
@@ -343,6 +349,7 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
         // Outputs
         port.cacheArrayInSel = cacheArrayInSel;
         port.cacheArrayOutSel = cacheArrayOutSel;
+        port.cacheArrayGrant = cacheArrayGrant;
 
         for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
             port.lsuCacheGrt[r] = grant[r];
@@ -371,6 +378,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
     DCacheArrayPortIndex portOutRegTagStg[DCACHE_MUX_PORT_NUM];
     DCacheArrayPortIndex portOutRegDataStg[DCACHE_MUX_PORT_NUM];
+    logic                portGrantTagStg[DCACHE_MUX_PORT_NUM];
 
     DCachePortMultiplexerIn muxIn[DCACHE_MUX_PORT_NUM];
     DCachePortMultiplexerIn muxInReg[DCACHE_ARRAY_PORT_NUM];    // DCACHE_ARRAY_PORT_NUM!
@@ -407,6 +415,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
     logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
     logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
+    logic           repUpdateReq[DCACHE_ARRAY_PORT_NUM];
 
     always_ff @(posedge port.clk) begin
 
@@ -427,10 +436,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             if (port.rst) begin
                 portOutRegTagStg[i] <= '0;
                 portOutRegDataStg[i] <= '0;
+                portGrantTagStg[i] <= FALSE;
             end
             else begin
                 portOutRegTagStg[i] <= port.cacheArrayOutSel[i];
                 portOutRegDataStg[i] <= portOutRegTagStg[i];
+                portGrantTagStg[i] <= port.cacheArrayGrant[i];
             end
         end
 
@@ -610,6 +621,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             repWriteIndex[p] = muxInReg[p].indexIn; // NRU write index
             repIsMSHR[p]     = muxInReg[p].isMSHR;
             repIsLSU[p]      = muxInReg[p].isLSU;
+            repUpdateReq[p]  = portGrantTagStg[ portInRegTagStg[p] ];
         end
 
         // Outputs
@@ -620,6 +632,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         port.repWriteIndex = repWriteIndex;
         port.repIsMSHR     = repIsMSHR;
         port.repIsLSU      = repIsLSU;
+        port.repUpdateReq  = repUpdateReq;
 
         // ---Data array access stage (D$DATA, MemoryAccessStage).
         // Data array outputs
