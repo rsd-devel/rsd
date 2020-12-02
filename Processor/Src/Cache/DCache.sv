@@ -174,14 +174,11 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
         else begin
             // NRU access
             for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-                if (repIsHit[p]) begin
-                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repHitWay[p]);
-                end else begin
-                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repEvictWay[p]);
-                end
-
                 wayToEvictOneHot[p] = DecideWayToEvictByNRUState(nruStateDataOut[p]);
 
+                // Detects when two ports of NRU are being accessed
+                // at the same time with the same index.
+                // This can happen when accessing from the LSU.
                 for (int q = 0; q < p; q++) begin
                     if (repWriteIndex[p] == repWriteIndex[q]) begin
                         isSameNRUIndex[p] = TRUE;
@@ -191,13 +188,18 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
 
                 // If tag hits and lsu is doing that access, update NRU state.
                 // If MSHR is doing that accsss, update NRU state.
-                if ((repIsMSHR[p] && repUpdateReq[p] && !isSameNRUIndex[p]) ||
-                    (repIsLSU[p] && repIsHit[p] && repUpdateReq[p] && !isSameNRUIndex[p])) begin
+                if (repIsMSHR[p] && repUpdateReq[p]) begin
                     we[p] = TRUE;
-                    nruStateIndex[p] = repWriteIndex[p]; // NRU write index
+                    nruStateIndex[p] = repWriteIndex[p]; // Index used for reading one cycle ago
+                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repEvictWay[p]);
+                end else if (repIsLSU[p] && repIsHit[p] && repUpdateReq[p]) begin
+                    we[p] = TRUE;
+                    nruStateIndex[p] = repWriteIndex[p]; // Index used for reading one cycle ago
+                    nruStateDataIn[p] = UpdateNRUState(nruStateDataOut[p], repHitWay[p]);
                 end else begin
                     we[p] = FALSE;
                     nruStateIndex[p] = repReadIndex[p];  // NRU read index
+                    nruStateDataIn[p] = '0;
                 end
 
                 // Select evict way
