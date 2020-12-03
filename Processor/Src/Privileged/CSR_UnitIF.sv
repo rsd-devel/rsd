@@ -33,8 +33,8 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
 
     // Interrupt
     logic triggerInterrupt;
+    CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
-    PC_Path interruptTargetAddr;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
@@ -94,11 +94,11 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
         commitNum,
         reqTimerInterrupt,
         triggerInterrupt,
+        interruptCode,
         interruptRetAddr,
     output 
         csrWholeOut,
         csrReadOut,
-        interruptTargetAddr,
         excptTargetAddr
     );
 
@@ -106,10 +106,10 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
     input
         clk, rst, rstStart,
         csrWholeOut,
-        interruptTargetAddr,
     output
         triggerInterrupt,
-        interruptRetAddr
+        interruptRetAddr,
+        interruptCode
     );
 
 endinterface

@@ -73,7 +73,7 @@ module CSR_Unit(
             csrNext.mtval = ToAddrFromPC(port.interruptRetAddr);// PC?
             
             csrNext.mcause.isInterrupt = TRUE;
-            csrNext.mcause.code.interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
+            csrNext.mcause.code.interruptCode = port.interruptCode;
             //$display("int: from %x", port.interruptRetAddr);
         end
         else if (port.triggerExcpt) begin
@@ -145,11 +145,6 @@ module CSR_Unit(
         else begin
             port.excptTargetAddr = {csrReg.mtvec.base, CSR_MTVEC_BASE_PADDING};
         end
-        port.interruptTargetAddr = ToPC_FromAddr({
-            (csrReg.mtvec.mode == CSR_MTVEC_MODE_VECTORED) ? 
-                csrReg.mtvec.base + csrReg.mcause.code : csrReg.mtvec.base, 
-                CSR_MTVEC_BASE_PADDING
-        });
 
         port.csrWholeOut = csrReg;
     end

@@ -18,11 +18,14 @@ module InterruptController(
     RecoveryManagerIF.InterruptController recoveryManager
 );
     logic reqInterrupt, triggerInterrupt;
+    CSR_CAUSE_InterruptCodePath interruptCode;
+    PC_Path interruptTargetAddr;
     CSR_BodyPath csrReg;
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
         // いまのところタイマ割り込みのみ
+        interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
         reqInterrupt = 
             csrReg.mstatus.MIE &&
             csrReg.mie.MTIE &&
@@ -45,9 +48,16 @@ module InterruptController(
 
         csrUnit.triggerInterrupt = triggerInterrupt;
         csrUnit.interruptRetAddr = fetchStage.pcOut;
+        csrUnit.interruptCode = interruptCode;
+
+        interruptTargetAddr = ToPC_FromAddr({
+            (csrReg.mtvec.mode == CSR_MTVEC_MODE_VECTORED) ? 
+                (csrReg.mtvec.base + interruptCode) : csrReg.mtvec.base, 
+            CSR_MTVEC_BASE_PADDING
+        });
 
         fetchStage.interruptAddrWE = triggerInterrupt;
-        fetchStage.interruptAddrIn = csrUnit.interruptTargetAddr;
+        fetchStage.interruptAddrIn = interruptTargetAddr;
     end
 
 endmodule
