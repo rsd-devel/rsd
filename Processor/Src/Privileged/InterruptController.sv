@@ -18,18 +18,24 @@ module InterruptController(
     RecoveryManagerIF.InterruptController recoveryManager
 );
     logic reqInterrupt, triggerInterrupt;
+    logic reqTimerInterrupt, reqExternalInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptTargetAddr;
     CSR_BodyPath csrReg;
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
-        // いまのところタイマ割り込みのみ
-        interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
-        reqInterrupt = 
-            csrReg.mstatus.MIE &&
-            csrReg.mie.MTIE &&
-            csrReg.mip.MTIP;
+        reqTimerInterrupt =     csrReg.mie.MTIE && csrReg.mip.MTIP;
+        reqExternalInterrupt =  csrReg.mie.MEIE && csrReg.mip.MEIP;
+
+        reqInterrupt = csrReg.mstatus.MIE && (reqTimerInterrupt || reqExternalInterrupt);
+        if (reqTimerInterrupt) begin
+            // Timer has higher priority.
+            interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
+        end
+        else begin
+            interruptCode = CSR_CAUSE_INTERRUPT_CODE_EXTERNAL;
+        end
 
         // パイプライン全体が空になるまでフェッチをとめる        
         ctrl.npStageSendBubbleLowerForInterrupt =

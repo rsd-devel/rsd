@@ -14,7 +14,7 @@ import MicroOpTypes::*;
 import SchedulerTypes::*;
 import CSR_UnitTypes::*;
 
-interface CSR_UnitIF(input logic clk, rst, rstStart);
+interface CSR_UnitIF(input logic clk, rst, rstStart, reqExternalInterrupt);
 
     logic csrWE;  // CSR write enable
     CSR_NumberPath csrNumber;   // CSR number
@@ -93,6 +93,7 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
         excptCauseDataAddr,
         commitNum,
         reqTimerInterrupt,
+        reqExternalInterrupt,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,

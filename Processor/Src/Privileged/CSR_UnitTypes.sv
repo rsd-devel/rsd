@@ -79,7 +79,8 @@ endfunction
 
 
 typedef enum logic [3:0] {
-    CSR_CAUSE_INTERRUPT_CODE_TIMER = 7
+    CSR_CAUSE_INTERRUPT_CODE_TIMER = 7,
+    CSR_CAUSE_INTERRUPT_CODE_EXTERNAL = 9
 } CSR_CAUSE_InterruptCodePath;
 
 typedef union packed    // IntOpInfo

@@ -255,6 +255,10 @@ logic clk;
                             memAccessWE_FromProgramLoader,
                             programLoaded);
 `endif
+    logic reqExternalInterrupt;
+    always_comb begin
+        reqExternalInterrupt = FALSE;
+    end
 
     //
     // --- Processor core
@@ -268,6 +272,7 @@ logic clk;
         .memAccessWE( memAccessWE_FromCore ),
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
+        .reqExternalInterrupt( reqExternalInterrupt ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),
         .memReadDataReady( memReadDataReady ),

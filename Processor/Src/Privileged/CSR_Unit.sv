@@ -136,7 +136,8 @@ module CSR_Unit(
             endcase 
         end
 
-        csrNext.mip.MTIP = port.reqTimerInterrupt;  // Timer interrupt request
+        csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
+        csrNext.mip.MEIP = port.reqExternalInterrupt;   // External interrupt request
 
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
