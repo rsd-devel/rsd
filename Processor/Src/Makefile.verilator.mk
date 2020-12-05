@@ -54,7 +54,8 @@ RSD_VERILATOR_DEFINITION = \
 
 # --assert: Enable all assertions. 
 # --Mdir: Name of output object directory.
-# We use "-O0" instead of "O3", because compilation in "-O3" is very slow.
+# We use "-Os" and "-output-split 15000" for faster compilation.
+# See https://www.veripool.org/papers/Verilator_Accelerated_OSDA2020.pdf
 VERILATOR_OPTION = \
 	--cc \
 	--assert \
@@ -65,8 +66,10 @@ VERILATOR_OPTION = \
 	$(RSD_VERILATOR_DEFINITION) \
 	--Mdir $(LIBRARY_WORK_RTL) \
 	+incdir+. \
-	-CFLAGS "-O0 -g" \
 	--trace \
+	-CFLAGS -Os \
+	-output-split 15000 \
+	#-CFLAGS "-O0 -g" \
 	#--MMD \
 	#-O3 \
 
@@ -82,7 +85,7 @@ all: $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
 	cd $(LIBRARY_WORK_RTL); \
 		VPATH=../../../Src \
 		CXXFLAGS="$(VERILATOR_TARGET_CXXFLAGS)" \
-			$(MAKE) -f $(VERILATED_TOP_MODULE_NAME).mk -j8
+			$(MAKE) -f $(VERILATED_TOP_MODULE_NAME).mk
 	@echo "==== Build Successful ===="
 
 run:
