@@ -295,15 +295,18 @@ endmodule : DCacheMemoryReqPortMultiplexer
 
 //
 // An arbiter of the ports of the tag/data array.
-// 以下から来るアクセス要求に対して，最大 DCache のポート分だけ grant を返す
+//
+// 以下2カ所から来る合計 R 個のアクセス要求に対して，最大 DCache のポート分だけ grant を返す
 //   load unit/store unit: port.lsuCacheReq 
 //   mshr の全エントリ:     mshrCacheReq    
-// 
-//   cacheArrayInSel[P]=r: 
-//     上記の R個 リクエストのうち，r 番目 が
+//
+//   cacheArrayInGrant[p]=TRUE or FALSE 
+//     割り当ての結果，キャッシュの p 番目のポートに要求が来たかどうか
+//   cacheArrayInSel[P] = r: 
+//     上記の R 個 リクエストのうち，r 番目 が
 //     キャッシュの p 番目のポートに割り当てられた
-//   cacheArrayOutSel[r]=p, grant[r]: 
-//     上記の R個 リクエストのうち，r 番目 が
+//   cacheArrayOutSel[r] = p: 
+//     上記の R 個 リクエストのうち，r 番目 が
 //     キャッシュの p 番目のポートに割り当てられた
 //
 // 典型的には，
@@ -315,13 +318,12 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
     logic grant[DCACHE_MUX_PORT_NUM];
     DCacheMuxPortIndexPath cacheArrayInSel[DCACHE_ARRAY_PORT_NUM];
     DCacheArrayPortIndex   cacheArrayOutSel[DCACHE_MUX_PORT_NUM];
-    logic                  cacheArrayGrant[DCACHE_MUX_PORT_NUM];
+    logic                  cacheArrayInGrant[DCACHE_ARRAY_PORT_NUM];
 
     always_comb begin
         // Clear
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
             cacheArrayOutSel[r] = '0;
-            cacheArrayGrant[r] = FALSE;
             grant[r] = FALSE;
         end
 
@@ -335,6 +337,7 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
         // Arbitrate
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++ ) begin
+            cacheArrayInGrant[p] = FALSE;
             cacheArrayInSel[p] = '0;
             for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
                 if (req[r]) begin
@@ -342,7 +345,7 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
                     grant[r] = TRUE;
                     cacheArrayInSel[p] = r;
                     cacheArrayOutSel[r] = p;
-                    cacheArrayGrant[r] = TRUE;
+                    cacheArrayInGrant[p] = TRUE;
                     break;
                 end
             end
@@ -350,8 +353,8 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
         // Outputs
         port.cacheArrayInSel = cacheArrayInSel;
+        port.cacheArrayInGrant = cacheArrayInGrant;
         port.cacheArrayOutSel = cacheArrayOutSel;
-        port.cacheArrayGrant = cacheArrayGrant;
 
         for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
             port.lsuCacheGrt[r] = grant[r];
@@ -377,10 +380,10 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
     DCacheMuxPortIndexPath portIn;
     DCacheMuxPortIndexPath portInRegTagStg[DCACHE_ARRAY_PORT_NUM];
+    logic                  portInRegGrantTagStg[DCACHE_ARRAY_PORT_NUM];
 
     DCacheArrayPortIndex portOutRegTagStg[DCACHE_MUX_PORT_NUM];
     DCacheArrayPortIndex portOutRegDataStg[DCACHE_MUX_PORT_NUM];
-    logic                portGrantTagStg[DCACHE_MUX_PORT_NUM];
 
     DCachePortMultiplexerIn muxIn[DCACHE_MUX_PORT_NUM];
     DCachePortMultiplexerIn muxInReg[DCACHE_ARRAY_PORT_NUM];    // DCACHE_ARRAY_PORT_NUM!
@@ -426,10 +429,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             if (port.rst) begin
                 portInRegTagStg[i] <= '0;
                 muxInReg[i] <= '0;
+                portInRegGrantTagStg[i] <= FALSE;
             end
             else begin
                 portInRegTagStg[i] <= port.cacheArrayInSel[i];
                 muxInReg[i] <= muxIn[ port.cacheArrayInSel[i] ];
+                portInRegGrantTagStg[i] <= port.cacheArrayInGrant[i];
             end
 
         end
@@ -438,12 +443,10 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             if (port.rst) begin
                 portOutRegTagStg[i] <= '0;
                 portOutRegDataStg[i] <= '0;
-                portGrantTagStg[i] <= FALSE;
             end
             else begin
                 portOutRegTagStg[i] <= port.cacheArrayOutSel[i];
                 portOutRegDataStg[i] <= portOutRegTagStg[i];
-                portGrantTagStg[i] <= port.cacheArrayGrant[i];
             end
         end
 
@@ -623,9 +626,9 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             repWriteIndex[p] = muxInReg[p].indexIn; // NRU write index
             repIsMSHR[p]     = muxInReg[p].isMSHR;
             repIsLSU[p]      = muxInReg[p].isLSU;
-            repUpdateReq[p]  = portGrantTagStg[ portInRegTagStg[p] ];
+            repUpdateReq[p]  = portInRegGrantTagStg[p];
         end
-
+        
         // Outputs
         port.repIsHit      = repIsHit;
         port.repHitWay     = repHitWay;

@@ -51,9 +51,22 @@ input
     DCachePortMultiplexerDataOut mshrCacheMuxDataOut[MSHR_NUM];    // Data array outputs are pipelined.
 
     // Multiplexer
+    //
+    // 以下2カ所から来る合計 R 個のアクセス要求に対して，最大 DCache のポート分だけ grant を返す
+    //   load unit/store unit: port.lsuCacheReq 
+    //   mshr の全エントリ:     mshrCacheReq    
+    //
+    //   cacheArrayInGrant[p]=TRUE or FALSE 
+    //     割り当ての結果，キャッシュの p 番目のポートに要求が来たかどうか
+    //   cacheArrayInSel[P] = r: 
+    //     上記の R 個 リクエストのうち，r 番目 が
+    //     キャッシュの p 番目のポートに割り当てられた
+    //   cacheArrayOutSel[r] = p: 
+    //     上記の R 個 リクエストのうち，r 番目 が
+    //     キャッシュの p 番目のポートに割り当てられた
+    logic                   cacheArrayInGrant[DCACHE_ARRAY_PORT_NUM];
     DCacheMuxPortIndexPath  cacheArrayInSel[DCACHE_ARRAY_PORT_NUM];
     DCacheArrayPortIndex    cacheArrayOutSel[DCACHE_MUX_PORT_NUM];
-    logic                   cacheArrayGrant[DCACHE_MUX_PORT_NUM];
 
     // MSHR<>Memory
     logic mshrMemReq[MSHR_NUM];
@@ -138,7 +151,7 @@ input
         mshrCacheGrt,
         cacheArrayInSel,
         cacheArrayOutSel,
-        cacheArrayGrant
+        cacheArrayInGrant
     );
 
     modport DCacheArrayPortMultiplexer(
@@ -153,7 +166,7 @@ input
         dataArrayDataOut,
         cacheArrayInSel,
         cacheArrayOutSel,
-        cacheArrayGrant,
+        cacheArrayInGrant,
         dataArrayDirtyOut,
         mshrAddr,
         mshrValid,
