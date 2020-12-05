@@ -5,7 +5,11 @@ ENABLE_PC_GOAL = 1
 TEST_CODE = Verification/TestCode/Asm/UncachableLoadAndStore
 #TEST_CODE = Verification/TestCode/C/HelloWorld
 
+ifndef RSD_VERILATOR_BIN
 VERILATOR_BIN = verilator
+else
+VERILATOR_BIN = $(RSD_VERILATOR_BIN)
+endif
 
 
 SOURCE_ROOT  = ./
