@@ -91,10 +91,21 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
 endfunction
 
 // Currently suuport 2-way only
-function automatic DCacheTreeLRU_StatePath 
+function automatic DCacheWayPath 
 CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath in);
     return (in == 0 ? 1 : 0) % DCACHE_WAY_NUM;  // direct map 時のため MOD
 endfunction
+
+function automatic DCacheTreeLRU_StatePath
+CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath in);
+    return in;
+endfunction
+
+function automatic DCacheTreeLRU_StatePath
+CalcWriteEnableIn2WayTreeLRU(DCacheWayPath in);
+    return 1;
+endfunction
+
 
 //
 // The arbiter of the ports of the main memory.
@@ -284,7 +295,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyOutTmp[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath  dataArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
-    DCacheTreeLRU_StatePath replArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   replArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
 
     // 置き換え情報のインデクスが被ってるかどうか
     logic isReplSameIndex[DCACHE_ARRAY_PORT_NUM];
@@ -533,10 +544,13 @@ module DCacheArray(DCacheIF.DCacheArray port);
     DCacheTagValidPath tagArrayOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // Replacement array signals
-    logic replArrayWE[DCACHE_ARRAY_PORT_NUM];
+    logic replArrayWE[DCACHE_TREE_LRU_STATE_BIT_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayWE_Flat[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath replArrayIndex[DCACHE_ARRAY_PORT_NUM];
-    DCacheTreeLRU_StatePath replArrayIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheTreeLRU_StatePath replArrayOut[DCACHE_ARRAY_PORT_NUM];
+    logic replArrayIn[DCACHE_TREE_LRU_STATE_BIT_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayInFlat[DCACHE_ARRAY_PORT_NUM];
+    logic replArrayOut[DCACHE_TREE_LRU_STATE_BIT_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayOutFlat[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath replArrayResult[DCACHE_ARRAY_PORT_NUM];
 
     // Reset signals
@@ -608,17 +622,19 @@ module DCacheArray(DCacheIF.DCacheArray port);
         end
 
         // Replacement array instance
-        BlockTrueDualPortRAM #(
-            .ENTRY_NUM( DCACHE_INDEX_NUM ),
-            .ENTRY_BIT_SIZE( $bits(DCacheTreeLRU_StatePath) )
-            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
-        ) tagArray (
-            .clk( port.clk ),
-            .we( replArrayWE ),
-            .rwa( replArrayIndex ),
-            .wv( replArrayIn ),
-            .rv( replArrayOut )
-        );
+        for (genvar i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
+            BlockTrueDualPortRAM #(
+                .ENTRY_NUM( DCACHE_INDEX_NUM ),
+                .ENTRY_BIT_SIZE(1)
+                //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
+            ) replArray (
+                .clk( port.clk ),
+                .we( replArrayWE[i] ),
+                .rwa( replArrayIndex ),
+                .wv( replArrayIn[i] ),
+                .rv( replArrayOut[i] )
+            );
+        end
     endgenerate
 
 
@@ -627,9 +643,14 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // Replacment signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             replArrayIndex[p] = port.replArrayIndexIn[p];
-            replArrayWE[p] = port.replArrayWE[p];
-            replArrayIn[p] = port.replArrayDataIn[p];
-            replArrayResult[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOut[p]);
+            replArrayWE_Flat[p] = CalcWriteEnableIn2WayTreeLRU(port.replArrayWE[p]);
+            replArrayInFlat[p] = CalcUpdatedStateIn2WayTreeLRU(port.replArrayDataIn[p]);
+            for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
+                replArrayWE[i][p] = replArrayInFlat[p][i];
+                replArrayIn[i][p] = replArrayInFlat[i];
+                replArrayOutFlat[p][i] = replArrayOut[i][p];
+            end
+            replArrayResult[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOutFlat[p]);
             port.replArrayDataOut[p] = replArrayResult[p];
         end
 
@@ -717,8 +738,10 @@ module DCacheArray(DCacheIF.DCacheArray port);
             tagArrayIn[0].valid = FALSE;
 
             replArrayIndex[0] = rstIndex;
-            replArrayWE[0] = TRUE;
-            replArrayIn[0] = 0;
+            for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
+                replArrayWE[i][0] = TRUE;
+                replArrayIn[i][0] = 0;
+            end
         end
     end
 

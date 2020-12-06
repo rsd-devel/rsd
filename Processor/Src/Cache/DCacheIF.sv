@@ -42,8 +42,8 @@ input
     // Replacement
     logic           replArrayWE[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath replArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheTreeLRU_StatePath  replArrayDataIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheTreeLRU_StatePath  replArrayDataOut[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath  replArrayDataIn[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath  replArrayDataOut[DCACHE_ARRAY_PORT_NUM];
 
     // Port arbiter input/output
     logic           lsuCacheReq[DCACHE_LSU_PORT_NUM];
