@@ -423,8 +423,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     // errors outputted by Synplify.
     DCacheTagPath   tagArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
-    logic           dataArrayDirtyOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
-    DCacheLinePath  dataArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayDirtyOutTmp[DCACHE_ARRAY_PORT_NUM];
+    DCacheLinePath  dataArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
     DCacheTreeLRU_StatePath replArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
 
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
@@ -617,6 +617,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             port.dataArrayDataIn[p]    = muxInReg[p].dataDataIn;
             port.dataArrayDirtyIn[p]   = muxInReg[p].dataDirtyIn;
             port.dataArrayWriteWay[p]  = muxInReg[p].tagWE ? muxInReg[p].evictWay : selectWayTagStg[p];
+
+            // dataArrayIsReadEvictedWay が有効な場合，dataArrayReadWay ではなく
+            // リプレースメントアルゴリズムに言われた way を読む
+            port.dataArrayIsReadEvictedWay[p] = muxInReg[p].isMSHR;
+            port.dataArrayReadWay[p] = selectWayTagStg[p];
+            
             port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
             port.dataArrayWE[p] =
                 muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && repIsHit[p]);
@@ -652,6 +658,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 end
             end
 
+            port.replArrayIndexIn[p] = muxInReg[p].indexIn;
             port.replArrayDataIn[p] = 0;
             if (isReplSameIndex[p]) begin
                 port.replArrayWE[p] = FALSE;
@@ -672,11 +679,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                     port.replArrayDataIn[p] = repHitWay[p];
                 end
             end
-
-            port.replArrayIndexIn[p] = muxInReg[p].indexIn;
-
         end
-        
 
 
         // ---Data array access stage (D$DATA, MemoryAccessStage).
@@ -685,17 +688,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         dataArrayDirtyOutTmp = port.dataArrayDirtyOut;
         replArrayDataOutTmp = port.replArrayDataOut;
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
-
-            // MSHR からの Victim 読み出しの際は，同時に取れた置き換え情報に
-            // したがって読み出す way を選択する
-            if (isMSHR_RegDataOutStg[portOutRegDataStg[r]]) begin
-                muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ replArrayDataOutTmp[ portOutRegDataStg[r]]][ portOutRegDataStg[r] ];
-                muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ replArrayDataOutTmp[ portOutRegDataStg[r]]][ portOutRegDataStg[r] ];
-            end
-            else begin
-                muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
-                muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
-            end
+            muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ portOutRegDataStg[r] ];
+            muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ portOutRegDataStg[r] ];
             muxDataOut[r].replDataOut = replArrayDataOutTmp[ portOutRegDataStg[r] ];
         end
     end
@@ -727,6 +721,9 @@ module DCacheArray(DCacheIF.DCacheArray port);
     BytePath        dataArrayOut[DCACHE_LINE_BYTE_NUM][DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   dataArrayReadWayReg[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   dataArrayReadWay[DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayIsReadEvictedWayReg[DCACHE_ARRAY_PORT_NUM];
 
     // *** Hack for Synplify...
     DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_ARRAY_PORT_NUM];
@@ -744,6 +741,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
     DCacheIndexPath replArrayIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheTreeLRU_StatePath replArrayIn[DCACHE_ARRAY_PORT_NUM];
     DCacheTreeLRU_StatePath replArrayOut[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath replArrayResult[DCACHE_ARRAY_PORT_NUM];
 
     // Reset signals
     DCacheIndexPath rstIndex;
@@ -753,6 +751,18 @@ module DCacheArray(DCacheIF.DCacheArray port);
             rstIndex <= '0;
         else
             rstIndex <= rstIndex + 1;
+
+        // データアレイから読み出した後に選択する way は1サイクル前にくるので FF につんでおく
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            if (port.rst) begin
+                dataArrayReadWayReg[p] <= '0;
+                dataArrayIsReadEvictedWayReg[p] <= '0;
+            end
+            else begin
+                dataArrayReadWayReg[p] <= port.dataArrayReadWay[p];
+                dataArrayIsReadEvictedWayReg[p] <= port.dataArrayIsReadEvictedWay[p];
+            end
+        end
     end
 
 
@@ -818,6 +828,15 @@ module DCacheArray(DCacheIF.DCacheArray port);
 
     always_comb begin
 
+        // Replacment signals
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            replArrayIndex[p] = port.replArrayIndexIn[p];
+            replArrayWE[p] = port.replArrayWE[p];
+            replArrayIn[p] = port.replArrayDataIn[p];
+            replArrayResult[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOut[p]);
+            port.replArrayDataOut[p] = replArrayResult[p];
+        end
+
         // Data array signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             dataArrayIndex[p] = port.dataArrayIndexIn[p];
@@ -847,8 +866,12 @@ module DCacheArray(DCacheIF.DCacheArray port);
             end
         end
 
-        port.dataArrayDataOut = dataArrayOutTmp;
-        port.dataArrayDirtyOut = dataArrayDirtyOut;
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            dataArrayReadWay[p] = 
+                dataArrayIsReadEvictedWayReg[p] ? replArrayResult[p] : dataArrayReadWayReg[p];
+            port.dataArrayDataOut[p] = dataArrayOutTmp[dataArrayReadWay[p]][p];
+            port.dataArrayDirtyOut[p] = dataArrayDirtyOut[dataArrayReadWay[p]][p];
+        end
 
 
         // Tag signals
@@ -864,14 +887,6 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 port.tagArrayDataOut[way][p]  = tagArrayOut[way][p].tag;
                 port.tagArrayValidOut[way][p] = tagArrayOut[way][p].valid;
             end
-        end
-
-        // Replacment signals
-        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            replArrayIndex[p] = port.replArrayIndexIn[p];
-            replArrayWE[p] = port.replArrayWE[p];
-            replArrayIn[p] = port.replArrayDataIn[p];
-            port.replArrayDataOut[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOut[p]);
         end
 
         // Reset

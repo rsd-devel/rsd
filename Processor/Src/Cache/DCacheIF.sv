@@ -31,11 +31,13 @@ input
     logic           dataArrayWE[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath dataArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath  dataArrayDataIn[DCACHE_ARRAY_PORT_NUM];
-    DCacheLinePath  dataArrayDataOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheLinePath  dataArrayDataOut[DCACHE_ARRAY_PORT_NUM];
     DCacheByteEnablePath dataArrayByteWE_In[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   dataArrayWriteWay[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   dataArrayReadWay[DCACHE_ARRAY_PORT_NUM];
+    logic  dataArrayIsReadEvictedWay[DCACHE_ARRAY_PORT_NUM];    
     logic  dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
-    logic  dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic  dataArrayDirtyOut[DCACHE_ARRAY_PORT_NUM];
 
     // Replacement
     logic           replArrayWE[DCACHE_ARRAY_PORT_NUM];
@@ -197,6 +199,8 @@ input
         dataArrayDirtyIn,
         dataArrayByteWE_In,
         dataArrayWriteWay,
+        dataArrayReadWay,
+        dataArrayIsReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
         replArrayDataIn,
@@ -284,6 +288,8 @@ input
         dataArrayByteWE_In,
         dataArrayWE,
         dataArrayWriteWay,
+        dataArrayReadWay,
+        dataArrayIsReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
         replArrayDataIn,
