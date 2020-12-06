@@ -614,19 +614,13 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
         // Data array inputs
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            port.dataArrayDataIn[p]     = muxInReg[p].dataDataIn;
-            port.dataArrayDirtyIn[p]    = muxInReg[p].dataDirtyIn;
-            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-               if ((muxInReg[p].tagWE ? muxInReg[p].evictWay : selectWayTagStg[p]) == way) begin
-                    port.dataArrayByteWE_In[way][p] = muxInReg[p].dataByteWE;
-                    port.dataArrayWE[way][p]        =
-                        muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && tagHit[way][p]);
-                end else begin
-                    port.dataArrayByteWE_In[way][p] = '0;
-                    port.dataArrayWE[way][p]        = '0;
-                end
-            end
-            port.dataArrayIndexIn[p]    = muxInReg[p].indexIn;
+            port.dataArrayDataIn[p]    = muxInReg[p].dataDataIn;
+            port.dataArrayDirtyIn[p]   = muxInReg[p].dataDirtyIn;
+            port.dataArrayWriteWay[p]  = muxInReg[p].tagWE ? muxInReg[p].evictWay : selectWayTagStg[p];
+            port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
+            port.dataArrayWE[p] =
+                muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && repIsHit[p]);
+            port.dataArrayIndexIn[p]   = muxInReg[p].indexIn;
         end
 
         // NRU access
@@ -735,7 +729,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
     logic           dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // *** Hack for Synplify...
-    DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath dataArrayInTmp[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath dataArrayOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
@@ -829,12 +823,12 @@ module DCacheArray(DCacheIF.DCacheArray port);
             dataArrayIndex[p] = port.dataArrayIndexIn[p];
             dataArrayDirtyIn[p] = port.dataArrayDirtyIn[p];
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                dataArrayWE[way][p] = port.dataArrayWE[way][p];
+                dataArrayWE[way][p] = (port.dataArrayWriteWay[p] == way) ? port.dataArrayWE[p] : FALSE;
             end
         end
 
         // *** Hack for Synplify...
-        // Signals in an interface are set to temproraly signals for avoiding
+        // Signals in an interface must be connected to temproraly signals for avoiding
         // errors outputted by Synplify.
         dataArrayByteWE_Tmp = port.dataArrayByteWE_In;
         dataArrayInTmp = port.dataArrayDataIn;
@@ -842,7 +836,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
                 for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                    dataArrayByteWE[i][way][p] = port.dataArrayWE[way][p] && dataArrayByteWE_Tmp[way][p][i];
+                    dataArrayByteWE[i][way][p] = dataArrayWE[way][p] && dataArrayByteWE_Tmp[p][i];
                 end
                 for (int b = 0; b < 8; b++) begin
                     dataArrayIn[i][p][b] = dataArrayInTmp[p][i*8 + b];
