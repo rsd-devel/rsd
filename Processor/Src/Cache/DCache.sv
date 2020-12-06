@@ -596,11 +596,10 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // Tag array outputs
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
             for (int w = 0; w < DCACHE_WAY_NUM; w++) begin
-                muxTagOut[r].tagDataOut[w]     = tagArrayDataOutTmp[w][ portOutRegTagStg[r] ];
-                muxTagOut[r].tagValidOut[w]    = tagArrayValidOutTmp[w][ portOutRegTagStg[r] ];
+                muxTagOut[r].tagDataOut[w] = tagArrayDataOutTmp[w][ portOutRegTagStg[r] ];
+                muxTagOut[r].tagValidOut[w] = tagArrayValidOutTmp[w][ portOutRegTagStg[r] ];
             end
-            muxTagOut[r].tagHit         = tagHit[selectWayTagStg[ portOutRegTagStg[r] ]][ portOutRegTagStg[r] ];
-
+            muxTagOut[r].tagHit = repIsHit[portOutRegTagStg[r]];
             muxTagOut[r].mshrConflict = mshrConflict[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrReadHit = mshrReadHit[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrAddrHit = mshrAddrHit[ portOutRegTagStg[r] ];
