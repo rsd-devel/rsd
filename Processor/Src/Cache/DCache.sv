@@ -202,6 +202,9 @@ module DCacheEvictWaySelector(DCacheIF.DCacheEvictWaySelector port);
                     nruStateDataIn[p] = '0;
                 end
 
+                // バグって警告をだすので NRU の書き込みは一時的に無効化
+                we[p] = FALSE;
+
                 // Select evict way
                 for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
                     if (wayToEvictOneHot[p][way]) begin
