@@ -521,22 +521,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         // Tag array inputs
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             portIn = port.cacheArrayInSel[p];
-            if (muxIn[ portIn ].tagWE) begin // Write miss data by MSHR
-                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                    if (muxIn[ portIn ].evictWay == way) begin
-                        port.tagArrayWE[way][p] = muxIn[ portIn ].tagWE;
-                    end else begin
-                        port.tagArrayWE[way][p] = FALSE;
-                    end
-                end
-            end else begin
-                for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                    port.tagArrayWE[way][p] = muxIn[ portIn ].tagWE;
-                end
-            end
-            port.tagArrayIndexIn[p] = muxIn[ portIn ].indexIn;
-            port.tagArrayDataIn[p]  = muxIn[ portIn ].tagDataIn;
-            port.tagArrayValidIn[p] = muxIn[ portIn ].tagValidIn;
+            port.tagArrayWE[p]       = muxIn[ portIn ].tagWE;
+            port.tagArrayWriteWay[p] = muxIn[ portIn ].evictWay;
+            port.tagArrayIndexIn[p]  = muxIn[ portIn ].indexIn;
+            port.tagArrayDataIn[p]   = muxIn[ portIn ].tagDataIn;
+            port.tagArrayValidIn[p]  = muxIn[ portIn ].tagValidIn;
         end
 
         // NRU access
@@ -886,13 +875,13 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // Tag signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             tagArrayIndex[p]    = port.tagArrayIndexIn[p];
-            for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                tagArrayWE[way][p] = port.tagArrayWE[way][p];
-            end
             tagArrayIn[p].tag   = port.tagArrayDataIn[p];
             tagArrayIn[p].valid = port.tagArrayValidIn[p];
 
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
+                tagArrayWE[way][p] = 
+                    port.tagArrayWE[p] && (way == port.tagArrayWriteWay[p]);
+
                 port.tagArrayDataOut[way][p]  = tagArrayOut[way][p].tag;
                 port.tagArrayValidOut[way][p] = tagArrayOut[way][p].valid;
             end

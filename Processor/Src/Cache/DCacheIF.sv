@@ -19,7 +19,8 @@ input
     logic rstStart
 );
     // Tag array
-    logic           tagArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    logic           tagArrayWE[DCACHE_ARRAY_PORT_NUM];
+    DCacheWayPath   tagArrayWriteWay[DCACHE_ARRAY_PORT_NUM];
     DCacheIndexPath tagArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
     DCacheTagPath   tagArrayDataIn [DCACHE_ARRAY_PORT_NUM];
     logic           tagArrayValidIn[DCACHE_ARRAY_PORT_NUM];
@@ -185,6 +186,7 @@ input
         lsuMuxTagOut,
         lsuMuxDataOut,
         tagArrayWE,
+        tagArrayWriteWay,
         tagArrayIndexIn,
         tagArrayDataIn,
         tagArrayValidIn,
@@ -270,6 +272,7 @@ input
         rst,
         rstStart,
         tagArrayWE,
+        tagArrayWriteWay,
         tagArrayIndexIn,
         tagArrayDataIn,
         tagArrayValidIn,
