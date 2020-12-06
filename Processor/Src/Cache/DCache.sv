@@ -478,10 +478,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
 
         //
-        // stage:   | ADDR   | D$TAG    | D$DATA   |
-        // process: | tag-in | tag-out  |          |
-        //          |        | hit/miss |          |
-        //          |        | data-in  | data-out |
+        // stage:   | ADDR    | D$TAG    | D$DATA      |
+        // process: | arbitor |          |             |
+        //          | tag-in  | tag-out  |             |
+        //          |         | hit/miss |             |
+        //          |         | data-in  | data-out    |
+        //          |         |          | repl-update |
         //
         // Pipeline regs between ADDR<>D$TAG:   portInRegTagStg, portOutRegTagStg, muxInReg
         // Pipeline regs between D$TAG<>D$DATA: portOutRegDataStg
@@ -588,9 +590,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
         // Tag array outputs
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
-            muxTagOut[r].tagDataOut  = tagArrayDataOutTmp[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
-            muxTagOut[r].tagValidOut = tagArrayValidOutTmp[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
-            muxTagOut[r].tagHit = tagHit[ selectWayTagStg[portOutRegTagStg[r]] ][ portOutRegTagStg[r] ];
+            for (int w = 0; w < DCACHE_WAY_NUM; w++) begin
+                muxTagOut[r].tagDataOut[w]     = tagArrayDataOutTmp[w][ portOutRegTagStg[r] ];
+                muxTagOut[r].tagValidOut[w]    = tagArrayValidOutTmp[w][ portOutRegTagStg[r] ];
+            end
+            muxTagOut[r].tagHit         = tagHit[selectWayTagStg[ portOutRegTagStg[r] ]][ portOutRegTagStg[r] ];
+
             muxTagOut[r].mshrConflict = mshrConflict[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrReadHit = mshrReadHit[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrAddrHit = mshrAddrHit[ portOutRegTagStg[r] ];
@@ -1269,6 +1274,8 @@ module DCacheMissHandler(
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
 
+    DCacheWayPath mshrCacheMuxTagOutSelectWayTmp[MSHR_NUM];
+
 `ifndef RSD_SYNTHESIS
     // Don't care these values, but avoiding undefined status in Questa.
     initial begin
@@ -1356,6 +1363,9 @@ module DCacheMissHandler(
             port.mshrMemMuxIn[i].we = FALSE;
             port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
 
+            // Tmporary signals
+            mshrCacheMuxTagOutSelectWayTmp[i] = port.mshrCacheMuxTagOut[i].selectWay;
+
             case(mshr[i].phase)
                 default: begin
 
@@ -1421,33 +1431,38 @@ module DCacheMissHandler(
                 end
 
                 MSHR_PHASE_VICTIM_RECEIVE_TAG: begin
-                    // Read a victim line.
-                    if (port.mshrCacheMuxTagOut[i].tagValidOut) begin
-                        nextMSHR[i].victimAddr =
-                            BuildFullAddr(
-                                ToIndexPartFromFullAddr(mshr[i].newAddr),
-                                port.mshrCacheMuxTagOut[i].tagDataOut
-                            );
-                        nextMSHR[i].victimValid = TRUE;
-                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_DATA;
-                    end
-                    else begin
-                        nextMSHR[i].victimValid = FALSE;
-                        // Skip receiving data and writing back.
-                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
-                    end
-                    // Save the victim way.
-                    nextMSHR[i].evictWay = port.mshrCacheMuxTagOut[i].selectWay;
+                    // Read a victim line and receive tag data.
+                    nextMSHR[i].tagDataOut = port.mshrCacheMuxTagOut[i].tagDataOut;
+                    nextMSHR[i].tagValidOut = port.mshrCacheMuxTagOut[i].tagValidOut;
+                    nextMSHR[i].evictWay = mshrCacheMuxTagOutSelectWayTmp[i];
+                    nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_DATA;
                 end
 
 
                 MSHR_PHASE_VICTIM_RECEIVE_DATA: begin
+
+                    if (mshr[i].tagValidOut[mshr[i].evictWay]) begin
+                        // 追い出し対象の読み出し済みタグと新しいアドレスの
+                        // インデックスからフルアドレスを作る
+                        nextMSHR[i].victimAddr =
+                            BuildFullAddr(
+                                ToIndexPartFromFullAddr(mshr[i].newAddr),
+                                mshr[i].tagDataOut[
+                                    mshr[i].evictWay
+                                ]
+                            );
+                        nextMSHR[i].victimValid = TRUE;
+                    end
+                    else begin
+                        nextMSHR[i].victimValid = FALSE;
+                    end
+
                     // Receive cache data.
                     nextMSHR[i].victimReceived = TRUE;
                     nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
                     nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
 
-                    if (nextMSHR[i].victimDirty) begin
+                    if (nextMSHR[i].victimValid && nextMSHR[i].victimDirty) begin
                         nextMSHR[i].phase = MSHR_PHASE_VICTIM_WRITE_TO_MEM;
                     end
                     else begin

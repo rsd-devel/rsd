@@ -122,6 +122,11 @@ package CacheSystemTypes;
         logic victimReceived;
         PhyAddrPath victimAddr;
 
+        // タグアレイからタグがよめたタイミングではまだ追い出すウェイの確定ができないため
+        // 全て持っておく
+        DCacheTagPath   [DCACHE_WAY_NUM-1 : 0] tagDataOut;
+        logic           [DCACHE_WAY_NUM-1 : 0] tagValidOut;
+
         logic newValid;
         PhyAddrPath newAddr;
 
@@ -173,9 +178,10 @@ package CacheSystemTypes;
 
     typedef struct packed   // DCachePortMultiplexerTagOut
     {
-        DCacheTagPath   tagDataOut;
-        logic           tagValidOut;
+        DCacheTagPath   [DCACHE_WAY_NUM-1 : 0] tagDataOut;
+        logic           [DCACHE_WAY_NUM-1 : 0] tagValidOut;
         logic           tagHit;
+
         logic           mshrConflict;
         logic           mshrAddrHit;
         MSHR_IndexPath  mshrAddrHitMSHRID;
