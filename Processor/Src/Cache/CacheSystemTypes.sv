@@ -59,6 +59,12 @@ package CacheSystemTypes;
     //   if bit[way] == 1 then the way is referenced recently
     typedef logic [DCACHE_WAY_NUM-1:0] DCacheNRUAccessStatePath;
 
+    // Tree LRU information
+    // DCACHE_WAY_NUM - 1 bits are necessary?
+    // とりあえず今は DCACHE_WAY_NUM と一致させている
+    localparam DCACHE_TREE_LRU_STATE_BIT_NUM = DCACHE_WAY_NUM;
+    typedef logic [DCACHE_TREE_LRU_STATE_BIT_NUM-1:0] DCacheTreeLRU_StatePath;
+
     // Subset of index for MSHR identifier in ReplayQueue
     // This value MUST be less than or equal to DCACHE_INDEX_BIT_WIDTH.
     localparam DCACHE_INDEX_SUBSET_BIT_WIDTH = 5;
@@ -195,6 +201,9 @@ package CacheSystemTypes;
     {
         DCacheLinePath  dataDataOut;
         logic           dataDirtyOut;
+        // Data Array 読み出しと同じタイミングで置き換え対象が取れるので
+        // マルチプレクサで選択するためにここで出しておく
+        DCacheTreeLRU_StatePath replDataOut;
     } DCachePortMultiplexerDataOut;
 
     typedef struct packed   // MemoryPortMultiplexerIn

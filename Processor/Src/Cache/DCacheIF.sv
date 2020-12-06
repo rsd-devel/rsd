@@ -35,6 +35,11 @@ input
     logic  dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
     logic  dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
+    // Replacement
+    logic           replArrayWE[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath replArrayIndexIn[DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath  replArrayDataIn[DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath  replArrayDataOut[DCACHE_ARRAY_PORT_NUM];
 
     // Port arbiter input/output
     logic           lsuCacheReq[DCACHE_LSU_PORT_NUM];
@@ -164,6 +169,7 @@ input
         tagArrayDataOut,
         tagArrayValidOut,
         dataArrayDataOut,
+        replArrayDataOut,
         cacheArrayInSel,
         cacheArrayOutSel,
         cacheArrayInGrant,
@@ -187,6 +193,9 @@ input
         dataArrayDataIn,
         dataArrayDirtyIn,
         dataArrayByteWE_In,
+        replArrayWE,
+        replArrayIndexIn,
+        replArrayDataIn,
         mshrCanBeInvalid,
         repIsHit,
         repHitWay,
@@ -269,11 +278,15 @@ input
         dataArrayDirtyIn,
         dataArrayByteWE_In,
         dataArrayWE,
+        replArrayWE,
+        replArrayIndexIn,
+        replArrayDataIn,
     output
         tagArrayDataOut,
         tagArrayValidOut,
         dataArrayDataOut,
-        dataArrayDirtyOut
+        dataArrayDirtyOut,
+        replArrayDataOut
     );
 
 

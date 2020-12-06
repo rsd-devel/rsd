@@ -90,6 +90,12 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
     return mshr;
 endfunction
 
+// Currently suuport 2-way only
+function automatic DCacheTreeLRU_StatePath 
+CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath in);
+    return (in == 0 ? 1 : 0) % DCACHE_WAY_NUM;  // direct map 時のため MOD
+endfunction
+
 //
 // NRUState, Access -> NRUState
 // NRUState         -> Evicted way (one-hot)
@@ -319,6 +325,7 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
     logic req[DCACHE_MUX_PORT_NUM];
     logic grant[DCACHE_MUX_PORT_NUM];
+
     DCacheMuxPortIndexPath cacheArrayInSel[DCACHE_ARRAY_PORT_NUM];
     DCacheArrayPortIndex   cacheArrayOutSel[DCACHE_MUX_PORT_NUM];
     logic                  cacheArrayInGrant[DCACHE_ARRAY_PORT_NUM];
@@ -388,7 +395,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCacheArrayPortIndex portOutRegTagStg[DCACHE_MUX_PORT_NUM];
     DCacheArrayPortIndex portOutRegDataStg[DCACHE_MUX_PORT_NUM];
 
+    // アドレスステージで LRU/MSHR から入力された要求をマージしたもの
     DCachePortMultiplexerIn muxIn[DCACHE_MUX_PORT_NUM];
+
+    // ADDR<>TAG の間にあるレジスタ
+    // マージした要求をアービトレーションして選んだ結果
     DCachePortMultiplexerIn muxInReg[DCACHE_ARRAY_PORT_NUM];    // DCACHE_ARRAY_PORT_NUM!
 
     DCachePortMultiplexerTagOut muxTagOut[DCACHE_MUX_PORT_NUM];
@@ -414,6 +425,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           dataArrayDirtyOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath  dataArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayDataOutTmp[DCACHE_ARRAY_PORT_NUM];
 
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
@@ -424,6 +436,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
     logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
     logic           repUpdateReq[DCACHE_ARRAY_PORT_NUM];
+
+    // MSHR からのタグ取得かどうか
+    logic isMSHR_RegDataOutStg[DCACHE_ARRAY_PORT_NUM];
+    // 置き換え情報のインデクスが被ってるかどうか
+    logic isReplSameIndex[DCACHE_ARRAY_PORT_NUM];
 
     always_ff @(posedge port.clk) begin
 
@@ -458,6 +475,14 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                 selectWayDataStg[i] <= '0;
             end else begin
                 selectWayDataStg[i] <= selectWayTagStg[i];
+            end
+        end
+        for (int i = 0; i < DCACHE_ARRAY_PORT_NUM; i++) begin
+            if (port.rst) begin
+                isMSHR_RegDataOutStg[i] <= '0;
+            end
+            else begin
+                isMSHR_RegDataOutStg[i] <= muxInReg[i].isMSHR;
             end
         end
 
@@ -548,6 +573,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                     if (muxInReg[p].tagDataIn == ToTagPartFromFullAddr(port.mshrAddr[m])) begin
                         // To bypass data from MSHR.
                         if (port.mshrPhase[m] > (MSHR_PHASE_MISS_WRITE_CACHE_REQUEST-1)) begin
+                        //if (port.mshrPhase[m] >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
                             if (muxInReg[p].makeMSHRCanBeInvalid) begin
                                 portMSHRCanBeInvalid[m] = TRUE;
                             end
@@ -636,7 +662,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             repIsLSU[p]      = muxInReg[p].isLSU;
             repUpdateReq[p]  = portInRegGrantTagStg[p];
         end
-        
+
         // Outputs
         port.repIsHit      = repIsHit;
         port.repHitWay     = repHitWay;
@@ -647,16 +673,64 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         port.repIsLSU      = repIsLSU;
         port.repUpdateReq  = repUpdateReq;
 
+
+        // 置き換え情報の更新
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            isReplSameIndex[p] = FALSE;
+
+            for (int i = 0; i < p; i++) begin
+                if (muxInReg[i].indexIn == muxInReg[p].indexIn) begin
+                    isReplSameIndex[p] = TRUE;
+                end
+            end
+
+            port.replArrayDataIn[p] = 0;
+            if (isReplSameIndex[p]) begin
+                port.replArrayWE[p] = FALSE;
+            end
+            else begin
+                if (muxInReg[p].tagWE) begin
+                    // 書き込み時は追い出し対象のウェイを渡す
+                    port.replArrayWE[p] = TRUE;
+                    port.replArrayDataIn[p] = muxInReg[p].evictWay;
+                end
+                else if (muxInReg[p].isMSHR) begin
+                    // MSHR からの victim 読み出し時は，置き換え情報の読み出し
+                    port.replArrayWE[p] = FALSE;    
+                end
+                else begin
+                    // ヒット時はヒットしたウェイを渡す
+                    port.replArrayWE[p] = repIsHit[p];
+                    port.replArrayDataIn[p] = repHitWay[p];
+                end
+            end
+
+            port.replArrayIndexIn[p] = muxInReg[p].indexIn;
+
+        end
+        
+
+
         // ---Data array access stage (D$DATA, MemoryAccessStage).
         // Data array outputs
         dataArrayDataOutTmp = port.dataArrayDataOut;
         dataArrayDirtyOutTmp = port.dataArrayDirtyOut;
+        replArrayDataOutTmp = port.replArrayDataOut;
         for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
-            muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
-            muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
+
+            // MSHR からの Victim 読み出しの際は，同時に取れた置き換え情報に
+            // したがって読み出す way を選択する
+            if (isMSHR_RegDataOutStg[portOutRegDataStg[r]]) begin
+                muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ replArrayDataOutTmp[ portOutRegDataStg[r]]][ portOutRegDataStg[r] ];
+                muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ replArrayDataOutTmp[ portOutRegDataStg[r]]][ portOutRegDataStg[r] ];
+            end
+            else begin
+                muxDataOut[r].dataDataOut = dataArrayDataOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
+                muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[ selectWayDataStg[portOutRegDataStg[r]] ][ portOutRegDataStg[r] ];
+            end
+            muxDataOut[r].replDataOut = replArrayDataOutTmp[ portOutRegDataStg[r] ];
         end
     end
-
 
     // Output to each port.
     always_comb begin
@@ -696,6 +770,12 @@ module DCacheArray(DCacheIF.DCacheArray port);
     DCacheIndexPath tagArrayIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheTagValidPath tagArrayIn[DCACHE_ARRAY_PORT_NUM];
     DCacheTagValidPath tagArrayOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+
+    // Replacement array signals
+    logic replArrayWE[DCACHE_ARRAY_PORT_NUM];
+    DCacheIndexPath replArrayIndex[DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayIn[DCACHE_ARRAY_PORT_NUM];
+    DCacheTreeLRU_StatePath replArrayOut[DCACHE_ARRAY_PORT_NUM];
 
     // Reset signals
     DCacheIndexPath rstIndex;
@@ -752,6 +832,19 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .rv( tagArrayOut[way] )
             );
         end
+
+        // Replacement array instance
+        BlockTrueDualPortRAM #(
+            .ENTRY_NUM( DCACHE_INDEX_NUM ),
+            .ENTRY_BIT_SIZE( $bits(DCacheTreeLRU_StatePath) )
+            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
+        ) tagArray (
+            .clk( port.clk ),
+            .we( replArrayWE ),
+            .rwa( replArrayIndex ),
+            .wv( replArrayIn ),
+            .rv( replArrayOut )
+        );
     endgenerate
 
 
@@ -805,6 +898,13 @@ module DCacheArray(DCacheIF.DCacheArray port);
             end
         end
 
+        // Replacment signals
+        for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
+            replArrayIndex[p] = port.replArrayIndexIn[p];
+            replArrayWE[p] = port.replArrayWE[p];
+            replArrayIn[p] = port.replArrayDataIn[p];
+            port.replArrayDataOut[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOut[p]);
+        end
 
         // Reset
         if (port.rst) begin
@@ -837,7 +937,9 @@ module DCacheArray(DCacheIF.DCacheArray port);
             tagArrayIn[0].tag = 0;
             tagArrayIn[0].valid = FALSE;
 
-
+            replArrayIndex[0] = rstIndex;
+            replArrayWE[0] = TRUE;
+            replArrayIn[0] = 0;
         end
     end
 
@@ -880,9 +982,11 @@ module DCache(
     // Pipeline registers
     //
     // ----------------------------->
-    // ADDR  | D$TAG | D$DATA | WB
-    //       |  LSQ  |        |
+    // ADDR  | D$TAG | D$DATA  | WB
+    //       |       | D$REP-U |
+    //       |  LSQ  |         |
     // Addresses are input to the tag array in the ADDR stage (MemoryExecutionStage).
+    // D$REP-W is replacement information update
     //
     PhyAddrPath dcReadAddrRegTagStg[DCACHE_LSU_READ_PORT_NUM];
     PhyAddrPath dcReadAddrRegDataStg[DCACHE_LSU_READ_PORT_NUM];
@@ -1277,8 +1381,6 @@ module DCacheMissHandler(
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
 
-    DCacheWayPath mshrCacheMuxTagOutSelectWayTmp[MSHR_NUM];
-
 `ifndef RSD_SYNTHESIS
     // Don't care these values, but avoiding undefined status in Questa.
     initial begin
@@ -1366,8 +1468,6 @@ module DCacheMissHandler(
             port.mshrMemMuxIn[i].we = FALSE;
             port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
 
-            // Tmporary signals
-            mshrCacheMuxTagOutSelectWayTmp[i] = port.mshrCacheMuxTagOut[i].selectWay;
 
             case(mshr[i].phase)
                 default: begin
@@ -1437,21 +1537,23 @@ module DCacheMissHandler(
                     // Read a victim line and receive tag data.
                     nextMSHR[i].tagDataOut = port.mshrCacheMuxTagOut[i].tagDataOut;
                     nextMSHR[i].tagValidOut = port.mshrCacheMuxTagOut[i].tagValidOut;
-                    nextMSHR[i].evictWay = mshrCacheMuxTagOutSelectWayTmp[i];
+                    nextMSHR[i].evictWay = port.mshrCacheMuxTagOut[i].selectWay;
                     nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_DATA;
                 end
 
 
                 MSHR_PHASE_VICTIM_RECEIVE_DATA: begin
-
-                    if (mshr[i].tagValidOut[mshr[i].evictWay]) begin
+                    
+                    // 置き換え情報
+                    nextMSHR[i].evictWay = port.mshrCacheMuxDataOut[i].replDataOut;
+                    if (mshr[i].tagValidOut[nextMSHR[i].evictWay]) begin
                         // 追い出し対象の読み出し済みタグと新しいアドレスの
                         // インデックスからフルアドレスを作る
                         nextMSHR[i].victimAddr =
                             BuildFullAddr(
                                 ToIndexPartFromFullAddr(mshr[i].newAddr),
                                 mshr[i].tagDataOut[
-                                    mshr[i].evictWay
+                                    nextMSHR[i].evictWay
                                 ]
                             );
                         nextMSHR[i].victimValid = TRUE;
@@ -1459,6 +1561,7 @@ module DCacheMissHandler(
                     else begin
                         nextMSHR[i].victimValid = FALSE;
                     end
+
 
                     // Receive cache data.
                     nextMSHR[i].victimReceived = TRUE;
