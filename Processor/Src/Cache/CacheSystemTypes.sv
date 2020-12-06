@@ -193,8 +193,6 @@ package CacheSystemTypes;
         MSHR_IndexPath  mshrAddrHitMSHRID;
         logic           mshrReadHit;
         DCacheLinePath  mshrReadData;
-        // To notify MSHR which way will be evicted.
-        DCacheWayPath   selectWay;
     } DCachePortMultiplexerTagOut;
 
     typedef struct packed   // DCachePortMultiplexerDataOut

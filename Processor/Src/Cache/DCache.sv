@@ -590,20 +590,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         end
 
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
-            // When tagWE is 1, MSHR writes misdata.
-            // Therefore, select the evict way that was decided when lsu accessed the cache.
-            if (muxInReg[p].tagWE) begin
-                selectWayTagStg[p] = muxInReg[p].evictWay;
-            end else begin
-                // When hit, the hit way is read.
-                // When miss, it is necessary to read the data in order to write out a dirty line by eviction.
-                // Specify the evict way to read it.
-                if (repIsHit[p]) begin
-                    selectWayTagStg[p] = repHitWay[p];
-                end else begin
-                    selectWayTagStg[p] = repWayToEvict[p];
-                end
-            end
+            selectWayTagStg[p] = repHitWay[p];
         end
 
         // Tag array outputs
@@ -619,7 +606,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             muxTagOut[r].mshrAddrHit = mshrAddrHit[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrAddrHitMSHRID = mshrAddrHitMSHRID[ portOutRegTagStg[r] ];
             muxTagOut[r].mshrReadData = mshrReadData[ portOutRegTagStg[r] ];
-            muxTagOut[r].selectWay = selectWayTagStg[ portOutRegTagStg[r] ];
         end
 
 
@@ -632,7 +618,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             port.dataArrayDataIn[p]     = muxInReg[p].dataDataIn;
             port.dataArrayDirtyIn[p]    = muxInReg[p].dataDirtyIn;
             for (int way = 0; way < DCACHE_WAY_NUM; way++) begin
-                if (selectWayTagStg[p] == way) begin
+               if ((muxInReg[p].tagWE ? muxInReg[p].evictWay : selectWayTagStg[p]) == way) begin
                     port.dataArrayByteWE_In[way][p] = muxInReg[p].dataByteWE;
                     port.dataArrayWE[way][p]        =
                         muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && tagHit[way][p]);
@@ -1526,7 +1512,6 @@ module DCacheMissHandler(
                     // Read a victim line and receive tag data.
                     nextMSHR[i].tagDataOut = port.mshrCacheMuxTagOut[i].tagDataOut;
                     nextMSHR[i].tagValidOut = port.mshrCacheMuxTagOut[i].tagValidOut;
-                    nextMSHR[i].evictWay = port.mshrCacheMuxTagOut[i].selectWay;
                     nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_DATA;
                 end
 
