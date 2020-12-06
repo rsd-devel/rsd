@@ -123,33 +123,6 @@ input
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
 
-    // DCacheEvictWaySelector<>DCacheArrayPortMultiplexer
-    logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
-    DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
-    DCacheWayPath   repEvictWay[DCACHE_ARRAY_PORT_NUM];
-    DCacheWayPath   repWayToEvict[DCACHE_ARRAY_PORT_NUM];
-    DCacheIndexPath repReadIndex[DCACHE_ARRAY_PORT_NUM];
-    DCacheIndexPath repWriteIndex[DCACHE_ARRAY_PORT_NUM];
-    logic           repIsMSHR[DCACHE_ARRAY_PORT_NUM];
-    logic           repIsLSU[DCACHE_ARRAY_PORT_NUM];
-    logic           repUpdateReq[DCACHE_ARRAY_PORT_NUM];
-
-    modport DCacheEvictWaySelector(
-    input
-        clk,
-        rst,
-        rstStart,
-        repIsHit,
-        repHitWay,
-        repEvictWay,
-        repReadIndex,
-        repWriteIndex,
-        repIsMSHR,
-        repIsLSU,
-        repUpdateReq,
-    output
-        repWayToEvict
-    );
 
     modport DCacheArrayPortArbiter(
     input
@@ -182,7 +155,6 @@ input
         mshrValid,
         mshrPhase,
         mshrData,
-        repWayToEvict,
     output
         mshrCacheMuxTagOut,
         mshrCacheMuxDataOut,
@@ -204,15 +176,7 @@ input
         replArrayWE,
         replArrayIndexIn,
         replArrayDataIn,
-        mshrCanBeInvalid,
-        repIsHit,
-        repHitWay,
-        repEvictWay,
-        repReadIndex,
-        repWriteIndex,
-        repIsMSHR,
-        repIsLSU,
-        repUpdateReq
+        mshrCanBeInvalid
     );
 
 

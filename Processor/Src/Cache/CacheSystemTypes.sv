@@ -53,12 +53,6 @@ package CacheSystemTypes;
     localparam DCACHE_WAY_BIT_NUM = (DCACHE_WAY_NUM != 1) ? $clog2(DCACHE_WAY_NUM)-1 : 0;
     typedef logic [DCACHE_WAY_BIT_NUM:0] DCacheWayPath;
 
-    // NRU Access state bits
-    // (N-way NRU -> N bits)
-    // These bits correspond to the cache way:
-    //   if bit[way] == 1 then the way is referenced recently
-    typedef logic [DCACHE_WAY_NUM-1:0] DCacheNRUAccessStatePath;
-
     // Tree LRU information
     // DCACHE_WAY_NUM - 1 bits are necessary?
     // とりあえず今は DCACHE_WAY_NUM と一致させている
