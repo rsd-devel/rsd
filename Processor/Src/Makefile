@@ -1,8 +1,8 @@
 # Specify test code and simulation cycles
-MAX_TEST_CYCLES = 10000
+MAX_TEST_CYCLES = 50000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-TEST_CODE = Verification/TestCode/Asm/Fence
+TEST_CODE = Verification/TestCode/Asm/CacheFlush
 #TEST_CODE = Verification/TestCode/C/HelloWorld
 
 SOURCE_ROOT  = ./

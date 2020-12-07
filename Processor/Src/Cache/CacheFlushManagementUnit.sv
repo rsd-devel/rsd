@@ -28,11 +28,12 @@ module CacheFlushManagementUnit(
         PHASE_WAITING       = 3   // Wait for issuing ifence from replayqueue
     } CacheFlushPhase;
 
-    // CacheFlushManagementUnit <-> ICache
-    logic icFlushReq;
+    // CacheFlushManagementUnit <-> ICache, DCache
+    logic icFlushReq, dcFlushReq;
 
     CacheFlushPhase regPhase, nextPhase;
     logic regIcFlushComplete, nextIcFlushComplete;
+    logic regDcFlushComplete, nextDcFlushComplete;
 
     // CacheFlushManagementUnit <-> MemExecStage, ReplayQueue
     logic cacheFlushComplete;
@@ -49,9 +50,11 @@ module CacheFlushManagementUnit(
     always_comb begin
         nextPhase = regPhase;
         nextIcFlushComplete = regIcFlushComplete;
+        nextDcFlushComplete = regDcFlushComplete;
 
-        // to ICache
+        // to ICache, DCache
         icFlushReq = FALSE;
+        dcFlushReq = FALSE;
 
         // to MemExecStage, ReplayQUeue
         cacheFlushComplete = FALSE;
@@ -66,9 +69,11 @@ module CacheFlushManagementUnit(
             end
         end
         PHASE_SEND_REQUEST: begin
-            if (cacheSystem.icFlushReqAck) begin
+            if (cacheSystem.icFlushReqAck && cacheSystem.dcFlushReqAck) begin
                 icFlushReq = TRUE;
+                dcFlushReq = TRUE;
                 nextIcFlushComplete = FALSE;
+                nextDcFlushComplete = FALSE;
                 nextPhase = PHASE_PROCESSING;
             end
         end
@@ -76,8 +81,12 @@ module CacheFlushManagementUnit(
             if (cacheSystem.icFlushComplete) begin
                 nextIcFlushComplete = TRUE;
             end
+            if (cacheSystem.dcFlushComplete) begin
+                nextDcFlushComplete = TRUE;
+            end
 
-            if (nextIcFlushComplete || regIcFlushComplete) begin
+            if ((nextIcFlushComplete || regIcFlushComplete) &&
+                (nextDcFlushComplete || regDcFlushComplete)) begin
                 nextPhase = PHASE_WAITING;
             end
         end
@@ -89,8 +98,9 @@ module CacheFlushManagementUnit(
         end
         endcase
 
-        // to ICache
+        // to ICache, DCache
         cacheSystem.icFlushReq = icFlushReq;
+        cacheSystem.dcFlushReq = dcFlushReq;
         cacheSystem.flushComplete = cacheFlushComplete;
 
         // to MemExecStage, ReplayQUeue
@@ -101,9 +111,11 @@ module CacheFlushManagementUnit(
     always_ff @( posedge port.clk ) begin
         if ( port.rst ) begin
             regIcFlushComplete <= FALSE;
+            regDcFlushComplete <= FALSE;
         end
         else begin
             regIcFlushComplete <= nextIcFlushComplete;
+            regDcFlushComplete <= nextDcFlushComplete;
         end
     end
 

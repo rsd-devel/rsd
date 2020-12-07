@@ -448,6 +448,7 @@ module ICache(
         ICACHE_PHASE_FLUSH_PREPARE: begin
             // 1 cycle to reset rstIndex.
             nextFlushStart = FALSE;
+            nextMissTag = '0;
             nextPhase = ICACHE_PHASE_FLUSH_PROCESSING;
         end
         ICACHE_PHASE_FLUSH_PROCESSING: begin

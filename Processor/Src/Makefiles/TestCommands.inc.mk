@@ -19,6 +19,7 @@ LEVEL1_TESTS = \
 	test-RV32I-LoadAndStore \
 	test-RV32I-LoadAndStoreZynq \
 	test-RV32I-UncachableLoadAndStore \
+	test-RV32I-CacheFlush \
 	test-RV32I-ZeroRegister \
 	test-RV32I-MemoryAccessZynq \
 	test-RV32I-ReplayQueueTest \
@@ -148,6 +149,8 @@ test-RV32I-LoadAndStoreZynq:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LoadAndStoreZynq
 test-RV32I-UncachableLoadAndStore:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/UncachableLoadAndStore
+test-RV32I-CacheFlush:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/CacheFlush
 test-RV32I-ZeroRegister:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ZeroRegister
 test-RV32I-MemoryAccessZynq:
