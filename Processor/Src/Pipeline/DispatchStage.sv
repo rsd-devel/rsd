@@ -177,6 +177,8 @@ module DispatchStage(
             memEntry[i].memOpInfo.csrCtrl     = opInfo[i].operand.memOp.csrCtrl;
             memEntry[i].memOpInfo.envCode     = opInfo[i].operand.systemOp.envCode;
 
+            memEntry[i].memOpInfo.isFenceI    = opInfo[i].operand.miscMemOp.fenceI;
+
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             // これらは complex のフォーマットから取得する
             memEntry[i].memOpInfo.mulSubInfo = mulSubInfo[i];

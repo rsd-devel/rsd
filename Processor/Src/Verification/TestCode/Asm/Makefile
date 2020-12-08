@@ -33,6 +33,7 @@ SRC_DIRS = \
 	Fault \
 	MisalignedMemAccess \
 	UncachableLoadAndStore \
+	CacheFlush \
 
 # 中間ファイルのリスト
 ASM_SRCS  = $(SRC_DIRS:%=%/code.s)

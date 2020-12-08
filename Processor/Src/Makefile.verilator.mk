@@ -2,7 +2,7 @@
 MAX_TEST_CYCLES = 10000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-TEST_CODE = Verification/TestCode/Asm/UncachableLoadAndStore
+TEST_CODE = Verification/TestCode/Asm/ControlTransfer
 #TEST_CODE = Verification/TestCode/C/HelloWorld
 
 ifndef RSD_VERILATOR_BIN
