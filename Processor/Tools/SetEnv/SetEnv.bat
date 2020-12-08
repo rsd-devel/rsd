@@ -31,6 +31,9 @@ setx SYNOPSYS_BIN C:/dev/env/hdl/Synopsys/fpga_I2013091/bin/
 :: Specify the path of "dc_shell" for Design Compiler.
 setx RSD_DC_SHELL_BIN C:/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
 
+:: Specify the path of a "verilator" binary
+setx RSD_VERILATOR_BIN verilator
+
 
 :: Specify the ISE folder in Vivado.
 setx RSD_VIVADO E:/Xilinx/Vivado/2019.2/ids_lite/ISE/
@@ -44,6 +47,7 @@ setx RSD_MODELSIM_INI　C:/Work/RSD/modelsim.ini
 
 :: Specify the path of a work directory where download or build ZYNQ PS Linux 
 setx RSD_ARM_LINUX C:/Work/rsd-arm-linux
+
 
 :: Specify the root path of RSD-env, which is a closed repository that contains 
 :: external commercial packages/tools for RSD development.

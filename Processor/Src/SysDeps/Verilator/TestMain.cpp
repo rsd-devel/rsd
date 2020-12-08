@@ -195,8 +195,8 @@ int main(int argc, char** argv) {
         printf(
             "Loaded %s into a physical memory region [%x-%x].\n",
             fileName.c_str(),
-            offset,
-            offset + wordAddr * sizeof(uint32_t) - 1
+            (uint32_t)offset,
+            (uint32_t)(offset + wordAddr * sizeof(uint32_t) - 1)
         );
     };
     // ファイル内容は物理メモリ空間の先頭から連続して展開される
