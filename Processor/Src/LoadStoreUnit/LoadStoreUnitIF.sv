@@ -83,8 +83,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     logic storeLoadForwarded [ LOAD_ISSUE_WIDTH ];
     LSQ_BlockDataPath forwardedLoadData [ LOAD_ISSUE_WIDTH ];
     logic forwardMiss[ LOAD_ISSUE_WIDTH ];
-
-
+    
     // DCache
     logic dcReadReq[LOAD_ISSUE_WIDTH];    // Read request from the LSU.
     logic dcReadBusy[LOAD_ISSUE_WIDTH];   // Read ports are busy and cannot accept requests.
@@ -142,7 +141,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     logic conflict [ STORE_ISSUE_WIDTH ];
     logic memAccessOrderViolation [ STORE_ISSUE_WIDTH ];
     PC_Path conflictLoadPC [ STORE_ISSUE_WIDTH ];
-    
     
     modport DCache(
     input

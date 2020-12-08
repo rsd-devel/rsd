@@ -271,6 +271,9 @@ typedef struct packed // MemOpInfo
     CSR_CtrlPath csrCtrl;
     ENV_Code envCode;
 
+    // FENCEI
+    logic isFenceI;
+
     // Complex
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     MulOpSubInfo mulSubInfo;
