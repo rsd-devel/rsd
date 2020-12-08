@@ -28,6 +28,7 @@ input
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
     logic reqExternalInterrupt,
+    ExternalInterruptCodePath externalInterruptCode,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -103,7 +104,7 @@ output
     BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqExternalInterrupt);
+    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqExternalInterrupt, externalInterruptCode);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
     MulDivUnitIF mulDivUnitIF(clk, rst);
 

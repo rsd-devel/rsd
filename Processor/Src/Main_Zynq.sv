@@ -256,8 +256,10 @@ logic clk;
                             programLoaded);
 `endif
     logic reqExternalInterrupt;
+    ExternalInterruptCodePath externalInterruptCode; 
     always_comb begin
         reqExternalInterrupt = FALSE;
+        externalInterruptCode = 0;
     end
 
     //
@@ -273,6 +275,7 @@ logic clk;
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
         .reqExternalInterrupt( reqExternalInterrupt ),
+        .externalInterruptCode( externalInterruptCode ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),
         .memReadDataReady( memReadDataReady ),

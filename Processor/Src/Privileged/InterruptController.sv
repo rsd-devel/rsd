@@ -10,6 +10,7 @@
 
 import BasicTypes::*;
 import CSR_UnitTypes::*;
+import MemoryMapTypes::*;
 
 module InterruptController(
     CSR_UnitIF.InterruptController csrUnit,
@@ -22,6 +23,13 @@ module InterruptController(
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptTargetAddr;
     CSR_BodyPath csrReg;
+    InterruptCodeConvPath interruptCodeConv;
+
+    `RSD_STATIC_ASSERT(
+        RSD_EXTERNAL_INTERRUPT_CODE_WIDTH == CSR_CAUSE_INTERRUPT_CODE_WIDTH,
+        "The width of an external interrupt code and the code in the CSR do not match"
+    );
+
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
@@ -29,12 +37,13 @@ module InterruptController(
         reqExternalInterrupt =  csrReg.mie.MEIE && csrReg.mip.MEIP;
 
         reqInterrupt = csrReg.mstatus.MIE && (reqTimerInterrupt || reqExternalInterrupt);
+        interruptCodeConv.exCode = csrUnit.externalInterruptCodeInCSR; // Type conversion through union
         if (reqTimerInterrupt) begin
             // Timer has higher priority.
             interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
         end
         else begin
-            interruptCode = CSR_CAUSE_INTERRUPT_CODE_EXTERNAL;
+            interruptCode = interruptCodeConv.csrCode;
         end
 
         // パイプライン全体が空になるまでフェッチをとめる        

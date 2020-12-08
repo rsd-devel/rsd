@@ -45,7 +45,7 @@ typedef struct packed {
     logic [2:0] padding_0;  // 2:0
 } CSR_MIE_Path;
 
-typedef enum logic [3:0] {
+typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED = 0,
     CSR_CAUSE_TRAP_CODE_INSN_VIOLATION = 1,
     CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL = 2,
@@ -77,13 +77,20 @@ function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState
     endcase
 endfunction
 
-
-typedef enum logic [3:0] {
+localparam CSR_CAUSE_INTERRUPT_CODE_WIDTH = 5;
+typedef enum logic [CSR_CAUSE_INTERRUPT_CODE_WIDTH-1:0] {
     CSR_CAUSE_INTERRUPT_CODE_TIMER = 7,
-    CSR_CAUSE_INTERRUPT_CODE_EXTERNAL = 9
+    CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL = 11
 } CSR_CAUSE_InterruptCodePath;
 
 typedef union packed    // IntOpInfo
+{
+    ExternalInterruptCodePath   exCode;
+    CSR_CAUSE_InterruptCodePath csrCode;
+} InterruptCodeConvPath;
+
+
+typedef union packed    // CSR_CAUSE_CodePath
 {
     CSR_CAUSE_TrapCodePath trapCode;
     CSR_CAUSE_InterruptCodePath  interruptCode;
@@ -91,8 +98,8 @@ typedef union packed    // IntOpInfo
 
 typedef struct packed {
     logic isInterrupt;          // 31
-    logic [26:0] padding;       // 30:4
-    CSR_CAUSE_CodePath code;    //  3:0
+    logic [25:0] padding;       // 30:5
+    CSR_CAUSE_CodePath code;    //  4:0
 } CSR_CAUSE_Path;
 
 

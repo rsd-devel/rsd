@@ -25,16 +25,23 @@ module CSR_Unit(
     AddrPath jumpTarget;
     CommitLaneCountPath regCommitNum;
 
+    // An external interrupt request is latched in the CSR, and an actual 
+    // interrupt is triggered at the next cycle. So external interrupt code must be latched.
+    ExternalInterruptCodePath externalInterruptCodeReg;
+
     always_ff@(posedge port.clk) begin
         if (port.rst) begin
             csrReg <= '0;
             regCommitNum <= '0;
+            externalInterruptCodeReg <= '0;
         end
         else begin
             csrReg <= csrNext;
             regCommitNum <= port.commitNum;
+            externalInterruptCodeReg <= port.externalInterruptCode;
         end
     end
+
     always_comb begin
         mcycle = csrReg.mcycle;
         
@@ -138,6 +145,7 @@ module CSR_Unit(
 
         csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
         csrNext.mip.MEIP = port.reqExternalInterrupt;   // External interrupt request
+        port.externalInterruptCodeInCSR = externalInterruptCodeReg;
 
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin

@@ -257,8 +257,10 @@ output
 `endif
 
     logic reqExternalInterrupt;
+    ExternalInterruptCodePath externalInterruptCode; 
     always_comb begin
         reqExternalInterrupt = FALSE;
+        externalInterruptCode = 0;
     end
 
     //
@@ -274,6 +276,7 @@ output
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
         .reqExternalInterrupt( reqExternalInterrupt ),
+        .externalInterruptCode( externalInterruptCode ),
         .memReadData( memReadData ),
         .memReadDataReady( memReadDataReady ),
         .rstStart( rstStart ),
