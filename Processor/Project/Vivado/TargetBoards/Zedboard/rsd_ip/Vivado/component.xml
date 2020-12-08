@@ -2751,12 +2751,12 @@
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
-        <ns0:name>../../../../../../Src/Cache/CacheFlushManagementUnit.sv</ns0:name>
+        <ns0:name>../../../../../../Src/Cache/CacheFlushManager.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
-        <ns0:name>../../../../../../Src/Cache/CacheFlushManagementUnitIF.sv</ns0:name>
+        <ns0:name>../../../../../../Src/Cache/CacheFlushManagerIF.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>

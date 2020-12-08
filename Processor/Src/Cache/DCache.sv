@@ -91,6 +91,92 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
 endfunction
 
 //
+// Controller to handle the state of DCache.
+//
+module DCacheController(DCacheIF.DCacheController port);
+
+    // DCache state
+    DCachePhase regPhase, nextPhase;
+
+    // For flush
+    logic dcFlushReqAck;
+    logic dcFlushComplete;
+    logic mshrBusy;
+    logic loadStoreBusy;
+
+    // DCache phase
+    always_ff @(posedge port.clk) begin
+        if (port.rst) begin
+            regPhase <= DCACHE_PHASE_NORMAL;
+        end
+        else begin
+            regPhase <= nextPhase;
+        end
+    end
+
+    always_comb begin
+        nextPhase = regPhase;
+        dcFlushReqAck = FALSE;
+        dcFlushComplete = FALSE;
+        mshrBusy = FALSE;
+        loadStoreBusy = FALSE;
+
+        case (regPhase)
+        default: begin
+            nextPhase = DCACHE_PHASE_NORMAL;
+        end
+        DCACHE_PHASE_NORMAL: begin
+            for (int i = 0; i < MSHR_NUM; i++) begin
+                if (port.mshrPhase[i] != MSHR_PHASE_INVALID) begin
+                    // MSHRs are not free
+                    mshrBusy = TRUE;
+                end
+            end
+            for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
+                if (port.lsuCacheGrtReg[i] || port.lsuCacheGrt[i]) begin
+                    // Load or store inflight
+                    loadStoreBusy = TRUE;
+                end
+            end
+
+            // DCache can enter the flush phase when MSHRs are free.
+            // MSHR can be busy when a preceding load of fence.i allocated the MSHR 
+            // but was subsequently flushed.
+            dcFlushReqAck = !mshrBusy;
+            if (port.dcFlushReq && dcFlushReqAck) begin
+                nextPhase = DCACHE_PHASE_FLUSH_PROCESSING;
+            end
+        end
+        DCACHE_PHASE_FLUSH_PROCESSING: begin
+            if (port.mshrFlushComplete) begin
+                nextPhase = DCACHE_PHASE_FLUSH_COMPLETE;
+            end
+        end
+        DCACHE_PHASE_FLUSH_COMPLETE: begin
+            dcFlushComplete = TRUE;
+            if (port.flushComplete) begin
+                nextPhase = DCACHE_PHASE_NORMAL;
+            end
+        end
+        endcase
+
+        // DCache -> cacheFlushManagemer
+        port.dcFlushReqAck = dcFlushReqAck;
+        port.dcFlushComplete = dcFlushComplete;
+
+        // DCache controller -> DCache submodules
+        port.dcFlushing = (regPhase == DCACHE_PHASE_FLUSH_PROCESSING);
+    end
+
+    `RSD_ASSERT_CLK(
+        port.clk,
+        !(loadStoreBusy && port.dcFlushReq && dcFlushReqAck),
+        "Inflight load or store is found on DC flush request acquirement."
+    );
+
+endmodule : DCacheController
+
+//
 // The arbiter of the ports of the main memory.
 //
 module DCacheMemoryReqPortArbiter(DCacheIF.DCacheMemoryReqPortArbiter port);
@@ -592,8 +678,6 @@ module DCache(
     ControllerIF.DCache ctrl
 );
 
-    DCachePhase regPhase, nextPhase;
-
     logic hit[DCACHE_LSU_PORT_NUM];
     logic missReq[DCACHE_LSU_PORT_NUM];
     PhyAddrPath missAddr[DCACHE_LSU_PORT_NUM];
@@ -602,6 +686,8 @@ module DCache(
 
     // Tag array
     DCacheIF port(lsu.clk, lsu.rst, lsu.rstStart);
+
+    DCacheController controller(port);
 
     DCacheArray array(port);
     DCacheArrayPortArbiter arrayArbiter(port);
@@ -658,75 +744,6 @@ module DCache(
 
     // MSHRをAllocateしたLoad命令がReplayQueueの先頭でflushされた場合，AllocateされたMSHRは解放可能になる
     logic lsuMakeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
-
-    // For flush
-    logic dcFlushReqAck;
-    logic dcFlushComplete;
-    logic mshrBusy;
-    logic loadStoreBusy;
-
-    // DCache phase
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            regPhase <= DCACHE_PHASE_NORMAL;
-        end
-        else begin
-            regPhase <= nextPhase;
-        end
-    end
-
-    always_comb begin
-        nextPhase = regPhase;
-        dcFlushReqAck = FALSE;
-        dcFlushComplete = FALSE;
-        mshrBusy = FALSE;
-        loadStoreBusy = FALSE;
-
-        case (regPhase)
-        default: begin
-            nextPhase = DCACHE_PHASE_NORMAL;
-        end
-        DCACHE_PHASE_NORMAL: begin
-            for (int i = 0; i < MSHR_NUM; i++) begin
-                if (port.mshrPhase[i] != MSHR_PHASE_INVALID) begin
-                    // MSHRs are not free
-                    mshrBusy = TRUE;
-                end
-            end
-            for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
-                if (lsuCacheGrtReg[i] || port.lsuCacheGrt[i]) begin
-                    // Load or store inflight
-                    loadStoreBusy = TRUE;
-                end
-            end
-
-            // DCache can enter the flush phase when 
-            // no load and store inflight and MSHRs are free.
-            dcFlushReqAck = (!mshrBusy && !loadStoreBusy);
-            if (cacheSystem.dcFlushReq && dcFlushReqAck) begin
-                nextPhase = DCACHE_PHASE_FLUSH_PROCESSING;
-            end
-        end
-        DCACHE_PHASE_FLUSH_PROCESSING: begin
-            if (port.dcFlushComplete) begin
-                nextPhase = DCACHE_PHASE_FLUSH_COMPLETE;
-            end
-        end
-        DCACHE_PHASE_FLUSH_COMPLETE: begin
-            dcFlushComplete = TRUE;
-            if (cacheSystem.flushComplete) begin
-                nextPhase = DCACHE_PHASE_NORMAL;
-            end
-        end
-        endcase
-
-        // DCache -> cacheFlushManagementUnit
-        cacheSystem.dcFlushReqAck = dcFlushReqAck;
-        cacheSystem.dcFlushComplete = dcFlushComplete;
-
-        // DCache top -> DCache submodules
-        port.dcFlushing = (regPhase == DCACHE_PHASE_FLUSH_PROCESSING);
-    end
 
 `ifndef RSD_SYNTHESIS
     `ifndef RSD_VIVADO_SIMULATION
@@ -1003,6 +1020,9 @@ module DCache(
             port.isUncachable[i] = portIsUncachable[i];
         end
 
+        // DCache top -> DCache controller
+        port.lsuCacheGrtReg = lsuCacheGrtReg;
+
         // Output control signals
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
             lsu.dcReadBusy[i] = mshrConflict[i];
@@ -1069,6 +1089,19 @@ module DCache(
         port.memAccessResponse = cacheSystem.dcMemAccessResponse;
     end
 
+    //
+    // CacheFlushManager
+    //
+    always_comb begin
+        // DCache -> cacheFlushManagemer
+        cacheSystem.dcFlushReqAck = port.dcFlushReqAck;
+        cacheSystem.dcFlushComplete = port.dcFlushComplete;
+
+        // cacheFlushManagemer -> DCache
+        port.dcFlushReq = cacheSystem.dcFlushReq;
+        port.flushComplete = cacheSystem.flushComplete;
+    end
+
 endmodule : DCache
 
 
@@ -1082,7 +1115,7 @@ module DCacheMissHandler(
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
 
-    logic dcFlushComplete[MSHR_NUM];
+    logic mshrFlushComplete[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
     // Don't care these values, but avoiding undefined status in Questa.
@@ -1125,7 +1158,7 @@ module DCacheMissHandler(
 
         // Flush operation uses MSHR[0];
         // therefore the complete signal comes from MSHR[0]. 
-        port.dcFlushComplete = dcFlushComplete[0];
+        port.mshrFlushComplete = mshrFlushComplete[0];
     end
 
     DCacheLinePath portStoredLineData;
@@ -1174,7 +1207,7 @@ module DCacheMissHandler(
             port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
 
             // For flush
-            dcFlushComplete[i] = FALSE;
+            mshrFlushComplete[i] = FALSE;
 
             case(mshr[i].phase)
                 default: begin
@@ -1335,7 +1368,7 @@ module DCacheMissHandler(
                 MSHR_PHASE_FLUSH_CHECK: begin
                     if (&(mshr[i].flushIndex)) begin
                         nextMSHR[i].flushIndex = '0;
-                        dcFlushComplete[i] = TRUE;
+                        mshrFlushComplete[i] = TRUE;
                     end
                     else begin
                         nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
@@ -1348,7 +1381,7 @@ module DCacheMissHandler(
                     nextMSHR[i].memWSerial = '0;
                     nextMSHR[i].line = '0;
 
-                    if (dcFlushComplete[i]) begin
+                    if (mshrFlushComplete[i]) begin
                         nextMSHR[i].phase = MSHR_PHASE_INVALID;
                         nextMSHR[i].valid = FALSE;
                     end

@@ -15,9 +15,9 @@ import OpFormatTypes::*;
 import MemoryMapTypes::*;
 import LoadStoreUnitTypes::*;
 
-module CacheFlushManagementUnit(
-    CacheFlushManagementUnitIF.CacheFlushManagementUnit port,
-    CacheSystemIF.CacheFlushManagementUnit cacheSystem
+module CacheFlushManager(
+    CacheFlushManagerIF.CacheFlushManager port,
+    CacheSystemIF.CacheFlushManager cacheSystem
 );
 
     typedef enum logic[1:0]
@@ -28,14 +28,14 @@ module CacheFlushManagementUnit(
         PHASE_WAITING       = 3   // Wait for issuing ifence from replayqueue
     } CacheFlushPhase;
 
-    // CacheFlushManagementUnit <-> ICache, DCache
+    // CacheFlushManager <-> ICache, DCache
     logic icFlushReq, dcFlushReq;
 
     CacheFlushPhase regPhase, nextPhase;
     logic regIcFlushComplete, nextIcFlushComplete;
     logic regDcFlushComplete, nextDcFlushComplete;
 
-    // CacheFlushManagementUnit <-> MemExecStage, ReplayQueue
+    // CacheFlushManager <-> MemExecStage, ReplayQueue
     logic cacheFlushComplete;
 
     always_ff @( posedge port.clk ) begin
@@ -120,4 +120,4 @@ module CacheFlushManagementUnit(
     end
 
 
-endmodule : CacheFlushManagementUnit
+endmodule : CacheFlushManager

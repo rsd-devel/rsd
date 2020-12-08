@@ -16,13 +16,13 @@ import OpFormatTypes::*;
 import LoadStoreUnitTypes::*;
 import MemoryMapTypes::*;
 
-interface CacheFlushManagementUnitIF( input logic clk, rst );
+interface CacheFlushManagerIF( input logic clk, rst );
 
     // CacheFlushManagement
     logic cacheFlushReq;
     logic cacheFlushComplete;
 
-    modport CacheFlushManagementUnit(
+    modport CacheFlushManager(
     input
         clk,
         rst,
@@ -43,4 +43,4 @@ interface CacheFlushManagementUnitIF( input logic clk, rst );
         cacheFlushComplete
     );
 
-endinterface : CacheFlushManagementUnitIF
+endinterface : CacheFlushManagerIF

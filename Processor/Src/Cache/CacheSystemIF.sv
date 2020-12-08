@@ -22,7 +22,7 @@ interface CacheSystemIF( input logic clk, rst );
     MemAccessResult dcMemAccessResult;
     MemAccessResponse dcMemAccessResponse;
 
-    // CacheFlushManagementUnit
+    // CacheFlushManager
     logic icFlushReqAck;
     logic icFlushComplete;
     logic icFlushReq;
@@ -75,7 +75,7 @@ interface CacheSystemIF( input logic clk, rst );
         dcMemAccessResponse
     );
 
-    modport CacheFlushManagementUnit(
+    modport CacheFlushManager(
     input
         icFlushReqAck,
         icFlushComplete,

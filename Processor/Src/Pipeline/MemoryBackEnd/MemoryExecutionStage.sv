@@ -26,7 +26,7 @@ module MemoryExecutionStage(
     MemoryExecutionStageIF.ThisStage port,
     MemoryRegisterReadStageIF.NextStage prev,
     LoadStoreUnitIF.MemoryExecutionStage loadStoreUnit,
-    CacheFlushManagementUnitIF.MemoryExecutionStage cacheFlush,
+    CacheFlushManagerIF.MemoryExecutionStage cacheFlush,
     MulDivUnitIF.MemoryExecutionStage mulDivUnit,
     BypassNetworkIF.MemoryExecutionStage bypass,
     RecoveryManagerIF.MemoryExecutionStage recovery,

@@ -100,9 +100,30 @@ input
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
 
-    // For flush
+    // Controller
+    logic lsuCacheGrtReg[DCACHE_LSU_PORT_NUM];
     logic dcFlushing;
+    logic dcFlushReqAck;
     logic dcFlushComplete;
+    logic dcFlushReq;
+    logic flushComplete;
+    logic mshrFlushComplete;
+
+    modport DCacheController(
+    input
+        clk,
+        rst,
+        dcFlushReq,
+        flushComplete,
+        mshrPhase,
+        lsuCacheGrt,
+        lsuCacheGrtReg,
+        mshrFlushComplete,
+    output
+        dcFlushReqAck,
+        dcFlushComplete,
+        dcFlushing
+    );
 
     modport DCacheArrayPortArbiter(
     input
@@ -205,7 +226,7 @@ input
         mshrPhase,
         mshrData,
         mshrAddrSubset,
-        dcFlushComplete
+        mshrFlushComplete
     );
 
     modport DCacheArray(
@@ -246,6 +267,7 @@ input
         mshrAddr,
         mshrPhase,
         mshrAddrSubset,
+        dcFlushReqAck,
         dcFlushComplete,
     output
         lsuCacheReq,
@@ -263,7 +285,9 @@ input
         makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
         storedLineByteWE,
-        dcFlushing
+        dcFlushReq,
+        flushComplete,
+        lsuCacheGrtReg
     );
 
 endinterface

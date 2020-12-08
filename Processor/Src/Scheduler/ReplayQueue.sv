@@ -17,7 +17,7 @@ module ReplayQueue(
     SchedulerIF.ReplayQueue port,
     LoadStoreUnitIF.ReplayQueue mshr,
     MulDivUnitIF.ReplayQueue mulDivUnit,
-    CacheFlushManagementUnitIF.ReplayQueue cacheFlush,
+    CacheFlushManagerIF.ReplayQueue cacheFlush,
     RecoveryManagerIF.ReplayQueue recovery,
     ControllerIF.ReplayQueue ctrl
 );
