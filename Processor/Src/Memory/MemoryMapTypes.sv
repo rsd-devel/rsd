@@ -85,18 +85,20 @@ typedef enum logic[1:0]  {
 
 //
 // Physical Address
-// 1 bit の mem/IO 識別と，残りの物理アドレスで表限
-localparam PHY_ADDR_WIDTH = 21;  // 21 bits: 1bit flag + 1MB memory/IO space
+// The most significant two bits of the physical memory address is used distinguish between 
+// accesses to a normal memory region, memory-mapped IO region, and uncachable region.
+localparam PHY_ADDR_WIDTH = 22;  // 22 bits: 1bit uncachable flag + 1bit IO flag + 1MB memory space
 localparam PHY_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_ADDR_WIDTH);
 localparam PHY_ADDR_BYTE_WIDTH = PHY_ADDR_WIDTH / BYTE_WIDTH;
 
-localparam PHY_RAW_ADDR_WIDTH = PHY_ADDR_WIDTH - 1;  // 20
+localparam PHY_RAW_ADDR_WIDTH = PHY_ADDR_WIDTH - 2;  // 20 + isIO (1 bit) + isUncachable (1 bit)
 localparam PHY_RAW_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_RAW_ADDR_WIDTH);
 localparam PHY_RAW_ADDR_BYTE_WIDTH = PHY_RAW_ADDR_WIDTH / BYTE_WIDTH;
 
 typedef logic [PHY_RAW_ADDR_WIDTH-1:0] PhyRawAddrPath;
 typedef struct packed {
-    logic isIO; // True if address is 
+    logic isUncachable; // True if address points to an uncachable address space.
+    logic isIO; // True if address points to a memory-mapped IO.
     PhyRawAddrPath addr;
 } PhyAddrPath;
 
@@ -128,6 +130,16 @@ localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
 
 localparam PHY_ADDR_SECTION_1_BASE = 20'h1_0000;
 
+//
+// Uncachable section (RAM?)
+// 0x8004_0000 - 0x8004_ffff -> 0x5_0000 -> 0x5_ffff
+//
+localparam LOG_ADDR_UNCACHABLE_BEGIN = 32'h8004_0000;
+localparam LOG_ADDR_UNCACHABLE_END   = 32'h8005_0000;
+localparam LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH = 19;
+
+// 下位アドレスを切り出してそのまま加算できるように，0x1000 分は無視
+localparam PHY_ADDR_UNCACHABLE_BASE = 20'h1_0000;
 
 //
 // --- Serial IO
@@ -171,6 +183,9 @@ function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
     else if (LOG_ADDR_TIMER_BEGIN <= addr && addr < LOG_ADDR_TIMER_END) begin
         return MMT_IO;
     end
+    else if (LOG_ADDR_UNCACHABLE_BEGIN <= addr && addr < LOG_ADDR_UNCACHABLE_END) begin
+        return MMT_MEMORY;
+    end
     else if (LOG_ADDR_SECTION_0_BEGIN <= addr && addr < LOG_ADDR_SECTION_0_END) begin
         return MMT_MEMORY;
     end
@@ -187,28 +202,41 @@ function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     PhyAddrPath phyAddr;
 
     if (logAddr == LOG_ADDR_SERIAL_OUTPUT) begin
+        phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_SERIAL_OUTPUT;
     end
     else if (LOG_ADDR_TIMER_BEGIN <= logAddr && logAddr < LOG_ADDR_TIMER_END) begin
+        phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_TIMER_BASE + 
             logAddr[PHY_ADDR_TIMER_ZONE_BIT_WIDTH-1:0];
     end
+    else if (LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr < LOG_ADDR_UNCACHABLE_END) begin
+        // Uncachable region (RAM?)
+        phyAddr.isUncachable = TRUE;
+        phyAddr.isIO = FALSE;
+        phyAddr.addr = PHY_ADDR_UNCACHABLE_BASE + 
+            logAddr[LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH-1:0];
+    end
+    
     else if (LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr < LOG_ADDR_SECTION_0_END) begin
         // Section 0 (ROM?)
+        phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_SECTION_0_BASE + 
             logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH:0];
     end
     else if (LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr < LOG_ADDR_SECTION_1_END) begin
         // Section 1 (RAM?)
+        phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_SECTION_1_BASE + 
             logAddr[LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH-1:0];
     end
     else begin
         // Invalid
+        phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = 32'hCCCC_CCCC;
     end
@@ -218,6 +246,10 @@ endfunction
 
 function automatic logic IsPhyAddrIO(PhyAddrPath phyAddr);
     return phyAddr.isIO;
+endfunction
+
+function automatic logic IsPhyAddrUncachable(PhyAddrPath phyAddr);
+    return phyAddr.isUncachable;
 endfunction
 
 endpackage

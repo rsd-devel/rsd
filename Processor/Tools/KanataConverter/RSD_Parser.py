@@ -28,7 +28,7 @@ RSD_PARSER_RETIREMENT_STAGE_ID = 14
 RSD_PARSER_CID_DEFAULT = -1
 
 class RSD_ParserError( Exception ):
-    """ An exeception class for RSD_Parser """
+    """ An exception class for RSD_Parser """
     pass
 
 
@@ -253,7 +253,7 @@ class RSD_Parser( object ):
                 self.AddEvent( current, gid, self.EVENT_STAGE_BEGIN, op.stageID, comment )
                 if retire:
                     self.AddRetiredGID( gid )
-                    # Count num of commmitted ops.
+                    # Count num of committed ops.
                     op.commit = True
                     op.cid = self.committedOpNum
                     self.committedOpNum += 1
@@ -261,7 +261,7 @@ class RSD_Parser( object ):
                     self.AddEvent( current + 1, gid, self.EVENT_STAGE_END, op.stageID, "" )
                     self.AddEvent( current + 1, gid, self.EVENT_RETIRE, op.stageID, "" )
         else:
-            # Initalize/Begin a stage
+            # Initialize/Begin a stage
             self.AddEvent( current, gid, self.EVENT_INIT, op.stageID, "" )
             self.AddEvent( current, gid, self.EVENT_STAGE_BEGIN, op.stageID, comment )
             if ( op.stall ):

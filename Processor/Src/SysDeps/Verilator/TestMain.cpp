@@ -53,6 +53,8 @@ int GetCommittedRegisterValue(
     for(int i = 0; i < LSCALAR_NUM; i++) {
         regData[i] = core->registerFile->phyReg->debugValue[phyRegNum[i]];
     }
+    
+    return 0;
 }
 
 
@@ -152,8 +154,10 @@ int main(int argc, char** argv) {
     //uint32_t* mainMem = &(top->Main_Zynq_Wrapper->main->memory->body->array[0][0]);
     //assert(top->MemoryTypes->MEMORY_ENTRY_BIT_NUM == 128);
     //assert(sizeof(top->Main_Zynq_Wrapper->main->memory->body->array) == 128/8 * MEMORY_ENTRY_NUM);
-    size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->array) / sizeof(uint32_t);
-    uint32_t* mainMem = (uint32_t*)(top->Main_Zynq_Wrapper->main->memory->body->array);
+    // To access the module generated in generate,
+    // use (Label given in generate section)__DOT__(module name)
+    size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array) / sizeof(uint32_t);
+    uint32_t* mainMem = (uint32_t*)(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array);
 
     // Fill dummy data
     for (int i = 0; i < mainMemWordSize; i++) {
@@ -191,8 +195,8 @@ int main(int argc, char** argv) {
         printf(
             "Loaded %s into a physical memory region [%x-%x].\n",
             fileName.c_str(),
-            offset,
-            offset + wordAddr * sizeof(uint32_t) - 1
+            (uint32_t)offset,
+            (uint32_t)(offset + wordAddr * sizeof(uint32_t) - 1)
         );
     };
     // ファイル内容は物理メモリ空間の先頭から連続して展開される

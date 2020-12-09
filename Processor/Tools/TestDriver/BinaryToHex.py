@@ -48,3 +48,4 @@ with open( hexFileName, 'w' ) as hexFile:
         else:
             s = '0' * ENTRY_BYTE_SIZE * 2 + '\n'
         hexFile.write(s)
+

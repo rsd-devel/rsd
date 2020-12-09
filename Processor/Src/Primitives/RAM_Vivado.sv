@@ -225,43 +225,62 @@ module InitializedBlockRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra,
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
-    (* ram_style="block" *)
-    Value array[ENTRY_NUM];
-    Address raReg;
-
-    always_ff @(posedge clk) begin
-        if(we)
-            array[wa] <= wv;
-            
-        raReg <= ra;
-    end
-    
-    always_comb begin
-        rv = array[raReg];
-    end
-
-    initial begin
-        $readmemh(INIT_HEX_FILE, array);
-    end
-
+    localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
     generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && wa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(ra >= ENTRY_NUM),
-            ("Read from the outside of the RAM array.")
-        );
+        // Add label to if and for clause to access the module that
+        // generated dynamically
+        if (ENTRY_BIT_SIZE <= HEX_FILE_ENTRY_BIT_SIZE) begin : body
+            InitializedBlockRAM_ForNarrowRequest #(
+                .ENTRY_NUM (ENTRY_NUM),
+                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
+                .INIT_HEX_FILE (INIT_HEX_FILE)
+            ) ram (
+                .clk (clk),
+                .we (we),
+                .wa (wa),
+                .wv (wv),
+                .ra (ra),
+                .rv (rv)
+            );
+        end
+        else begin : body
+            InitializedBlockRAM_ForWideRequest #(
+                .ENTRY_NUM (ENTRY_NUM),
+                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
+                .INIT_HEX_FILE (INIT_HEX_FILE)
+            ) ram (
+                .clk (clk),
+                .we (we),
+                .wa (wa),
+                .wv (wv),
+                .ra (ra),
+                .rv (rv)
+            );
+        end
     endgenerate
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    `ifndef RSD_POST_SYNTHESIS
+    // Initialize memory data with file read data
+    function automatic void InitializeMemory(string INIT_HEX_FILE);
+        $readmemh(INIT_HEX_FILE, body.ram.array);
+    endfunction
+
+    function automatic void FillDummyData(string DUMMY_DATA_FILE, integer DUMMY_HEX_ENTRY_NUM);
+        integer entry;
+        for ( entry = 0; entry < body.ram.HEX_FILE_ARRAY_ENTRY_NUM; entry += DUMMY_HEX_ENTRY_NUM ) begin
+            $readmemh(
+                DUMMY_DATA_FILE,
+                body.ram.array,
+                entry, // Begin address
+                entry + DUMMY_HEX_ENTRY_NUM - 1 // End address
+            );
+        end
+    endfunction
+    `endif
+`endif
+    
 endmodule : InitializedBlockRAM
 
 
@@ -399,6 +418,135 @@ module InitializedBlockRAM_ForNarrowRequest #(
     endgenerate
 
 endmodule : InitializedBlockRAM_ForNarrowRequest
+
+
+//
+// InitializedBlockRAM that supports a bandwidth of 256 bits or more
+//
+module InitializedBlockRAM_ForWideRequest #( 
+    parameter ENTRY_NUM = 128, 
+    parameter ENTRY_BIT_SIZE = 64,
+    parameter INIT_HEX_FILE = "code.hex"
+)( 
+    input logic clk,
+    input logic we,
+    input logic [$clog2(ENTRY_NUM)-1: 0] wa,
+    input logic [ENTRY_BIT_SIZE-1: 0] wv,
+    input logic [$clog2(ENTRY_NUM)-1: 0] ra,
+    output logic [ENTRY_BIT_SIZE-1: 0] rv
+);
+
+    // Request side
+    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
+    localparam ENTRY_BIT_WIDTH = $clog2(ENTRY_BIT_SIZE);
+
+    // Since the hex file is read in 128 bits units, the memory array is also 128 bits units.
+    localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
+    // Calculates the index width when the memory array is configured in 128 bits units from the bandwidth
+    // ********-------   : 128 bits memory array (Actual memory array)
+    // *******--------   : 256 bits memory array  (Externally visible memory array)
+    // (Index)   (Offset)
+    // The sum of the bit width of Index and Offset is always the same
+    localparam HEX_FILE_ENTRY_BIT_WIDTH = $clog2(HEX_FILE_ENTRY_BIT_SIZE);
+    localparam HEX_FILE_INDEX_BIT_SIZE = 
+        INDEX_BIT_SIZE + ENTRY_BIT_WIDTH - HEX_FILE_ENTRY_BIT_WIDTH;
+
+    // Since the bandwidth is wide, 
+    // read is realized by accessing hexArray multiple times.
+    // Therefore, calculate how many times hexArray needs to be accessed
+    localparam DIFF_BIT_WIDTH = (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) ? 
+        HEX_FILE_INDEX_BIT_SIZE - INDEX_BIT_SIZE : 1;
+    typedef logic [DIFF_BIT_WIDTH-1:0] CountPath;
+    localparam HEX_BLOCK_FILL_NUM = (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) ?
+        1 << DIFF_BIT_WIDTH : 1;
+
+    // Hex file memory array
+    typedef logic [HEX_FILE_INDEX_BIT_SIZE-1: 0] HexArrayIndex;
+    typedef logic [HEX_FILE_ENTRY_BIT_SIZE-1: 0] HexArrayValue;
+
+    // Raise an error if the bandwidth is smaller than or equal to 128 bits
+    `RSD_STATIC_ASSERT(
+        HEX_FILE_ENTRY_BIT_WIDTH <= ENTRY_BIT_WIDTH, 
+        "Set ENTRY_BIT_SIZE more than 128 bits"
+    );
+
+    function automatic HexArrayIndex GetHexArrayIndexFromAddress(Address addr, CountPath count);
+        if (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) begin
+            return {addr, count};
+        end
+        else begin
+            return addr;
+        end
+    endfunction
+
+    localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
+    (* ram_style="block" *)
+    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM];
+
+    Address raReg;
+    HexArrayIndex hexFileRA[HEX_BLOCK_FILL_NUM];
+    HexArrayValue hexFileRV[HEX_BLOCK_FILL_NUM];
+
+    HexArrayIndex hexFileWA[HEX_BLOCK_FILL_NUM];
+    HexArrayValue hexFileWV[HEX_BLOCK_FILL_NUM];
+
+    always_ff @(posedge clk) begin
+        if (we) begin
+            for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
+                array[hexFileWA[i]] <= hexFileWV[i];
+            end
+        end
+            
+        raReg <= ra;
+    end
+    
+    // Read request
+    always_comb begin
+        // Read from the hex file array
+        for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
+            hexFileRA[i] = GetHexArrayIndexFromAddress(raReg, i);
+            hexFileRV[i] = array[hexFileRA[i]];
+            rv[HEX_FILE_ENTRY_BIT_SIZE*i+:HEX_FILE_ENTRY_BIT_SIZE] = hexFileRV[i];
+        end
+    end
+
+    // Write request
+    always_comb begin
+        // Write to the hex file array
+        for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
+            hexFileWA[i] = GetHexArrayIndexFromAddress(wa, i);
+            hexFileWV[i] = wv[HEX_FILE_ENTRY_BIT_SIZE*i+:HEX_FILE_ENTRY_BIT_SIZE];
+        end
+    end
+
+    initial begin
+        if (INIT_HEX_FILE != "") begin
+            $readmemh(INIT_HEX_FILE, array);
+        end
+        else begin
+            $display(
+                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
+            );
+        end
+    end
+
+    generate
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !(we && wa >= ENTRY_NUM),
+            ("Write to the outside of the RAM array.")
+        );
+
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !(ra >= ENTRY_NUM),
+            ("Read from the outside of the RAM array.")
+        );
+    endgenerate
+
+endmodule : InitializedBlockRAM_ForWideRequest
 
 
 //

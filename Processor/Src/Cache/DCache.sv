@@ -6,6 +6,21 @@
 // 2-read/write set-associative data cache
 //
 
+// --- Uncachable load/store
+// Uncachable loads always receive data from a data bus. They never update cache.
+// Uncachable stores always write data directly to memory. 
+// They first receive data from the data bus in a cache line granularity, 
+// update the cache line, and then send it back to the data bus. They never update cache.
+//
+// MSHRs play a key role as below:
+// Every uncachable load/store misses in cache and allocates an MSHR.
+// The MSHR issues a memory read request to the data bus in a cache line granularity.
+// A load receives data from the MSHR and deallocates it.
+// A store merges its data and the loaded cache line, and then the MSHR sends the merged data to the data bus.
+//
+// Uncachable stores must firstly load data from a data bus for simplicity of the current implementation, 
+// in which the current implementation always send a write request to the AXI data bus in cache line granularity.
+
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
@@ -74,6 +89,92 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
     mshr = '0;
     return mshr;
 endfunction
+
+//
+// Controller to handle the state of DCache.
+//
+module DCacheController(DCacheIF.DCacheController port);
+
+    // DCache state
+    DCachePhase regPhase, nextPhase;
+
+    // For flush
+    logic dcFlushReqAck;
+    logic dcFlushComplete;
+    logic mshrBusy;
+    logic loadStoreBusy;
+
+    // DCache phase
+    always_ff @(posedge port.clk) begin
+        if (port.rst) begin
+            regPhase <= DCACHE_PHASE_NORMAL;
+        end
+        else begin
+            regPhase <= nextPhase;
+        end
+    end
+
+    always_comb begin
+        nextPhase = regPhase;
+        dcFlushReqAck = FALSE;
+        dcFlushComplete = FALSE;
+        mshrBusy = FALSE;
+        loadStoreBusy = FALSE;
+
+        case (regPhase)
+        default: begin
+            nextPhase = DCACHE_PHASE_NORMAL;
+        end
+        DCACHE_PHASE_NORMAL: begin
+            for (int i = 0; i < MSHR_NUM; i++) begin
+                if (port.mshrPhase[i] != MSHR_PHASE_INVALID) begin
+                    // MSHRs are not free
+                    mshrBusy = TRUE;
+                end
+            end
+            for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
+                if (port.lsuCacheGrtReg[i] || port.lsuCacheGrt[i]) begin
+                    // Load or store inflight
+                    loadStoreBusy = TRUE;
+                end
+            end
+
+            // DCache can enter the flush phase when MSHRs are free.
+            // MSHR can be busy when a preceding load of fence.i allocated the MSHR 
+            // but was subsequently flushed.
+            dcFlushReqAck = !mshrBusy;
+            if (port.dcFlushReq && dcFlushReqAck) begin
+                nextPhase = DCACHE_PHASE_FLUSH_PROCESSING;
+            end
+        end
+        DCACHE_PHASE_FLUSH_PROCESSING: begin
+            if (port.mshrFlushComplete) begin
+                nextPhase = DCACHE_PHASE_FLUSH_COMPLETE;
+            end
+        end
+        DCACHE_PHASE_FLUSH_COMPLETE: begin
+            dcFlushComplete = TRUE;
+            if (port.flushComplete) begin
+                nextPhase = DCACHE_PHASE_NORMAL;
+            end
+        end
+        endcase
+
+        // DCache -> cacheFlushManagemer
+        port.dcFlushReqAck = dcFlushReqAck;
+        port.dcFlushComplete = dcFlushComplete;
+
+        // DCache controller -> DCache submodules
+        port.dcFlushing = (regPhase == DCACHE_PHASE_FLUSH_PROCESSING);
+    end
+
+    `RSD_ASSERT_CLK(
+        port.clk,
+        !(loadStoreBusy && port.dcFlushReq && dcFlushReqAck),
+        "Inflight load or store is found on DC flush request acquirement."
+    );
+
+endmodule : DCacheController
 
 //
 // The arbiter of the ports of the main memory.
@@ -172,7 +273,13 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
         // Merge inputs.
         for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
-            req[r] = port.lsuCacheReq[r];
+            if (port.dcFlushing) begin
+                // Only MSHRs can be processed during flush.
+                req[r] = FALSE;
+            end
+            else begin
+                req[r] = port.lsuCacheReq[r];
+            end
         end
         for (int r = 0; r < MSHR_NUM; r++) begin
             req[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheReq[r];
@@ -574,10 +681,13 @@ module DCache(
     logic hit[DCACHE_LSU_PORT_NUM];
     logic missReq[DCACHE_LSU_PORT_NUM];
     PhyAddrPath missAddr[DCACHE_LSU_PORT_NUM];
+    logic missIsUncachable[DCACHE_LSU_PORT_NUM];
 
 
     // Tag array
     DCacheIF port(lsu.clk, lsu.rst, lsu.rstStart);
+
+    DCacheController controller(port);
 
     DCacheArray array(port);
     DCacheArrayPortArbiter arrayArbiter(port);
@@ -604,9 +714,11 @@ module DCache(
     PhyAddrPath dcReadAddrRegDataStg[DCACHE_LSU_READ_PORT_NUM];
     logic dcReadReqReg[DCACHE_LSU_READ_PORT_NUM];
     logic lsuCacheGrtReg[DCACHE_LSU_PORT_NUM];
+    logic dcReadUncachableReg[DCACHE_LSU_READ_PORT_NUM];
 
     logic dcWriteReqReg;
     PhyAddrPath dcWriteAddrReg;
+    logic dcWriteUncachableReg;
 
 
     logic lsuLoadHasAllocatedMSHR[DCACHE_LSU_READ_PORT_NUM];
@@ -640,8 +752,10 @@ module DCache(
             for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
                 dcReadAddrRegTagStg[i] = '0;
                 dcReadAddrRegDataStg[i] = '0;
+                dcReadUncachableReg[i] = '0;
             end
             dcWriteAddrReg = '0;
+            dcWriteUncachableReg = '0;
         end
     `endif
 `endif
@@ -662,12 +776,14 @@ module DCache(
             for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
                 dcReadReqReg[i] <= lsu.dcReadReq[i];
                 dcReadAddrRegTagStg[i] <= lsu.dcReadAddr[i];
+                dcReadUncachableReg[i] <= lsu.dcReadUncachable[i];
             end
 
             dcReadAddrRegDataStg <= dcReadAddrRegTagStg;
 
             dcWriteReqReg <= lsu.dcWriteReq;
             dcWriteAddrReg <= lsu.dcWriteAddr;
+            dcWriteUncachableReg <= lsu.dcWriteUncachable;
         end
     end
 
@@ -704,6 +820,7 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataWE_OnTagHit = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isFlushReq = FALSE;
         end
 
         // --- In the tag access stage (MemoryTagAccessStage)
@@ -756,6 +873,7 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].dataDirtyIn = TRUE;
             // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isFlushReq = FALSE;
 
             lsu.dcWriteReqAck = port.lsuCacheGrt[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
         end
@@ -798,6 +916,7 @@ module DCache(
                 lsuCacheGrtReg[i] && 
                 !lsu.dcReadCancelFromMT_Stage[i];
             missAddr[i] = dcReadAddrRegTagStg[i];
+            missIsUncachable[i] = dcReadUncachableReg[i];
         end
 
         // Write requests from a store queue commitor.
@@ -805,6 +924,7 @@ module DCache(
             assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
             missReq[i] = !hit[i] && !port.lsuMuxTagOut[i].mshrConflict && dcWriteReqReg && lsuCacheGrtReg[i];
             missAddr[i] = dcWriteAddrReg;
+            missIsUncachable[i] = dcWriteUncachableReg;
         end
 
     end
@@ -819,6 +939,7 @@ module DCache(
     logic portInitMSHR[MSHR_NUM];
     PhyAddrPath portInitMSHR_Addr[MSHR_NUM];
     logic portIsAllocatedByStore[MSHR_NUM];
+    logic portIsUncachable[MSHR_NUM];
 
     always_comb begin
 
@@ -862,6 +983,7 @@ module DCache(
             portInitMSHR[i] = FALSE;
             portInitMSHR_Addr[i] = '0;
             portIsAllocatedByStore[i] = FALSE;
+            portIsUncachable[i] = FALSE;
         end
 
         for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
@@ -876,6 +998,7 @@ module DCache(
                 if (!port.mshrValid[m] && !portInitMSHR[m]) begin
                     portInitMSHR[m] = TRUE;
                     portInitMSHR_Addr[m] = missAddr[i];
+                    portIsUncachable[m] = missIsUncachable[i];
                     if (i < DCACHE_LSU_READ_PORT_NUM) begin
                         lsuLoadHasAllocatedMSHR[i] = TRUE;
                         lsuLoadMSHRID[i] = m;
@@ -894,7 +1017,11 @@ module DCache(
             port.initMSHR[i] = portInitMSHR[i];
             port.initMSHR_Addr[i] = portInitMSHR_Addr[i];
             port.isAllocatedByStore[i] = portIsAllocatedByStore[i];
+            port.isUncachable[i] = portIsUncachable[i];
         end
+
+        // DCache top -> DCache controller
+        port.lsuCacheGrtReg = lsuCacheGrtReg;
 
         // Output control signals
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
@@ -962,6 +1089,19 @@ module DCache(
         port.memAccessResponse = cacheSystem.dcMemAccessResponse;
     end
 
+    //
+    // CacheFlushManager
+    //
+    always_comb begin
+        // DCache -> cacheFlushManagemer
+        cacheSystem.dcFlushReqAck = port.dcFlushReqAck;
+        cacheSystem.dcFlushComplete = port.dcFlushComplete;
+
+        // cacheFlushManagemer -> DCache
+        port.dcFlushReq = cacheSystem.dcFlushReq;
+        port.flushComplete = cacheSystem.flushComplete;
+    end
+
 endmodule : DCache
 
 
@@ -974,6 +1114,8 @@ module DCacheMissHandler(
 
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
+
+    logic mshrFlushComplete[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
     // Don't care these values, but avoiding undefined status in Questa.
@@ -1013,6 +1155,10 @@ module DCacheMissHandler(
             port.mshrValid[i] = mshr[i].valid;
             port.mshrAddr[i] = mshr[i].newAddr;
         end
+
+        // Flush operation uses MSHR[0];
+        // therefore the complete signal comes from MSHR[0]. 
+        port.mshrFlushComplete = mshrFlushComplete[0];
     end
 
     DCacheLinePath portStoredLineData;
@@ -1050,6 +1196,7 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
             port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
+            port.mshrCacheMuxIn[i].isFlushReq = FALSE;
 
             // Memory request signals
             port.mshrMemReq[i] = FALSE;
@@ -1059,6 +1206,9 @@ module DCacheMissHandler(
             port.mshrMemMuxIn[i].we = FALSE;
             port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
 
+            // For flush
+            mshrFlushComplete[i] = FALSE;
+
             case(mshr[i].phase)
                 default: begin
 
@@ -1066,8 +1216,8 @@ module DCacheMissHandler(
                     if (port.initMSHR[i]) begin
                         // 1. MSHR 登録
                         // Initial phase
+
                         nextMSHR[i].valid = TRUE;
-                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQEUST;
                         nextMSHR[i].newAddr = port.initMSHR_Addr[i];
                         nextMSHR[i].newValid = FALSE;
                         nextMSHR[i].victimValid = FALSE;
@@ -1079,13 +1229,174 @@ module DCacheMissHandler(
 
                         nextMSHR[i].canBeInvalid = FALSE;
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
+                        nextMSHR[i].isUncachable = port.isUncachable[i];
+
+                        nextMSHR[i].flushIndex = '0;
 
                         // Dont'care
                         //nextMSHR[i].line = '0;
 
+                        if (port.isUncachable[i]) begin
+                            // Uncachable access does not update cache;
+                            // therefore phases for evicting a victim are skipped.
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                        end
+                        else begin
+                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQEUST;
+                        end
+                    end
+                    else if (port.dcFlushing && (i == 0)) begin
+                        // MSHR[0] is used to flush DCache.
+                        nextMSHR[i].valid = TRUE;
+                        nextMSHR[i].newAddr = '0;
+                        nextMSHR[i].newValid = FALSE;
+                        nextMSHR[i].victimValid = FALSE;
+
+                        nextMSHR[i].victimDirty = FALSE;
+                        nextMSHR[i].victimReceived = FALSE;
+                        nextMSHR[i].memSerial = '0;
+                        nextMSHR[i].memWSerial = '0;
+
+                        nextMSHR[i].canBeInvalid = FALSE;
+                        nextMSHR[i].isAllocatedByStore = FALSE;
+                        nextMSHR[i].isUncachable = FALSE;
+
+                        nextMSHR[i].flushIndex = '0;
+
+                        nextMSHR[i].line = '0;
+
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                    end
+                end
+            
+            //
+            // --- States for DCache flush
+            //
+
+                // FLUSH 1.
+                // Send a request to DCache to (1) get a victime line corresponding to flushIndex,
+                // and (2) subsequently reset the corresponding tag and data entry.
+                MSHR_PHASE_FLUSH_VICTIM_REQEUST: begin
+                    // Access the cache array.
+                    port.mshrCacheReq[i] = TRUE;
+                    port.mshrCacheMuxIn[i].indexIn = mshr[i].flushIndex;
+                    port.mshrCacheMuxIn[i].tagValidIn = FALSE;
+                    port.mshrCacheMuxIn[i].tagWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+                    port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+                    port.mshrCacheMuxIn[i].isFlushReq = TRUE;
+
+                    nextMSHR[i].phase =
+                        port.mshrCacheGrt[i] ?
+                        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG : MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                end
+
+                // FLUSH 2.
+                // Receive a tag of the victime line.
+                MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG: begin
+                    // Read a victim line.
+                    if (port.mshrCacheMuxTagOut[i].tagValidOut) begin
+                        nextMSHR[i].victimAddr =
+                            BuildFullAddr(
+                                mshr[i].flushIndex,
+                                port.mshrCacheMuxTagOut[i].tagDataOut
+                            );
+                        nextMSHR[i].victimValid = TRUE;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA;
+                    end
+                    else begin
+                        nextMSHR[i].victimValid = FALSE;
+                        // Skip receiving data and writing back.
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
                     end
                 end
 
+                // FLUSH 3.
+                // Receive data and a dirty bit of the victime line.
+                MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA: begin
+                    // Receive cache data.
+                    nextMSHR[i].victimReceived = TRUE;
+                    nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
+                    nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
+
+                    if (nextMSHR[i].victimDirty) begin
+                        // Write back dirty data
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
+                    end
+                    else begin
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                    end
+                end
+
+                // FLUSH 4.
+                // Send a write back request of the dirty victime line to the data bus.
+                MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM: begin
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
+
+                    if (port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack) begin
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
+                    end
+                    else begin
+                        // Waiting until the request is accepted.
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
+                    end
+                end
+
+                // FLUSH 5.
+                // Wait until the data is written back.
+                MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE: begin
+                    port.mshrMemReq[i] = FALSE;
+                    if (mshr[i].victimValid &&
+                        mshr[i].victimDirty &&
+                        !(port.memAccessResponse.valid &&
+                        mshr[i].memWSerial == port.memAccessResponse.serial)
+                    ) begin
+                        // Wait MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE.
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
+                    end
+                    else begin
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                    end
+                end
+
+                // FLUSH 6.
+                // Ckeck if all cache lines have been written back.
+                MSHR_PHASE_FLUSH_CHECK: begin
+                    if (&(mshr[i].flushIndex)) begin
+                        nextMSHR[i].flushIndex = '0;
+                        mshrFlushComplete[i] = TRUE;
+                    end
+                    else begin
+                        nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
+                    end
+
+                    nextMSHR[i].victimValid = FALSE;
+                    nextMSHR[i].victimDirty = FALSE;
+                    nextMSHR[i].victimReceived = FALSE;
+                    nextMSHR[i].memSerial = '0;
+                    nextMSHR[i].memWSerial = '0;
+                    nextMSHR[i].line = '0;
+
+                    if (mshrFlushComplete[i]) begin
+                        nextMSHR[i].phase = MSHR_PHASE_INVALID;
+                        nextMSHR[i].valid = FALSE;
+                    end
+                    else begin
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                    end
+                end
+
+            //
+            // --- States for DCache flush (end)
+            //
+
+            //
+            // --- States for DCache miss handling
+            //
 
                 // 2. リプレース対象の読み出し
                 //  * フィル対象の決定
@@ -1231,7 +1542,13 @@ module DCacheMissHandler(
                         if (mshr[i].isAllocatedByStore) begin
                             nextMSHR[i].phase = MSHR_PHASE_MISS_MERGE_STORE_DATA;
                         end
+                        else if (mshr[i].isUncachable) begin
+                            // An uncachable load does not update cache and 
+                            // receives data via this MSHR entry directly.
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                        end
                         else begin
+                            // A cachable load updates cache using the fetched cache line.
                             nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
                         end
                     end
@@ -1243,35 +1560,74 @@ module DCacheMissHandler(
                     MergeStoreDataToLine(mergedLine[i], mshr[i].line,
                         portStoredLineData, portStoredLineByteWE);
                     nextMSHR[i].line = mergedLine[i];
-                    nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+
+                    if (mshr[i].isUncachable) begin
+                        // An uncachable store does not update cache and 
+                        // writes the updated cache line back to memory.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    end
+                    else begin
+                        // A cachable store updates cache using the updated cache line.
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                    end
                 end
 
+                // 6. (Uncachable store) Issue a write request to write the updated cache line.
+                MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM: begin
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = ToLineAddrFromFullAddr(mshr[i].newAddr);
 
-                // 6. ミスデータのキャッシュへの書き込み
+                    if (port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack) begin
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    end
+                    else begin
+                        // Waiting until the request is accepted.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    end
+
+                end
+
+                // 6.5. (Uncachable store) Wait until the updated cache line is written to memory.
+                MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE: begin
+                    port.mshrMemReq[i] = FALSE;
+                    if (mshr[i].newValid &&
+                        !(port.memAccessResponse.valid &&
+                        mshr[i].memWSerial == port.memAccessResponse.serial)
+                    ) begin
+                        // Wait MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE.
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    end
+                    else begin
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    end
+                end
+
+                // 6. (Cachable load/store) ミスデータのキャッシュへの書き込み
                 MSHR_PHASE_MISS_WRITE_CACHE_REQUEST: begin
-                    // Fille the cache array.
+                    // Fill the cache array.
                     port.mshrCacheReq[i] = TRUE;
                     port.mshrCacheMuxIn[i].tagWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE = TRUE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
 
-
-
                     if (port.mshrCacheGrt[i]) begin
                         // If my request is granted, miss handling finishes.
-                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_FINISH;
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
                     else begin
                         nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
                     end
                 end
 
-                // 7.データアレイへの書き込みと解放可能条件を待って MSHR 解放
+                // 7.
+                // * (Cachable) データアレイへの書き込みと解放可能条件を待って MSHR 解放
                 // 現在の開放可能条件は
                 // ・割り当て者がLoadでそのLoadへのデータの受け渡しが完了した場合
-                // ・割り当て者がStoreの場合 (該当Storeのデータはこの時点でキャッシュに書き込まれている)
-                MSHR_PHASE_MISS_WRITE_CACHE_FINISH: begin
+                // ・割り当て者がStoreの場合 (該当Storeのデータはこの時点でキャッシュ or Memoryに書き込まれている)
+                MSHR_PHASE_MISS_HANDLING_COMPLETE: begin
                     if (mshr[i].canBeInvalid || mshr[i].isAllocatedByStore) begin
                         nextMSHR[i].phase = MSHR_PHASE_INVALID;
                         nextMSHR[i].valid = FALSE;

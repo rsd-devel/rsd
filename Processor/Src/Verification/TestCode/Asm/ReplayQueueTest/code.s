@@ -20,32 +20,32 @@ initialize:
     li      a1, 0x80880008
     li      a2, 0x08808880
 
-    li	a0, -0x10000
+    li  a0, -0x10000
     add a0, sp, a0
     li  a5, 0xcdcdcdcd
-    sw a5, 0(a0)	# 0x00
-    sw a5, 0x10(a0)	# 0x10
-    sw a5, 0x20(a0)	# 0x20
-    sw a5, 0x24(a0)	# 0x24
-    sw a5, 0x30(a0)	# 0x30
-    sw a5, 0x34(a0)	# 0x34
-    sw a5, 0x38(a0)	# 0x38
+    sw a5, 0(a0)    # 0x00
+    sw a5, 0x10(a0) # 0x10
+    sw a5, 0x20(a0) # 0x20
+    sw a5, 0x24(a0) # 0x24
+    sw a5, 0x30(a0) # 0x30
+    sw a5, 0x34(a0) # 0x34
+    sw a5, 0x38(a0) # 0x38
 
-    li	a0, -0xf000
+    li  a0, -0xf000
     add a0, sp, a0
     li  a5, 0xcdcdcdcd
-    sw a5, 0(a0)	# 0x00
-    sw a5, 0x10(a0)	# 0x10
-    sw a5, 0x20(a0)	# 0x20
-    sw a5, 0x24(a0)	# 0x24
-    sw a5, 0x30(a0)	# 0x30
-    sw a5, 0x34(a0)	# 0x34
-    sw a5, 0x38(a0)	# 0x38
+    sw a5, 0(a0)    # 0x00
+    sw a5, 0x10(a0) # 0x10
+    sw a5, 0x20(a0) # 0x20
+    sw a5, 0x24(a0) # 0x24
+    sw a5, 0x30(a0) # 0x30
+    sw a5, 0x34(a0) # 0x34
+    sw a5, 0x38(a0) # 0x38
     
     
     #li      a5, 0x40000
     #li      a6, 0x48000
-    li	a5, -0x8000
+    li  a5, -0x8000
     add a5, sp, a5
     mv a6, sp
     sw  a5, 0(a5)
@@ -56,7 +56,7 @@ warmup:
     bltu    a5, a6, warmup
     
     #li      a0, 0x30000
-    li	a0, -0x10000
+    li  a0, -0x10000
     add a0, sp, a0
 
     li      a5, 0
@@ -66,7 +66,7 @@ second:
     li      a7, 0
     li      a1, 0x80880008
     #li      a0, 0x31000
-    li	a0, -0xF000
+    li  a0, -0xF000
     add a0, sp, a0
 
     addi    a5, a5, 1

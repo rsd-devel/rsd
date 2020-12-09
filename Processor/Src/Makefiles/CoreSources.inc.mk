@@ -32,9 +32,10 @@ TYPES = \
 	Debug/DebugTypes.sv \
 
 # テスト時のみ使用し、合成時は使用しない module の定義があるファイルを指定する．
-# ここの順番は適当でも大丈夫．
+# TestMainはDumperに依存するので後にくること
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
+	Verification/Dumper.sv \
 	Verification/TestMain.sv \
 
 # それ以外の module, interface の定義があるファイルを指定する．
@@ -139,6 +140,8 @@ MODULES = \
 	Cache/ICache.sv \
 	Cache/CachePrimitives.sv \
 	Cache/MemoryAccessController.sv \
+	Cache/CacheFlushManager.sv \
+	Cache/CacheFlushManagerIF.sv \
 	Memory/Memory.sv \
 	Recovery/RecoveryManager.sv \
 	Recovery/RecoveryManagerIF.sv \
@@ -170,4 +173,10 @@ MODULES = \
 	Memory/MemoryReadReqQueue.sv \
 	Memory/MemoryWriteDataQueue.sv \
 	Memory/MemoryRequestQueue.sv \
-	
+
+# Header files
+# This list is used when generating Vivado custom IP of RSD
+HEADERS = \
+	BasicMacros.sv \
+	SynthesisMacros.svh \
+	XilinxMacros.vh \

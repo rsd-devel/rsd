@@ -10,6 +10,8 @@
 
 `ifndef RSD_SYNTHESIS_ATLYS
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import CacheSystemTypes::*;
 import MemoryTypes::*;
@@ -40,7 +42,7 @@ input
     logic rxd,
 `endif
 
-`ifndef RSD_DISABLE_DEBUG_REGISTER
+`ifndef RSD_SYNTHESIS_VIVADO
 output
     DebugRegister debugRegister,
 `endif
@@ -60,6 +62,10 @@ output
     logic txd
 `endif
 );
+
+`ifdef RSD_SYNTHESIS_VIVADO
+   (* DONT_TOUCH="yes"*) logic [$bits(DebugRegister)-1:0] debugRegister;
+`endif
 
 `ifdef RSD_USE_EXTERNAL_MEMORY
     Axi4MemoryIF axi4MemoryIF();

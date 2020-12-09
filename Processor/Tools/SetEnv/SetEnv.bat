@@ -21,7 +21,6 @@ setx RSD_GCC_PATH  C:/opt/gcc/riscv/7.1.0/bin
 :: Specify the prefix of the file name of the compiler binary.
 setx RSD_GCC_PREFIX riscv32-unknown-elf-
 
-
 :: Specify the binary path of Modelsim or QuestaSim.
 setx RSD_QUESTASIM_PATH C:/dev/env/hdl/Mentor/questa_sim64_10.2c/win64/
 
@@ -31,6 +30,9 @@ setx SYNOPSYS_BIN C:/dev/env/hdl/Synopsys/fpga_I2013091/bin/
 
 :: Specify the path of "dc_shell" for Design Compiler.
 setx RSD_DC_SHELL_BIN C:/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
+
+:: Specify the path of a "verilator" binary
+setx RSD_VERILATOR_BIN verilator
 
 
 :: Specify the ISE folder in Vivado.
@@ -45,6 +47,7 @@ setx RSD_MODELSIM_INI　C:/Work/RSD/modelsim.ini
 
 :: Specify the path of a work directory where download or build ZYNQ PS Linux 
 setx RSD_ARM_LINUX C:/Work/rsd-arm-linux
+
 
 :: Specify the root path of RSD-env, which is a closed repository that contains 
 :: external commercial packages/tools for RSD development.

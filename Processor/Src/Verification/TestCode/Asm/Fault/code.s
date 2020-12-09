@@ -31,68 +31,68 @@ end:
     nop
 
 trap_vector:
-	li a0, 0x40002000	# UART
-	
-	# "access vilation"
-	li t0, 'a'
-	sb t0, (a0)
+    li a0, 0x40002000   # UART
+    
+    # "access vilation"
+    li t0, 'a'
+    sb t0, (a0)
 
-	li t0, 'c'
-	sb t0, (a0)
+    li t0, 'c'
+    sb t0, (a0)
 
-	li t0, 'c'
-	sb t0, (a0)
+    li t0, 'c'
+    sb t0, (a0)
 
-	li t0, 'e'
-	sb t0, (a0)
+    li t0, 'e'
+    sb t0, (a0)
 
-	li t0, 's'
-	sb t0, (a0)
+    li t0, 's'
+    sb t0, (a0)
 
-	li t0, 's'
-	sb t0, (a0)
+    li t0, 's'
+    sb t0, (a0)
 
-	li t0, ' '
-	sb t0, (a0)
+    li t0, ' '
+    sb t0, (a0)
 
-	li t0, 'v'
-	sb t0, (a0)
+    li t0, 'v'
+    sb t0, (a0)
 
-	li t0, 'i'
-	sb t0, (a0)
+    li t0, 'i'
+    sb t0, (a0)
 
-	li t0, 'o'
-	sb t0, (a0)
+    li t0, 'o'
+    sb t0, (a0)
 
-	li t0, 'l'
-	sb t0, (a0)
+    li t0, 'l'
+    sb t0, (a0)
 
-	li t0, 'a'
-	sb t0, (a0)
+    li t0, 'a'
+    sb t0, (a0)
 
-	li t0, 't'
-	sb t0, (a0)
+    li t0, 't'
+    sb t0, (a0)
 
-	li t0, 'i'
-	sb t0, (a0)
+    li t0, 'i'
+    sb t0, (a0)
 
-	li t0, 'o'
-	sb t0, (a0)
+    li t0, 'o'
+    sb t0, (a0)
 
-	li t0, 'n'
-	sb t0, (a0)
-	
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	
-	# 戻り先を4進めておく
+    li t0, 'n'
+    sb t0, (a0)
+    
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    nop
+    
+    # 戻り先を4進めておく
     csrrw a0, mepc, a0
     addi a0, a0, 4
     csrrw a0, mepc, a0

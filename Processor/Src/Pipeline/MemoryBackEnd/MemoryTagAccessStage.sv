@@ -100,6 +100,7 @@ module MemoryTagAccessStage(
     logic ldFlush   [LOAD_ISSUE_WIDTH];
     logic isDiv     [LOAD_ISSUE_WIDTH];
     logic isMul     [LOAD_ISSUE_WIDTH];
+    logic isFenceI  [LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
 
@@ -122,6 +123,7 @@ module MemoryTagAccessStage(
             isENV[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_ENV );
             isDiv[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV );
             isMul[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_MUL );
+            isFenceI[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_FENCE ) && ldIqData[i].memOpInfo.isFenceI;
 
             // Load store unit
             loadStoreUnit.executeLoad[i] = ldUpdate[i] && isLoad[i];
@@ -283,6 +285,11 @@ module MemoryTagAccessStage(
                 default:
                     ldNextStage[i].execState = EXEC_STATE_TRAP_EBREAK;
                 endcase
+            end
+            else if (isFenceI[i]) begin
+                // FENCE.I flush all following ops when it is committed
+                // not to use the expired data from ICache.
+                ldNextStage[i].execState = EXEC_STATE_REFETCH_NEXT;
             end
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             else if (isDiv[i]) begin

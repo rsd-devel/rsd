@@ -6,6 +6,8 @@
 // MemoryReadReqQueue
 //
 
+`include "XilinxMacros.vh"
+
 import BasicTypes::*;
 import MemoryTypes::*;
 
@@ -22,13 +24,13 @@ output
     MemoryReadReq headData
 );
 
-    typedef logic [MEMORY_AXI4_READ_ID_WIDTH-1: 0] IndexPath;
+    typedef logic [`MEMORY_AXI4_READ_ID_WIDTH-1: 0] IndexPath;
 
     IndexPath headPtr;
     IndexPath tailPtr;
 
     // size, initial head, initial tail, initial count
-    QueuePointer #( MEMORY_AXI4_READ_ID_NUM, 0, 0, 0 )
+    QueuePointer #( `MEMORY_AXI4_READ_ID_NUM, 0, 0, 0 )
         pointer(
             .clk( clk ),
             .rst( rst ),
@@ -41,7 +43,7 @@ output
         );
         
 
-    logic [ MEMORY_AXI4_READ_ID_WIDTH+MEMORY_AXI4_ADDR_BIT_SIZE-1:0 ] memoryReadReqQueue[ MEMORY_AXI4_READ_ID_NUM ]; // synthesis syn_ramstyle = "select_ram"
+    logic [ `MEMORY_AXI4_READ_ID_WIDTH+`MEMORY_AXI4_ADDR_BIT_SIZE-1:0 ] memoryReadReqQueue[ `MEMORY_AXI4_READ_ID_NUM ]; // synthesis syn_ramstyle = "select_ram"
 
     always_ff @( posedge clk ) begin
         if( push ) begin

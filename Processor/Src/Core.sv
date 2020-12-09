@@ -27,6 +27,8 @@ input
     MemAccessResponse memAccessResponse, // メモリ書き込み完了通知
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
+    logic reqExternalInterrupt,
+    ExternalInterruptCodePath externalInterruptCode,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -102,9 +104,10 @@ output
     BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart);
+    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqExternalInterrupt, externalInterruptCode);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
     MulDivUnitIF mulDivUnitIF(clk, rst);
+    CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
 
     //
     // --- Modules
@@ -149,7 +152,7 @@ output
 
     ScheduleStage scStage( scStageIF, schedulerIF, recoveryManagerIF, ctrlIF );
         IssueQueue issueQueue( schedulerIF, wakeupSelectIF, recoveryManagerIF, debugIF );
-        ReplayQueue replayQueue( schedulerIF, loadStoreUnitIF, mulDivUnitIF ,recoveryManagerIF, ctrlIF );
+        ReplayQueue replayQueue( schedulerIF, loadStoreUnitIF, mulDivUnitIF, cacheFlushManagerIF, recoveryManagerIF, ctrlIF );
         Scheduler scheduler( schedulerIF, wakeupSelectIF, recoveryManagerIF, mulDivUnitIF, debugIF );
         WakeupPipelineRegister wakeupPipelineRegister( wakeupSelectIF, recoveryManagerIF );
         DestinationRAM destinationRAM( wakeupSelectIF );
@@ -171,7 +174,7 @@ output
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF,loadStoreUnitIF, mulDivUnitIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
+    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
     MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, hwCounterIF );
     MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
         LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF, hwCounterIF );
@@ -192,6 +195,7 @@ output
         RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF );
 
     CSR_Unit csrUnit(csrUnitIF);
+    CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
     InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, csrUnitIF);
 

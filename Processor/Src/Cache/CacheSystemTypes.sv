@@ -57,13 +57,27 @@ package CacheSystemTypes;
     // 同時にoutstanding可能なリードトランザクションの最大数を決める
     // D-Cacheからの要求の最大数はMSHR_NUM，I-Cacheからの要求は1，最大要求数はMSHR_NUM+1となる
     // 今後I-Cacheからの同時発行可能な要求数を増やすのであればここを変更
+    // NOTE: if you modify this value, you need to modify 
+    // MEMORY_AXI4_READ_ID_WIDTH in XilinxMacros.vh
     localparam MEM_ACCESS_SERIAL_BIT_SIZE = $clog2( MSHR_NUM+1 );
     typedef logic [MEM_ACCESS_SERIAL_BIT_SIZE-1 : 0] MemAccessSerial;
 
     // 同時にoutstanding可能なライトトランザクションの最大数を決める
     // D-Cacheからの要求の最大数はMSHR_NUMなので，最大要求数もMSHR_NUMとなる
+    // NOTE: if you modify this value, you need to modify 
+    // MEMORY_AXI4_WRITE_ID_WIDTH in XilinxMacros.vh
     localparam MEM_WRITE_SERIAL_BIT_SIZE = $clog2( MSHR_NUM );
     typedef logic [MEM_WRITE_SERIAL_BIT_SIZE-1 : 0] MemWriteSerial;
+
+    //
+    // Phase of DCache
+    //
+    typedef enum logic [1:0]
+    {
+        DCACHE_PHASE_NORMAL = 0,                // DCache is operating normally.
+        DCACHE_PHASE_FLUSH_PROCESSING = 1,      // DCache is flushing.
+        DCACHE_PHASE_FLUSH_COMPLETE = 2         // DCache flush is completed, waiting for a completion signal from a manager.
+    } DCachePhase;
 
     //
     // MSHR
@@ -72,23 +86,35 @@ package CacheSystemTypes;
     typedef logic [MSHR_NUM_BIT_WIDTH-1:0] MSHR_IndexPath;
     typedef logic [MSHR_NUM_BIT_WIDTH:0] MSHR_CountPath;
 
-    typedef enum logic [3:0]
+    typedef enum logic [4:0]
     {
-        MSHR_PHASE_INVALID = 0,                 // This entry is invalid
+        MSHR_PHASE_INVALID = 0,                   // This entry is invalid
+
+        // For flush
+        MSHR_PHASE_FLUSH_VICTIM_REQEUST = 1,        //
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG   = 2,  //
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA  = 3,  // Receive dirty data.
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM  = 4,  // Victim is written to a main memory.
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE = 5, // Wait until victim writeback is complete.
+        MSHR_PHASE_FLUSH_CHECK = 6,                 // Check if flush is completed.
 
         // Victim is read from the cache.
-        MSHR_PHASE_VICTIM_REQEUST       = 1,    //
-        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 2,    //
-        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 3,    // Receive dirty data.
-        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 4,    // Victim is written to a main memory.
-        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 5,   // Wait until victim writeback is complete.
+        MSHR_PHASE_VICTIM_REQEUST       = 7,        //
+        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 8,        //
+        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 9,        // Receive dirty data.
+        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 10,       // Victim is written to a main memory.
+        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 11,      // Wait until victim writeback is complete.
 
-        MSHR_PHASE_MISS_MERGE_STORE_DATA = 6,   // Merge the allocator store's data and the fetched line.
+        MSHR_PHASE_MISS_MERGE_STORE_DATA = 12,      // Merge the allocator store's data and the fetched line.
 
-        MSHR_PHASE_MISS_READ_MEM_REQUEST = 7,   // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 8,   // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 9, // Write data to a cache.
-        MSHR_PHASE_MISS_WRITE_CACHE_FINISH = 10
+        MSHR_PHASE_MISS_READ_MEM_REQUEST = 13,      // Read from a main memory to a cache.
+        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 14,      // Read from a main memory to a cache.
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 15,    // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 16,  // (Uncachable store) Write data to a main memory.
+        // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE 
+        // must be the highest numbers in the following order.
+        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 17,   // (Cachable load/store) Write data to a cache.
+        MSHR_PHASE_MISS_HANDLING_COMPLETE = 18
 
     } MSHR_Phase;
 
@@ -112,12 +138,18 @@ package CacheSystemTypes;
         // Line data is shared by "new" and "victim".
         DCacheLinePath line;
 
-        // A MSHR entry can be invalid when
+        // An MSHR entry can be invalid when
         // its allocator is load and has bypassed data.
         logic canBeInvalid;
 
-        // A MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
+        // An MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
         logic isAllocatedByStore;
+
+        // TRUE if this is uncachable access.
+        logic isUncachable;
+
+        // For flush
+        DCacheIndexPath flushIndex;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
@@ -137,6 +169,8 @@ package CacheSystemTypes;
         // To notify MSHR that this request is by allocator load.
         logic           makeMSHRCanBeInvalid;
 
+        // For flush
+        logic           isFlushReq;
     } DCachePortMultiplexerIn;
 
     typedef struct packed   // DCachePortMultiplexerTagOut

@@ -898,13 +898,17 @@ function automatic void RISCV_EmitMiscMemOp(
     miscMemOp.padding = '0;
     miscMemOp.riscv_padding = '0;
 
-    if (opFunct3 == MISC_MEM_FUNCT3_FENCE || 
-        opFunct3 == MISC_MEM_FUNCT3_FENCE_I
-    ) begin
+    if (opFunct3 == MISC_MEM_FUNCT3_FENCE) begin
         miscMemOp.fence = TRUE;
+        miscMemOp.fenceI = FALSE;
+    end 
+    else if (opFunct3 == MISC_MEM_FUNCT3_FENCE_I) begin
+        miscMemOp.fence = TRUE;
+        miscMemOp.fenceI = TRUE;
     end 
     else begin
         miscMemOp.fence = FALSE;
+        miscMemOp.fenceI = FALSE;
     end
 
     opInfo.operand.miscMemOp = miscMemOp;
@@ -1096,6 +1100,7 @@ function automatic void RISCV_EmitSystemOp(
         // NOP 扱いにしておく
         opInfo.mopType = MOP_TYPE_INT;
         opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+        systemOp.envCode = ENV_BREAK;
     end
     else begin
         unique case(SystemFunct12'(isfSystem.funct12))

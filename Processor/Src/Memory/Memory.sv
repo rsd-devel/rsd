@@ -74,7 +74,7 @@ output
     AddrPath memoryRA;
 
     // Body
-    InitializedBlockRAM_ForNarrowRequest #( 
+    InitializedBlockRAM #( 
         .ENTRY_NUM( MEMORY_ENTRY_NUM ),
         .INIT_HEX_FILE( INIT_HEX_FILE ),
         .ENTRY_BIT_SIZE( MEMORY_ENTRY_BIT_NUM )

@@ -12,6 +12,7 @@ VIVADO_BOARD_PROJECT = rsd
 VIVADO_POST_SYNTHESIS_PROJECT = rsd_post_synthesis
 
 VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/$(TARGET_BOARD)
+VIVADO_PROJECT_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/rsd.xpr
 VIVADO_BOARD_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT)
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/$(VIVADO_POST_SYNTHESIS_PROJECT)
 VIVADO_BOARD_PROJECT_IMPL = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).runs/impl_1
@@ -19,12 +20,6 @@ VIVADO_BOARD_PROJECT_SDK = $(VIVADO_BOARD_PROJECT_ROOT)/$(VIVADO_BOARD_PROJECT).
 VIVADO_XSA_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/design_1_wrapper.xsa
 VIVADO_BIT_FILE = $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.bit
 VIVADO_FSBL_FILE = $(VIVADO_BOARD_PROJECT_SDK)/fsbl/Release/fsbl.elf
-
-# Synplify用
-
-SYNPLIFY_ROOT = ../Project/Synplify
-SYNPLIFY_PROJECT_ROOT = $(SYNPLIFY_ROOT)/$(TARGET_BOARD)
-SYNPLIFY_POST_SYNTHESIS_PROJECT_ROOT = $(SYNPLIFY_ROOT)/$(TARGET_BOARD)_post_synthesis
 
 # Linux(ARM)用
 
@@ -73,11 +68,8 @@ UBOOT_TAG = xilinx-v2019.2
 # Vivado : Make RSD project, run synthesis and run implementation for TARGET_BOARD.
 #
 
-VIVADO_PROJECT_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/rsd.xpr
-SYNPLIFY_NETLIST = $(SYNPLIFY_PROJECT_ROOT)/rsd.vm
-
 # vivadoプロジェクトを作成して開く．すでに作成されている場合は開くのみ．
-vivado: $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_FILE)
+vivado: $(VIVADO_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado $(VIVADO_PROJECT_FILE) &
 
 # vivadoプロジェクトの削除
@@ -88,19 +80,6 @@ vivado-clean:
 	rm -f vivado*.zip
 	rm -f vivado*.str
 
-# Do NOT use this command.
-# This command is called automatically if you need.
-vivado-create:
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source make_project.tcl
-
-$(VIVADO_PROJECT_FILE):
-	$(MAKE) vivado-create || $(MAKE) vivado-clean
-
-$(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
-	@ echo "(Re-)build post-synthesis netlist using Synplify!"
-	$(MAKE) vivado-clean
-	@ exit 1
 
 # -------------------------------
 # ARM-Linux : Make fsbl, initrd, u-boot, kernel, device-tree and boot.bin for TARGET_BOARD.
@@ -164,7 +143,7 @@ $(DTC_ROOT)/dtc:
 xilinx-arm-linux-dtc:
 	git clone https://git.kernel.org/pub/scm/utils/dtc/dtc.git $(DTC_ROOT)
 	@cd $(DTC_ROOT); \
-	$(MAKE) CC=gcc CXX=g++
+	make CC=gcc CXX=g++
 
 # Do NOT use this command.
 xilinx-arm-linux-dtc-clean:
@@ -190,7 +169,7 @@ $(FSBL_FILE): $(VIVADO_FSBL_FILE)
 	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
-	xsct $(VIVADO_PROJECT_ROOT)/make_fsbl.tcl
+	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 
 $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
 #	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
@@ -204,8 +183,8 @@ $(UBOOT_FILE): $(UBOOT_ROOT)
 # Do NOT use this command.
 xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
 	cd $(UBOOT_ROOT); \
-	$(MAKE) $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
-	$(MAKE) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
@@ -226,8 +205,8 @@ $(UKERNEL_FILE):
 # Do NOT use this command.
 xilinx-arm-linux-kernel: $(KERNEL_ROOT)
 	cd $(KERNEL_ROOT); \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
 	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
@@ -237,14 +216,14 @@ $(DEVICETREE_FILE): $(UKERNEL_FILE)
 # Do NOT use this command.
 xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 	cd $(KERNEL_ROOT); \
-	$(MAKE) ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(DEVICETREE_CONFIG).dtb
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(DEVICETREE_CONFIG).dtb
 	cp $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dtb $(ARM_LINUX_BOOT)/devicetree.dtb
 
 $(BIT_FILE): $(VIVADO_BIT_FILE)
 	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
 
-$(VIVADO_BIT_FILE): $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/make_bitstream.tcl
+$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:

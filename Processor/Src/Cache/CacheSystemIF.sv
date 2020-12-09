@@ -21,6 +21,15 @@ interface CacheSystemIF( input logic clk, rst );
     MemAccessReqAck dcMemAccessReqAck;
     MemAccessResult dcMemAccessResult;
     MemAccessResponse dcMemAccessResponse;
+
+    // CacheFlushManager
+    logic icFlushReqAck;
+    logic icFlushComplete;
+    logic icFlushReq;
+    logic dcFlushReqAck;
+    logic dcFlushComplete;
+    logic dcFlushReq;
+    logic flushComplete;
     
     
     modport ICache(
@@ -29,8 +38,12 @@ interface CacheSystemIF( input logic clk, rst );
         rst,
         icMemAccessResult,
         icMemAccessReqAck,
+        icFlushReq,
+        flushComplete,
     output
-        icMemAccessReq
+        icMemAccessReq,
+        icFlushReqAck,
+        icFlushComplete
     );
     
     modport DCache(
@@ -40,8 +53,12 @@ interface CacheSystemIF( input logic clk, rst );
         dcMemAccessResult,
         dcMemAccessReqAck,
         dcMemAccessResponse,
+        dcFlushReq,
+        flushComplete,
     output
-        dcMemAccessReq
+        dcMemAccessReq,
+        dcFlushReqAck,
+        dcFlushComplete
     );
 
     modport MemoryAccessController(
@@ -56,6 +73,18 @@ interface CacheSystemIF( input logic clk, rst );
         icMemAccessReqAck,
         dcMemAccessReqAck,
         dcMemAccessResponse
+    );
+
+    modport CacheFlushManager(
+    input
+        icFlushReqAck,
+        icFlushComplete,
+        dcFlushReqAck,
+        dcFlushComplete,
+    output
+        icFlushReq,
+        dcFlushReq,
+        flushComplete
     );
     
 endinterface : CacheSystemIF

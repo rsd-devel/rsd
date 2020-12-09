@@ -9,11 +9,9 @@ TARGETS = all clean
 ifdef RSD_ENV
 COPIED_SRC_DIRS = \
 	Dhrystone \
-	Dhrystone_for_Contest \
 
 COPY:
 	cp $(RSD_ENV)/Tools/Testbench/Dhrystone ./ -r -a
-	cp $(RSD_ENV)/Tools/Testbench/Dhrystone_for_Contest ./ -r -a
 else
 COPIED_SRC_DIRS =
 COPY:

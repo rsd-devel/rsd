@@ -83,8 +83,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     logic storeLoadForwarded [ LOAD_ISSUE_WIDTH ];
     LSQ_BlockDataPath forwardedLoadData [ LOAD_ISSUE_WIDTH ];
     logic forwardMiss[ LOAD_ISSUE_WIDTH ];
-
-
+    
     // DCache
     logic dcReadReq[LOAD_ISSUE_WIDTH];    // Read request from the LSU.
     logic dcReadBusy[LOAD_ISSUE_WIDTH];   // Read ports are busy and cannot accept requests.
@@ -92,6 +91,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
 
     PhyAddrPath dcReadAddr[LOAD_ISSUE_WIDTH];
     DCacheLinePath dcReadData[LOAD_ISSUE_WIDTH];
+    logic dcReadUncachable[LOAD_ISSUE_WIDTH];
 
     // Forward されたのでメインメモリアクセスや MSHR 確保をキャンセルする 
     // MSHR を確保してしまうと，フォワードしたロードの方はヒット扱いでリタイアするので
@@ -111,6 +111,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     PhyAddrPath dcWriteAddr;
     DCacheLinePath dcWriteData;
     DCacheByteEnablePath dcWriteByteWE;
+    logic dcWriteUncachable;
 
     // MSHRからのLoad
     logic mshrAddrHit[LOAD_ISSUE_WIDTH];
@@ -141,7 +142,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     logic memAccessOrderViolation [ STORE_ISSUE_WIDTH ];
     PC_Path conflictLoadPC [ STORE_ISSUE_WIDTH ];
     
-    
     modport DCache(
     input
         clk,
@@ -152,7 +152,9 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteData,
         dcWriteAddr,
         dcWriteByteWE,
+        dcWriteUncachable,
         dcReadAddr,
+        dcReadUncachable,
         dcReadCancelFromMT_Stage,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
         makeMSHRCanBeInvalid,
@@ -266,6 +268,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteData,
         dcWriteAddr,
         dcWriteByteWE,
+        dcWriteUncachable,
         retiredStoreQueuePtr,
         releaseStoreQueueHead,
         busyInRecovery,
@@ -298,6 +301,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         allocatable,
         allocatedLoadQueuePtr,
         allocatedStoreQueuePtr,
+        storeQueueEmpty,
     output
         allocateLoadQueue,
         allocateStoreQueue
@@ -314,6 +318,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     output
         dcReadReq,
         dcReadAddr,
+        dcReadUncachable,
         makeMSHRCanBeInvalid
     );
 
