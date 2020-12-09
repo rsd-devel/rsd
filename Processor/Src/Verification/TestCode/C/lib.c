@@ -98,8 +98,12 @@ void serial_out_char(char val)
 
 inline void rsd_mfence()
 {
-    // This instruction does not create any result but works as a memory fence.
-    // This is because it is executed after all preceding instructions are committed 
-    // and all the following instructions are executed then.
-    asm ("csrr  x0, mscratch");
+    // This instruction works as a memory fence.
+    asm ("fence iorw, iorw");
+}
+
+inline void rsd_ifence()
+{
+    // This instruction flushes ICache and DCache.
+    asm ("fence.i");
 }
