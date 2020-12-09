@@ -14,7 +14,10 @@ import MicroOpTypes::*;
 import SchedulerTypes::*;
 import CSR_UnitTypes::*;
 
-interface CSR_UnitIF(input logic clk, rst, rstStart);
+interface CSR_UnitIF(
+    input logic clk, rst, rstStart, reqExternalInterrupt, 
+    ExternalInterruptCodePath externalInterruptCode
+);
 
     logic csrWE;  // CSR write enable
     CSR_NumberPath csrNumber;   // CSR number
@@ -33,11 +36,14 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
 
     // Interrupt
     logic triggerInterrupt;
+    CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
-    PC_Path interruptTargetAddr;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
+
+    // Latched code, see the cooments in the CSR.
+    ExternalInterruptCodePath externalInterruptCodeInCSR;
 
     // Used in updating minstret
     CommitLaneCountPath commitNum;
@@ -93,23 +99,27 @@ interface CSR_UnitIF(input logic clk, rst, rstStart);
         excptCauseDataAddr,
         commitNum,
         reqTimerInterrupt,
+        reqExternalInterrupt,
+        externalInterruptCode,
         triggerInterrupt,
+        interruptCode,
         interruptRetAddr,
     output 
         csrWholeOut,
         csrReadOut,
-        interruptTargetAddr,
-        excptTargetAddr
+        excptTargetAddr,
+        externalInterruptCodeInCSR
     );
 
     modport InterruptController(
     input
         clk, rst, rstStart,
         csrWholeOut,
-        interruptTargetAddr,
+        externalInterruptCodeInCSR,
     output
         triggerInterrupt,
-        interruptRetAddr
+        interruptRetAddr,
+        interruptCode
     );
 
 endinterface
