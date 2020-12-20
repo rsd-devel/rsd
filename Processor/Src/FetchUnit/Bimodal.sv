@@ -95,7 +95,11 @@ module Bimodal(
 
     always_ff @(posedge port.clk) begin
         // Push Pht Queue
-        if (pushPhtQueue) begin
+        if (port.rst) begin
+            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWA <= '0;
+            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV <= PHT_ENTRY_MAX / 2 + 1;
+        end
+        else if (pushPhtQueue) begin
             phtQueue[headPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
             phtQueue[headPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
         end
