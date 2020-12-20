@@ -256,7 +256,7 @@ int main(int argc, char** argv) {
 
                 // ダンプ
                 GetDebugRegister(&debugRegister, top);
-                if (!SHOW_SERIAL_OUT && kanataCycle < 10000 || kanataCycle % 10000 == 0){
+                if (!SHOW_SERIAL_OUT && (kanataCycle < 10000 || kanataCycle % 10000 == 0)){
                     printf("%d cycle, %d KanataCycle, %d ns\n", (uint32_t)cycle, (uint32_t)kanataCycle, (uint32_t)main_time);
                 }
 

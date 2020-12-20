@@ -235,7 +235,7 @@ module TestMain;
         //
         @(negedge rstOut);
         for( cycle = 0; cycle < MAX_TEST_CYCLES; cycle++ ) begin
-            if (SHOW_SERIAL_OUT == 0) begin
+            if (SHOW_SERIAL_OUT == 0 && (clkgen.kanataCycle < 10000 || clkgen.kanataCycle % 10000 == 0)) begin
                 $display( "%d cycle %d KanataCycle %tps", clkgen.cycle, clkgen.kanataCycle, $time );
             end
 
