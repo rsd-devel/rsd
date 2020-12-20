@@ -220,8 +220,8 @@ int main(int argc, char** argv) {
     const int RSD_STEP = 8;   
     const int RSD_KANATA_CYCLE_DISPLACEMENT = 12;
     const int RSD_INITIALIZATION_CYCLE = 8;
-    int64_t cycle = 0;
-    int64_t kanataCycle = -RSD_KANATA_CYCLE_DISPLACEMENT;
+    int64_t cycle = -1;
+    int64_t kanataCycle = cycle - RSD_KANATA_CYCLE_DISPLACEMENT;
 
     bool start = false; // タイミングを TestMain.sv にあわせるため
 
