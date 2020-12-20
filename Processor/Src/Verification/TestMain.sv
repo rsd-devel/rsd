@@ -22,6 +22,7 @@ parameter STEP = 8; // 62.5Mhz
 parameter HOLD = 2;
 parameter SETUP = 2;
 parameter WAIT = STEP*2-HOLD-SETUP;
+parameter HOLD_PLUS_WAIT = HOLD + WAIT;
 
 module TestMain;
 
@@ -239,8 +240,7 @@ module TestMain;
             end
 
             @(posedge clk);
-            #HOLD;
-            #WAIT;
+            #HOLD_PLUS_WAIT;
 
             serialDumper.CheckSignal( serialWE, serialWriteData, SHOW_SERIAL_OUT );
 
