@@ -2,8 +2,8 @@
 MAX_TEST_CYCLES = 50000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-TEST_CODE = Verification/TestCode/Asm/CacheFlush
-#TEST_CODE = Verification/TestCode/C/HelloWorld
+#TEST_CODE = Verification/TestCode/Asm/CacheFlush
+TEST_CODE = Verification/TestCode/C/HelloWorld
 
 SOURCE_ROOT  = ./
 TOOLS_ROOT   = ../Tools/
