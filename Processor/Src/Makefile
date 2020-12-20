@@ -29,7 +29,7 @@ include Makefiles/CoreSources.inc.mk
 
 # Additional files
 TYPES += \
-	Verification/Dumper.sv 
+	# Verification/Dumper.sv 
 MODULES += \
 
 # VLOG_OPTIONS is referenced in Makefile.inc.
