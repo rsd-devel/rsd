@@ -91,6 +91,7 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
 endfunction
 
 // Currently suuport 2-way only
+/*
 function automatic DCacheWayPath 
 CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath in);
     return (in == 0 ? 1 : 0) % DCACHE_WAY_NUM;  // direct map 時のため MOD
@@ -105,7 +106,50 @@ function automatic DCacheTreeLRU_StatePath
 CalcWriteEnableIn2WayTreeLRU(logic we, DCacheWayPath in);
     return {we, we};
 endfunction
+*/
+// Currently suuport 2-way only
+function automatic DCacheWayPath 
+CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath state);
+    DCacheWayPath evicted = 0;
+    DCacheWayPath p = 0;
+    if (DCACHE_WAY_NUM == 1)
+        return 0;
+    for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
+        evicted = (evicted << 1) + (state[p + evicted] ? 0 : 1);
+        p += (1 << i);
+    end
+    return evicted;
+endfunction
 
+function automatic DCacheTreeLRU_StatePath
+CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath way);
+    DCacheTreeLRU_StatePath next = 0;
+    int p = 0;
+    if (DCACHE_WAY_NUM == 1)
+        return 0;
+    for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
+        for (int j = 0; j < (1 << i); j++) begin
+            next[p + j] = way[DCACHE_WAY_BIT_NUM - 1 - i];
+        end
+        p += (1 << i);
+    end
+    return next;
+endfunction
+
+function automatic DCacheTreeLRU_StatePath
+CalcWriteEnableIn2WayTreeLRU(logic weIn, DCacheWayPath way);
+    int p = 0;
+    int c = 0;
+    DCacheTreeLRU_StatePath we = '0;
+    if (DCACHE_WAY_NUM == 1)
+        return 1;
+    for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
+        we[p + c] = weIn;
+        c = (c << 1) + way[DCACHE_WAY_BIT_NUM - 1 - i];
+        p += (1 << i);
+    end
+    return we;
+endfunction
 
 //
 // The arbiter of the ports of the main memory.

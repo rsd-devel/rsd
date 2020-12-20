@@ -50,8 +50,8 @@ package CacheSystemTypes;
     } DCacheTagValidPath;
 
     // Way bits
-    localparam DCACHE_WAY_BIT_NUM = (DCACHE_WAY_NUM != 1) ? $clog2(DCACHE_WAY_NUM)-1 : 0;
-    typedef logic [DCACHE_WAY_BIT_NUM:0] DCacheWayPath;
+    localparam DCACHE_WAY_BIT_NUM = (DCACHE_WAY_NUM != 1) ? $clog2(DCACHE_WAY_NUM) : 1;
+    typedef logic [DCACHE_WAY_BIT_NUM-1:0] DCacheWayPath;
 
     // Tree LRU information
     // DCACHE_WAY_NUM - 1 bits are necessary?
