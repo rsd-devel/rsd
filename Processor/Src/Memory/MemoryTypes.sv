@@ -61,14 +61,13 @@ typedef struct packed {
     logic [`MEMORY_AXI4_ADDR_BIT_SIZE-1: 0] addr;
 } MemoryReadReq;
 
-// To implement variable latency memory access
-localparam MEM_REQ_QUEUE_SIZE = 128;
-localparam VARIAVBLE_WIDTH = 10;
-localparam RANDOM_LATENCY_SEED = 10;
-localparam LATENCY_RAND_BIT_WIDTH = 32;
-localparam LATENCY_RAND_SEED = 1987534242;
-typedef logic [$clog2(VARIAVBLE_WIDTH):0] LatencyCountPath;
-typedef logic [LATENCY_RAND_BIT_WIDTH-1:0] MemoryRandPath;
+// To simulate variable latency memory access
+localparam MEM_LATENCY_SIM_QUEUE_SIZE = 128;
+localparam MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE = 10;
+localparam MEM_LATENCY_SIM_RAND_BIT_WIDTH = 32;
+localparam MEM_LATENCY_SIM_RAND_SEED = 1987534242;
+typedef logic [$clog2(MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE):0] LatencyCountPath;
+typedef logic [MEM_LATENCY_SIM_RAND_BIT_WIDTH-1:0] MemoryRandPath;
 typedef struct packed {
     logic isRead;
     logic isWrite;
@@ -77,6 +76,6 @@ typedef struct packed {
     MemAccessSerial nextMemReadSerial; // Serial ID assigned to the next read request
     MemWriteSerial nextMemWriteSerial; // Serial ID assigned to the next write request
     logic wr;
-} MemoryRequestData;
+} MemoryLatencySimRequestPath;
 
 endpackage
