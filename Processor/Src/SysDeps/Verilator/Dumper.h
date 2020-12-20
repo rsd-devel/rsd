@@ -483,13 +483,13 @@ public:
             }
             else{
                 str += FormatString(
-                    "\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\nop:0x%x, size:0x%x, signed:0x%x",
+                    "\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\nop:0b%s, size:0b%s, signed:0b%s",
                     debugRegister.memExReg[i].addrOut,
                     debugRegister.memExReg[i].fuOpA,
                     debugRegister.memExReg[i].fuOpB,
-                    debugRegister.memExReg[i].opType,
-                    debugRegister.memExReg[i].size,
-                    debugRegister.memExReg[i].isSigned
+                    Bin2Str(debugRegister.memExReg[i].opType, 3, true).c_str(),
+                    Bin2Str(debugRegister.memExReg[i].size, 2, true).c_str(),
+                    Bin2Str(debugRegister.memExReg[i].isSigned, 1, true).c_str()
                 );
             }
 #endif

@@ -131,7 +131,7 @@ package DumperTypes;
                     debugRegister.pdStagePipeCtrl.clear, // clear
                     debugRegister.pdReg[i].sid, // sid
                     0, // mid
-                    {"optype:0b", strAluCode, " ALU-code:0b", strOpType} // comment
+                    {"optype:0b", strOpType, " ALU-code:0b", strAluCode, "\\n"} // comment
                 );
 `else
                 this.DumpStage(
@@ -417,7 +417,7 @@ package DumperTypes;
                     );
                 end
                 else begin
-                    $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\op:0b%b, size:0b%b, signed:0b%b",
+                    $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x)\\nop:0b%b, size:0b%b, signed:0b%b",
                         str,
                         debugRegister.memExReg[i].addrOut,
                         debugRegister.memExReg[i].fuOpA,
@@ -453,7 +453,7 @@ package DumperTypes;
                         );
                     end
                     if (debugRegister.mtReg[i].executeStore) begin
-                        $sformat( str, "%s\\nstore(#0x%0x, [#0x%0x])", str,
+                        $sformat( str, "%s\\nstore(#0x%0x, [#0x%0x])\\n", str,
                             debugRegister.mtReg[i].executedStoreData,
                             debugRegister.mtReg[i].executedStoreAddr
                         );
@@ -479,11 +479,17 @@ package DumperTypes;
 `ifdef RSD_FUNCTIONAL_SIMULATION
                     // Memory access
                     if( debugRegister.maReg[i].executeLoad ) begin
+                        $sformat( str, "%s\\n#0x%0x = load()",
+                            str,
+                            debugRegister.maReg[i].executedLoadData
+                        );
+                        /*
                         $sformat( str, "%s\\n#0x%0x (vec:%0x) = load()",
                             str,
                             debugRegister.maReg[i].executedLoadData,
                             debugRegister.maReg[i].executedLoadVectorData
                         );
+                        */
                     end
 `endif
 
