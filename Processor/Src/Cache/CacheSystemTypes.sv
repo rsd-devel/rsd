@@ -56,7 +56,8 @@ package CacheSystemTypes;
     // Tree LRU information
     // DCACHE_WAY_NUM - 1 bits are necessary?
     // とりあえず今は DCACHE_WAY_NUM と一致させている
-    localparam DCACHE_TREE_LRU_STATE_BIT_NUM = DCACHE_WAY_NUM;
+    //localparam DCACHE_TREE_LRU_STATE_BIT_NUM = DCACHE_WAY_NUM;
+    localparam DCACHE_TREE_LRU_STATE_BIT_NUM = (DCACHE_WAY_NUM - 1) > 0 ? (DCACHE_WAY_NUM - 1) : 1;
     typedef logic [DCACHE_TREE_LRU_STATE_BIT_NUM-1:0] DCacheTreeLRU_StatePath;
 
     // Subset of index for MSHR identifier in ReplayQueue
