@@ -102,8 +102,8 @@ CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath in);
 endfunction
 
 function automatic DCacheTreeLRU_StatePath
-CalcWriteEnableIn2WayTreeLRU(DCacheWayPath in);
-    return 1;
+CalcWriteEnableIn2WayTreeLRU(logic we, DCacheWayPath in);
+    return {we, we};
 endfunction
 
 
@@ -620,7 +620,6 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .rv( tagArrayOut[way] )
             );
         end
-
         // Replacement array instance
         for (genvar i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
             BlockTrueDualPortRAM #(
@@ -635,6 +634,18 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .rv( replArrayOut[i] )
             );
         end
+        /*
+        BlockTrueDualPortRAM #(
+            .ENTRY_NUM( DCACHE_INDEX_NUM ),
+            .ENTRY_BIT_SIZE( $bits(DCacheTreeLRU_StatePath) )
+            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
+        ) tagArray (
+            .clk( port.clk ),
+            .we( replArrayWE_Flat ),
+            .rwa( replArrayIndex ),
+            .wv( replArrayInFlat ),
+            .rv( replArrayOutFlat )
+        );*/
     endgenerate
 
 
@@ -643,11 +654,11 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // Replacment signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             replArrayIndex[p] = port.replArrayIndexIn[p];
-            replArrayWE_Flat[p] = CalcWriteEnableIn2WayTreeLRU(port.replArrayWE[p]);
+            replArrayWE_Flat[p] = CalcWriteEnableIn2WayTreeLRU(port.replArrayWE[p], port.replArrayDataIn[p]);
             replArrayInFlat[p] = CalcUpdatedStateIn2WayTreeLRU(port.replArrayDataIn[p]);
             for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
-                replArrayWE[i][p] = replArrayInFlat[p][i];
-                replArrayIn[i][p] = replArrayInFlat[i];
+                replArrayWE[i][p] = replArrayWE_Flat[p][i];
+                replArrayIn[i][p] = replArrayInFlat[p][i];
                 replArrayOutFlat[p][i] = replArrayOut[i][p];
             end
             replArrayResult[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOutFlat[p]);
@@ -740,6 +751,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
             replArrayIndex[0] = rstIndex;
             for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
                 replArrayWE[i][0] = TRUE;
+                replArrayInFlat[0] = 0;
                 replArrayIn[i][0] = 0;
             end
         end
