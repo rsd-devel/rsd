@@ -474,9 +474,9 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             port.dataArrayDirtyIn[p]   = muxInReg[p].dataDirtyIn;
             port.dataArrayWriteWay[p]  = muxInReg[p].tagWE ? muxInReg[p].evictWay : repHitWay[p];
 
-            // dataArrayIsReadEvictedWay が有効な場合，dataArrayReadWay ではなく
-            // リプレースメントアルゴリズムに言われた way を読む
-            port.dataArrayIsReadEvictedWay[p] = muxInReg[p].isMSHR;
+            // If dataArrayDoesReadEvictedWay is valid, instead of a way of dataArrayReadWay, 
+            // a way specified by a replacement algorithm is read for eviction.
+            port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isMSHR;
             port.dataArrayReadWay[p] = repHitWay[p];
             
             port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
@@ -560,7 +560,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
     logic           dataArrayDirtyOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   dataArrayReadWayReg[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   dataArrayReadWay[DCACHE_ARRAY_PORT_NUM];
-    logic           dataArrayIsReadEvictedWayReg[DCACHE_ARRAY_PORT_NUM];
+    logic           dataArrayDoesReadEvictedWayReg[DCACHE_ARRAY_PORT_NUM];
 
     // *** Hack for Synplify...
     DCacheByteEnablePath dataArrayByteWE_Tmp[DCACHE_ARRAY_PORT_NUM];
@@ -596,11 +596,11 @@ module DCacheArray(DCacheIF.DCacheArray port);
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             if (port.rst) begin
                 dataArrayReadWayReg[p] <= '0;
-                dataArrayIsReadEvictedWayReg[p] <= '0;
+                dataArrayDoesReadEvictedWayReg[p] <= '0;
             end
             else begin
                 dataArrayReadWayReg[p] <= port.dataArrayReadWay[p];
-                dataArrayIsReadEvictedWayReg[p] <= port.dataArrayIsReadEvictedWay[p];
+                dataArrayDoesReadEvictedWayReg[p] <= port.dataArrayDoesReadEvictedWay[p];
             end
         end
     end
@@ -718,9 +718,10 @@ module DCacheArray(DCacheIF.DCacheArray port);
             end
         end
 
+        // Way select
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             dataArrayReadWay[p] = 
-                dataArrayIsReadEvictedWayReg[p] ? replArrayResult[p] : dataArrayReadWayReg[p];
+                dataArrayDoesReadEvictedWayReg[p] ? replArrayResult[p] : dataArrayReadWayReg[p];
             port.dataArrayDataOut[p] = dataArrayOutTmp[dataArrayReadWay[p]][p];
             port.dataArrayDirtyOut[p] = dataArrayDirtyOut[dataArrayReadWay[p]][p];
         end

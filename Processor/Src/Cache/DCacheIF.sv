@@ -35,7 +35,7 @@ input
     DCacheByteEnablePath dataArrayByteWE_In[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   dataArrayWriteWay[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   dataArrayReadWay[DCACHE_ARRAY_PORT_NUM];
-    logic  dataArrayIsReadEvictedWay[DCACHE_ARRAY_PORT_NUM];    
+    logic  dataArrayDoesReadEvictedWay[DCACHE_ARRAY_PORT_NUM];    
     logic  dataArrayDirtyIn[DCACHE_ARRAY_PORT_NUM];
     logic  dataArrayDirtyOut[DCACHE_ARRAY_PORT_NUM];
 
@@ -172,7 +172,7 @@ input
         dataArrayByteWE_In,
         dataArrayWriteWay,
         dataArrayReadWay,
-        dataArrayIsReadEvictedWay,
+        dataArrayDoesReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
         replArrayDataIn,
@@ -253,7 +253,7 @@ input
         dataArrayWE,
         dataArrayWriteWay,
         dataArrayReadWay,
-        dataArrayIsReadEvictedWay,
+        dataArrayDoesReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
         replArrayDataIn,
