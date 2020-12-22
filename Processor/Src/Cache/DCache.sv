@@ -90,46 +90,49 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
     return mshr;
 endfunction
 
+//
 // Tree-LRU replacement
+// https://en.wikipedia.org/wiki/Pseudo-LRU
+//
+
+// Calculate an evicted way based on the current state.
 function automatic DCacheWayPath 
 TreeLRU_CalcEvictedWay(DCacheTreeLRU_StatePath state);
-    DCacheWayPath evicted = 0;
-    DCacheWayPath p = 0;
-    if (DCACHE_WAY_NUM == 1)
-        return 0;
+    DCacheWayPath evicted = 0;  // An evicted way number
+    int pos = 0;                // A head position of the current level
     for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
-        evicted = (evicted << 1) + (state[p + evicted] ? 0 : 1);
-        p += (1 << i);
+        evicted = (evicted << 1) + (state[pos + evicted] ? 0 : 1);
+        pos += (1 << i);    // Each level has (1<<i) bits
     end
     return evicted;
 endfunction
 
+// Calculate an updated bit vector that represents a binary tree of tree-LRU
 function automatic DCacheTreeLRU_StatePath
 TreeLRU_CalcUpdatedState(DCacheWayPath way);
     DCacheTreeLRU_StatePath next = 0;
-    int p = 0;
-    if (DCACHE_WAY_NUM == 1)
-        return 0;
+    int pos = 0;    // A head position of the current level
+    // A way number bits are scanned from the MSB
     for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
         for (int j = 0; j < (1 << i); j++) begin
-            next[p + j] = way[DCACHE_WAY_BIT_NUM - 1 - i];
+            next[pos + j] = way[DCACHE_WAY_BIT_NUM - 1 - i];    
         end
-        p += (1 << i);
+        pos += (1 << i);
     end
     return next;
 endfunction
 
+// Calculate a bit vector that represents write enable signals
 function automatic DCacheTreeLRU_StatePath
 TreeLRU_CalcWriteEnable(logic weIn, DCacheWayPath way);
-    int p = 0;
-    int c = 0;
+    int pos = 0;
+    int c = 0;  // The next updated pos
     DCacheTreeLRU_StatePath we = '0;
-    if (DCACHE_WAY_NUM == 1)
-        return 1;
+    // A way number bits are scanned from the MSB
     for (int i = 0; i < DCACHE_WAY_BIT_NUM; i++) begin
-        we[p + c] = weIn;
+        we[pos + c] = weIn;
         c = (c << 1) + way[DCACHE_WAY_BIT_NUM - 1 - i];
-        p += (1 << i);
+        pos += (1 << i);
     end
     return we;
 endfunction
@@ -647,7 +650,9 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .rv( tagArrayOut[way] )
             );
         end
+
         // Replacement array instance
+        // This array is not used when the number of ways is oen.
         for (genvar i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
             BlockTrueDualPortRAM #(
                 .ENTRY_NUM( DCACHE_INDEX_NUM ),
@@ -667,16 +672,20 @@ module DCacheArray(DCacheIF.DCacheArray port);
     always_comb begin
 
         // Replacement signals
+        //
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             replArrayIndex[p] = port.replArrayIndexIn[p];
             replArrayWE_Flat[p] = TreeLRU_CalcWriteEnable(port.replArrayWE[p], port.replArrayDataIn[p]);
             replArrayInFlat[p] = TreeLRU_CalcUpdatedState(port.replArrayDataIn[p]);
+            // Since the replacement information is stored in a different array 
+            // for each bit, the bit order is exchanged.
             for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
                 replArrayWE[i][p] = replArrayWE_Flat[p][i];
                 replArrayIn[i][p] = replArrayInFlat[p][i];
-                replArrayOutFlat[p][i] = replArrayOut[i][p];
+                replArrayOutFlat[p][i] = replArrayOut[i][p];    
             end
-            replArrayResult[p] = TreeLRU_CalcEvictedWay(replArrayOutFlat[p]);
+            // Do not use the output of replArray
+            replArrayResult[p] = (DCACHE_WAY_NUM == 1) ? 0 : TreeLRU_CalcEvictedWay(replArrayOutFlat[p]);
             port.replArrayDataOut[p] = replArrayResult[p];
         end
 
