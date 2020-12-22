@@ -1338,7 +1338,7 @@ module DCacheMissHandler(
                             nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
                         end
                         else begin
-                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQEUST;
+                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQUEST;
                         end
                     end
                 end
@@ -1355,7 +1355,7 @@ module DCacheMissHandler(
                 //      if (! 追い出し対象が invalid ){
                 //          ラインをキャッシュから読み出す
                 //      }
-                MSHR_PHASE_VICTIM_REQEUST: begin
+                MSHR_PHASE_VICTIM_REQUEST: begin
                     // Access the cache array.
                     port.mshrCacheReq[i] = TRUE;
                     port.mshrCacheMuxIn[i].tagWE = FALSE;
@@ -1366,7 +1366,7 @@ module DCacheMissHandler(
 
                     nextMSHR[i].phase =
                         port.mshrCacheGrt[i] ?
-                        MSHR_PHASE_VICTIM_RECEIVE_TAG : MSHR_PHASE_VICTIM_REQEUST;
+                        MSHR_PHASE_VICTIM_RECEIVE_TAG : MSHR_PHASE_VICTIM_REQUEST;
                 end
 
                 MSHR_PHASE_VICTIM_RECEIVE_TAG: begin

@@ -92,7 +92,7 @@ package CacheSystemTypes;
         MSHR_PHASE_INVALID = 0,                   // This entry is invalid
 
         // Victim is read from the cache.
-        MSHR_PHASE_VICTIM_REQEUST       = 1,      //
+        MSHR_PHASE_VICTIM_REQUEST       = 1,      //
         MSHR_PHASE_VICTIM_RECEIVE_TAG   = 2,      //
         MSHR_PHASE_VICTIM_RECEIVE_DATA  = 3,      // Receive dirty data.
         MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 4,      // Victim is written to a main memory.
