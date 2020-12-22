@@ -282,3 +282,11 @@ $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS):
 
 test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 	@echo "==== Test Successful (test-riscv-compliance) ===="
+
+# Aggregate cycle/IPC information from verilator/modelsim log.
+test-summary-all:
+	grep GoalCycle Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:GoalCycle:[ ]*/\1\/\2,/g" > verilator-cycles.csv
+	grep "IPC (RISC-V instruction)" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > verilator-ipc.csv
+	grep GoalCycle Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# GoalCycle:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
+	grep "IPC (RISC-V instruction)" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > modelsim-ipc.csv
+
