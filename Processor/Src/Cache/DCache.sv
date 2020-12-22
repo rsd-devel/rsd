@@ -476,7 +476,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
             // If dataArrayDoesReadEvictedWay is valid, instead of a way of dataArrayReadWay, 
             // a way specified by a replacement algorithm is read for eviction.
-            port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isMSHR;
+            port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isVictimEviction;
             port.dataArrayReadWay[p] = repHitWay[p];
             
             port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
@@ -506,7 +506,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                     port.replArrayWE[p] = TRUE;
                     port.replArrayDataIn[p] = muxInReg[p].evictWay;
                 end
-                else if (muxInReg[p].isMSHR) begin
+                else if (muxInReg[p].isVictimEviction) begin
                     // MSHR からの victim 読み出し時は，置き換え情報の読み出し
                     port.replArrayWE[p] = FALSE;    
                 end
@@ -936,8 +936,7 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isMSHR = FALSE;
-            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isLSU  = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isVictimEviction = FALSE;
         end
 
         // --- In the tag access stage (MemoryTagAccessStage)
@@ -991,8 +990,7 @@ module DCache(
             // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].evictWay = '0;
-            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isMSHR = FALSE;
-            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isLSU  = TRUE;
+            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isVictimEviction = FALSE;
 
             lsu.dcWriteReqAck = port.lsuCacheGrt[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
         end
@@ -1294,8 +1292,7 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
             port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
             port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
-            port.mshrCacheMuxIn[i].isMSHR = FALSE;
-            port.mshrCacheMuxIn[i].isLSU = FALSE;
+            port.mshrCacheMuxIn[i].isVictimEviction = FALSE;
 
             // Memory request signals
             port.mshrMemReq[i] = FALSE;
@@ -1346,16 +1343,6 @@ module DCacheMissHandler(
 
 
                 // 2. リプレース対象の読み出し
-                //  * フィル対象の決定
-                //      if (セット内に invalid なウェイがある) {
-                //          フィル対象 = invalid なウェイ
-                //      } else {
-                //          フィル対象 = LR Uの示すウェイ
-                //      }
-                //  * ラインの読み出し
-                //      if (! 追い出し対象が invalid ){
-                //          ラインをキャッシュから読み出す
-                //      }
                 MSHR_PHASE_VICTIM_REQUEST: begin
                     // Access the cache array.
                     port.mshrCacheReq[i] = TRUE;
@@ -1363,7 +1350,7 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE = FALSE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
-                    port.mshrCacheMuxIn[i].isMSHR = TRUE;
+                    port.mshrCacheMuxIn[i].isVictimEviction = TRUE;
 
                     nextMSHR[i].phase =
                         port.mshrCacheGrt[i] ?
@@ -1400,6 +1387,7 @@ module DCacheMissHandler(
 
 
                     // Receive cache data.
+                    // The data array outputs an evicted way determined in the array.
                     nextMSHR[i].victimReceived = TRUE;
                     nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
                     nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
@@ -1413,10 +1401,6 @@ module DCacheMissHandler(
                 end
 
                 // 3. リプレース対象の書き出し
-                // * if (! 追い出し対象が invalid ){
-                //        ラインをメモリに書き出す
-                //   }
-
                 MSHR_PHASE_VICTIM_WRITE_TO_MEM: begin
                     port.mshrMemReq[i] = TRUE;
                     port.mshrMemMuxIn[i].we = TRUE;
