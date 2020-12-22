@@ -1,4 +1,4 @@
-// Copyright 2019- RSD contributors.
+// Copyright 2020- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
 
@@ -15,17 +15,17 @@ package CacheSystemTypes;
     // Main cache parameters.
     // The remaining cache parameters must be fixed or calculated by the following
     // parameters.
-    localparam DCACHE_WAY_NUM = 2;           // Way Num
+    localparam DCACHE_WAY_NUM = 2;           // The number of ways in a single set
     localparam DCACHE_INDEX_BIT_WIDTH = 9 - $clog2(DCACHE_WAY_NUM);   // The number of index bits
-    localparam DCACHE_LINE_BYTE_NUM = 8;    // Line size
-    localparam MSHR_NUM = 2;                 // The nubmer of MSHR entries.
+    localparam DCACHE_LINE_BYTE_NUM = 8;     // Line size
+    localparam MSHR_NUM = 2;                 // The number of MSHR entries.
 
     // Index bits
     localparam DCACHE_INDEX_NUM = 1 << DCACHE_INDEX_BIT_WIDTH;
     typedef logic [DCACHE_INDEX_BIT_WIDTH-1:0] DCacheIndexPath;
 
-    // They number of the ports of tag/data array.
-    localparam DCACHE_ARRAY_PORT_NUM = 2;    // Block ram has 2 ports.
+    // The number of the ports of tag/data array.
+    localparam DCACHE_ARRAY_PORT_NUM = 2;    // This parameter must be fixed to 2 because block ram has 2 ports.
     localparam DCACHE_ARRAY_PORT_NUM_BIT_WIDTH = $clog2(DCACHE_ARRAY_PORT_NUM);
     typedef logic [DCACHE_ARRAY_PORT_NUM_BIT_WIDTH-1 : 0] DCacheArrayPortIndex;
 
@@ -33,7 +33,6 @@ package CacheSystemTypes;
     localparam DCACHE_LINE_BYTE_NUM_BIT_WIDTH = $clog2(DCACHE_LINE_BYTE_NUM);
     localparam DCACHE_LINE_BIT_WIDTH = DCACHE_LINE_BYTE_NUM * 8;
     typedef logic [DCACHE_LINE_BIT_WIDTH-1:0] DCacheLinePath;
-
     typedef logic [DCACHE_LINE_BYTE_NUM-1:0] DCacheByteEnablePath;
 
     // Tag bits
@@ -49,14 +48,14 @@ package CacheSystemTypes;
         DCacheTagPath tag;
     } DCacheTagValidPath;
 
-    // Way bits
+    // A signal path for a way number
     localparam DCACHE_WAY_BIT_NUM = (DCACHE_WAY_NUM != 1) ? $clog2(DCACHE_WAY_NUM) : 1;
     typedef logic [DCACHE_WAY_BIT_NUM-1:0] DCacheWayPath;
 
     // Tree LRU information
-    // DCACHE_WAY_NUM - 1 bits are necessary?
-    // とりあえず今は DCACHE_WAY_NUM と一致させている
-    //localparam DCACHE_TREE_LRU_STATE_BIT_NUM = DCACHE_WAY_NUM;
+    // Each bit represents a node in a binary tree
+    // (DCACHE_WAY_NUM - 1) bits are necessary. 
+    // DCACHE_TREE_LRU_STATE_BIT_NUM = sum(1+2+4...W/2) = W-1
     localparam DCACHE_TREE_LRU_STATE_BIT_NUM = (DCACHE_WAY_NUM - 1) > 0 ? (DCACHE_WAY_NUM - 1) : 1;
     typedef logic [DCACHE_TREE_LRU_STATE_BIT_NUM-1:0] DCacheTreeLRU_StatePath;
 
@@ -208,7 +207,7 @@ package CacheSystemTypes;
 
     typedef struct packed   // MemoryPortMultiplexerOut
     {
-        logic ack;              // Request is accpeted or not.
+        logic ack;              // Request is accepted or not.
         MemAccessSerial serial; // Request serial
         MemWriteSerial wserial; // Request serial
     } MemoryPortMultiplexerOut;
@@ -281,7 +280,7 @@ package CacheSystemTypes;
     // --- Memory Access
     //
     typedef struct packed {
-        logic ack;              // Request is accpeted or not.
+        logic ack;              // Request is accepted or not.
         MemAccessSerial serial; // Read request serial
         MemWriteSerial wserial; // Write request serial
     } MemAccessReqAck;

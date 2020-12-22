@@ -316,7 +316,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
 
     // *** Hack for Synplify...
-    // Signals in an interface are set to temproraly signals for avoiding
+    // Signals in an interface are set to temporally signals for avoiding
     // errors outputted by Synplify.
     DCacheTagPath   tagArrayDataOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic           tagArrayValidOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
@@ -374,12 +374,12 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
 
         //
-        // stage:   | ADDR    | D$TAG    | D$DATA      |
-        // process: | arbitor |          |             |
-        //          | tag-in  | tag-out  |             |
-        //          |         | hit/miss |             |
-        //          |         | data-in  | data-out    |
-        //          |         |          | repl-update |
+        // stage:   | ADDR    | D$TAG    | D$DATA   |
+        // process: | arbiter |          |          |
+        //          | tag-in  | tag-out  |          |
+        //          |         | hit/miss |          |
+        //          |         | data-in  | data-out |
+        //          |         | repl-in  | repl-out |
         //
         // Pipeline regs between ADDR<>D$TAG:   portInRegTagStg, portOutRegTagStg, muxInReg
         // Pipeline regs between D$TAG<>D$DATA: portOutRegDataStg
@@ -414,8 +414,8 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                     mshrConflict[p] = TRUE;
 
                     // When request addr hits mshr,
-                    // 1. the mahr allocator load must bypass data from MSHR,
-                    // 2. other loads can bypass data from MSHR if possoble.
+                    // 1. the mshr allocator load must bypass data from MSHR,
+                    // 2. other loads can bypass data from MSHR if possible.
                     if (muxInReg[p].tagDataIn == ToTagPartFromFullAddr(port.mshrAddr[m])) begin
                         // To bypass data from MSHR.
                         if (port.mshrPhase[m] > (MSHR_PHASE_MISS_WRITE_CACHE_REQUEST-1)) begin
@@ -661,24 +661,12 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .rv( replArrayOut[i] )
             );
         end
-        /*
-        BlockTrueDualPortRAM #(
-            .ENTRY_NUM( DCACHE_INDEX_NUM ),
-            .ENTRY_BIT_SIZE( $bits(DCacheTreeLRU_StatePath) )
-            //.PORT_NUM( DCACHE_ARRAY_PORT_NUM )
-        ) tagArray (
-            .clk( port.clk ),
-            .we( replArrayWE_Flat ),
-            .rwa( replArrayIndex ),
-            .wv( replArrayInFlat ),
-            .rv( replArrayOutFlat )
-        );*/
     endgenerate
 
 
     always_comb begin
 
-        // Replacment signals
+        // Replacement signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             replArrayIndex[p] = port.replArrayIndexIn[p];
             replArrayWE_Flat[p] = TreeLRU_CalcWriteEnable(port.replArrayWE[p], port.replArrayDataIn[p]);
@@ -702,7 +690,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
         end
 
         // *** Hack for Synplify...
-        // Signals in an interface must be connected to temproraly signals for avoiding
+        // Signals in an interface must be connected to temporal signals for avoiding
         // errors outputted by Synplify.
         dataArrayByteWE_Tmp = port.dataArrayByteWE_In;
         dataArrayInTmp = port.dataArrayDataIn;
@@ -1040,7 +1028,7 @@ module DCache(
             missIsUncachable[i] = dcReadUncachableReg[i];
         end
 
-        // Write requests from a store queue commitor.
+        // Write requests from a store queue committer.
         for (int i = DCACHE_LSU_WRITE_PORT_BEGIN; i < DCACHE_LSU_WRITE_PORT_NUM + DCACHE_LSU_READ_PORT_NUM; i++) begin
             assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
             missReq[i] = !hit[i] && !port.lsuMuxTagOut[i].mshrConflict && dcWriteReqReg && lsuCacheGrtReg[i];
@@ -1064,13 +1052,13 @@ module DCache(
 
     always_comb begin
 
-        // MSHR alloc signals for ReplayQueue
+        // MSHR allocation signals for ReplayQueue
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
             lsuLoadHasAllocatedMSHR[i] = FALSE;
             lsuLoadMSHRID[i] = '0;
         end
 
-        // MSHR alloc signals for storeCommitter
+        // MSHR allocation signals for storeCommitter
         for (int i = 0; i < DCACHE_LSU_WRITE_PORT_NUM; i++) begin
             lsuStoreHasAllocatedMSHR[i] = FALSE;
             lsuStoreMSHRID[i] = '0;
@@ -1155,13 +1143,13 @@ module DCache(
             lsu.mshrReadData[i] = lsuMSHRReadData[i];
         end
 
-        // MSHR alloc signals for ReplayQueue
+        // MSHR allocation signals for ReplayQueue
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
             lsu.loadHasAllocatedMSHR[i] = lsuLoadHasAllocatedMSHR[i];
             lsu.loadMSHRID[i] = lsuLoadMSHRID[i];
         end
 
-        // MSHR alloc signals for storeCommitter
+        // MSHR allocation signals for storeCommitter
         for (int i = 0; i < DCACHE_LSU_WRITE_PORT_NUM; i++) begin
             lsu.storeHasAllocatedMSHR[i] = lsuStoreHasAllocatedMSHR[i];
             lsu.storeMSHRID[i] = lsuStoreMSHRID[i];
@@ -1252,7 +1240,7 @@ module DCacheMissHandler(
             // To notice mshr newAddr subset to ReplayQueue.
             port.mshrAddrSubset[i] = ToIndexSubsetPartFromFullAddr(mshr[i].newAddr);
 
-            // To bypass mshr data to load insts.
+            // To bypass mshr data to load instructions.
             port.mshrData[i] = mshr[i].line;
 
             port.mshrValid[i] = mshr[i].valid;
@@ -1332,7 +1320,7 @@ module DCacheMissHandler(
 
                         nextMSHR[i].evictWay = '0;
 
-                        // Dont'care
+                        // Don't care
                         //nextMSHR[i].line = '0;
 
                         if (port.isUncachable[i]) begin
