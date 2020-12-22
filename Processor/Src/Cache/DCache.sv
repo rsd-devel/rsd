@@ -90,26 +90,9 @@ function automatic MissStatusHandlingRegister ClearedMSHR();
     return mshr;
 endfunction
 
-// Currently suuport 2-way only
-/*
+// Tree-LRU replacement
 function automatic DCacheWayPath 
-CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath in);
-    return (in == 0 ? 1 : 0) % DCACHE_WAY_NUM;  // direct map 時のため MOD
-endfunction
-
-function automatic DCacheTreeLRU_StatePath
-CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath in);
-    return in;
-endfunction
-
-function automatic DCacheTreeLRU_StatePath
-CalcWriteEnableIn2WayTreeLRU(logic we, DCacheWayPath in);
-    return {we, we};
-endfunction
-*/
-// Currently suuport 2-way only
-function automatic DCacheWayPath 
-CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath state);
+TreeLRU_CalcEvictedWay(DCacheTreeLRU_StatePath state);
     DCacheWayPath evicted = 0;
     DCacheWayPath p = 0;
     if (DCACHE_WAY_NUM == 1)
@@ -122,7 +105,7 @@ CalcEvictedWayIn2WayTreeLRU(DCacheTreeLRU_StatePath state);
 endfunction
 
 function automatic DCacheTreeLRU_StatePath
-CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath way);
+TreeLRU_CalcUpdatedState(DCacheWayPath way);
     DCacheTreeLRU_StatePath next = 0;
     int p = 0;
     if (DCACHE_WAY_NUM == 1)
@@ -137,7 +120,7 @@ CalcUpdatedStateIn2WayTreeLRU(DCacheWayPath way);
 endfunction
 
 function automatic DCacheTreeLRU_StatePath
-CalcWriteEnableIn2WayTreeLRU(logic weIn, DCacheWayPath way);
+TreeLRU_CalcWriteEnable(logic weIn, DCacheWayPath way);
     int p = 0;
     int c = 0;
     DCacheTreeLRU_StatePath we = '0;
@@ -698,14 +681,14 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // Replacment signals
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             replArrayIndex[p] = port.replArrayIndexIn[p];
-            replArrayWE_Flat[p] = CalcWriteEnableIn2WayTreeLRU(port.replArrayWE[p], port.replArrayDataIn[p]);
-            replArrayInFlat[p] = CalcUpdatedStateIn2WayTreeLRU(port.replArrayDataIn[p]);
+            replArrayWE_Flat[p] = TreeLRU_CalcWriteEnable(port.replArrayWE[p], port.replArrayDataIn[p]);
+            replArrayInFlat[p] = TreeLRU_CalcUpdatedState(port.replArrayDataIn[p]);
             for (int i = 0; i < DCACHE_TREE_LRU_STATE_BIT_NUM; i++) begin
                 replArrayWE[i][p] = replArrayWE_Flat[p][i];
                 replArrayIn[i][p] = replArrayInFlat[p][i];
                 replArrayOutFlat[p][i] = replArrayOut[i][p];
             end
-            replArrayResult[p] = CalcEvictedWayIn2WayTreeLRU(replArrayOutFlat[p]);
+            replArrayResult[p] = TreeLRU_CalcEvictedWay(replArrayOutFlat[p]);
             port.replArrayDataOut[p] = replArrayResult[p];
         end
 
