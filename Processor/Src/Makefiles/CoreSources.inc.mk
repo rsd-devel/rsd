@@ -178,5 +178,5 @@ MODULES = \
 # This list is used when generating Vivado custom IP of RSD
 HEADERS = \
 	BasicMacros.sv \
-	SynthesisMacros.svh \
-	XilinxMacros.vh \
+	SysDeps/SynthesisMacros.svh \
+	SysDeps/XilinxMacros.vh \

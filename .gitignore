@@ -83,3 +83,5 @@ hs*.dmp
 Processor/Project/Synplify/*.prd
 
 
+
+Processor/Project/Vivado/TargetBoards/Zedboard/rsd_ip/Vivado/component\.xml

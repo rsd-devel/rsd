@@ -126,11 +126,11 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
- [file normalize "${origin_dir}/../../../../Src/SynthesisMacros.svh"] \
+ [file normalize "${origin_dir}/../../../../Src/SysDeps/SynthesisMacros.svh"] \
 ]
 add_files -norecurse -fileset $obj $files
 
-set file "$origin_dir/../../../../Src/SynthesisMacros.svh"
+set file "$origin_dir/../../../../Src/SysDeps/SynthesisMacros.svh"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -value "Verilog Header" -objects $file_obj
