@@ -1,23 +1,14 @@
-/Work
+# test bench 
+/Processor/Src/Verification/TestCode/C/*/reg.out.hex
+/Processor/Src/Verification/TestCode/C/*/serial.out.txt
+/Processor/Src/Verification/TestCode/Asm/*/reg.out.hex
+/Processor/Src/Verification/TestCode/Asm/*/serial.out.txt
 
-/Processor/Project/Verilator/obj_dir
-/Processor/Project/ModelSim
-/Processor/Project/Vivado/TargetBoards/Zedboard/rsd
-/Processor/Project/Vivado/TargetBoards/Zedboard/rsd_post_synthesis
-/Processor/Project/Vivado/TargetBoards/Zedboard/code.hex
-/Processor/Project/Vivado/TargetBoards/Zedboard/*.v
-/Processor/Project/Vivado/TargetBoards/Zedboard/NA/
-/Processor/Project/Vivado/TargetBoards/Zedboard/.Xil/
-/Processor/Project/Synplify/Zedboard
-/Processor/Project/Synplify/Zedboard_post_synthesis
-/Processor/Project/Synplify/Microsemi
+/Processor/Tools/QEMU_SimDriver/GDB_CommandFile
+/Processor/Tools/SetEnv/MySetEnv.bat
+/Processor/Tools/SetEnv/MySetEnv.sh
 
-/Processor/Project/DesignCompiler/*.svf
-/Processor/Project/DesignCompiler/*.ddc
-/Processor/Project/DesignCompiler/work/
-
-
-# Coremark/Drhystone/Zephyr 関係は RSD-env からコピー
+# Coremark/Drhystone/Zephyr related files are copied from RSD-env
 /Processor/Src/Verification/TestCode/Coremark/Coremark/*
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_RV32I/*
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_Synthesis/*
@@ -31,28 +22,62 @@
 /Processor/Src/Verification/TestCode/riscv-compliance/*
 !/Processor/Src/Verification/TestCode/riscv-compliance/Makefile
 
-/Processor/Src/*.log
-/Processor/Src/*.txt
-/Processor/Src/*.csv
-/Processor/Src/*.vcd
-/Processor/Src/wlft*
 
+# Verilator
+/Processor/Project/Verilator/obj_dir
+
+
+# Synplify
+/Processor/Project/Synplify/Zedboard
+/Processor/Project/Synplify/Zedboard_post_synthesis
+/Processor/Project/Synplify/Microsemi
+Processor/Project/Synplify/*.prd
+
+
+# Design compiler
+/Processor/Project/DesignCompiler/*.svf
+/Processor/Project/DesignCompiler/*.ddc
+/Processor/Project/DesignCompiler/work/
+
+
+# Modelsim
+/Processor/Project/ModelSim
 transcript
 vsim.wlf
 *.vstf
 wave.do
+modelsim.ini
+
+
+# Xilinx
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd
+/Processor/Project/Vivado/TargetBoards/Zedboard/rsd_post_synthesis
+/Processor/Project/Vivado/TargetBoards/Zedboard/code.hex
+/Processor/Project/Vivado/TargetBoards/Zedboard/*.v
+/Processor/Project/Vivado/TargetBoards/Zedboard/NA/
+/Processor/Project/Vivado/TargetBoards/Zedboard/.Xil/
+
+Processor/Project/Vivado/TargetBoards/Zedboard/rsd_ip/Vivado/component\.xml
+
+vivado*jou
+vivado*zip
+vivado*str
+vivado*log
 /Processor/Src/.Xil
 synlog.tcl
 
-/Processor/Src/Verification/TestCode/C/*/reg.out.hex
-/Processor/Src/Verification/TestCode/C/*/serial.out.txt
-/Processor/Src/Verification/TestCode/Asm/*/reg.out.hex
-/Processor/Src/Verification/TestCode/Asm/*/serial.out.txt
 
-/Processor/Tools/QEMU_SimDriver/GDB_CommandFile
+# log files
+/Processor/Src/*.log
+/Processor/Src/*.txt
+/Processor/Src/*.csv
+/Processor/Src/*.vcd
+/Processor/Src/*.gz
+/Processor/Src/wlft*
 
-/Processor/Tools/SetEnv/MySetEnv.bat
-/Processor/Tools/SetEnv/MySetEnv.sh
+
+# other files
+/Work
 
 *.pyc
 *.log
@@ -61,15 +86,7 @@ synlog.tcl
 *.dump
 *.touch
 *.elf
-
 *.stackdump
-
-vivado*jou
-vivado*zip
-vivado*str
-vivado*log
-
-modelsim.ini
 
 hs*.dmp
 *.sublime-project
@@ -80,8 +97,3 @@ hs*.dmp
 /.project
 /.history
 
-Processor/Project/Synplify/*.prd
-
-
-
-Processor/Project/Vivado/TargetBoards/Zedboard/rsd_ip/Vivado/component\.xml
