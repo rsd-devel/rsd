@@ -172,11 +172,11 @@ MODULES = \
 	Memory/Axi4MemoryIF.sv \
 	Memory/MemoryReadReqQueue.sv \
 	Memory/MemoryWriteDataQueue.sv \
-	Memory/MemoryRequestQueue.sv \
+	Memory/MemoryLatencySimulator.sv \
 
 # Header files
 # This list is used when generating Vivado custom IP of RSD
 HEADERS = \
 	BasicMacros.sv \
-	SynthesisMacros.svh \
-	XilinxMacros.vh \
+	SysDeps/SynthesisMacros.svh \
+	SysDeps/XilinxMacros.vh \

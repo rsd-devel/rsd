@@ -6,7 +6,7 @@
 // `timescale 1 ns / 1 ps
 
 `include "BasicMacros.sv"
-`include "XilinxMacros.vh"
+`include "SysDeps/XilinxMacros.vh"
 
 import BasicTypes::*;
 import MemoryTypes::*;

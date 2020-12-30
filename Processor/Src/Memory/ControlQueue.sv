@@ -6,7 +6,7 @@
 // ControlQueue
 //
 
-`include "XilinxMacros.vh"
+`include "SysDeps/XilinxMacros.vh"
 
 import BasicTypes::*;
 import MemoryTypes::*;

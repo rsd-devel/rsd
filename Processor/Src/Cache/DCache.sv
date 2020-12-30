@@ -513,7 +513,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                     // 2. other loads can bypass data from MSHR if possible.
                     if (muxInReg[p].tagDataIn == ToTagPartFromFullAddr(port.mshrAddr[m])) begin
                         // To bypass data from MSHR.
-                        if (port.mshrPhase[m] > (MSHR_PHASE_MISS_WRITE_CACHE_REQUEST-1)) begin
+                        if (port.mshrPhase[m] >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
                         //if (port.mshrPhase[m] >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
                             if (muxInReg[p].makeMSHRCanBeInvalid) begin
                                 portMSHRCanBeInvalid[m] = TRUE;

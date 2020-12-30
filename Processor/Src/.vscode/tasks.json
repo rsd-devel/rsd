@@ -47,12 +47,13 @@
                         "${workspaceRoot}"
                     ],
                     "pattern": {
-                        "regexp": "^%(Warning)-([^:]*): (.*):(\\d+):(.*)$",
+                        "regexp": "^%(Warning)-([^:]*): (.*):(\\d+):(\\d+):(.*)$",
                         "severity": 1,
                         "code": 2,
                         "file": 3,
                         "line": 4,
-                        "message": 5
+                        "column": 5,
+                        "message": 6
                     }
                 },
                 {
@@ -61,11 +62,12 @@
                         "${workspaceRoot}"
                     ],
                     "pattern": {
-                        "regexp": "^%(Error).*: (.*):(\\d+):(.*)$",
+                        "regexp": "^%(Error).*: (.*):(\\d+):(\\d+):(.*)$",
                         "severity": 1,
                         "file": 2,
                         "line": 3,
-                        "message": 4
+                        "column": 4,
+                        "message": 5
                     }
                 },
                 {

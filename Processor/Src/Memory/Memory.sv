@@ -89,12 +89,12 @@ output
 
     // Push memory request temporarily to queue
     logic pushRequestQueue;
-    MemoryRequestData pushedData;
+    MemoryLatencySimRequestPath pushedData;
 
     logic hasRequest, hasRequestReg;
-    MemoryRequestData requestData, requestDataReg;
+    MemoryLatencySimRequestPath requestData, requestDataReg;
 
-    MemoryRequestQueue memReqQueue(
+    MemoryLatencySimulator memReqQueue(
         .clk (clk),
         .rst (rst),
         .push (pushRequestQueue),
