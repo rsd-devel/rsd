@@ -428,8 +428,8 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Memory/MemoryWriteDataQueue.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Memory/MemoryRequestQueue.sv"] \
  [file normalize "${origin_dir}/../../../../Src/BasicMacros.sv"] \
- [file normalize "${origin_dir}/../../../../Src/SynthesisMacros.svh"] \
- [file normalize "${origin_dir}/../../../../Src/XilinxMacros.vh"] \
+ [file normalize "${origin_dir}/../../../../Src/SysDeps/SynthesisMacros.svh"] \
+ [file normalize "${origin_dir}/../../../../Src/SysDeps/XilinxMacros.vh"] \
  [file normalize "${origin_dir}/code.hex"] \
 ]
 add_files -norecurse -fileset $obj $files
@@ -1180,12 +1180,12 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "Verilog Header"
 
-set file "$origin_dir/../../../../Src/SynthesisMacros.svh"
+set file "$origin_dir/../../../../Src/SysDeps/SynthesisMacros.svh"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "Verilog Header"
 
-set file "$origin_dir/../../../../Src/XilinxMacros.vh"
+set file "$origin_dir/../../../../Src/SysDeps/XilinxMacros.vh"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "Verilog Header"

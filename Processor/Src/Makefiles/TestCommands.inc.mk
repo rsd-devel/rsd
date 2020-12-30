@@ -35,6 +35,7 @@ LEVEL1_TESTS = \
 	test-HelloWorld \
 	test-Fibonacci \
 	test-Exception \
+	test-DCache \
 
 #	test-RV32I-MisalignedMemAccess \
 
@@ -195,6 +196,8 @@ test-Dhrystone-for-contest:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone_for_Contest
 test-Exception:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Exception
+test-DCache:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
 
 
 # Zephyr のテストターゲット
@@ -282,3 +285,11 @@ $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS):
 
 test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 	@echo "==== Test Successful (test-riscv-compliance) ===="
+
+# Aggregate cycle/IPC information from verilator/modelsim log.
+test-summary-all:
+	grep GoalCycle Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:GoalCycle:[ ]*/\1\/\2,/g" > verilator-cycles.csv
+	grep "IPC (RISC-V instruction)" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > verilator-ipc.csv
+	grep GoalCycle Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# GoalCycle:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
+	grep "IPC (RISC-V instruction)" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > modelsim-ipc.csv
+

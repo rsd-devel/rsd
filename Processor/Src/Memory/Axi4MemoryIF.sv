@@ -6,7 +6,7 @@
 // Axi4MemoryIF
 //
 
-`include "XilinxMacros.vh"
+`include "SysDeps/XilinxMacros.vh"
 
 import BasicTypes::*;
 import MemoryTypes::*;
