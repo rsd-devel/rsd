@@ -25,16 +25,23 @@ module CSR_Unit(
     AddrPath jumpTarget;
     CommitLaneCountPath regCommitNum;
 
+    // An external interrupt request is latched in the CSR, and an actual 
+    // interrupt is triggered at the next cycle. So external interrupt code must be latched.
+    ExternalInterruptCodePath externalInterruptCodeReg;
+
     always_ff@(posedge port.clk) begin
         if (port.rst) begin
             csrReg <= '0;
             regCommitNum <= '0;
+            externalInterruptCodeReg <= '0;
         end
         else begin
             csrReg <= csrNext;
             regCommitNum <= port.commitNum;
+            externalInterruptCodeReg <= port.externalInterruptCode;
         end
     end
+
     always_comb begin
         mcycle = csrReg.mcycle;
         
@@ -73,7 +80,7 @@ module CSR_Unit(
             csrNext.mtval = ToAddrFromPC(port.interruptRetAddr);// PC?
             
             csrNext.mcause.isInterrupt = TRUE;
-            csrNext.mcause.code.interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
+            csrNext.mcause.code.interruptCode = port.interruptCode;
             //$display("int: from %x", port.interruptRetAddr);
         end
         else if (port.triggerExcpt) begin
@@ -136,7 +143,9 @@ module CSR_Unit(
             endcase 
         end
 
-        csrNext.mip.MTIP = port.reqTimerInterrupt;  // Timer interrupt request
+        csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
+        csrNext.mip.MEIP = port.reqExternalInterrupt;   // External interrupt request
+        port.externalInterruptCodeInCSR = externalInterruptCodeReg;
 
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
@@ -145,11 +154,6 @@ module CSR_Unit(
         else begin
             port.excptTargetAddr = {csrReg.mtvec.base, CSR_MTVEC_BASE_PADDING};
         end
-        port.interruptTargetAddr = ToPC_FromAddr({
-            (csrReg.mtvec.mode == CSR_MTVEC_MODE_VECTORED) ? 
-                csrReg.mtvec.base + csrReg.mcause.code : csrReg.mtvec.base, 
-                CSR_MTVEC_BASE_PADDING
-        });
 
         port.csrWholeOut = csrReg;
     end

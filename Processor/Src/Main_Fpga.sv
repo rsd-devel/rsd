@@ -256,6 +256,13 @@ output
     assign ledOut = lastCommittedPC[ LED_WIDTH-1:0 ];
 `endif
 
+    logic reqExternalInterrupt;
+    ExternalInterruptCodePath externalInterruptCode; 
+    always_comb begin
+        reqExternalInterrupt = FALSE;
+        externalInterruptCode = 0;
+    end
+
     //
     // --- Processor core
     //
@@ -268,6 +275,8 @@ output
         .memAccessWE( memAccessWE_FromCore ),
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
+        .reqExternalInterrupt( reqExternalInterrupt ),
+        .externalInterruptCode( externalInterruptCode ),
         .memReadData( memReadData ),
         .memReadDataReady( memReadDataReady ),
         .rstStart( rstStart ),
