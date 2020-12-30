@@ -81,33 +81,51 @@ package CacheSystemTypes;
     typedef logic [MEM_WRITE_SERIAL_BIT_SIZE-1 : 0] MemWriteSerial;
 
     //
+    // Phase of DCache
+    //
+    typedef enum logic [1:0]
+    {
+        DCACHE_PHASE_NORMAL = 0,                // DCache is operating normally.
+        DCACHE_PHASE_FLUSH_PROCESSING = 1,      // DCache is flushing.
+        DCACHE_PHASE_FLUSH_COMPLETE = 2         // DCache flush is completed, waiting for a completion signal from a manager.
+    } DCachePhase;
+
+    //
     // MSHR
     //
     localparam MSHR_NUM_BIT_WIDTH = $clog2(MSHR_NUM);
     typedef logic [MSHR_NUM_BIT_WIDTH-1:0] MSHR_IndexPath;
     typedef logic [MSHR_NUM_BIT_WIDTH:0] MSHR_CountPath;
 
-    typedef enum logic [3:0]
+    typedef enum logic [4:0]
     {
         MSHR_PHASE_INVALID = 0,                   // This entry is invalid
 
+        // For flush
+        MSHR_PHASE_FLUSH_VICTIM_REQEUST = 1,        //
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG   = 2,  //
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA  = 3,  // Receive dirty data.
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM  = 4,  // Victim is written to a main memory.
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE = 5, // Wait until victim writeback is complete.
+        MSHR_PHASE_FLUSH_CHECK = 6,                 // Check if flush is completed.
+
         // Victim is read from the cache.
-        MSHR_PHASE_VICTIM_REQUEST       = 1,      //
-        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 2,      //
-        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 3,      // Receive dirty data.
-        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 4,      // Victim is written to a main memory.
-        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 5,     // Wait until victim writeback is complete.
+        MSHR_PHASE_VICTIM_REQUEST       = 7,        //
+        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 8,        //
+        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 9,        // Receive dirty data.
+        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 10,       // Victim is written to a main memory.
+        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 11,      // Wait until victim writeback is complete.
 
-        MSHR_PHASE_MISS_MERGE_STORE_DATA = 6,     // Merge the allocator store's data and the fetched line.
+        MSHR_PHASE_MISS_MERGE_STORE_DATA = 12,      // Merge the allocator store's data and the fetched line.
 
-        MSHR_PHASE_MISS_READ_MEM_REQUEST = 7,     // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 8,     // Read from a main memory to a cache.
-        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 9,       // (Uncachable store) Write data to a main memory.
-        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 10,    // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_MISS_READ_MEM_REQUEST = 13,      // Read from a main memory to a cache.
+        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 14,      // Read from a main memory to a cache.
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 15,    // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 16,  // (Uncachable store) Write data to a main memory.
         // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE 
         // must be the highest numbers in the following order.
-        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 11, // (Cachable load/store) Write data to a cache.
-        MSHR_PHASE_MISS_HANDLING_COMPLETE = 12
+        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 17,   // (Cachable load/store) Write data to a cache.
+        MSHR_PHASE_MISS_HANDLING_COMPLETE = 18
 
     } MSHR_Phase;
 
@@ -148,6 +166,9 @@ package CacheSystemTypes;
 
         // An MSHR entry which is indicating the way to be evicted in DCache.
         DCacheWayPath evictWay;
+
+        // For flush
+        DCacheIndexPath flushIndex;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
@@ -172,6 +193,8 @@ package CacheSystemTypes;
 
         // If this signal is asserted, this request is one from MSHR to evict a line.
         logic           isVictimEviction;
+        // For flush
+        logic           isFlushReq;
     } DCachePortMultiplexerIn;
 
     typedef struct packed   // DCachePortMultiplexerTagOut

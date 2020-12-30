@@ -91,9 +91,10 @@ module ICacheNRUStateArray(
     input  logic              writeHit,
     input  NRUAccessStatePath writeNRUState,
     input  ICacheIndexPath    readIndex,
-    output NRUAccessStatePath readNRUState
+    output NRUAccessStatePath readNRUState,
+    output ICacheIndexPath rstIndex
 );
-    ICacheIndexPath rstIndex;
+    
     logic we;
     ICacheIndexPath writeNRUStateIndex;
     NRUAccessStatePath writeNRUStateData;
@@ -225,12 +226,15 @@ module ICache(
     //
     // Phase of ICache
     //
-    typedef enum logic [1:0]
+    typedef enum logic [2:0]
     {
         ICACHE_PHASE_READ_CACHE = 0,
         ICACHE_PHASE_MISS_READ_MEM_REQUEST = 1,   // Read from a main memory to a cache.
         ICACHE_PHASE_MISS_READ_MEM_RECEIVE = 2,   // Read from a main memory to a cache.
-        ICACHE_PHASE_MISS_WRITE_CACHE = 3         // Write data to a cache.
+        ICACHE_PHASE_MISS_WRITE_CACHE = 3,        // Write data to a cache.
+        ICACHE_PHASE_FLUSH_PREPARE = 4,           // Prepare for ICache flush.
+        ICACHE_PHASE_FLUSH_PROCESSING = 5,        // ICache flush is processing.
+        ICACHE_PHASE_FLUSH_COMPLETE = 6           // ICache flush is completed.
     } ICachePhase;
     ICachePhase regPhase, nextPhase;
 
@@ -243,6 +247,12 @@ module ICache(
         end
     end
     
+    // for flush
+    logic regFlushStart, nextFlushStart;
+    logic regFlush, nextFlush;
+    logic regFlushReqAck, nextFlushReqAck;
+    logic flushComplete;
+
     //
     // ICacheArray
     //
@@ -259,8 +269,8 @@ module ICache(
         for ( genvar i = 0; i < ICACHE_WAY_NUM; i++ ) begin
             ICacheArray array(
                 .clk( port.clk ),
-                .rst( port.rst ),
-                .rstStart( port.rstStart ),
+                .rst( (port.rst) ? port.rst : regFlush ),
+                .rstStart( (port.rstStart) ? port.rstStart : regFlushStart ),
                 .we( we[i] ),
                 .writeIndex( writeIndex ),
                 .writeTag( writeTag ),
@@ -300,16 +310,18 @@ module ICache(
     NRUAccessStatePath wayToEvictOneHot;
     ICacheWayPath wayToEvict;
     logic nruStateWE;
+    ICacheIndexPath rstIndex;
     ICacheNRUStateArray nruStateArray(
         .clk( port.clk ),
-        .rst( port.rst ),
-        .rstStart( port.rstStart ),
+        .rst( (port.rst) ? port.rst : regFlush ),
+        .rstStart( (port.rstStart) ? port.rstStart : regFlushStart ),
         .writeIndex( readIndex ),
         .writeWay( hitWay ),
         .writeHit( nruStateWE ),
         .writeNRUState( updatedNRUState ),
         .readIndex( nextReadIndex ),
-        .readNRUState( readNRUState )
+        .readNRUState( readNRUState ),
+        .rstIndex( rstIndex )
     );
 
     always_comb begin
@@ -373,6 +385,12 @@ module ICache(
         nextMissIndex = regMissIndex;
         nextMissTag = regMissTag;
         nextSerial = regSerial;
+
+        // for flush
+        nextFlushStart = regFlushStart;
+        nextFlush = regFlush;
+        nextFlushReqAck = regFlushReqAck;
+        flushComplete = FALSE;
         
         // Non-blocking i-cache state machine
         case (regPhase)
@@ -381,13 +399,20 @@ module ICache(
         end
         ICACHE_PHASE_READ_CACHE: begin
             // Not processing cache miss now
-            if ( next.icRE && !hit ) begin
+            if (cacheSystem.icFlushReq) begin
+                nextPhase = ICACHE_PHASE_FLUSH_PREPARE;
+                nextFlushStart = TRUE;
+                nextFlush = TRUE;
+                nextFlushReqAck = FALSE;
+            end
+            else if ( next.icRE && !hit ) begin
                 // Read request -> i-cache miss:
                 // Change state to process a cache miss
                 nextPhase = ICACHE_PHASE_MISS_READ_MEM_REQUEST;
                 nextMissValid = TRUE;
                 nextMissIndex = readIndex;
                 nextMissTag = readTag;
+                nextFlushReqAck = FALSE;
             end
             else if ( next.icRE )begin
                 // Read request -> i-cache hit:
@@ -417,7 +442,27 @@ module ICache(
         ICACHE_PHASE_MISS_WRITE_CACHE: begin
             // Cannot read the write data in the same cycle,
             // therefore wait 1-cycle
+            nextFlushReqAck = TRUE;
             nextPhase = ICACHE_PHASE_READ_CACHE;
+        end
+        ICACHE_PHASE_FLUSH_PREPARE: begin
+            // 1 cycle to reset rstIndex.
+            nextFlushStart = FALSE;
+            nextMissTag = '0;
+            nextPhase = ICACHE_PHASE_FLUSH_PROCESSING;
+        end
+        ICACHE_PHASE_FLUSH_PROCESSING: begin
+            if (&rstIndex) begin
+                nextFlush = FALSE;
+                nextPhase = ICACHE_PHASE_FLUSH_COMPLETE;
+            end
+        end
+        ICACHE_PHASE_FLUSH_COMPLETE: begin
+            flushComplete = TRUE;
+            if (cacheSystem.flushComplete) begin
+                nextFlushReqAck = TRUE;
+                nextPhase = ICACHE_PHASE_READ_CACHE;
+            end
         end
         endcase // regPhase
 
@@ -427,6 +472,10 @@ module ICache(
         cacheSystem.icMemAccessReq.valid = regMissValid;
         cacheSystem.icMemAccessReq.addr = 
             GetFullPhyAddr( regMissIndex, regMissTag );
+
+        // for flush
+        cacheSystem.icFlushReqAck = regFlushReqAck;
+        cacheSystem.icFlushComplete = flushComplete;
     end
     
     always_ff @( posedge port.clk ) begin
@@ -443,6 +492,20 @@ module ICache(
             regSerial <= nextSerial;
         end
         
+    end
+
+    // for flush
+    always_ff @( posedge port.clk ) begin
+        if ( port.rst ) begin
+            regFlush <= FALSE;
+            regFlushStart <= FALSE;
+            regFlushReqAck <= TRUE;
+        end
+        else begin
+            regFlush <= nextFlush;
+            regFlushStart <= nextFlushStart;
+            regFlushReqAck <= nextFlushReqAck;
+        end
     end
     
 `ifndef RSD_SYNTHESIS

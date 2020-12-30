@@ -17,6 +17,7 @@ module ReplayQueue(
     SchedulerIF.ReplayQueue port,
     LoadStoreUnitIF.ReplayQueue mshr,
     MulDivUnitIF.ReplayQueue mulDivUnit,
+    CacheFlushManagerIF.ReplayQueue cacheFlush,
     RecoveryManagerIF.ReplayQueue recovery,
     ControllerIF.ReplayQueue ctrl
 );
@@ -421,6 +422,16 @@ module ReplayQueue(
                 ) begin
                     popEntry = FALSE;
                 end
+            end
+
+            // FENCE.I
+            if (replayEntryOut.memValid[0] && 
+                (replayEntryOut.memData[0].memOpInfo.opType
+                        inside { MEM_MOP_TYPE_FENCE }) && 
+                replayEntryOut.memData[0].memOpInfo.isFenceI && // the FENCE.I is valid,
+                !cacheFlush.cacheFlushComplete // cache flush is not completed yet.
+            ) begin
+                popEntry = FALSE;
             end
 
             for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
