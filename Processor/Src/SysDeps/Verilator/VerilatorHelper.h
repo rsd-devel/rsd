@@ -1,6 +1,10 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+//
+// Helper macros and functions to extract values defined in SystemVerilog from CPP. 
+// See comments in VerilatorHelper.h
+//
 
 #ifndef SYSDEPS_VERILATOR_VERILATOR_HELPER_H
 #define SYSDEPS_VERILATOR_VERILATOR_HELPER_H

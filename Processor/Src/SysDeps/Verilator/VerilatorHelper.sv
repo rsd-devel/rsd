@@ -1,6 +1,29 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+// Parameters defined in SV are exported from VerilatorHelper package.
+//
+// Members in packed struct cannot be accessed from cpp test bench, 
+// so we use proxy functions defined by several macros to access the members.
+//
+// * VerilatorHelper.sv
+//   RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName)
+//   This macros defines the following function
+//      memberTypeName typeName_memberName(o) begin
+//         return o.memberName
+//      end
+//
+// * VerilatorHelper.h
+//    #define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
+//        d->memberName = h->DebugRegister_##memberName(r); \
+//    This macro extracts a member value by using the macros defined in VerilatorHelper.sv 
+//
+//    GetDebugRegister function copies all the members in DebugRegister using the 
+//    above macros.
+// 
+// * TestMain.cpp
+//    It calls GetDebugRegister and extracts values in DebugRegister.
+//    The extracted values are passed to Dumper.
 
 package VerilatorHelper;
 
