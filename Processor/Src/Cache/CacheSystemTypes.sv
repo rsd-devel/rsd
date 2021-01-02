@@ -58,14 +58,14 @@ package CacheSystemTypes;
     // D-Cacheからの要求の最大数はMSHR_NUM，I-Cacheからの要求は1，最大要求数はMSHR_NUM+1となる
     // 今後I-Cacheからの同時発行可能な要求数を増やすのであればここを変更
     // NOTE: if you modify this value, you need to modify 
-    // MEMORY_AXI4_READ_ID_WIDTH in XilinxMacros.vh
+    // MEMORY_AXI4_READ_ID_WIDTH in SysDeps/XilinxMacros.vh
     localparam MEM_ACCESS_SERIAL_BIT_SIZE = $clog2( MSHR_NUM+1 );
     typedef logic [MEM_ACCESS_SERIAL_BIT_SIZE-1 : 0] MemAccessSerial;
 
     // 同時にoutstanding可能なライトトランザクションの最大数を決める
     // D-Cacheからの要求の最大数はMSHR_NUMなので，最大要求数もMSHR_NUMとなる
     // NOTE: if you modify this value, you need to modify 
-    // MEMORY_AXI4_WRITE_ID_WIDTH in XilinxMacros.vh
+    // MEMORY_AXI4_WRITE_ID_WIDTH in SysDeps/XilinxMacros.vh
     localparam MEM_WRITE_SERIAL_BIT_SIZE = $clog2( MSHR_NUM );
     typedef logic [MEM_WRITE_SERIAL_BIT_SIZE-1 : 0] MemWriteSerial;
 

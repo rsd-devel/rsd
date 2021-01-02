@@ -2,36 +2,38 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
 
+`include "BasicMacros.sv"
 
 //
-// MemoryRequestQueue
+// MemoryLatencySimulator
 //
 
 import BasicTypes::*;
 import MemoryTypes::*;
 
-module MemoryRequestQueue( 
+module MemoryLatencySimulator( 
 input 
     logic clk,
     logic rst,
     logic push,
-    MemoryRequestData pushedData,
+    MemoryLatencySimRequestPath pushedData,
 output
     logic hasRequest,
-    MemoryRequestData requestData
+    MemoryLatencySimRequestPath requestData
 );
 
-    typedef logic [$clog2(MEM_REQ_QUEUE_SIZE)-1:0] IndexPath;
+    typedef logic [$clog2(MEM_LATENCY_SIM_QUEUE_SIZE)-1:0] IndexPath;
     logic pop;
     logic full, empty;
 
     IndexPath headPtr;
     IndexPath tailPtr;
     LatencyCountPath count, countReg;
+    MemoryRandPath randReg, randNext;
     integer RANDOM_VALUE;
 
     // size, initial head, initial tail, initial count
-    QueuePointer #( MEM_REQ_QUEUE_SIZE, 0, 0, 0 )
+    QueuePointer #( MEM_LATENCY_SIM_QUEUE_SIZE, 0, 0, 0 )
         pointer(
             .clk( clk ),
             .rst( rst ),
@@ -43,7 +45,7 @@ output
             .tailPtr( tailPtr )
         );
         
-    MemoryRequestData memoryRequestQueue[ MEM_REQ_QUEUE_SIZE ];
+    MemoryLatencySimRequestPath memoryRequestQueue[ MEM_LATENCY_SIM_QUEUE_SIZE ];
 
     always_ff @(posedge clk) begin
         if (push) begin
@@ -52,44 +54,30 @@ output
 
         if (rst) begin
             countReg <= '0;
+            randReg <= MEM_LATENCY_SIM_RAND_SEED;
         end
         else begin
             countReg <= count;
+            randReg <= randNext;
         end
     end
 
     always_comb begin
-        if (rst) begin
-`ifndef RSD_SYNTHESIS
-    `ifndef RSD_FUNCTIONAL_SIMULATION_VERILATOR
-            // Pass seed value first
-            // NOTE: this cannot be done in initial begin,
-            // because $urandom is thread local
-            RANDOM_VALUE = $urandom(RANDOM_LATENCY_SEED) % VARIAVBLE_WIDTH;
-    `else
-            RANDOM_VALUE = 0;
-    `endif
-`else
-            RANDOM_VALUE = 0;
-`endif
-        end
-        
+        randNext = randReg;
         count = countReg;
 
         if (!empty) begin
             // There is some request in the queue
-            if (count == RANDOM_VALUE) begin
+            if (count == (randReg % MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE)) begin
                 // Issue memory request
                 pop = TRUE;
                 count = '0;
-`ifndef RSD_SYNTHESIS
-    `ifndef RSD_FUNCTIONAL_SIMULATION_VERILATOR
-                // Set next memory latency
-                RANDOM_VALUE = $urandom() % VARIAVBLE_WIDTH; 
-    `endif
-`endif
+                randNext = randNext ^ (randNext << 13); 
+                randNext = randNext ^ (randNext >> 17);
+                randNext = randNext ^ (randNext << 5);
+
                 // for debug
-                // $display("Latency set to %d", RANDOM_VALUE);
+                //$display("Latency set to %d", randNext % MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE);
             end
             else begin
                 // Wait until the determined latency has passed
@@ -106,7 +94,10 @@ output
         requestData = memoryRequestQueue[ headPtr ];
     end
 
-    assert property(@(posedge clk) !( full ))
-        else $error("Cannot response so many memory request.");
+    `RSD_ASSERT_CLK(clk, !full, "Cannot response so many memory request.");
 
-endmodule : MemoryRequestQueue
+`ifdef RSD_SYNTHESIS
+    `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
+`endif
+
+endmodule : MemoryLatencySimulator

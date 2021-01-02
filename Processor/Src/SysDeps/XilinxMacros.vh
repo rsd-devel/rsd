@@ -1,3 +1,12 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// This header file is included from Xilinx-related modules.
+// Verilog is used in this file (not System Verilog) because
+// System Verilog cannot be used in top-level module when synthesis on Vivado
+
+
 
 //
 // AXI4 bus parameters for RSD

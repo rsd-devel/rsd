@@ -1,5 +1,5 @@
 
-`include "XilinxMacros.vh"
+`include "SysDeps/XilinxMacros.vh"
 
 localparam LED_WIDTH = 8;
 

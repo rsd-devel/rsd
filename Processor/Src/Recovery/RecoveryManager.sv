@@ -158,9 +158,6 @@ module RecoveryManager(
             recoveredPC = '0;
         end
 
-        // Commit/Recovery state manage
-        assert(!(toCommitPhase && toRecoveryPhase));
-
         if(port.rst) begin
             nextState.phase = PHASE_COMMIT;
         end
@@ -212,6 +209,14 @@ module RecoveryManager(
             port.wakeupPipelineRegFlushedOpExist;
 
     end
+
+    
+    // Commit/Recovery state manage
+    `RSD_ASSERT_CLK(
+        port.clk,
+        !(toCommitPhase && toRecoveryPhase),
+        "Tried to start the commit phase and the recovery phase at the same time"
+    );
 
     `RSD_ASSERT_CLK(
         port.clk,

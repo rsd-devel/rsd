@@ -1,7 +1,7 @@
 #--  Synopsys, Inc.
 #--  Version M-2017.03-SP1
-#--  Project file C:\Work\rsd-git\Processor\Project\Synplify\ver2017-03.prj
-#--  Written on Sun Aug  4 02:28:59 2019
+#--  Project file /home/matsuo/workspace/rsd-verification/rsd-vivado/Processor/Project/Synplify/ver2017-03.prj
+#--  Written on Thu Dec 24 15:04:17 2020
 
 
 #project files
@@ -151,7 +151,6 @@ add_file -verilog -vlog_std sysv "../../Src/Recovery/RecoveryManager.sv"
 add_file -verilog -vlog_std sysv "../../Src/Recovery/RecoveryManagerIF.sv"
 add_file -verilog -vlog_std sysv "../../Src/Scheduler/MemoryDependencyPredictor.sv"
 add_file -verilog -vlog_std sysv "../../Src/Main_Zynq_Wrapper.sv"
-add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryRequestQueue.sv"
 add_file -verilog -vlog_std sysv "../../Src/Primitives/Divider.sv"
 add_file -verilog -vlog_std sysv "../../Src/ExecUnit/DividerUnit.sv"
 
