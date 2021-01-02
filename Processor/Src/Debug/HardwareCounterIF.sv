@@ -59,7 +59,7 @@ interface HardwareCounterIF( input logic clk, rst );
         refetchBrTarget
     );
 `else
-    // Dummy to surpress warning.
+    // Dummy to suppress warning.
     DataPath hardwareCounterData[ LOAD_ISSUE_WIDTH ];
 
     modport HardwareCounter (

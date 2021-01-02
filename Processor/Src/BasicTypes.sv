@@ -84,7 +84,7 @@ typedef struct packed { // LRegNumPath
 `endif
 } LRegNumPath;
 
-// Physical general regiseter ( scalar register + vector register ) number width
+// Physical general register ( scalar register + vector register ) number width
 `ifdef RSD_ENABLE_VECTOR_PATH
 localparam PREG_NUM = 128; //PSCALAR_NUM + PVECTOR_NUM;
 localparam PREG_NUM_BIT_WIDTH = $clog2( PREG_NUM );

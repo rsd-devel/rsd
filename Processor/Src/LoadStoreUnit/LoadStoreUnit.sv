@@ -55,8 +55,8 @@ module LoadStoreUnit(
     // ADDR  | D$TAG | D$DATA | WB
     //       |  LSQ  |        |
     //
-    // LSQ is acessed in the D$TAG stage (MemoryTagAccessStage) and D$DATA is accessed
-    // after this stage, thus forwarded resutls must be latched.
+    // LSQ is accessed in the D$TAG stage (MemoryTagAccessStage) and D$DATA is accessed
+    // after this stage, thus forwarded results must be latched.
 
     logic storeLoadForwardedReg[LOAD_ISSUE_WIDTH];
     LSQ_BlockDataPath forwardedLoadDataReg[LOAD_ISSUE_WIDTH];

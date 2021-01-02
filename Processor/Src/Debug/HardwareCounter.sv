@@ -38,7 +38,7 @@ module SimpleHardwareCounter (
 `else
     always_comb begin
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            port.hardwareCounterData[i] = 0; // Suppresing warning.
+            port.hardwareCounterData[i] = 0; // Suppressing warning.
         end
     end
 `endif
@@ -121,7 +121,7 @@ module HardwareCounter (
 `else
     always_comb begin
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            port.hardwareCounterData[i] = 0; // Suppresing warning.
+            port.hardwareCounterData[i] = 0; // Suppressing warning.
         end
     end
 `endif

@@ -87,9 +87,9 @@ typedef struct packed { // RenameStageDebugRegister
     logic valid;
     OpId opId;
 
-    // Physical register numbers are outputed in the next stage, becuase
+    // Physical register numbers are outputted in the next stage, because
     // The pop flags of the free list is negated and correct physical
-    // register numbers cannot be outputed in this stage when the pipeline
+    // register numbers cannot be outputted in this stage when the pipeline
     // is stalled.
 } RenameStageDebugRegister;
 
