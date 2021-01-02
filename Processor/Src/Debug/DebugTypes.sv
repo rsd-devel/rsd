@@ -335,6 +335,15 @@ typedef struct packed { // DebugRegister
     StoreQueueCountPath storeQueueCount;
     logic busyInRecovery;
     logic storeQueueEmpty;
+
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    // Performance Counters
+    // These counters consume a lot of resources, so they are used in simulation.
+    DataPath numLoadMiss;
+    DataPath numRefetchThisPC;
+    DataPath numRefetchNextPC;
+    DataPath numRefetchBrTarget;
+`endif
 } DebugRegister;
 `else
     // Dummy definition

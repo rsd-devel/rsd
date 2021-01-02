@@ -291,6 +291,13 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, busyInRecovery);
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, storeQueueEmpty);
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numLoadMiss);
+`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchThisPC);
+`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchNextPC);
+`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchBrTarget);
+`endif
+
 endpackage
 
 
