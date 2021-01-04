@@ -108,8 +108,8 @@ typedef struct packed {
 // Section 0 (ROM?)
 // logical [0x0000_1000 - 0x0000_ffff] -> physical [0x0_1000 - 0x0_ffff]
 //
-localparam LOG_ADDR_SECTION_0_BEGIN = 32'h0000_1000;
-localparam LOG_ADDR_SECTION_0_END   = 32'h0001_0000;
+localparam LOG_ADDR_SECTION_0_BEGIN = ADDR_WIDTH'('h0000_1000);
+localparam LOG_ADDR_SECTION_0_END   = ADDR_WIDTH'('h0001_0000);
 localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
 
 // Ignore 0x1000 so that the lower address bits can be added as it is
@@ -120,29 +120,28 @@ localparam PHY_ADDR_SECTION_0_BASE = PHY_RAW_ADDR_WIDTH'('h0_0000);
 // Section 1 (RAM?)
 // logical [0x8000_0000 - 0x8003_ffff] -> physical [0x1_0000 - 0x4_ffff]
 //
-localparam LOG_ADDR_SECTION_1_BEGIN = 32'h8000_0000;
-localparam LOG_ADDR_SECTION_1_END   = 32'h8004_0000;
+localparam LOG_ADDR_SECTION_1_BEGIN = ADDR_WIDTH'('h8000_0000);
+localparam LOG_ADDR_SECTION_1_END   = ADDR_WIDTH'('h8004_0000);
 localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
-
-localparam PHY_ADDR_SECTION_1_BASE = 20'h1_0000;
+localparam PHY_ADDR_SECTION_1_BASE = PHY_RAW_ADDR_WIDTH'('h1_0000);
 
 //
 // Uncachable section (RAM?)
 // logical [0x8004_0000 - 0x8004_ffff] -> uncachable [0x5_0000 -> 0x5_ffff]
 //
-localparam LOG_ADDR_UNCACHABLE_BEGIN = 32'h8004_0000;
-localparam LOG_ADDR_UNCACHABLE_END   = 32'h8005_0000;
+localparam LOG_ADDR_UNCACHABLE_BEGIN = ADDR_WIDTH'('h8004_0000);
+localparam LOG_ADDR_UNCACHABLE_END   = ADDR_WIDTH'('h8005_0000);
 localparam LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH = 19;
 
 // Ignore 0x1000 so that the lower address bits can be added as it is
-localparam PHY_ADDR_UNCACHABLE_BASE = 20'h1_0000;
+localparam PHY_ADDR_UNCACHABLE_BASE = PHY_RAW_ADDR_WIDTH'('h1_0000);
 
 //
 // --- Serial IO
 // logical [0x4000_2000] -> io [0x2000]
 //
-localparam LOG_ADDR_SERIAL_OUTPUT = 32'h4000_2000;
-localparam PHY_ADDR_SERIAL_OUTPUT = 20'h0_2000;
+localparam LOG_ADDR_SERIAL_OUTPUT = ADDR_WIDTH'('h4000_2000);
+localparam PHY_ADDR_SERIAL_OUTPUT = PHY_RAW_ADDR_WIDTH'('h0_2000);
 
 
 //
@@ -151,7 +150,7 @@ localparam PHY_ADDR_SERIAL_OUTPUT = 20'h0_2000;
 
 // Logical addresses for Timer IO 
 // 0x4000_0000 - 0x4000_000F
-localparam LOG_ADDR_TIMER_BASE    = 32'h4000_0000;
+localparam LOG_ADDR_TIMER_BASE    = ADDR_WIDTH'('h4000_0000);
 localparam LOG_ADDR_TIMER_LOW     = LOG_ADDR_TIMER_BASE + 0;
 localparam LOG_ADDR_TIMER_HI      = LOG_ADDR_TIMER_BASE + 4;
 localparam LOG_ADDR_TIMER_CMP_LOW = LOG_ADDR_TIMER_BASE + 8;
@@ -162,7 +161,7 @@ localparam LOG_ADDR_TIMER_END   = LOG_ADDR_TIMER_BASE + 16;
 
 // Physical addresses for Timer IO 
 // 0x0_0000 - 0x0_000F
-localparam PHY_ADDR_TIMER_BASE    = 20'h0_0000;
+localparam PHY_ADDR_TIMER_BASE    = PHY_RAW_ADDR_WIDTH'('h0_0000);
 localparam PHY_ADDR_TIMER_LOW     = PHY_ADDR_TIMER_BASE + 0;
 localparam PHY_ADDR_TIMER_HI      = PHY_ADDR_TIMER_BASE + 4;
 localparam PHY_ADDR_TIMER_CMP_LOW = PHY_ADDR_TIMER_BASE + 8;
