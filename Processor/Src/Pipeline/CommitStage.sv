@@ -356,7 +356,6 @@ module CommitStage(
 
         // Hardware Counter
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-        hwCounter.commitNum = commitNum;
         hwCounter.refetchThisPC =
             toRecoveryPhase && (refetchType == REFETCH_TYPE_THIS_PC);
         hwCounter.refetchNextPC =

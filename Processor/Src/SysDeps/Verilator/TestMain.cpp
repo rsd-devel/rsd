@@ -344,6 +344,10 @@ int main(int argc, char** argv) {
         printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
         printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
     }
+    printf("Num of load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
+    printf("Num of refetch from this PC: %d\n", debugRegister.perfCounter.numRefetchThisPC);
+    printf("Num of refetch from next PC: %d\n", debugRegister.perfCounter.numRefetchNextPC);
+    printf("Num of refetch from br target: %d\n", debugRegister.perfCounter.numRefetchBrTarget);
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;

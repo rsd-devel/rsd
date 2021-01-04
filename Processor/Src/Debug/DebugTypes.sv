@@ -22,30 +22,13 @@ import PipelineTypes::*;
 // --- Hardware Counter
 //
 
-// ハードウェアカウンタ用のアドレス範囲
-// アドレスの上位 HARDWARE_COUNTER_TAG_BIT_SIZE ビットが
-// HARDWARE_COUNTER_TAG と一致したら、ハードウェアカウンタ用アドレス
-localparam HARDWARE_COUNTER_TAG = 5'b11111; // addr: f8000000-ffffffff
-localparam HARDWARE_COUNTER_TAG_BIT_SIZE = 5;
-localparam HARDWARE_COUNTER_TAG_MSB = DATA_WIDTH - 1;
-localparam HARDWARE_COUNTER_TAG_LSB =
-    HARDWARE_COUNTER_TAG_MSB - HARDWARE_COUNTER_TAG_BIT_SIZE + 1;
+typedef struct packed { // 
+    DataPath numLoadMiss;
+    DataPath numRefetchThisPC;
+    DataPath numRefetchNextPC;
+    DataPath numRefetchBrTarget;
+} PerfCounterPath;
 
-// ハードウェアカウンタの種類を指定するビットの指定
-localparam HARDWARE_COUNTER_TYPE_BIT_SIZE = 3;
-localparam HARDWARE_COUNTER_TYPE_LSB = DATA_BYTE_WIDTH_BIT_SIZE;
-localparam HARDWARE_COUNTER_TYPE_MSB =
-    HARDWARE_COUNTER_TYPE_LSB + HARDWARE_COUNTER_TYPE_BIT_SIZE - 1;
-
-// 各種ハードウェアカウンタ
-typedef enum logic [ HARDWARE_COUNTER_TYPE_BIT_SIZE-1:0 ] {
-    HW_CNT_TYPE_CYCLE = 0,
-    HW_CNT_TYPE_COMMIT = 1,
-    HW_CNT_TYPE_REFETCH_THIS_PC = 2,
-    HW_CNT_TYPE_REFETCH_NEXT_PC = 3,
-    HW_CNT_TYPE_REFETCH_BR_TARGET = 4,
-    HW_CNT_TYPE_LOAD_MISS = 5
-} HardwareCounterType;
 
 //
 // --- Debug Register
@@ -278,6 +261,8 @@ typedef struct packed { // IssueQueueDebugRegister
 } IssueQueueDebugRegister;
 
 
+
+
 `ifndef RSD_DISABLE_DEBUG_REGISTER
 typedef struct packed { // DebugRegister
 
@@ -337,12 +322,8 @@ typedef struct packed { // DebugRegister
     logic storeQueueEmpty;
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    // Performance Counters
-    // These counters consume a lot of resources, so they are used in simulation.
-    DataPath numLoadMiss;
-    DataPath numRefetchThisPC;
-    DataPath numRefetchNextPC;
-    DataPath numRefetchBrTarget;
+    // Performance monitoring counters are exported only on simulation.
+    PerfCounterPath perfCounter;
 `endif
 } DebugRegister;
 `else

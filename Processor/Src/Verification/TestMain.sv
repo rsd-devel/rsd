@@ -299,6 +299,11 @@ module TestMain;
             $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
+        $display("Num of load misses: %d", debugRegister.perfCounter.numLoadMiss);
+        $display("Num of refetch from this PC: %d", debugRegister.perfCounter.numRefetchThisPC);
+        $display("Num of refetch from next PC: %d", debugRegister.perfCounter.numRefetchNextPC);
+        $display("Num of refetch from br target: %d", debugRegister.perfCounter.numRefetchBrTarget);
+
 
         `ifdef RSD_FUNCTIONAL_SIMULATION
             `ifndef RSD_POST_SYNTHESIS_SIMULATION

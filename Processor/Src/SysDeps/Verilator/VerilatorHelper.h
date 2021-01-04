@@ -317,6 +317,13 @@ struct IssueQueueDebugRegister{
     OpId opId;
 };
 
+struct PerfCounterPath {
+    DataPath numLoadMiss;
+    DataPath numRefetchThisPC;
+    DataPath numRefetchNextPC;
+    DataPath numRefetchBrTarget;
+};
+
 struct DebugRegister{
 
     // DebugRegister of each stage
@@ -373,10 +380,7 @@ struct DebugRegister{
     bool storeQueueEmpty;
     
     // Performance counters
-    DataPath numLoadMiss;
-    DataPath numRefetchThisPC;
-    DataPath numRefetchNextPC;
-    DataPath numRefetchBrTarget;
+    PerfCounterPath perfCounter;
 };
 
 static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
@@ -407,6 +411,9 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     
     #define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
         d->memberName = h->DebugRegister_##memberName(r); \
+
+    #define RSD_MAKE_STRUCT_ACCESSOR_LV2(typeName, memberName0, memberTypeName1, memberName1) \
+        d->memberName0.memberName1 = h->DebugRegister_##memberName0##_##memberName1(r); \
 
     #define RSD_MAKE_DEBUG_REG_PIPELINE_CTRL(typeName, memberTypeName, memberName) \
         d->memberName.stall = h->PipelineControll_stall(h->DebugRegister_##memberName(r)); \
@@ -604,10 +611,10 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 
 
 #ifdef RSD_FUNCTIONAL_SIMULATION
-    RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numLoadMiss);
-    RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchThisPC);
-    RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchNextPC);
-    RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchBrTarget);
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchThisPC)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchNextPC)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchBrTarget)
 #endif
 }
 

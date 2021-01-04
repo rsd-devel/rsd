@@ -85,6 +85,12 @@ import MemoryMapTypes::*;
 
 
 
+`define RSD_MAKE_STRUCT_ACCESSOR_LV2(typeName, memberName0, member1TypeName, memberName1) \
+    function automatic member1TypeName typeName``_``memberName0``_``memberName1(typeName e); \
+        /*verilator public*/ \
+        return e.memberName0.memberName1; \
+    endfunction \
+
 `define RSD_MAKE_STRUCT_ACCESSOR_ARRAY(typeName, memberTypeName, memberName) \
     task typeName``_``memberName(output memberTypeName o, input typeName e, input int i); \
         /*verilator public*/ \
@@ -292,10 +298,10 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, storeQueueEmpty);
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numLoadMiss);
-`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchThisPC);
-`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchNextPC);
-`RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, DataPath, numRefetchBrTarget);
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchThisPC)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchNextPC)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchBrTarget)
 `endif
 
 endpackage

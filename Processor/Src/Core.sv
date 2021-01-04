@@ -56,8 +56,7 @@ output
 `endif
 
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-    //HardwareCounter hwCounter( hwCounterIF );
-    SimpleHardwareCounter hwCounter( hwCounterIF ); // 実行サイクル数のみカウント
+    HardwareCounter hwCounter(hwCounterIF, debugIF);
 `endif
 
     //
@@ -177,7 +176,7 @@ output
     MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
     MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, hwCounterIF );
     MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
-        LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF, hwCounterIF );
+        LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreQueue storeQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF);

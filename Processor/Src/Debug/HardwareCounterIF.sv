@@ -12,15 +12,14 @@ import DebugTypes::*;
 interface HardwareCounterIF( input logic clk, rst );
     
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-    // LoadStoreUnitでハードウェアカウンタを読み出す際の信号線
-    HardwareCounterType hardwareCounterType[ LOAD_ISSUE_WIDTH ];
-    DataPath hardwareCounterData[ LOAD_ISSUE_WIDTH ];
+    
+    // Hardware counter exported to CSR
+    PerfCounterPath perfCounter;
     
     // ロードがDキャッシュミスしたかどうか
-    logic loadMiss[ MEM_ISSUE_WIDTH ];
+    logic loadMiss[LOAD_ISSUE_WIDTH];
     
     // コミット関係
-    CommitLaneCountPath commitNum;
     logic refetchThisPC;
     logic refetchNextPC;
     logic refetchBrTarget;
@@ -30,22 +29,13 @@ interface HardwareCounterIF( input logic clk, rst );
         clk,
         rst,
         loadMiss,
-        commitNum,
         refetchThisPC,
         refetchNextPC,
         refetchBrTarget,
-        hardwareCounterType,
     output
-        hardwareCounterData
+        perfCounter
     );
-    
-    modport LoadStoreUnit (
-    input
-        hardwareCounterData,
-    output
-        hardwareCounterType
-    );
-    
+
     modport MemoryTagAccessStage (
     output
         loadMiss
@@ -53,20 +43,19 @@ interface HardwareCounterIF( input logic clk, rst );
     
     modport CommitStage (
     output
-        commitNum,
         refetchThisPC,
         refetchNextPC,
         refetchBrTarget
     );
 `else
     // Dummy to suppress warning.
-    DataPath hardwareCounterData[ LOAD_ISSUE_WIDTH ];
+    PerfCounterPath perfCounter;
 
     modport HardwareCounter (
     input
         clk,
     output
-        hardwareCounterData
+        perfCounter
     );
     
     modport LoadStoreUnit (
