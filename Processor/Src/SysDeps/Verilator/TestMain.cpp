@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
 
     // TestBenchClockGenerator にあわせる
     const int RSD_STEP = 8;   
-    const int RSD_KANATA_CYCLE_DISPLACEMENT = 12;
+    const int RSD_KANATA_CYCLE_DISPLACEMENT = -1;
     const int RSD_INITIALIZATION_CYCLE = 8;
     int64_t cycle = -1;
     int64_t kanataCycle = cycle - RSD_KANATA_CYCLE_DISPLACEMENT;
@@ -315,7 +315,8 @@ int main(int argc, char** argv) {
             }
             
             // 指定サイクル数の実行で終了
-            if (kanataCycle > MAX_TEST_CYCLES)
+            // Modelsim 側とクロック数の計算をあわすため +1
+            if (cycle + 1 >= MAX_TEST_CYCLES)
                 break;         
         }
 
