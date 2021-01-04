@@ -211,6 +211,9 @@ typedef struct packed { // MemoryTagAccessStageDebugRegister
 `ifdef RSD_FUNCTIONAL_SIMULATION
     logic executeLoad;
     AddrPath executedLoadAddr;
+    logic mshrAllocated;
+    logic mshrHit;
+    DataPath mshrEntryID;
     logic executeStore;
     AddrPath executedStoreAddr;
     DataPath executedStoreData;

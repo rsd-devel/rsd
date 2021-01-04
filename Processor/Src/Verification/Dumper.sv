@@ -449,8 +449,22 @@ package DumperTypes;
                     if (debugRegister.mtReg[i].executeLoad) begin
                         $sformat( str, "%s\\n = load([#0x%0x])",
                             str,
-                            debugRegister.mtReg[i].executedLoadAddr
+                            debugRegister.mtReg[i].executedLoadAddr,
                         );
+                        if (debugRegister.mtReg[i].mshrAllocated) begin
+                            $sformat( str, 
+                                "%s\\nD$ miss. MSHR alloc: %0d",
+                                str,
+                                debugRegister.mtReg[i].mshrEntryID
+                            );
+                        end
+                        else if (debugRegister.mtReg[i].mshrHit) begin
+                            $sformat( str, 
+                                "%s\\nMSHR hit: %0d",
+                                str,
+                                debugRegister.mtReg[i].mshrEntryID
+                            );
+                        end
                     end
                     if (debugRegister.mtReg[i].executeStore) begin
                         $sformat( str, "%s\\nstore(#0x%0x, [#0x%0x])\\n", str,

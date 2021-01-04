@@ -15,7 +15,8 @@ import OpFormatTypes::*;
 import SchedulerTypes::*;
 
 module CSR_Unit(
-    CSR_UnitIF.CSR_Unit port
+    CSR_UnitIF.CSR_Unit port,
+    HardwareCounterIF.CSR hwCounter
 );
 
     CSR_BodyPath csrReg, csrNext;
@@ -58,7 +59,12 @@ module CSR_Unit(
 
             CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
             CSR_NUM_MINSTRET: rv = csrReg.minstret;
-
+`ifndef RSD_DISABLE_HARDWARE_COUNTER
+            CSR_NUM_MHPMCOUNTER3: rv = hwCounter.perfCounter.numLoadMiss;
+            CSR_NUM_MHPMCOUNTER4: rv = hwCounter.perfCounter.numRefetchThisPC;
+            CSR_NUM_MHPMCOUNTER5: rv = hwCounter.perfCounter.numRefetchNextPC;
+            CSR_NUM_MHPMCOUNTER6: rv = hwCounter.perfCounter.numRefetchBrTarget;
+`endif
             default:          rv = '0;
         endcase 
 

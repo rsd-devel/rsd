@@ -268,6 +268,9 @@ struct MemoryTagAccessStageDebugRegister{
 #ifdef RSD_FUNCTIONAL_SIMULATION
     bool executeLoad;
     AddrPath executedLoadAddr;
+    bool mshrHit;
+    bool mshrAllocated;
+    DataPath mshrEntryID;
     bool executeStore;
     AddrPath executedStoreAddr;
     DataPath executedStoreData;
@@ -556,6 +559,9 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 #ifdef RSD_FUNCTIONAL_SIMULATION
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeLoad);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedLoadAddr);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrAllocated);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrHit);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, mshrEntryID);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeStore);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedStoreAddr);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, executedStoreData);

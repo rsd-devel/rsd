@@ -47,6 +47,11 @@ interface HardwareCounterIF( input logic clk, rst );
         refetchNextPC,
         refetchBrTarget
     );
+
+    modport CSR (
+    input
+        perfCounter
+    );
 `else
     // Dummy to suppress warning.
     PerfCounterPath perfCounter;
@@ -67,6 +72,10 @@ interface HardwareCounterIF( input logic clk, rst );
     );
 
     modport CommitStage (
+        input clk
+    );
+
+    modport CSR (
         input clk
     );
 `endif

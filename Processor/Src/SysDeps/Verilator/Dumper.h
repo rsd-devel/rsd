@@ -516,6 +516,18 @@ public:
                         "\\n = load([#0x%0x])",
                         debugRegister.mtReg[i].executedLoadAddr
                     );
+                    if (debugRegister.mtReg[i].mshrAllocated) {
+                        str += FormatString(
+                            "\\nD$ miss. MSHR alloc: %0d",
+                            debugRegister.mtReg[i].mshrEntryID
+                        );
+                    }
+                    else if (debugRegister.mtReg[i].mshrHit) {
+                        str += FormatString(
+                            "\\nMSHR hit: %0d",
+                            debugRegister.mtReg[i].mshrEntryID
+                        );
+                    }
                 }
                 if (debugRegister.mtReg[i].executeStore) {
                     str += FormatString(
