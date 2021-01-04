@@ -65,7 +65,7 @@ module MemoryTagAccessStage(
         end
     end
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
 
     logic lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
@@ -75,7 +75,7 @@ module MemoryTagAccessStage(
     MemIssueQueueEntry stIqData[STORE_ISSUE_WIDTH];
 
     always_comb begin
-        // Pipeline controll
+        // Pipeline control
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 

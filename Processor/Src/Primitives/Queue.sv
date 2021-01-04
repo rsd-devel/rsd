@@ -3,7 +3,7 @@
 
 
 //
-// Controller implementeation of a queue (FIFO).
+// Controller implementation of a queue (FIFO).
 //
 
 `include "BasicMacros.sv"
@@ -264,7 +264,7 @@ output
         count = regCount;
     end
 
-    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue execeeds its size.");
+    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
 
 endmodule
 
@@ -367,7 +367,7 @@ output
         count = regCount;
     end
 
-    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue execeeds its size.");
+    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
 
 endmodule
 
@@ -472,7 +472,7 @@ output
     end
 
     // Assertion
-    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue execeeds its size.");
+    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
     `RSD_ASSERT_CLK(clk, rst || !(pushTail && popTail), "BiTailMultiWidthQueuePointer is pushed and popped simultaneously.");
 
 endmodule
@@ -594,7 +594,7 @@ output
         count = regCount;
     end
 
-    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue execeeds its size.");
+    `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
     `RSD_ASSERT_CLK(clk, rst || !(pushTail && popTail), "BiTailMultiWidthQueuePointer is pushed and popped simultaneously.");
 
 endmodule
