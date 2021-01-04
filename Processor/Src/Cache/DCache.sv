@@ -664,6 +664,8 @@ module DCacheArray(DCacheIF.DCacheArray port);
     DCacheIndexPath tagArrayIndex[DCACHE_ARRAY_PORT_NUM];
     DCacheTagValidPath tagArrayIn[DCACHE_ARRAY_PORT_NUM];
     DCacheTagValidPath tagArrayOut[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
+    // Temporal signals for Vivado
+    logic [$bits(DCacheTagValidPath)-1:0] tagArrayOutTmp[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
 
     // Replacement array signals
     logic replArrayWE[DCACHE_TREE_LRU_STATE_BIT_NUM][DCACHE_ARRAY_PORT_NUM];
@@ -739,7 +741,7 @@ module DCacheArray(DCacheIF.DCacheArray port);
                 .we( tagArrayWE[way] ),
                 .rwa( tagArrayIndex ),
                 .wv( tagArrayIn ),
-                .rv( tagArrayOut[way] )
+                .rv( tagArrayOutTmp[way] )
             );
         end
 
@@ -795,6 +797,11 @@ module DCacheArray(DCacheIF.DCacheArray port);
         // errors outputted by Synplify.
         dataArrayByteWE_Tmp = port.dataArrayByteWE_In;
         dataArrayInTmp = port.dataArrayDataIn;
+
+
+        // *** Hack for Vivado...
+        // Assign temporal signal from tagArray
+        tagArrayOut = tagArrayOutTmp;
 
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
             for (int i = 0; i < DCACHE_LINE_BYTE_NUM; i++) begin
