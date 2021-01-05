@@ -45,5 +45,36 @@
         "sstream": "cpp",
         "streambuf": "cpp",
         "cinttypes": "cpp"
-    }
+    },
+    "cSpell.words": [
+        "atlys",
+        "cachable",
+        "dcache",
+        "deallocate",
+        "deallocates",
+        "endcase",
+        "endfunction",
+        "endgenerate",
+        "endmodule",
+        "endpackage",
+        "genvar",
+        "icache",
+        "ifdef",
+        "ifndef",
+        "localparam",
+        "mshr",
+        "mshrid",
+        "mshrs",
+        "posedge",
+        "questa",
+        "regs",
+        "struct",
+        "synplify",
+        "uncachable",
+        "vivado",
+        "writeback",
+        "wserial",
+        "zedboard",
+        "zynq"
+    ]
 }
