@@ -43,7 +43,7 @@ interface HardwareCounterIF( input logic clk, rst );
         loadMiss
     );
     
-    modport CommitStage (
+    modport RecoveryManager (
     output
         refetchThisPC,
         refetchNextPC,
@@ -72,7 +72,7 @@ interface HardwareCounterIF( input logic clk, rst );
     
     modport LoadStoreUnit(input clk);
     modport MemoryTagAccessStage(input clk);
-    modport CommitStage (input clk);
+    modport RecoveryManager(input clk);
     modport CSR(input clk);
     modport StoreCommitter(input clk);
 `endif

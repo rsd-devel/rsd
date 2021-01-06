@@ -24,7 +24,8 @@ module RecoveryManager(
     RecoveryManagerIF.RecoveryManager port,
     ActiveListIF.RecoveryManager activeList,
     CSR_UnitIF.RecoveryManager csrUnit,
-    ControllerIF.RecoveryManager ctrl
+    ControllerIF.RecoveryManager ctrl,
+    HardwareCounterIF.RecoveryManager hwCounter
 );
     typedef struct packed
     {
@@ -208,6 +209,16 @@ module RecoveryManager(
             port.replayQueueFlushedOpExist || 
             port.wakeupPipelineRegFlushedOpExist;
 
+
+        // Hardware Counter
+`ifndef RSD_DISABLE_HARDWARE_COUNTER
+        hwCounter.refetchThisPC =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
+        hwCounter.refetchNextPC =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC});
+        hwCounter.refetchBrTarget =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_BRANCH_TARGET);
+`endif
     end
 
     

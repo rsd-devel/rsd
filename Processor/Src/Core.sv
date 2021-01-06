@@ -190,8 +190,8 @@ output
         VectorBypassNetwork  vectorBypassNetwork( bypassNetworkIF, ctrlIF );
 `endif
     // A commitment stage generates a flush signal and this is send to scheduler.
-    CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF, hwCounterIF );
-        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF );
+    CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
+        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF, hwCounterIF );
 
     CSR_Unit csrUnit(csrUnitIF, hwCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
