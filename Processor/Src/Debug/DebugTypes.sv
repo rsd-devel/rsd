@@ -59,7 +59,8 @@ typedef struct packed { // PreDecodeStageDebugRegister
 
 typedef struct packed { // DecodeStageDebugRegister
     logic valid;
-    logic flush;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    logic flushed;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    logic flushTriggering;   // This op causes branch misprediction and triggers flush.
     OpId opId;
     AddrPath pc;
     InsnPath insn;

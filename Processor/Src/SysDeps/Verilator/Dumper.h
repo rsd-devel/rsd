@@ -220,12 +220,14 @@ public:
                 str = "An undefined instruction is decoded.";
             if (debugRegister.idReg[i].unsupported)
                 str = "An unsupported instruction is decoded.";
+            if(debugRegister.idReg[i].flushTriggering)
+                str = "Br-pred-miss-id\\n";
 
             DumpStage(
                 KS_ID, // stage id
                 debugRegister.idReg[i].valid, // valid
                 debugRegister.idStagePipeCtrl.stall && !debugRegister.stallByDecodeStage, // stall
-                debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flush , // clear
+                debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flushed , // clear
                 debugRegister.idReg[i].opId.sid, // sid
                 debugRegister.idReg[i].opId.mid, // mid
                 str // comment
@@ -431,7 +433,7 @@ public:
                 Bin2Str(debugRegister.intExReg[i].opType, 3, true).c_str()
             );
             if (debugRegister.intExReg[i].brPredMiss) {
-                str += "\\nBr-pred-miss";
+                str += "\\nBr-pred-miss-ex";
             }
 #endif
             DumpStage(

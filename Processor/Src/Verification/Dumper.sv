@@ -153,16 +153,19 @@ package DumperTypes;
                     str = "An undefined instruction is decoded.";
                 if( debugRegister.idReg[i].unsupported )
                     str = "An unsupported instruction is decoded.";
+                if(debugRegister.idReg[i].flushTriggering)
+                    str = "Br-pred-miss-id\\n";
 
                 this.DumpStage(
                     KS_ID, // stage id
                     debugRegister.idReg[i].valid, // valid
                     debugRegister.idStagePipeCtrl.stall && !debugRegister.stallByDecodeStage, // stall
-                    debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flush , // clear
+                    debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flushed , // clear
                     debugRegister.idReg[i].opId.sid, // sid
                     debugRegister.idReg[i].opId.mid, // mid
                     str // comment
                 );
+
             end
 
             for ( int i = 0; i < DECODE_WIDTH; i++ ) begin
@@ -367,7 +370,7 @@ package DumperTypes;
                     debugRegister.intExReg[i].opType
                 );
                 if (debugRegister.intExReg[i].brPredMiss) begin
-                    $sformat(str, "\\n%sBr-pred-miss", str);
+                    $sformat(str, "%s\\nBr-pred-miss-ex", str);
                 end
 `endif
                 this.DumpStage(

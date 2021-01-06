@@ -118,7 +118,8 @@ import MemoryMapTypes::*;
 `endif
 
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, valid);
-`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flush);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushed);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushTriggering);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, OpId, opId);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, AddrPath, pc);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, InsnPath, insn);

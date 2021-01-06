@@ -135,6 +135,7 @@ module DecodeStage(
 
     logic insnValidOut[DECODE_WIDTH];
     logic insnFlushed[DECODE_WIDTH];
+    logic insnFlushTriggering[DECODE_WIDTH];
     logic flushTriggered;
     BranchPred brPredOut[DECODE_WIDTH];
     PC_Path recoveredPC;
@@ -161,7 +162,8 @@ module DecodeStage(
         .insnInfo(insnInfo),
         .insnValidOut(insnValidOut),
         .insnFlushed(insnFlushed),
-        .flush(flushTriggered),
+        .insnFlushTriggering(insnFlushTriggering),
+        .flushTriggered(flushTriggered),
         .brPredOut(brPredOut),
         .recoveredPC(recoveredPC)
     );
@@ -283,7 +285,9 @@ module DecodeStage(
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             // 先頭が次に送られたら，デコード元は消える．
             debug.idReg[i].valid = pipeReg[i].valid;
-            debug.idReg[i].flush = insnFlushed[i];
+            debug.idReg[i].flushed = insnFlushed[i];
+            debug.idReg[i].flushTriggering = insnFlushTriggering[i];
+
             for (int j = 0; j < MICRO_OP_MAX_NUM; j++) begin
                 if(microOps[i*MICRO_OP_MAX_NUM + j].valid && microOps[i*MICRO_OP_MAX_NUM + j].mid == 0) begin
                     if(!curValidMOps[i*MICRO_OP_MAX_NUM + j]) begin

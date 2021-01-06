@@ -26,7 +26,8 @@ input
 output 
     logic insnValidOut[DECODE_WIDTH],
     logic insnFlushed[DECODE_WIDTH],
-    logic flush,
+    logic insnFlushTriggering[DECODE_WIDTH],
+    logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
     PC_Path recoveredPC
 );
@@ -63,8 +64,8 @@ output
         // else if (popRAS) begin
         //     $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
         // end
-        // if (flush) begin
-        //     $display("flush @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+        // if (flushTriggered) begin
+        //     $display("flushTriggered @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
         // end
     end
 
@@ -91,7 +92,7 @@ output
     always_comb begin
         
         // Initialize
-        flush = FALSE;
+        flushTriggered = FALSE;
         recoveredPC = '0;
 
         pushRAS = FALSE;
@@ -102,6 +103,7 @@ output
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             insnValidOut[i] = insnValidIn[i];
             insnFlushed[i] = FALSE;
+            insnFlushTriggering[i] = FALSE;
             brPredOut[i] = brPredIn[i];
             isfU[i] = isf[i];
         end
@@ -209,7 +211,7 @@ output
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             if (((addrMismatch[i] && addrCheck) || addrIncorrect) && addrCheckLane == i) begin
-                flush = TRUE;
+                flushTriggered = TRUE;
                 brPredOut[i].predAddr = decodedPC[i];
                 brPredOut[i].predTaken = TRUE;
                 break;
@@ -231,13 +233,14 @@ output
             nextRAS_Ptr = rasPtr;
         end
 
-        if (flush) begin
+        if (flushTriggered) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin
                 if (i > addrCheckLane) begin
                     insnValidOut[i] = FALSE;
                     insnFlushed[i] = TRUE;
                 end
             end
+            insnFlushTriggering[addrCheckLane] = TRUE;
         end
     end // always_comb
 

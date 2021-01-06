@@ -115,7 +115,8 @@ struct PreDecodeStageDebugRegister{ // PreDecodeStageDebugRegister
 
 struct DecodeStageDebugRegister{
     bool valid;
-    bool flush;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    bool flushed;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    bool flushTriggering;   // This op causes branch misprediction and triggers flush.
     OpId opId;
     AddrPath pc;
     InsnPath insn;
@@ -440,7 +441,8 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 #endif
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, valid);
-    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushed);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushTriggering);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, idReg, OpId, opId);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, PC_Path, pc);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, InsnPath, insn);
