@@ -105,7 +105,7 @@ module RecoveryManager(
             nextState.recoveryFromRwStage = FALSE;
         end
 
-        // Return to COOMIT_PHASE
+        // Return to COMMIT_PHASE
         toCommitPhase =
             (regState.phase == PHASE_RECOVER_1) &&  // must be PHASE_RECOVER_1 because PHASE_RECOVER_0 procedures has been finished
             !(port.renameLogicRecoveryRMT || port.issueQueueReturnIndex); // LSQ は1サイクルでリカバリが行われるので待つべきは RMT と IQ

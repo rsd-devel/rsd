@@ -81,7 +81,7 @@ module IntegerExecutionStage(
         end
     end
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ INT_ISSUE_WIDTH ];
 
@@ -182,7 +182,7 @@ module IntegerExecutionStage(
             default: /* select */  dataOut[i].data = ( isCondEnabled[i] ? fuOpA[i].data : fuOpB[i].data );
             endcase
 
-            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValid[i] =
                 (intSubInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
                 (intSubInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid );

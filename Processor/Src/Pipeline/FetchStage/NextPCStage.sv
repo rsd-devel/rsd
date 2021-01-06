@@ -87,7 +87,7 @@ module NextPCStage(
     PC_Path predNextPC;
     FetchStageRegPath nextStage[ FETCH_WIDTH ];
 
-    // Pipeline Controll
+    // Pipeline Control
     logic stall, clear;
     logic regStall, beginStall;
     logic writePC_FromOuter;
