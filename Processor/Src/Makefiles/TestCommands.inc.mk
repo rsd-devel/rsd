@@ -288,8 +288,12 @@ test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 
 # Aggregate cycle/IPC information from verilator/modelsim log.
 test-summary-all:
-	grep GoalCycle Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:GoalCycle:[ ]*/\1\/\2,/g" > verilator-cycles.csv
+	grep "Elapsed cycles" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Elapsed cycles:[ ]*/\1\/\2,/g" > verilator-cycles.csv
 	grep "IPC (RISC-V instruction)" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > verilator-ipc.csv
-	grep GoalCycle Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# GoalCycle:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
+	grep "Num of load misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of load misses:[ ]*/\1\/\2,/g" > verilator-load-misses.csv
+	grep "Num of store misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of store misses:[ ]*/\1\/\2,/g" > verilator-store-misses.csv
+	grep "Elapsed cycles" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Elapsed cycles:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
 	grep "IPC (RISC-V instruction)" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > modelsim-ipc.csv
+	grep "Num of load misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:Num of load misses:[ ]*/\1\/\2,/g" > vsim-load-misses.csv
+	grep "Num of store misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:Num of store misses:[ ]*/\1\/\2,/g" > vsim-store-misses.csv
 
