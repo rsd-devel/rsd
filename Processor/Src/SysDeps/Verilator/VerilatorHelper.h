@@ -322,6 +322,7 @@ struct IssueQueueDebugRegister{
 
 struct PerfCounterPath {
     DataPath numLoadMiss;
+    DataPath numStoreMiss;
     DataPath numRefetchThisPC;
     DataPath numRefetchNextPC;
     DataPath numRefetchBrTarget;
@@ -618,6 +619,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 
 #ifdef RSD_FUNCTIONAL_SIMULATION
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreMiss)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchThisPC)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchNextPC)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numRefetchBrTarget)

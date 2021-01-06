@@ -19,7 +19,8 @@ module StoreCommitter(
     LoadStoreUnitIF.StoreCommitter port,
     RecoveryManagerIF.StoreCommitter recovery,
     IO_UnitIF.StoreCommitter ioUnit,
-    DebugIF.StoreCommitter debug
+    DebugIF.StoreCommitter debug,
+    HardwareCounterIF.StoreCommitter hwCounter
 );
 
     // State machine
@@ -161,7 +162,7 @@ module StoreCommitter(
     endfunction
 
 
-    // Pipeline stage strcuture:
+    // Pipeline stage structure:
     // | Commit | SQ | Tag | Data
     //
     // Commit: The processor commit stage.
@@ -282,7 +283,9 @@ module StoreCommitter(
     end
 
     // --- Tag stage
+    logic finishWriteBack;
     always_comb begin
+        finishWriteBack = FALSE;
         if (tagStagePipeReg.valid) begin
             if(!tagStagePipeReg.condEnabled || tagStagePipeReg.isIO) begin
                 stallStoreTagStage = FALSE;
@@ -291,6 +294,7 @@ module StoreCommitter(
                 // When a head store has allocated a mshr entry, stall until its data is written to cache by MSHR.
                 if (portMSHRPhase[storeMSHRID] > MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
                     stallStoreTagStage = FALSE;
+                    finishWriteBack = TRUE;
                 end
                 else begin
                     stallStoreTagStage = TRUE;
@@ -308,6 +312,12 @@ module StoreCommitter(
         if (stallStoreTagStage) begin
             nextDataStagePipeReg.valid = FALSE;
         end
+
+`ifndef RSD_DISABLE_HARDWARE_COUNTER
+        for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
+            hwCounter.storeMiss[i] = i == 0 ? finishWriteBack : FALSE;  // Only supports a single store port 
+        end
+`endif
     end
 
     // Whether to release the head entry(s) of the SQ.

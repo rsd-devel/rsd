@@ -22,6 +22,11 @@ module HardwareCounter (
                 next.numLoadMiss++;
             end
         end
+        for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
+            if (port.storeMiss[i]) begin
+                next.numStoreMiss++;
+            end
+        end
         next.numRefetchThisPC += port.refetchThisPC ? 1 : 0;
         next.numRefetchNextPC += port.refetchNextPC ? 1 : 0;
         next.numRefetchBrTarget += port.refetchBrTarget ? 1 : 0;

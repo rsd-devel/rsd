@@ -279,8 +279,7 @@ module TestMain;
             lastCommittedPC = ledOut;
             if ( ENABLE_PC_GOAL != 0 && lastCommittedPC == PC_GOAL[LED_WIDTH-1:0] ) begin
                 // lastCommittedPC は 16bit 分しか外に出てきていないので，下位で判定しておく
-                $display( "PC reached PC_GOAL:%08x", PC_GOAL );
-                $display( "GoalCycle:%d", cycle );
+                $display( "PC reached PC_GOAL: %08x", PC_GOAL );
                 break;
             end
 
@@ -292,14 +291,16 @@ module TestMain;
         if ( enableDumpRegCSV ) registerFileCSV_Dumper.Close();
 
         // Simulation Result
-        $display( "Num of committed RISC-V-ops : %d", numCommittedRISCV_Op );
-        $display( "Num of committed micro-ops : %d", numCommittedMicroOp );
+        $display("Elapsed cycles: %d", cycle);
+        $display( "Num of committed RISC-V-ops: %d", numCommittedRISCV_Op );
+        $display( "Num of committed micro-ops: %d", numCommittedMicroOp );
         if ( cycle != 0 ) begin
             realTmp = cycle;
             $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
         $display("Num of load misses: %d", debugRegister.perfCounter.numLoadMiss);
+        $display("Num of store misses: %d", debugRegister.perfCounter.numStoreMiss);
         $display("Num of refetch from this PC: %d", debugRegister.perfCounter.numRefetchThisPC);
         $display("Num of refetch from next PC: %d", debugRegister.perfCounter.numRefetchNextPC);
         $display("Num of refetch from br target: %d", debugRegister.perfCounter.numRefetchBrTarget);

@@ -16,8 +16,9 @@ interface HardwareCounterIF( input logic clk, rst );
     // Hardware counter exported to CSR
     PerfCounterPath perfCounter;
     
-    // ロードがDキャッシュミスしたかどうか
+    // Dキャッシュミスしたかどうか
     logic loadMiss[LOAD_ISSUE_WIDTH];
+    logic storeMiss[STORE_ISSUE_WIDTH];
     
     // コミット関係
     logic refetchThisPC;
@@ -29,6 +30,7 @@ interface HardwareCounterIF( input logic clk, rst );
         clk,
         rst,
         loadMiss,
+        storeMiss,
         refetchThisPC,
         refetchNextPC,
         refetchBrTarget,
@@ -48,6 +50,11 @@ interface HardwareCounterIF( input logic clk, rst );
         refetchBrTarget
     );
 
+    modport StoreCommitter (
+    output
+        storeMiss
+    );
+
     modport CSR (
     input
         perfCounter
@@ -63,21 +70,11 @@ interface HardwareCounterIF( input logic clk, rst );
         perfCounter
     );
     
-    modport LoadStoreUnit (
-        input clk
-    );
-    
-    modport MemoryTagAccessStage (
-        input clk
-    );
-
-    modport CommitStage (
-        input clk
-    );
-
-    modport CSR (
-        input clk
-    );
+    modport LoadStoreUnit(input clk);
+    modport MemoryTagAccessStage(input clk);
+    modport CommitStage (input clk);
+    modport CSR(input clk);
+    modport StoreCommitter(input clk);
 `endif
 
 

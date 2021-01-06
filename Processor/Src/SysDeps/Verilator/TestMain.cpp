@@ -301,8 +301,7 @@ int main(int argc, char** argv) {
                     lastCommittedPC = top->ledOut;
                     if (lastCommittedPC == static_cast<typeof(top->ledOut)>(PC_GOAL)) {
                         // lastCommittedPC は 16bit 分しか外に出てきていないので，下位で判定しておく
-                        printf("PC reached PC_GOAL:%08x\n", PC_GOAL);
-                        printf("GoalCycle:%d\n", (int32_t)cycle);
+                        printf("PC reached PC_GOAL: %08x\n", PC_GOAL);
                         break;
                     }
                 }
@@ -339,13 +338,15 @@ int main(int argc, char** argv) {
     registerFileCSV_Dumper.Close();
 
     // Simulation Result
-    printf("Num of committed RISC-V-ops : %d\n", numCommittedARM_Op);
-    printf("Num of committed micro-ops : %d\n", numCommittedMicroOp);
+    printf("Elapsed cycles: %d\n", (int32_t)cycle);
+    printf("Num of committed RISC-V-ops: %d\n", numCommittedARM_Op);
+    printf("Num of committed micro-ops: %d\n", numCommittedMicroOp);
     if (cycle != 0) {
         printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
         printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
     }
     printf("Num of load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
+    printf("Num of store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
     printf("Num of refetch from this PC: %d\n", debugRegister.perfCounter.numRefetchThisPC);
     printf("Num of refetch from next PC: %d\n", debugRegister.perfCounter.numRefetchNextPC);
     printf("Num of refetch from br target: %d\n", debugRegister.perfCounter.numRefetchBrTarget);

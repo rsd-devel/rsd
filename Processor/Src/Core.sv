@@ -179,7 +179,7 @@ output
         LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreQueue storeQueue( loadStoreUnitIF, recoveryManagerIF );
-        StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF);
+        StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF, hwCounterIF);
         DCache dCache( loadStoreUnitIF, cacheSystemIF, ctrlIF );
     MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 
