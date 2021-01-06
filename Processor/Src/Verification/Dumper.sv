@@ -366,6 +366,9 @@ package DumperTypes;
                     debugRegister.intExReg[i].aluCode,
                     debugRegister.intExReg[i].opType
                 );
+                if (debugRegister.intExReg[i].brPredMiss) begin
+                    $sformat(str, "\\n%sBr-pred-miss", str);
+                end
 `endif
                 this.DumpStage(
                     KS_EX, // stage id
@@ -453,7 +456,7 @@ package DumperTypes;
                         );
                         if (debugRegister.mtReg[i].mshrAllocated) begin
                             $sformat( str, 
-                                "%s\\nD$ miss. MSHR alloc: %0d",
+                                "%s\\nD$-miss. MSHR alloc: %0d",
                                 str,
                                 debugRegister.mtReg[i].mshrEntryID
                             );

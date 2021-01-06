@@ -166,6 +166,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, DataPath, fuOpB);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntALU_Code, aluCode);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntMicroOpSubType, opType);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, logic, brPredMiss);
 `endif
 
 

@@ -283,6 +283,7 @@ module IntegerExecutionStage(
             debug.intExReg[i].fuOpB   = fuOpB[i].data;
             debug.intExReg[i].aluCode  = aluCode[i];
             debug.intExReg[i].opType  = iqData[i].opType;
+            debug.intExReg[i].brPredMiss = predMiss[i];
 `endif
         end
     `endif

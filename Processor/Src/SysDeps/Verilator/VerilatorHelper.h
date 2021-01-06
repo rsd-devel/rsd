@@ -183,6 +183,7 @@ struct IntegerExecutionStageDebugRegister{
     DataPath fuOpB;
     IntALU_Code aluCode;
     IntMicroOpSubType opType;
+    bool brPredMiss;
 #endif
 
 };
@@ -484,6 +485,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, DataPath, fuOpB);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntALU_Code, aluCode);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntMicroOpSubType, opType);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, logic, brPredMiss);
 #endif
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intRwReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intRwReg, logic, flush);

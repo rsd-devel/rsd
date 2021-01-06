@@ -430,6 +430,9 @@ public:
                 Bin2Str(debugRegister.intExReg[i].aluCode, 4, true).c_str(),
                 Bin2Str(debugRegister.intExReg[i].opType, 3, true).c_str()
             );
+            if (debugRegister.intExReg[i].brPredMiss) {
+                str += "\\nBr-pred-miss";
+            }
 #endif
             DumpStage(
                 KS_EX, // stage id
@@ -518,7 +521,7 @@ public:
                     );
                     if (debugRegister.mtReg[i].mshrAllocated) {
                         str += FormatString(
-                            "\\nD$ miss. MSHR alloc: %0d",
+                            "\\nD$-miss. MSHR alloc: %0d",
                             debugRegister.mtReg[i].mshrEntryID
                         );
                     }

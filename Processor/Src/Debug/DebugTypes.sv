@@ -120,13 +120,14 @@ typedef struct packed { // IntegerExecutionStageDebugRegister
     OpId opId;
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
-    // 合成時は、IOポートが足りなくて不可能であるため
+    // Output source values and an execution result only on functional simulation
+    // because actual chips do not have enough IO pins for these signals.
     DataPath dataOut;
     DataPath fuOpA;
     DataPath fuOpB;
     IntALU_Code aluCode;
     IntMicroOpSubType opType;
+    logic brPredMiss;
 `endif
 
 } IntegerExecutionStageDebugRegister;
