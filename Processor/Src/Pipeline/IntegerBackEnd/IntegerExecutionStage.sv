@@ -234,7 +234,7 @@ module IntegerExecutionStage(
                     
             // 予測ミス判定
             predMiss[i] =
-                pipeReg[i].valid && isBranch[i] &&
+                brResult[i].valid &&
                 (
                      (bPred[i].predTaken != brTaken[i]) ||
                      (brTaken[i] == TRUE &&
