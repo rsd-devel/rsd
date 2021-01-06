@@ -82,7 +82,7 @@ output
         BTT_PC_RELATIVE = 1,         // BRANCH, JAL
         BTT_INDIRECT_JUMP  = 2,       // JALR
 
-        // This insn is serialized, so the succeding insns are flushed
+        // This insn is serialized, so the succeeding insns are flushed
         BTT_SERIALIZED  = 3 
     } BranchTargetType;
     BranchTargetType brTargetType[DECODE_WIDTH];
@@ -173,7 +173,7 @@ output
                 end
             end
             else if (brTargetType[i] == BTT_SERIALIZED) begin
-                // The succeeding instuructions are flushed.
+                // The succeeding instructions are flushed.
                 addrCheckLane = i;
                 addrCheck = TRUE;
                 addrIncorrect = TRUE;   // ミスが確定

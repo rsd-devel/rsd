@@ -236,7 +236,7 @@ package DumperTypes;
                     );
                 end
 
-                // Issue queue allcation
+                // Issue queue allocation
                 $sformat( str, "%s\\nIQ alloc: %0d ",
                     str,
                     debugRegister.dsReg[i].issueQueuePtr
@@ -356,7 +356,7 @@ package DumperTypes;
             // ExecutionStage
             //
             for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
-                // Issue queue allcation
+                // Issue queue allocation
                 str = "";
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x), alu:0b%b, op:0b%b", str,
@@ -384,7 +384,7 @@ package DumperTypes;
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
                 for ( int j = 0; j < COMPLEX_EXEC_STAGE_DEPTH; j++ ) begin
-                    // Issue queue allcation
+                    // Issue queue allocation
                     str = "";
 `ifdef RSD_FUNCTIONAL_SIMULATION
                     if ( j == 0 ) begin
@@ -409,7 +409,7 @@ package DumperTypes;
 `endif
             for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
                 str = "";
-                // Issue queue allcation
+                // Issue queue allocation
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 if (debugRegister.memExReg[i].opType == MEM_MOP_TYPE_CSR) begin
                     $sformat( str, "%s\\nd:0x%0x = csr[0x%0x], csr[0x%0x] <= fu(0x%0x)", str,
