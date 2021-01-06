@@ -196,7 +196,7 @@ module ActiveList(
         end
     end
 
-    // One cycle delay for RenameLogicCommitter's phase flow.
+    // One cycle delay for RenameLogicCommitter.
     always_ff@(posedge port.clk) begin
         if(port.rst)
             recoveryEntryNum <= '0;

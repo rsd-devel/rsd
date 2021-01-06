@@ -103,10 +103,10 @@ module RenameLogicCommitter(
     CommitLaneCountPath flushNum;
     always_comb begin
 
-        // The head and tail entres of an active list.
+        // The head and tail entries of an active list.
         alReadData = activeList.readData;
 
-        // Update cotrol signals for the active list and the free lists in
+        // Update control signals for the active list and the free lists in
         //  a rename logic.
         if(phase == PHASE_COMMIT) begin
             // Commit mode.

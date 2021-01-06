@@ -124,6 +124,7 @@
         "mepc",
         "minstret",
         "mispred",
+        "mispredicted",
         "misprediction",
         "modport",
         "mscratch",
