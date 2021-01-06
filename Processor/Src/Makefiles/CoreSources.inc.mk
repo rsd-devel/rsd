@@ -138,7 +138,6 @@ MODULES = \
 	Cache/DCache.sv \
 	Cache/DCacheIF.sv \
 	Cache/ICache.sv \
-	Cache/CachePrimitives.sv \
 	Cache/MemoryAccessController.sv \
 	Cache/CacheFlushManager.sv \
 	Cache/CacheFlushManagerIF.sv \
