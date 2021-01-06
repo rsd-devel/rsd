@@ -39,7 +39,7 @@
 
 
 // ハードウェアカウンタ(実行サイクル数などをカウント)を合成しない場合、
-// `RSD_DISABLE_HARDWARE_COUNTERを定義する
+`define RSD_DISABLE_HARDWARE_COUNTER
 //`RSD_DISABLE_HARDWARE_COUNTER
 
 /*
