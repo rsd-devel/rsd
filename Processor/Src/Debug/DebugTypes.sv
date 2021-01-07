@@ -25,9 +25,10 @@ import PipelineTypes::*;
 typedef struct packed { // 
     DataPath numLoadMiss;
     DataPath numStoreMiss;
-    DataPath numRefetchThisPC;
-    DataPath numRefetchNextPC;
-    DataPath numRefetchBrTarget;
+    DataPath numBranchPredMiss;
+
+    DataPath numStoreLoadForwardingFail;
+    DataPath numMemDepPredMiss;
 } PerfCounterPath;
 
 

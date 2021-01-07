@@ -212,11 +212,11 @@ module RecoveryManager(
 
         // Hardware Counter
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-        hwCounter.refetchThisPC =
+        hwCounter.storeLoadForwardingFail =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
-        hwCounter.refetchNextPC =
+        hwCounter.memDepPredMiss =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC});
-        hwCounter.refetchBrTarget =
+        hwCounter.branchPredMiss =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_BRANCH_TARGET);
 `endif
     end

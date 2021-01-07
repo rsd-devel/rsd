@@ -21,9 +21,9 @@ interface HardwareCounterIF( input logic clk, rst );
     logic storeMiss[STORE_ISSUE_WIDTH];
     
     // コミット関係
-    logic refetchThisPC;
-    logic refetchNextPC;
-    logic refetchBrTarget;
+    logic storeLoadForwardingFail;
+    logic memDepPredMiss;
+    logic branchPredMiss;
     
     modport HardwareCounter (
     input
@@ -31,9 +31,9 @@ interface HardwareCounterIF( input logic clk, rst );
         rst,
         loadMiss,
         storeMiss,
-        refetchThisPC,
-        refetchNextPC,
-        refetchBrTarget,
+        storeLoadForwardingFail,
+        memDepPredMiss,
+        branchPredMiss,
     output
         perfCounter
     );
@@ -45,9 +45,9 @@ interface HardwareCounterIF( input logic clk, rst );
     
     modport RecoveryManager (
     output
-        refetchThisPC,
-        refetchNextPC,
-        refetchBrTarget
+        storeLoadForwardingFail,
+        memDepPredMiss,
+        branchPredMiss
     );
 
     modport StoreCommitter (

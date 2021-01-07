@@ -347,9 +347,9 @@ int main(int argc, char** argv) {
     }
     printf("Num of load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
     printf("Num of store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
-    printf("Num of refetch from this PC: %d\n", debugRegister.perfCounter.numRefetchThisPC);
-    printf("Num of refetch from next PC: %d\n", debugRegister.perfCounter.numRefetchNextPC);
-    printf("Num of refetch from br target: %d\n", debugRegister.perfCounter.numRefetchBrTarget);
+    printf("Num of branch prediction misses: %d\n", debugRegister.perfCounter.numBranchPredMiss);
+    printf("Num of store-load-forwanind misses: %d\n", debugRegister.perfCounter.numStoreLoadForwardingFail);
+    printf("Num of memory dependency prediction misses: %d\n", debugRegister.perfCounter.numMemDepPredMiss);
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;

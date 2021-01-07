@@ -301,9 +301,9 @@ module TestMain;
         end
         $display("Num of load misses: %d", debugRegister.perfCounter.numLoadMiss);
         $display("Num of store misses: %d", debugRegister.perfCounter.numStoreMiss);
-        $display("Num of refetch from this PC: %d", debugRegister.perfCounter.numRefetchThisPC);
-        $display("Num of refetch from next PC: %d", debugRegister.perfCounter.numRefetchNextPC);
-        $display("Num of refetch from br target: %d", debugRegister.perfCounter.numRefetchBrTarget);
+        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
+        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
 
 
         `ifdef RSD_FUNCTIONAL_SIMULATION

@@ -62,9 +62,7 @@ module CSR_Unit(
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
             CSR_NUM_MHPMCOUNTER3: rv = hwCounter.perfCounter.numLoadMiss;
             CSR_NUM_MHPMCOUNTER4: rv = hwCounter.perfCounter.numStoreMiss;
-            CSR_NUM_MHPMCOUNTER5: rv = hwCounter.perfCounter.numRefetchThisPC;
-            CSR_NUM_MHPMCOUNTER6: rv = hwCounter.perfCounter.numRefetchNextPC;
-            CSR_NUM_MHPMCOUNTER7: rv = hwCounter.perfCounter.numRefetchBrTarget;
+            CSR_NUM_MHPMCOUNTER5: rv = hwCounter.perfCounter.numBranchPredMiss;
 `endif
             default:          rv = '0;
         endcase 

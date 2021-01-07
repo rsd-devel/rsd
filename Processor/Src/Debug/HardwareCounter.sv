@@ -27,9 +27,9 @@ module HardwareCounter (
                 next.numStoreMiss++;
             end
         end
-        next.numRefetchThisPC += port.refetchThisPC ? 1 : 0;
-        next.numRefetchNextPC += port.refetchNextPC ? 1 : 0;
-        next.numRefetchBrTarget += port.refetchBrTarget ? 1 : 0;
+        next.numStoreLoadForwardingFail += port.storeLoadForwardingFail ? 1 : 0;
+        next.numMemDepPredMiss += port.memDepPredMiss ? 1 : 0;
+        next.numBranchPredMiss += port.branchPredMiss ? 1 : 0;
 
         port.perfCounter = cur;  // Export current values
         debug.perfCounter = next;    // Export next values for updating registers in debug
