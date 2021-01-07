@@ -189,7 +189,7 @@ public:
         }
 
         // PreDecodeStage
-        for(int i = 0; i < FETCH_WIDTH; i++) {
+        for(int i = 0; i < DECODE_WIDTH; i++) {
 #ifdef RSD_FUNCTIONAL_SIMULATION
             strAluCode = Bin2Str(debugRegister.pdReg[i].aluCode, 4, false);
             strOpType = Bin2Str(debugRegister.pdReg[i].opType, 3, false);
