@@ -27,6 +27,7 @@ module HardwareCounter (
                 next.numStoreMiss++;
             end
         end
+        next.numIC_Miss += port.icMiss ? 1 : 0;
         next.numStoreLoadForwardingFail += port.storeLoadForwardingFail ? 1 : 0;
         next.numMemDepPredMiss += port.memDepPredMiss ? 1 : 0;
         next.numBranchPredMiss += port.branchPredMiss ? 1 : 0;

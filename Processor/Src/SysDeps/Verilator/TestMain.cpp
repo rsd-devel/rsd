@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     serialDumper.Open(serialDumpFileName);
 
     // The word of the main memory is 128 bits.
-    // A word is implemetned as uint32_t[4] in verilated modules.
+    // A word is implemented as uint32_t[4] in verilated modules.
     //int MEMORY_ENTRY_NUM = top->MemoryTypes->MEMORY_ENTRY_NUM;
     //uint32_t* mainMem = &(top->Main_Zynq_Wrapper->main->memory->body->array[0][0]);
     //assert(top->MemoryTypes->MEMORY_ENTRY_BIT_NUM == 128);
@@ -345,8 +345,9 @@ int main(int argc, char** argv) {
         printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
         printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
     }
-    printf("Num of load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
-    printf("Num of store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
+    printf("Num of I$ misses: %d\n", debugRegister.perfCounter.numIC_Miss);
+    printf("Num of D$ load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
+    printf("Num of D$ store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
     printf("Num of branch prediction misses: %d\n", debugRegister.perfCounter.numBranchPredMiss);
     printf("Num of store-load-forwanind misses: %d\n", debugRegister.perfCounter.numStoreLoadForwardingFail);
     printf("Num of memory dependency prediction misses: %d\n", debugRegister.perfCounter.numMemDepPredMiss);

@@ -303,6 +303,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, storeQueueEmpty);
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numIC_Miss)
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreMiss)
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)

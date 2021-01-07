@@ -128,9 +128,9 @@ struct RenameStageDebugRegister{
     bool valid;
     OpId opId;
 
-    // Physical register numbers are outputed in the next stage, becuase
+    // Physical register numbers are outputted in the next stage, because
     // The pop flags of the free list is negated and correct physical
-    // register numbers cannot be outputed in this stage when the pipeline
+    // register numbers cannot be outputted in this stage when the pipeline
     // is stalled.
 };
 
@@ -323,6 +323,7 @@ struct IssueQueueDebugRegister{
 };
 
 struct PerfCounterPath {
+    DataPath numIC_Miss;
     DataPath numLoadMiss;
     DataPath numStoreMiss;
     DataPath numStoreLoadForwardingFail;
@@ -622,6 +623,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 
 
 #ifdef RSD_FUNCTIONAL_SIMULATION
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numIC_Miss)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreMiss)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)

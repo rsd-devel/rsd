@@ -16,19 +16,25 @@ interface HardwareCounterIF( input logic clk, rst );
     // Hardware counter exported to CSR
     PerfCounterPath perfCounter;
     
-    // Dキャッシュミスしたかどうか
+    // I Cache misses
+    logic icMiss;
+
+    // D cache misses
     logic loadMiss[LOAD_ISSUE_WIDTH];
     logic storeMiss[STORE_ISSUE_WIDTH];
     
-    // コミット関係
+    // Speculative memory access
     logic storeLoadForwardingFail;
     logic memDepPredMiss;
+
+    // Branch prediction miss
     logic branchPredMiss;
     
     modport HardwareCounter (
     input
         clk,
         rst,
+        icMiss,
         loadMiss,
         storeMiss,
         storeLoadForwardingFail,
@@ -36,6 +42,11 @@ interface HardwareCounterIF( input logic clk, rst );
         branchPredMiss,
     output
         perfCounter
+    );
+
+    modport FetchStage(
+    output
+        icMiss
     );
 
     modport MemoryTagAccessStage (
@@ -70,6 +81,7 @@ interface HardwareCounterIF( input logic clk, rst );
         perfCounter
     );
     
+    modport FetchStage(input clk);
     modport LoadStoreUnit(input clk);
     modport MemoryTagAccessStage(input clk);
     modport RecoveryManager(input clk);

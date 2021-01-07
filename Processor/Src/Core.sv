@@ -133,7 +133,7 @@ output
         PC pc( npStageIF );
         BTB btb( npStageIF, ifStageIF );
         BranchPredictor brPred( npStageIF, ifStageIF, ctrlIF );
-    FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF );
+    FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF, hwCounterIF );
         ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
     
     PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF );

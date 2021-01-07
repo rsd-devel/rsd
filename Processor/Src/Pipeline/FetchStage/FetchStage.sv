@@ -15,10 +15,11 @@ module FetchStage(
     FetchStageIF.ThisStage port,
     NextPCStageIF.NextStage prev,
     ControllerIF.FetchStage ctrl,
-    DebugIF.FetchStage debug
+    DebugIF.FetchStage debug,
+    HardwareCounterIF.FetchStage hwCounter
 );
 
-    // Pipeline Controll
+    // Pipeline Control
     logic stall, clear;
     logic empty;
     logic regStall, beginStall;
@@ -55,6 +56,11 @@ module FetchStage(
 
         // Detect beginning of stall
         beginStall = !regStall && stall;
+
+`ifndef RSD_DISABLE_HARDWARE_COUNTER
+        // Stall can be caused by another reason from an i-cache miss.
+        hwCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
+`endif
     end
 
     // Whether instruction is invalidated by branch prediction
