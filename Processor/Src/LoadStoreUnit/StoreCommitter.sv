@@ -20,7 +20,7 @@ module StoreCommitter(
     RecoveryManagerIF.StoreCommitter recovery,
     IO_UnitIF.StoreCommitter ioUnit,
     DebugIF.StoreCommitter debug,
-    HardwareCounterIF.StoreCommitter hwCounter
+    PerformanceCounterIF.StoreCommitter perfCounter
 );
 
     // State machine
@@ -315,7 +315,7 @@ module StoreCommitter(
 
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
-            hwCounter.storeMiss[i] = i == 0 ? finishWriteBack : FALSE;  // Only supports a single store port 
+            perfCounter.storeMiss[i] = i == 0 ? finishWriteBack : FALSE;  // Only supports a single store port 
         end
 `endif
     end

@@ -6,9 +6,9 @@
 import BasicTypes::*;
 import DebugTypes::*;
 
-module HardwareCounter (
-    HardwareCounterIF.HardwareCounter port,
-    DebugIF.HardwareCounter debug
+module PerformanceCounter (
+    PerformanceCounterIF.PerformanceCounter port,
+    DebugIF.PerformanceCounter debug
 );
     PerfCounterPath cur, next;
     always_ff @(posedge port.clk) begin
@@ -38,16 +38,16 @@ module HardwareCounter (
     end
     
 
-endmodule : HardwareCounter
+endmodule : PerformanceCounter
 
 `else
 
-module HardwareCounter (
-    HardwareCounterIF.HardwareCounter port
+module PerformanceCounter (
+    PerformanceCounterIF.PerformanceCounter port
 );
     always_comb begin
         port.perfCounter = '0; // Suppressing warning.
     end
-endmodule : HardwareCounter
+endmodule : PerformanceCounter
 
 `endif

@@ -36,7 +36,7 @@ module MemoryTagAccessStage(
     RecoveryManagerIF.MemoryTagAccessStage recovery,
     ControllerIF.MemoryTagAccessStage ctrl,
     DebugIF.MemoryTagAccessStage debug,
-    HardwareCounterIF.MemoryTagAccessStage hwCounter
+    PerformanceCounterIF.MemoryTagAccessStage perfCounter
 );
 
     MemoryTagAccessStageRegPath pipeReg[MEM_ISSUE_WIDTH];
@@ -540,7 +540,7 @@ module MemoryTagAccessStage(
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             // Record misses only when a MSHR entry is allocated.
-            hwCounter.loadMiss[i] =
+            perfCounter.loadMiss[i] =
                 ldUpdate[i] && isLoad[i] && ldMSHR_Allocated[i];
         end
 `endif

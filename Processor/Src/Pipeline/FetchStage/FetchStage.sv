@@ -16,7 +16,7 @@ module FetchStage(
     NextPCStageIF.NextStage prev,
     ControllerIF.FetchStage ctrl,
     DebugIF.FetchStage debug,
-    HardwareCounterIF.FetchStage hwCounter
+    PerformanceCounterIF.FetchStage perfCounter
 );
 
     // Pipeline Control
@@ -60,7 +60,7 @@ module FetchStage(
 
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
         // Stall can be caused by another reason from an i-cache miss.
-        hwCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
+        perfCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
 `endif
     end
 

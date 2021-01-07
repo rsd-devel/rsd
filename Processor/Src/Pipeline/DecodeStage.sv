@@ -71,7 +71,7 @@ module DecodeStage(
     PreDecodeStageIF.NextStage prev,
     ControllerIF.DecodeStage ctrl,
     DebugIF.DecodeStage debug,
-    HardwareCounterIF.DecodeStage hwCounter
+    PerformanceCounterIF.DecodeStage perfCounter
 );
     // --- Pipeline registers
     DecodeStageRegPath pipeReg[DECODE_WIDTH];
@@ -282,7 +282,7 @@ module DecodeStage(
         port.nextStage = nextStage;
 
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-        hwCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
+        perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
 `endif
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER

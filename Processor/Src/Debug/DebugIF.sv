@@ -279,7 +279,7 @@ interface DebugIF( input logic clk, rst );
         cmReg
     );
 
-    modport HardwareCounter (
+    modport PerformanceCounter (
     output 
         perfCounter
     );
@@ -400,7 +400,7 @@ interface DebugIF( input logic clk, rst );
         output lastCommittedPC
     );
 
-    modport HardwareCounter (
+    modport PerformanceCounter (
         input clk
     );
 `endif

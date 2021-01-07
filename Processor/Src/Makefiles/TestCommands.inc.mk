@@ -40,7 +40,7 @@ LEVEL1_TESTS = \
 #	test-RV32I-MisalignedMemAccess \
 
 # アドレス変更に伴い，一時的に無効に
-#	test-HardwareCounter \
+#	test-PerformanceCounter \
 
 LEVEL2_TESTS = \
 	test-riscv-compliance \
@@ -188,8 +188,8 @@ test-Coremark:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark
 test-Coremark_for_RV32I:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark_for_RV32I
-test-HardwareCounter:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HardwareCounter
+test-PerformanceCounter:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/PerformanceCounter
 test-Dhrystone:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone
 test-Dhrystone-for-contest:

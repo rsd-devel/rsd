@@ -3,13 +3,13 @@
 
 
 //
-// --- HardwareCounterIF
+// --- PerformanceCounterIF
 //
 
 import BasicTypes::*;
 import DebugTypes::*;
 
-interface HardwareCounterIF( input logic clk, rst );
+interface PerformanceCounterIF( input logic clk, rst );
     
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
     
@@ -31,7 +31,7 @@ interface HardwareCounterIF( input logic clk, rst );
     logic branchPredMiss;
     logic branchPredMissDetectedOnDecode;
     
-    modport HardwareCounter (
+    modport PerformanceCounter (
     input
         clk,
         rst,
@@ -81,7 +81,7 @@ interface HardwareCounterIF( input logic clk, rst );
     // Dummy to suppress warning.
     PerfCounterPath perfCounter;
 
-    modport HardwareCounter (
+    modport PerformanceCounter (
     input
         clk,
     output
@@ -98,4 +98,4 @@ interface HardwareCounterIF( input logic clk, rst );
 `endif
 
 
-endinterface : HardwareCounterIF
+endinterface : PerformanceCounterIF

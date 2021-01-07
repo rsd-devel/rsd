@@ -25,7 +25,7 @@ module RecoveryManager(
     ActiveListIF.RecoveryManager activeList,
     CSR_UnitIF.RecoveryManager csrUnit,
     ControllerIF.RecoveryManager ctrl,
-    HardwareCounterIF.RecoveryManager hwCounter
+    PerformanceCounterIF.RecoveryManager perfCounter
 );
     typedef struct packed
     {
@@ -212,11 +212,11 @@ module RecoveryManager(
 
         // Hardware Counter
 `ifndef RSD_DISABLE_HARDWARE_COUNTER
-        hwCounter.storeLoadForwardingFail =
+        perfCounter.storeLoadForwardingFail =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
-        hwCounter.memDepPredMiss =
+        perfCounter.memDepPredMiss =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC});
-        hwCounter.branchPredMiss =
+        perfCounter.branchPredMiss =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_BRANCH_TARGET);
 `endif
     end
