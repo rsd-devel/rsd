@@ -137,7 +137,7 @@ output
         ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
     
     PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF );
-    DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF );
+    DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF, hwCounterIF );
 
     RenameStage rnStage( rnStageIF, idStageIF, renameLogicIF, activeListIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, debugIF );
         RenameLogic renameLogic( renameLogicIF, activeListIF, recoveryManagerIF );

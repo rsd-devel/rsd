@@ -31,6 +31,7 @@ module HardwareCounter (
         next.numStoreLoadForwardingFail += port.storeLoadForwardingFail ? 1 : 0;
         next.numMemDepPredMiss += port.memDepPredMiss ? 1 : 0;
         next.numBranchPredMiss += port.branchPredMiss ? 1 : 0;
+        next.numBranchPredMissDetectedOnDecode += port.branchPredMissDetectedOnDecode ? 1 : 0;
 
         port.perfCounter = cur;  // Export current values
         debug.perfCounter = next;    // Export next values for updating registers in debug

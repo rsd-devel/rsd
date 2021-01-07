@@ -310,6 +310,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numMemDepPredMiss)
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMissDetectedOnDecode)
 `endif
 
 endpackage

@@ -70,7 +70,8 @@ module DecodeStage(
     DecodeStageIF.ThisStage port, 
     PreDecodeStageIF.NextStage prev,
     ControllerIF.DecodeStage ctrl,
-    DebugIF.DecodeStage debug
+    DebugIF.DecodeStage debug,
+    HardwareCounterIF.DecodeStage hwCounter
 );
     // --- Pipeline registers
     DecodeStageRegPath pipeReg[DECODE_WIDTH];
@@ -212,9 +213,6 @@ module DecodeStage(
 
     always_comb begin
         
-        stall = ctrl.idStage.stall;
-        clear = ctrl.idStage.clear;
-
         //
         // Setup current valid bits(=un-decoded bits).
         //
@@ -259,6 +257,9 @@ module DecodeStage(
 
         // Stall decision
         ctrl.idStageStallUpper = !complete;
+        // After idStageStallUpper is received, the Controller returns stall/clear signals.
+        stall = ctrl.idStage.stall;
+        clear = ctrl.idStage.clear;
         
         
         // Pick decoded micro ops.
@@ -280,6 +281,9 @@ module DecodeStage(
         
         port.nextStage = nextStage;
 
+`ifndef RSD_DISABLE_HARDWARE_COUNTER
+        hwCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
+`endif
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         for (int i = 0; i < DECODE_WIDTH; i++) begin

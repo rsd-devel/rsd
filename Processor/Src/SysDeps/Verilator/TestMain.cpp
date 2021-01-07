@@ -342,6 +342,7 @@ int main(int argc, char** argv) {
     printf("Num of D$ load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
     printf("Num of D$ store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
     printf("Num of branch prediction misses: %d\n", debugRegister.perfCounter.numBranchPredMiss);
+    printf("Num of branch prediction misses detected on decode: %d\n", debugRegister.perfCounter.numBranchPredMissDetectedOnDecode);
     printf("Num of store-load-forwanind misses: %d\n", debugRegister.perfCounter.numStoreLoadForwardingFail);
     printf("Num of memory dependency prediction misses: %d\n", debugRegister.perfCounter.numMemDepPredMiss);
 

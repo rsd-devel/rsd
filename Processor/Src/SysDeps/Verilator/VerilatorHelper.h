@@ -330,6 +330,7 @@ struct PerfCounterPath {
     DataPath numStoreLoadForwardingFail;
     DataPath numMemDepPredMiss;
     DataPath numBranchPredMiss;
+    DataPath numBranchPredMissDetectedOnDecode;
 };
 
 struct DebugRegister{
@@ -631,6 +632,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numMemDepPredMiss)
     RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMissDetectedOnDecode)
 #endif
 }
 

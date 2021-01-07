@@ -29,6 +29,7 @@ interface HardwareCounterIF( input logic clk, rst );
 
     // Branch prediction miss
     logic branchPredMiss;
+    logic branchPredMissDetectedOnDecode;
     
     modport HardwareCounter (
     input
@@ -40,6 +41,7 @@ interface HardwareCounterIF( input logic clk, rst );
         storeLoadForwardingFail,
         memDepPredMiss,
         branchPredMiss,
+        branchPredMissDetectedOnDecode,
     output
         perfCounter
     );
@@ -47,6 +49,11 @@ interface HardwareCounterIF( input logic clk, rst );
     modport FetchStage(
     output
         icMiss
+    );
+
+    modport DecodeStage(
+    output
+        branchPredMissDetectedOnDecode
     );
 
     modport MemoryTagAccessStage (
@@ -82,6 +89,7 @@ interface HardwareCounterIF( input logic clk, rst );
     );
     
     modport FetchStage(input clk);
+    modport DecodeStage(input clk);
     modport LoadStoreUnit(input clk);
     modport MemoryTagAccessStage(input clk);
     modport RecoveryManager(input clk);
