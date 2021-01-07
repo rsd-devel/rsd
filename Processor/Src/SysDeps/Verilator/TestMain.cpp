@@ -338,19 +338,20 @@ int main(int argc, char** argv) {
     registerFileCSV_Dumper.Close();
 
     // Simulation Result
-    printf("Elapsed cycles: %d\n", (int32_t)cycle);
-    printf("Num of committed RISC-V-ops: %d\n", numCommittedARM_Op);
-    printf("Num of committed micro-ops: %d\n", numCommittedMicroOp);
-    if (cycle != 0) {
-        printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
-        printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
-    }
     printf("Num of I$ misses: %d\n", debugRegister.perfCounter.numIC_Miss);
     printf("Num of D$ load misses: %d\n", debugRegister.perfCounter.numLoadMiss);
     printf("Num of D$ store misses: %d\n", debugRegister.perfCounter.numStoreMiss);
     printf("Num of branch prediction misses: %d\n", debugRegister.perfCounter.numBranchPredMiss);
     printf("Num of store-load-forwanind misses: %d\n", debugRegister.perfCounter.numStoreLoadForwardingFail);
     printf("Num of memory dependency prediction misses: %d\n", debugRegister.perfCounter.numMemDepPredMiss);
+
+    printf("Num of committed RISC-V-ops: %d\n", numCommittedARM_Op);
+    printf("Num of committed micro-ops: %d\n", numCommittedMicroOp);
+    if (cycle != 0) {
+        printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
+        printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
+    }
+    printf("Elapsed cycles: %d\n", (int32_t)cycle);
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;

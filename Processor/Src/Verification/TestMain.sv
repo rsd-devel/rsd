@@ -291,7 +291,13 @@ module TestMain;
         if ( enableDumpRegCSV ) registerFileCSV_Dumper.Close();
 
         // Simulation Result
-        $display("Elapsed cycles: %d", cycle);
+        $display("Num of I$ misses: %d", debugRegister.perfCounter.numIC_Miss);
+        $display("Num of D$ load misses: %d", debugRegister.perfCounter.numLoadMiss);
+        $display("Num of D$ store misses: %d", debugRegister.perfCounter.numStoreMiss);
+        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
+        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
+
         $display( "Num of committed RISC-V-ops: %d", numCommittedRISCV_Op );
         $display( "Num of committed micro-ops: %d", numCommittedMicroOp );
         if ( cycle != 0 ) begin
@@ -299,12 +305,7 @@ module TestMain;
             $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
-        $display("Num of I$ misses: %d", debugRegister.perfCounter.numIC_Miss);
-        $display("Num of D$ load misses: %d", debugRegister.perfCounter.numLoadMiss);
-        $display("Num of D$ store misses: %d", debugRegister.perfCounter.numStoreMiss);
-        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
-        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
-        $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
+        $display("Elapsed cycles: %d", cycle);
 
 
         `ifdef RSD_FUNCTIONAL_SIMULATION
