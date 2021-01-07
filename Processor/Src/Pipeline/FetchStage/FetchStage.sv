@@ -38,13 +38,14 @@ module FetchStage(
     PreDecodeStageRegPath nextStage[ FETCH_WIDTH ];
 
     always_comb begin
+        // Stall upper stages if cannot fetch valid instruction 
+        // This request sends back ctrl.ifStage.stall/ctrl.ifStage.clear
+        ctrl.ifStageSendBubbleLower = 
+            pipeReg[0].valid && !port.icReadHit[0];
+
         // Control
         stall = ctrl.ifStage.stall;
         clear = ctrl.ifStage.clear;
-
-        // Stall upper stages if cannot fetch valid instruction 
-        ctrl.ifStageSendBubbleLower = 
-            pipeReg[0].valid && !port.icReadHit[0];
 
         // Check whether instructions exist in this stage
         empty = TRUE;
