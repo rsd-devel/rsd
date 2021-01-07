@@ -211,7 +211,7 @@ module RecoveryManager(
 
 
         // Hardware Counter
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
         perfCounter.storeLoadForwardingFail =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
         perfCounter.memDepPredMiss =

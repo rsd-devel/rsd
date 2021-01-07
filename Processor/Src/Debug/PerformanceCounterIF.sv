@@ -11,7 +11,7 @@ import DebugTypes::*;
 
 interface PerformanceCounterIF( input logic clk, rst );
     
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
     
     // Hardware counter exported to CSR
     PerfCounterPath perfCounter;

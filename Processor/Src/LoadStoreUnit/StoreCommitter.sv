@@ -313,7 +313,7 @@ module StoreCommitter(
             nextDataStagePipeReg.valid = FALSE;
         end
 
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
             perfCounter.storeMiss[i] = i == 0 ? finishWriteBack : FALSE;  // Only supports a single store port 
         end

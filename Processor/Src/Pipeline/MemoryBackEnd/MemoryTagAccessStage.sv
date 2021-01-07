@@ -537,7 +537,7 @@ module MemoryTagAccessStage(
     always_comb begin
 
         // Debug Register
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             // Record misses only when a MSHR entry is allocated.
             perfCounter.loadMiss[i] =

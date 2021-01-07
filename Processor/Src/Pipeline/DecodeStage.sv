@@ -281,7 +281,7 @@ module DecodeStage(
         
         port.nextStage = nextStage;
 
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
         perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
 `endif
         // Debug Register

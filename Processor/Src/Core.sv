@@ -55,7 +55,7 @@ output
     end
 `endif
 
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
     PerformanceCounter perfCounter(perfCounterIF, debugIF);
 `endif
 

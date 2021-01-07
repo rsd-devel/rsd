@@ -36,8 +36,8 @@
 
 
 
-// if RSD_DISABLE_HARDWARE_COUNTER is defined, performance counters are not synthesized.
-`define RSD_DISABLE_HARDWARE_COUNTER
+// if RSD_DISABLE_PERFORMANCE_COUNTER is defined, performance counters are not synthesized.
+`define RSD_DISABLE_PERFORMANCE_COUNTER
 
 /*
   Define one of these macros.

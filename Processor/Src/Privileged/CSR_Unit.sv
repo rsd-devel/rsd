@@ -59,7 +59,7 @@ module CSR_Unit(
 
             CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
             CSR_NUM_MINSTRET: rv = csrReg.minstret;
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
             CSR_NUM_MHPMCOUNTER3: rv = perfCounter.perfCounter.numLoadMiss;
             CSR_NUM_MHPMCOUNTER4: rv = perfCounter.perfCounter.numStoreMiss;
             CSR_NUM_MHPMCOUNTER5: rv = perfCounter.perfCounter.numBranchPredMiss;
