@@ -105,6 +105,9 @@ package DumperTypes;
                     0, // mid
                     "" // comment
                 );
+            end
+            for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
+                str =debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
                 this.DumpStage(
                     KS_IF, // stage id
                     debugRegister.ifReg[i].valid, // valid
@@ -114,12 +117,12 @@ package DumperTypes;
                         debugRegister.ifReg[i].flush, // clear
                     debugRegister.ifReg[i].sid, // sid
                     0, // mid
-                    "" // comment
+                    str // comment
                 );
             end
 
             // PreDecodeStage
-            for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
+            for ( int i = 0; i < DECODE_WIDTH; i++ ) begin
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 strAluCode.bintoa(debugRegister.pdReg[i].aluCode);
                 strOpType.bintoa(debugRegister.pdReg[i].opType);

@@ -46,6 +46,7 @@ typedef struct packed { // FetchStageDebugRegister
     logic valid;
     OpSerial sid;
     logic flush;
+    logic icMiss;
 } FetchStageDebugRegister;
 
 typedef struct packed { // PreDecodeStageDebugRegister

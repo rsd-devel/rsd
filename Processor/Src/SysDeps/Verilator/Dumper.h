@@ -171,7 +171,10 @@ public:
                 0, // mid
                 "" // comment
             );
+        }
 
+        for (int i = 0; i < FETCH_WIDTH; i++) {
+            str = debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
             DumpStage(
                 KS_IF, // stage id
                 debugRegister.ifReg[i].valid, // valid
@@ -181,7 +184,7 @@ public:
                     debugRegister.ifReg[i].flush,      // clear
                 debugRegister.ifReg[i].sid, // sid
                 0, // mid
-                "" // comment
+                str // comment
             );
         }
 

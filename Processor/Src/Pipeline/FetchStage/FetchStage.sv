@@ -193,7 +193,11 @@ module FetchStage(
             debug.ifReg[i].valid = pipeReg[i].valid;
             debug.ifReg[i].sid = pipeReg[i].sid;
             debug.ifReg[i].flush = isFlushed[i];
+            debug.ifReg[i].icMiss = FALSE;
         end
+        // it is correct that the index of pipeReg is zero because
+        // an i-cache miss occurs at the head of the fetch group.
+        debug.ifReg[0].icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
 `endif
     end
 

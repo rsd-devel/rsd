@@ -100,6 +100,7 @@ struct FetchStageDebugRegister{
     bool valid;
     OpSerial sid;
     bool flush;
+    bool icMiss;
 };
 
 struct PreDecodeStageDebugRegister{ // PreDecodeStageDebugRegister
@@ -433,6 +434,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, OpSerial, sid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, icMiss);
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, OpSerial, sid);
