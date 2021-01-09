@@ -11,7 +11,7 @@
 #
 # There are several IDs in this script:
 #
-#   gid: An unique id for each mico op in this script.
+#   gid: An unique id for each micro-op in this script.
 #       This is calculated in a RSD_Parser.
 #   cid: An unique id for each 'committed' micro op in a Kanata log.
 #       This is calculated in a RSD_Parser.
@@ -24,6 +24,7 @@
 
 import sys
 import pprint
+
 from RSD_Parser import RSD_Parser, RSD_ParserError
 import RISCV_Disassembler
 
@@ -66,7 +67,7 @@ class KanataGenerator( object ):
 
     # Kanata retirement types.
     KNT_CMD_ARG_RETIRE = 0
-    KNT_CMD_ARG_FULSH = 1
+    KNT_CMD_ARG_FLUSH = 1
 
     # Label type
     KNT_CMD_ARG_LABEL_TYPE_ABSTRACT = 0 # Shown in a left pane.
@@ -97,7 +98,7 @@ class KanataGenerator( object ):
     #
 
     def Open( self, fileName ):
-        self.outputFileName = fileName;
+        self.outputFileName = fileName
         self.outputFile = open( self.outputFileName, "w" )
 
 
@@ -117,7 +118,7 @@ class KanataGenerator( object ):
         parserOps = parser.ops
 
         # sid, rid, label are extracted.
-        rid = 0;
+        rid = 0
         for sid, gid in enumerate( sorted( parserOps.keys() ) ):
             parserOp = parserOps[ gid ]
 
@@ -190,7 +191,7 @@ class KanataGenerator( object ):
         return self.ops[ gid ].rid
 
     def GetLabel( self, gid ):
-        commit = self.ops[ gid ].commit
+        #commit = self.ops[ gid ].commit
         #cid = self.ops[ gid ].cid
         label = self.ops[ gid ].label
         pcStr = label.pc
@@ -286,7 +287,7 @@ class KanataGenerator( object ):
                 self.KNT_CMD_RETIRE,
                 self.GetSID( event.gid ),
                 self.GetRID( event.gid ),
-                self.KNT_CMD_ARG_FULSH
+                self.KNT_CMD_ARG_FLUSH
             )
         )
 
@@ -327,11 +328,11 @@ class KanataConverter( object ):
 
             #pprint.pprint( parser.events );
 
-        except IOError, (errno, strerror):
-            print( "I/O error(%s): %s" % ( errno, strerror ) )
+        except IOError as err:
+            print("I/O error: %s" % err)
 
-        except RSD_ParserError, ( strerror ):
-            print( strerror )
+        except RSD_ParserError as err:
+            print(err)
 
         finally:
             parser.Close()

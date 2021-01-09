@@ -9,10 +9,10 @@
 #
 #   iid: An unique id for each instruction in a RSD log file. 
 #       This is outputted from SystemVerilog code.
-#   mid: The index of a micro op in an instruction.
+#   mid: The index of a micro-op in each instruction.
 #       This is outputted from SystemVerilog code.
 #
-#   gid: An unique id for each mico op in this script. 
+#   gid: An unique id for each micro-op in this script. 
 #       This is calculated from iid and mid for internal use.
 #   cid: An unique id for each 'committed' micro op in a Kanata log. 
 #       This is calculated from gid.
@@ -47,18 +47,22 @@ class RSD_Parser( object ):
     RSD_CMD_COMMENT = "#"
 
     # Bit width of OpSerial in SystemVerilog code.
-    # OpSerial becomes iid in this python script.
+    # An id stored in OpSerial signal is loaded as "iid" in this python script.
+    # See the comments in CreateGID()
     OP_SERIAL_WIDTH = 10
 
-    # Max micro ops per an instruction.
+    # Max micro-ops per an instruction.
     MAX_MICRO_OPS_PER_INSN = 4
 
     # Wrap around of gid caused by wrap around of iid.
     GID_WRAP_AROUND = 2 ** OP_SERIAL_WIDTH * MAX_MICRO_OPS_PER_INSN
 
+    # Create unique 'gid' from 'iid' and 'mid'. 
+    # Since 'iid' is stored in a signal with the limited width of OpSerial, 
+    # 'iid' causes wrap around. So this script generats an unique id called 'gid' 
+    # from 'iid' and current state.
     def CreateGID( self, iid, mid ):
-        """ Create unique 'gid' from 'iid' and 'mid'. 
-        """
+        """ Create unique 'gid' from 'iid' and 'mid'. """
         if mid >= RSD_Parser.MAX_MICRO_OPS_PER_INSN:
             raise RSD_ParserError( "'mid' exceeds MAX_MICRO_OPS_PER_INSN at iid(%s)" % iid  )
         
@@ -145,13 +149,13 @@ class RSD_Parser( object ):
         self.ops = {}       # gid -> Op map
         self.events = {}    # cycle -> Event map
         self.retired = set( [] )    # retired gids
-        self.maxRetiredOp = 0;      # The maximum number in retired ops.
-        self.committedOpNum = 0;    # Num of committed ops.
+        self.maxRetiredOp = 0      # The maximum number in retired ops.
+        self.committedOpNum = 0    # Num of committed ops.
 
 
     def Open( self, inputFileName ):
         self.inputFileName = inputFileName
-        self.inputFile  = open( inputFileName, "r" );
+        self.inputFile  = open( inputFileName, "r" )
 
     def Close( self ):
         if self.inputFile is not None :
@@ -162,7 +166,7 @@ class RSD_Parser( object ):
     #
 
     def ProcessHeader( self, line ):
-        """ Process a file hedaer """
+        """ Process a file header """
 
         words = re.split( r"[\t\n\r]", line )
 
@@ -195,7 +199,7 @@ class RSD_Parser( object ):
         elif cmd == self.RSD_CMD_COMMENT :
             pass    # A comment is not processed.
         else:
-            raise RSD_ParserError( "Unknown command:'%s'" % (cmd) );
+            raise RSD_ParserError("Unknown command:'%s'" % cmd)
        
 
     def OnRSD_Stage( self, words ):
@@ -216,7 +220,7 @@ class RSD_Parser( object ):
 
         # if both stall and clear signals are asserted, it means send bubble and
         # it is not pipeline flush.
-        flush = op.clear and not op.stall;
+        flush = op.clear and not op.stall
 
         if (op.gid in self.retired):
             if flush:
@@ -224,7 +228,7 @@ class RSD_Parser( object ):
                 # are ops in pipeline stages and an active list.
                 return
             else:
-                print "A retired op is dumped. op: (%s)" % ( op.__repr__() )
+                print("A retired op is dumped. op: (%s)" % op.__repr__())
 
         comment = words[7]
         current = self.currentCycle
@@ -320,8 +324,8 @@ class RSD_Parser( object ):
 
         # Add label information to a label database.
         label = self.ops[ gid ].label
-        label.iid = iid;
-        label.mid = mid;
+        label.iid = iid
+        label.mid = mid
         label.pc = pc
         label.code = code
 
@@ -337,6 +341,7 @@ class RSD_Parser( object ):
         """ Add a gid to a retired op list. """
         self.retired.add(gid)
         self.maxRetiredOp = max(self.maxRetiredOp, gid)
+        print(self.maxRetiredOp)
 
 
     def Parse( self ):
