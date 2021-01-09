@@ -64,17 +64,30 @@ class RSD_Parser( object ):
     def CreateGID( self, iid, mid ):
         """ Create unique 'gid' from 'iid' and 'mid'. """
         if mid >= RSD_Parser.MAX_MICRO_OPS_PER_INSN:
-            raise RSD_ParserError( "'mid' exceeds MAX_MICRO_OPS_PER_INSN at iid(%s)" % iid  )
+            raise RSD_ParserError( "'mid' exceeds MAX_MICRO_OPS_PER_INSN at iid(%d)" % iid  )
         
-        gid = mid + iid * RSD_Parser.MAX_MICRO_OPS_PER_INSN
+        # A           B
+        # |<----W---->|<----W---->|
+        # |----r---g--|-----------|: n = A
+        # |----g---r--|-----------|: n = A
+        # |--------r--|--g--------|: n = B
+        # |--------g--|--r--------|: n = A
+        g = mid + iid * RSD_Parser.MAX_MICRO_OPS_PER_INSN
+        W = RSD_Parser.GID_WRAP_AROUND
+        M = W / 4
+        r = self.maxRetiredOp % W
+        n = self.maxRetiredOp - r
 
-        # Convert a gid wrapped around to a unique gid.
-        # - Search min( n : gid + n * GID_WRAP_AROUND > max-retired-gid - margin ) 
-        #   - margin : GID_WRAP_AROUND / 2
-        # - Set gid = gid + n * GID_WRAP_AROUND
-        if len( self.retired ) != 0:
-            numWrapAround = ( self.maxRetiredOp + RSD_Parser.GID_WRAP_AROUND / 2 - gid ) / RSD_Parser.GID_WRAP_AROUND
-            gid += RSD_Parser.GID_WRAP_AROUND * numWrapAround
+        # The maximum difference between g and r must be less than W/2,
+        # so the maximum number if in-flight ops must be less than GID_WRAP_AROUND/2
+        # |--------r--|--g--------|: n = B
+        if r > M * 3 and g < M:
+                n = n + W   
+        # |--------g--|--r--------|: n = A
+        if g > M * 3 and r < M: 
+                n = n - W
+
+        gid = n + g
         return gid
 
     # Event types 

@@ -14,7 +14,7 @@
             "cwd": "${workspaceRoot}",
             "env": {},
             "envFile": "${workspaceRoot}/.env",
-            "console": "integratedTerminal",
+            "console": "internalConsole",
             "args": [
                 "../../Src/RSD.log",
                 "kanata.log",
