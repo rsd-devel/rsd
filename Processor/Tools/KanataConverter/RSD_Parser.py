@@ -19,6 +19,9 @@
 #
 
 import re
+from KanataGenerator import KanataGenerator
+from RSD_Event import RSD_Event, RSD_Label
+from RISCV_Disassembler import RISCV_Disassembler
 
 #
 # Global constants
@@ -90,29 +93,9 @@ class RSD_Parser( object ):
         gid = n + g
         return gid
 
-    # Event types 
-    EVENT_INIT = 0
-    EVENT_STAGE_BEGIN = 1
-    EVENT_STAGE_END = 2
-    EVENT_STALL_BEGIN = 3
-    EVENT_STALL_END = 4
-    EVENT_RETIRE = 5
-    EVENT_FLUSH = 6
-
     #
     # Internal classes
     #
-
-    class Label( object ):
-        """ Label information of an op """
-        def __init__( self ):
-            self.iid = 0
-            self.mid = 0
-            self.pc = 0
-            self.code = ""
-
-        def __repr__( self ):
-            return "{iid:%d, mid:%d, pc: %s, code: %s}" % ( self.iid, self.mid, self.pc, self.code )
 
     class Op( object ):
         """ Op class. """
@@ -127,7 +110,7 @@ class RSD_Parser( object ):
             self.updatedCycle = updatedCycle
             self.commit = False
 
-            self.label = RSD_Parser.Label()
+            self.label = RSD_Label()
 
         def __repr__( self ):
             return (
@@ -138,11 +121,12 @@ class RSD_Parser( object ):
 
     class Event( object ):
         """ Event class """
-        def __init__( self, gid, type, stageID, comment ):
+        def __init__( self, gid, type, stageID, comment, op):
             self.gid = gid
             self.type = type
             self.stageID = stageID
             self.comment = comment
+            self.op = op
 
         def __repr__( self ):
             return (
@@ -164,6 +148,12 @@ class RSD_Parser( object ):
         self.retired = set( [] )    # retired gids
         self.maxRetiredOp = 0      # The maximum number in retired ops.
         self.committedOpNum = 0    # Num of committed ops.
+
+        self.generator = None
+        self.nextCycleForGenerator = 0
+        self.lineNum = 1
+
+        self.disassembler = RISCV_Disassembler()
 
 
     def Open( self, inputFileName ):
@@ -211,6 +201,8 @@ class RSD_Parser( object ):
             self.OnRSD_Cycle( words )
         elif cmd == self.RSD_CMD_COMMENT :
             pass    # A comment is not processed.
+        elif cmd == "":
+            pass    # A blank line is skipped
         else:
             raise RSD_ParserError("Unknown command:'%s'" % cmd)
        
@@ -252,42 +244,42 @@ class RSD_Parser( object ):
         if gid in self.ops:
             prevOp = self.ops[ gid ]
             op.label = prevOp.label
+            op.updatedCycle = self.currentCycle
 
             # End stalling
             if prevOp.stall and not op.stall:
-                self.AddEvent( current, gid, self.EVENT_STALL_END, prevOp.stageID, "" )
+                self.AddEvent( current, gid, RSD_Event.STALL_END, prevOp.stageID, "", op)
                 # End and begin a current stage For output comment.
-                self.AddEvent( current, gid, self.EVENT_STAGE_END, prevOp.stageID, "" )
-                self.AddEvent( current, gid, self.EVENT_STAGE_BEGIN, op.stageID, comment )
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "", op)
+                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
             
             # Begin stalling
             if not prevOp.stall and op.stall:
-                self.AddEvent( current, gid, self.EVENT_STALL_BEGIN, op.stageID, comment )
+                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, comment, op)
             
             # End/Begin a stage
             if prevOp.stageID != op.stageID:
-                self.AddEvent( current, gid, self.EVENT_STAGE_END, prevOp.stageID, "" )
-                self.AddEvent( current, gid, self.EVENT_STAGE_BEGIN, op.stageID, comment )
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "", op)
+                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
                 if retire:
-                    self.AddRetiredGID( gid )
                     # Count num of committed ops.
                     op.commit = True
                     op.cid = self.committedOpNum
+                    self.AddRetiredGID(gid, op)
                     self.committedOpNum += 1
                     # Close a last stage
-                    self.AddEvent( current + 1, gid, self.EVENT_STAGE_END, op.stageID, "" )
-                    self.AddEvent( current + 1, gid, self.EVENT_RETIRE, op.stageID, "" )
+                    self.AddEvent( current + 1, gid, RSD_Event.STAGE_END, op.stageID, "", op)
+                    self.AddEvent( current + 1, gid, RSD_Event.RETIRE, op.stageID, "", op)
         else:
             # Initialize/Begin a stage
-            self.AddEvent( current, gid, self.EVENT_INIT, op.stageID, "" )
-            self.AddEvent( current, gid, self.EVENT_STAGE_BEGIN, op.stageID, comment )
+            self.AddEvent( current, gid, RSD_Event.INIT, op.stageID, "", op)
+            self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
             if ( op.stall ):
-                self.AddEvent( current, gid, self.EVENT_STALL_BEGIN, op.stageID, "" )
+                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, "", op)
 
         # if both stall and clear signals are asserted, it means send bubble and
         # it is not pipeline flush.
         if flush:
-            self.AddRetiredGID( gid )
             prevOp = self.ops[ gid ]
             if prevOp.stageID == 0:
                 # When an instruction was flushed in NextPCStage,
@@ -296,8 +288,9 @@ class RSD_Parser( object ):
                 return
             else:
                 # Add events about flush
-                self.AddEvent( current, gid, self.EVENT_STAGE_END, op.stageID, "" )
-                self.AddEvent( current, gid, self.EVENT_FLUSH, op.stageID, comment )
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "", op)
+                self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment, op)
+            self.AddRetiredGID(gid, op)
 
         self.ops[ gid ] = op
 
@@ -316,9 +309,9 @@ class RSD_Parser( object ):
         return self.Op( iid, mid, gid, stall, clear, stageID, self.currentCycle )
 
 
-    def AddEvent( self, cycle, gid, type, stageID, comment ):
+    def AddEvent( self, cycle, gid, type, stageID, comment, op):
         """ Add an event to an event list.  """
-        event = self.Event( gid, type, stageID, comment )
+        event = self.Event( gid, type, stageID, comment, op)
         if cycle not in self.events:
             self.events[ cycle ] = []
         self.events[ cycle ].append( event )
@@ -342,26 +335,46 @@ class RSD_Parser( object ):
         label.pc = pc
         label.code = code
 
+        pcStr = pc
+        asmStr = self.disassembler.Disassemble(code)
+        comment = "%s: %s" % (pcStr, asmStr)
+        self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment, None)
 
-    def OnRSD_Cycle( self, words ):
+        #self.generator.AddLabel(gid, label)
+
+
+    def OnRSD_Cycle(self, words):
         """ Update a processor cycle.
         Format:
            'C', 'incremented value'
         """
-        self.currentCycle += int( words[1] )
+        self.currentCycle += int(words[1])
+        self.ProcessEvents(dispose=False)
+    
+    def ProcessEvents(self, dispose):
+        events = self.events
+        for cycle in sorted(events.keys()):
+            if not dispose and cycle >  self.currentCycle - 100:
+                break
+            self.generator.OnCycleEnd(cycle)
+            # Extract and process events at a current cycle.
+            for e in events[cycle]:
+                if e.gid in self.ops:
+                    self.generator.OnEvent(e)
+            del events[cycle]
 
-    def AddRetiredGID(self, gid):
+
+    def AddRetiredGID(self, gid, op):
         """ Add a gid to a retired op list. """
         self.retired.add(gid)
         self.maxRetiredOp = max(self.maxRetiredOp, gid)
-        print(self.maxRetiredOp)
 
 
-    def Parse( self ):
+    def Parse(self, generator):
         """ Parse an input file. 
         This method includes a main loop that parses a file.
         """
-
+        self.generator = generator
         file = self.inputFile
         
         # Process a file header.
@@ -374,4 +387,7 @@ class RSD_Parser( object ):
             if line == "" :
                 break
             self.ProcessLine( line )
+            self.lineNum = self.lineNum + 1
+
+        self.ProcessEvents(dispose=True)
 

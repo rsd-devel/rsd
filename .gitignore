@@ -75,11 +75,13 @@ synlog.tcl
 /Processor/Src/*.gz
 /Processor/Src/wlft*
 
+# python
+*.pyc
+.ropeproject
 
 # other files
 /Work
 
-*.pyc
 *.log
 *.o
 *.bin
