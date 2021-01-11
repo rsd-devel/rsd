@@ -83,7 +83,6 @@ class KanataGenerator( object ):
         def __init__( self, sid, rid, commit ):
             self.sid = sid
             self.rid = rid
-            self.commit = commit
 
     def __init__( self ):
         self.outputFileName = ""
@@ -141,13 +140,6 @@ class KanataGenerator( object ):
             print("lastGID:%d is greater than added gid:%d in AddNewGID" % (self.lastGID, gid))
         self.lastGID = gid 
 
-    def AddRetiredEvent_(self, event):
-        """ Add a retired op to the generator """
-        op = self.genOps[event.gid]
-        op.commit = True
-        op.rid = self.nextRID
-        self.nextRID += 1
-
     def Write_( self, str ):
         self.outputFile.write( str )
 
@@ -184,9 +176,6 @@ class KanataGenerator( object ):
 
     def GetSID_( self, gid ):
         return self.genOps[gid].sid
-
-    def GetRID_( self, gid ):
-        return self.genOps[gid].rid
 
     def OnKNT_Initialize_( self, event ):
         """ Output an initializing event. """
@@ -255,15 +244,15 @@ class KanataGenerator( object ):
 
     def OnKNT_Retire_( self, event ):
         """ Output a retirement event. """
-        self.AddRetiredEvent_(event)
         self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_RETIRE,
                 self.GetSID_( event.gid ),
-                self.GetRID_( event.gid ),
+                self.nextRID,
                 self.KNT_CMD_ARG_RETIRE
             )
         )
+        self.nextRID += 1
 
     def OnKNT_Flush_( self, event ):
         """ Output a flush event. """
@@ -271,7 +260,7 @@ class KanataGenerator( object ):
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_RETIRE,
                 self.GetSID_( event.gid ),
-                self.GetRID_( event.gid ),
+                0,
                 self.KNT_CMD_ARG_FLUSH
             )
         )
