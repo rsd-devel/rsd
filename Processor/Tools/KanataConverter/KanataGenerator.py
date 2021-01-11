@@ -80,17 +80,15 @@ class KanataGenerator( object ):
     class Op( object ):
         """ It has information about an op. """
 
-        def __init__( self, sid, rid, cid, commit ):
+        def __init__( self, sid, rid, commit ):
             self.sid = sid
             self.rid = rid
-            self.cid = cid
             self.commit = commit
 
     def __init__( self ):
         self.outputFileName = ""
         self.outputFile = None
 
-        self.ops = {}    # gid -> op information
         self.genOps = {}    # gid -> op information
         self.sidMap = {}    # gid -> sid
         self.disassembler = RISCV_Disassembler.RISCV_Disassembler()
@@ -137,7 +135,7 @@ class KanataGenerator( object ):
             print("gid:%d is re-defined." % (gid))
         else:
             self.sidMap[gid] = self.nextSID
-            genOp = KanataGenerator.Op(self.nextSID, 0, 0, False)
+            genOp = KanataGenerator.Op(self.nextSID, 0, False)
             self.genOps[gid] = genOp
             self.nextSID += 1
 
@@ -148,11 +146,9 @@ class KanataGenerator( object ):
     def AddRetiredEvent_(self, event):
         """ Add a retired op to the generator """
         op = self.genOps[event.gid]
-        op.cid = event.op.cid
-        op.commit = event.op.commit
+        op.commit = True
         op.rid = self.nextRID
-        if not event.op.clear:
-            self.nextRID += 1
+        self.nextRID += 1
 
     def Write( self, str ):
         self.outputFile.write( str )
@@ -209,7 +205,7 @@ class KanataGenerator( object ):
                 self.KNT_CMD_LABEL,
                 sid,
                 self.KNT_CMD_ARG_LABEL_TYPE_DETAIL,
-                "(g:%d,c%d)" % (gid, self.genOps[gid].cid)
+                "(g:%d,c0)" % (gid)
             )
         )
 
