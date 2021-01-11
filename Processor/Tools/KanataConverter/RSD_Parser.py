@@ -109,6 +109,7 @@ class RSD_Parser( object ):
             self.clear = clear
             self.updatedCycle = updatedCycle
             self.commit = False
+            self.labelOutputted = False
 
         def __repr__( self ):
             return (
@@ -241,6 +242,7 @@ class RSD_Parser( object ):
         # Check whether an event occurs or not.
         if gid in self.ops:
             prevOp = self.ops[ gid ]
+            op.labelOutputted = prevOp.labelOutputted
 
             # End stalling
             if prevOp.stall and not op.stall:
@@ -324,10 +326,15 @@ class RSD_Parser( object ):
         code = words[4]
         gid = self.CreateGID( iid, mid )
 
-        pcStr = pc
-        asmStr = self.disassembler.Disassemble(code)
-        comment = "%s: %s" % (pcStr, asmStr)
-        self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment, None)
+        if gid not in self.ops:
+            print("Label is outputtted with an unknown gid:%d" % gid)
+        op = self.ops[gid]
+        if not op.labelOutputted:
+            op.labelOutputted = True
+            pcStr = pc
+            asmStr = self.disassembler.Disassemble(code)
+            comment = "%s: %s" % (pcStr, asmStr)
+            self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment, None)
 
 
     def OnRSD_Cycle(self, words):
