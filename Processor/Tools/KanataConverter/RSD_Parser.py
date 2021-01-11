@@ -350,7 +350,9 @@ class RSD_Parser( object ):
     def ProcessEvents_(self, dispose):
         events = self.events
         for cycle in sorted(events.keys()):
-            if not dispose and cycle > self.currentCycle - 100:
+            # イベント投入された後のサイクルで一部取り消されるものがあるためバッファする
+            # 基本的に Np ステージでの命令取り消しのみのはず
+            if not dispose and cycle > self.currentCycle - 3:
                 break
             self.generator.OnCycleEnd(cycle)
             # Extract and process events at a current cycle.
