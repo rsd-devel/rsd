@@ -253,6 +253,13 @@ class KanataGenerator( object ):
             )
         )
         self.nextRID += 1
+        del self.genOps[event.gid]
+        
+        # gc
+        if event.gid % 64 == 0:
+            for gid in list(self.genOps.keys()):
+                if gid < event.gid:
+                    del self.genOps[gid]
 
     def OnKNT_Flush_( self, event ):
         """ Output a flush event. """

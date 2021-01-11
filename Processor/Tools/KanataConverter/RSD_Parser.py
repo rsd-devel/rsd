@@ -291,7 +291,7 @@ class RSD_Parser( object ):
                 self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "")
                 self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment)
             self.FlushOp_(op)
-
+    
         self.ops[ gid ] = op
 
 
@@ -350,13 +350,22 @@ class RSD_Parser( object ):
     def ProcessEvents_(self, dispose):
         events = self.events
         for cycle in sorted(events.keys()):
-            if not dispose and cycle >  self.currentCycle - 100:
+            if not dispose and cycle > self.currentCycle - 100:
                 break
             self.generator.OnCycleEnd(cycle)
             # Extract and process events at a current cycle.
             for e in events[cycle]:
                 if e.gid in self.ops:
                     self.generator.OnEvent(e)
+
+                if e.type == RSD_Event.RETIRE:
+                    del self.ops[e.gid]
+                    # GC
+                    if e.gid % 64 == 0:
+                        for gid in list(self.ops):
+                            if gid < e.gid:
+                                del self.ops[gid]
+
             del events[cycle]
 
 
@@ -366,7 +375,6 @@ class RSD_Parser( object ):
         for gid in list(self.flushedOpGIDs_):
             if gid < self.maxRetiredOp:
                 self.flushedOpGIDs_.remove(gid)
-        del self.ops[op.gid]
 
     def FlushOp_(self, op):
         self.flushedOpGIDs_.add(op.gid)
