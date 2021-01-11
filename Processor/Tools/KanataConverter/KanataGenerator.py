@@ -90,7 +90,6 @@ class KanataGenerator( object ):
         self.outputFile = None
 
         self.genOps = {}    # gid -> op information
-        self.sidMap = {}    # gid -> sid
         self.disassembler = RISCV_Disassembler.RISCV_Disassembler()
 
         self.nextSID = 0
@@ -124,17 +123,16 @@ class KanataGenerator( object ):
 
     def OnEvent(self, event):
         #if e.gid in self.genOps:
-        if event.gid in self.sidMap or event.type == RSD_Event.INIT:
+        if event.gid in self.genOps or event.type == RSD_Event.INIT:
             self.OutputEvent_(event)
         else:
             print("Unknown gid:%d in an event" % event.gid)
 
     def AddNewGID_(self, gid):
 
-        if gid in self.sidMap:
+        if gid in self.genOps:
             print("gid:%d is re-defined." % (gid))
         else:
-            self.sidMap[gid] = self.nextSID
             genOp = KanataGenerator.Op(self.nextSID, 0, False)
             self.genOps[gid] = genOp
             self.nextSID += 1
@@ -185,7 +183,7 @@ class KanataGenerator( object ):
         return KANATA_CONVERTER_STAGE_NAME_TABLE[ id ]
 
     def GetSID_( self, gid ):
-        return self.sidMap[gid]
+        return self.genOps[gid].sid
 
     def GetRID_( self, gid ):
         return self.genOps[gid].rid

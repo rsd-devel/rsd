@@ -366,9 +366,11 @@ class RSD_Parser( object ):
         for gid in list(self.flushedOpGIDs_):
             if gid < self.maxRetiredOp:
                 self.flushedOpGIDs_.remove(gid)
+        del self.ops[op.gid]
 
     def FlushOp_(self, op):
         self.flushedOpGIDs_.add(op.gid)
+        del self.ops[op.gid]
 
     def Parse(self, generator):
         """ Parse an input file. 
