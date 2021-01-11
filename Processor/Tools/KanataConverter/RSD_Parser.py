@@ -120,12 +120,11 @@ class RSD_Parser( object ):
 
     class Event( object ):
         """ Event class """
-        def __init__( self, gid, type, stageID, comment, op):
+        def __init__( self, gid, type, stageID, comment):
             self.gid = gid
             self.type = type
             self.stageID = stageID
             self.comment = comment
-            self.op = op
 
         def __repr__( self ):
             return (
@@ -246,19 +245,19 @@ class RSD_Parser( object ):
 
             # End stalling
             if prevOp.stall and not op.stall:
-                self.AddEvent( current, gid, RSD_Event.STALL_END, prevOp.stageID, "", op)
+                self.AddEvent( current, gid, RSD_Event.STALL_END, prevOp.stageID, "")
                 # End and begin a current stage For output comment.
-                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "", op)
-                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "")
+                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment)
             
             # Begin stalling
             if not prevOp.stall and op.stall:
-                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, comment, op)
+                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, comment)
             
             # End/Begin a stage
             if prevOp.stageID != op.stageID:
-                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "", op)
-                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, prevOp.stageID, "")
+                self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment)
                 if retire:
                     # Count num of committed ops.
                     op.commit = True
@@ -266,14 +265,14 @@ class RSD_Parser( object ):
                     self.AddRetiredGID(gid, op)
                     self.committedOpNum += 1
                     # Close a last stage
-                    self.AddEvent( current + 1, gid, RSD_Event.STAGE_END, op.stageID, "", op)
-                    self.AddEvent( current + 1, gid, RSD_Event.RETIRE, op.stageID, "", op)
+                    self.AddEvent( current + 1, gid, RSD_Event.STAGE_END, op.stageID, "")
+                    self.AddEvent( current + 1, gid, RSD_Event.RETIRE, op.stageID, "")
         else:
             # Initialize/Begin a stage
-            self.AddEvent( current, gid, RSD_Event.INIT, op.stageID, "", op)
-            self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment, op)
+            self.AddEvent( current, gid, RSD_Event.INIT, op.stageID, "")
+            self.AddEvent( current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment)
             if ( op.stall ):
-                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, "", op)
+                self.AddEvent( current, gid, RSD_Event.STALL_BEGIN, op.stageID, "")
 
         # if both stall and clear signals are asserted, it means send bubble and
         # it is not pipeline flush.
@@ -286,8 +285,8 @@ class RSD_Parser( object ):
                 return
             else:
                 # Add events about flush
-                self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "", op)
-                self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment, op)
+                self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "")
+                self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment)
             self.AddRetiredGID(gid, op)
 
         self.ops[ gid ] = op
@@ -307,9 +306,9 @@ class RSD_Parser( object ):
         return self.Op( iid, mid, gid, stall, clear, stageID, self.currentCycle )
 
 
-    def AddEvent( self, cycle, gid, type, stageID, comment, op):
+    def AddEvent( self, cycle, gid, type, stageID, comment):
         """ Add an event to an event list.  """
-        event = self.Event( gid, type, stageID, comment, op)
+        event = self.Event( gid, type, stageID, comment)
         if cycle not in self.events:
             self.events[ cycle ] = []
         self.events[ cycle ].append( event )
@@ -334,7 +333,7 @@ class RSD_Parser( object ):
             pcStr = pc
             asmStr = self.disassembler.Disassemble(code)
             comment = "%s: %s" % (pcStr, asmStr)
-            self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment, None)
+            self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment)
 
 
     def OnRSD_Cycle(self, words):
