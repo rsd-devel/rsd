@@ -241,7 +241,6 @@ class RSD_Parser( object ):
         # Check whether an event occurs or not.
         if gid in self.ops:
             prevOp = self.ops[ gid ]
-            op.updatedCycle = self.currentCycle
 
             # End stalling
             if prevOp.stall and not op.stall:
