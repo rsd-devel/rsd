@@ -64,7 +64,7 @@ class RSD_Parser( object ):
     # Since 'iid' is stored in a signal with the limited width of OpSerial, 
     # 'iid' causes wrap around. So this script generats an unique id called 'gid' 
     # from 'iid' and current state.
-    def CreateGID( self, iid, mid ):
+    def CreateGID_( self, iid, mid ):
         """ Create unique 'gid' from 'iid' and 'mid'. """
         if mid >= RSD_Parser.MAX_MICRO_OPS_PER_INSN:
             raise RSD_ParserError( "'mid' exceeds MAX_MICRO_OPS_PER_INSN at iid(%d)" % iid  )
@@ -166,7 +166,7 @@ class RSD_Parser( object ):
     # Parsing file
     #
 
-    def ProcessHeader( self, line ):
+    def ProcessHeader_( self, line ):
         """ Process a file header """
 
         words = re.split( r"[\t\n\r]", line )
@@ -185,18 +185,18 @@ class RSD_Parser( object ):
             )
 
     
-    def ProcessLine( self, line ):
+    def ProcessLine_( self, line ):
         """ Process a line. """
 
         words = re.split( r"[\t\n\r]", line )
         cmd = words[0]
 
         if cmd == self.RSD_CMD_STAGE :
-            self.OnRSD_Stage( words )
+            self.OnRSD_Stage_( words )
         elif cmd == self.RSD_CMD_LABEL :
-            self.OnRSD_Label( words )
+            self.OnRSD_Label_( words )
         elif cmd == self.RSD_CMD_CYCLE :
-            self.OnRSD_Cycle( words )
+            self.OnRSD_Cycle_( words )
         elif cmd == self.RSD_CMD_COMMENT :
             pass    # A comment is not processed.
         elif cmd == "":
@@ -205,7 +205,7 @@ class RSD_Parser( object ):
             raise RSD_ParserError("Unknown command:'%s'" % cmd)
        
 
-    def OnRSD_Stage( self, words ):
+    def OnRSD_Stage_( self, words ):
         """ Dump a stage state.
         Format:
            'S', stage, valid, stall, flush, iid, mid, comment
@@ -219,7 +219,7 @@ class RSD_Parser( object ):
         if( not valid ):
             return
 
-        op = self.CreateOpFromString( words )
+        op = self.CreateOpFromString_( words )
 
         # if both stall and clear signals are asserted, it means send bubble and
         # it is not pipeline flush.
@@ -262,7 +262,7 @@ class RSD_Parser( object ):
                     # Count num of committed ops.
                     op.commit = True
                     op.cid = self.committedOpNum
-                    self.AddRetiredGID(gid, op)
+                    self.AddRetiredGID_(gid, op)
                     self.committedOpNum += 1
                     # Close a last stage
                     self.AddEvent( current + 1, gid, RSD_Event.STAGE_END, op.stageID, "")
@@ -287,12 +287,12 @@ class RSD_Parser( object ):
                 # Add events about flush
                 self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "")
                 self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment)
-            self.AddRetiredGID(gid, op)
+            self.AddRetiredGID_(gid, op)
 
         self.ops[ gid ] = op
 
 
-    def CreateOpFromString( self, words ):
+    def CreateOpFromString_( self, words ):
         """ Create an op from strings split from a source line text. 
         Format:
            'S', stage, stall, valid, clear, iid, mid
@@ -302,7 +302,7 @@ class RSD_Parser( object ):
         clear = int( words[4] ) != 0
         iid = int( words[5] )
         mid = int( words[6] )
-        gid = self.CreateGID( iid, mid )
+        gid = self.CreateGID_( iid, mid )
         return self.Op( iid, mid, gid, stall, clear, stageID, self.currentCycle )
 
 
@@ -314,7 +314,7 @@ class RSD_Parser( object ):
         self.events[ cycle ].append( event )
 
 
-    def OnRSD_Label( self, words ):
+    def OnRSD_Label_( self, words ):
         """ Dump information about an op 
         Format:
             'L', iid, mid, pc, code
@@ -323,7 +323,7 @@ class RSD_Parser( object ):
         mid = int( words[2] )
         pc = words[3]
         code = words[4]
-        gid = self.CreateGID( iid, mid )
+        gid = self.CreateGID_( iid, mid )
 
         if gid not in self.ops:
             print("Label is outputtted with an unknown gid:%d" % gid)
@@ -336,15 +336,15 @@ class RSD_Parser( object ):
             self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment)
 
 
-    def OnRSD_Cycle(self, words):
+    def OnRSD_Cycle_(self, words):
         """ Update a processor cycle.
         Format:
            'C', 'incremented value'
         """
         self.currentCycle += int(words[1])
-        self.ProcessEvents(dispose=False)
+        self.ProcessEvents_(dispose=False)
     
-    def ProcessEvents(self, dispose):
+    def ProcessEvents_(self, dispose):
         events = self.events
         for cycle in sorted(events.keys()):
             if not dispose and cycle >  self.currentCycle - 100:
@@ -357,7 +357,7 @@ class RSD_Parser( object ):
             del events[cycle]
 
 
-    def AddRetiredGID(self, gid, op):
+    def AddRetiredGID_(self, gid, op):
         """ Add a gid to a retired op list. """
         self.retired.add(gid)
         self.maxRetiredOp = max(self.maxRetiredOp, gid)
@@ -372,15 +372,15 @@ class RSD_Parser( object ):
         
         # Process a file header.
         headerLine = file.readline()
-        self.ProcessHeader( headerLine )
+        self.ProcessHeader_( headerLine )
         
         # Parse lines.
         while True:
             line = file.readline()
             if line == "" :
                 break
-            self.ProcessLine( line )
+            self.ProcessLine_( line )
             self.lineNum = self.lineNum + 1
 
-        self.ProcessEvents(dispose=True)
+        self.ProcessEvents_(dispose=True)
 

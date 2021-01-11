@@ -106,7 +106,7 @@ class KanataGenerator( object ):
     def Open( self, fileName ):
         self.outputFileName = fileName
         self.outputFile = open( self.outputFileName, "w" )
-        self.OutputHeader()
+        self.OutputHeader_()
 
 
     def Close( self ):
@@ -118,14 +118,14 @@ class KanataGenerator( object ):
 
         # Write a cycle updating command.
         if cycleFinished > self.currentCycle:
-            self.Write("%s\t%s\n" % (self.KNT_CMD_CYCLE, cycleFinished - self.currentCycle))
+            self.Write_("%s\t%s\n" % (self.KNT_CMD_CYCLE, cycleFinished - self.currentCycle))
         self.currentCycle = cycleFinished
 
 
     def OnEvent(self, event):
         #if e.gid in self.genOps:
         if event.gid in self.sidMap or event.type == RSD_Event.INIT:
-            self.OutputEvent(event)
+            self.OutputEvent_(event)
         else:
             print("Unknown gid:%d in an event" % event.gid)
 
@@ -150,57 +150,57 @@ class KanataGenerator( object ):
         op.rid = self.nextRID
         self.nextRID += 1
 
-    def Write( self, str ):
+    def Write_( self, str ):
         self.outputFile.write( str )
 
-    def OutputHeader( self ):
+    def OutputHeader_( self ):
         """ Output Kanata log header. """
-        self.Write( self.KNT_HEADER )
-        self.Write( "C=\t%s\n" % KANATA_CONVERTER_INITIAL_CYCLE )
+        self.Write_( self.KNT_HEADER )
+        self.Write_( "C=\t%s\n" % KANATA_CONVERTER_INITIAL_CYCLE )
 
-    def OutputEvent( self, event ):
+    def OutputEvent_( self, event ):
         """ Output an event to an output file.
         This method dispatches events to corresponding handlers.
         """
         type = event.type
         if( type == RSD_Event.INIT ):
-            self.OnKNT_Initialize( event )
+            self.OnKNT_Initialize_( event )
         elif( type == RSD_Event.STAGE_BEGIN ):
-            self.OnKNT_StageBegin( event )
+            self.OnKNT_StageBegin_( event )
         elif( type == RSD_Event.STAGE_END ):
-            self.OnKNT_StageEnd( event )
+            self.OnKNT_StageEnd_( event )
         elif( type == RSD_Event.STALL_BEGIN ):
-            self.OnKNT_StallBegin( event )
+            self.OnKNT_StallBegin_( event )
         elif( type == RSD_Event.STALL_END ):
-            self.OnKNT_StallEnd( event )
+            self.OnKNT_StallEnd_( event )
         elif( type == RSD_Event.RETIRE ):
-            self.OnKNT_Retire( event )
+            self.OnKNT_Retire_( event )
         elif( type == RSD_Event.FLUSH ):
-            self.OnKNT_Flush( event )
+            self.OnKNT_Flush_( event )
         elif( type == RSD_Event.LABEL ):
-            self.OnKNT_Label( event )
+            self.OnKNT_Label_( event )
 
 
-    def GetStageName( self, id ):
+    def GetStageName_( self, id ):
         return KANATA_CONVERTER_STAGE_NAME_TABLE[ id ]
 
-    def GetSID( self, gid ):
+    def GetSID_( self, gid ):
         return self.sidMap[gid]
 
-    def GetRID( self, gid ):
+    def GetRID_( self, gid ):
         return self.genOps[gid].rid
 
-    def OnKNT_Initialize( self, event ):
+    def OnKNT_Initialize_( self, event ):
         """ Output an initializing event. """
         gid = event.gid
         self.AddNewGID_(gid) # sid is created in this method
 
-        sid = self.GetSID(gid)
-        self.Write(
+        sid = self.GetSID_(gid)
+        self.Write_(
             "%s\t%s\t%s\t%s\n" %
             (self.KNT_CMD_INIT, sid, gid, self.KNT_THREAD_ID)
         )
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\\n\n" % (
                 self.KNT_CMD_LABEL,
                 sid,
@@ -209,100 +209,100 @@ class KanataGenerator( object ):
             )
         )
 
-    def OnKNT_StageBegin( self, event ):
+    def OnKNT_StageBegin_( self, event ):
         """ Output an stage begin event. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_STAGE_BEGIN,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_LANE_DEFAULT,
-                self.GetStageName( event.stageID )
+                self.GetStageName_( event.stageID )
             )
         )
         if event.comment != "":
             self.OnKNT_Comment( event )
 
-    def OnKNT_StageEnd( self, event ):
+    def OnKNT_StageEnd_( self, event ):
         """ Output an stage end event. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_STAGE_END,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_LANE_DEFAULT,
-                self.GetStageName( event.stageID )
+                self.GetStageName_( event.stageID )
             )
         )
 
-    def OnKNT_StallBegin( self, event ):
+    def OnKNT_StallBegin_( self, event ):
         """ Output an stall begin event. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_STAGE_BEGIN,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_LANE_STALL,
                 self.KNT_CMD_ARG_STALL
             )
         )
 
-    def OnKNT_StallEnd( self, event ):
+    def OnKNT_StallEnd_( self, event ):
         """ Output an stall end event. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_STAGE_END,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_LANE_STALL,
                 self.KNT_CMD_ARG_STALL
             )
         )
 
-    def OnKNT_Retire( self, event ):
+    def OnKNT_Retire_( self, event ):
         """ Output a retirement event. """
         self.AddRetiredEvent_(event)
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_RETIRE,
-                self.GetSID( event.gid ),
-                self.GetRID( event.gid ),
+                self.GetSID_( event.gid ),
+                self.GetRID_( event.gid ),
                 self.KNT_CMD_ARG_RETIRE
             )
         )
 
-    def OnKNT_Flush( self, event ):
+    def OnKNT_Flush_( self, event ):
         """ Output a flush event. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_RETIRE,
-                self.GetSID( event.gid ),
-                self.GetRID( event.gid ),
+                self.GetSID_( event.gid ),
+                self.GetRID_( event.gid ),
                 self.KNT_CMD_ARG_FLUSH
             )
         )
 
     def OnKNT_Comment( self, event ):
         """ Output a comment event using a label command. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_LABEL,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_CMD_ARG_LABEL_TYPE_DETAIL,
                 event.comment
             )
         )
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_LABEL,
-                self.GetSID( event.gid ),
+                self.GetSID_( event.gid ),
                 self.KNT_CMD_ARG_LABEL_TYPE_STAGE,
                 event.comment
             )
         )
 
-    def OnKNT_Label( self, event ):
+    def OnKNT_Label_( self, event ):
         """ Output a label event using a label command. """
-        self.Write(
+        self.Write_(
             "%s\t%s\t%s\t%s\n" % (
                 self.KNT_CMD_LABEL,
-                self.GetSID(event.gid),
+                self.GetSID_(event.gid),
                 self.KNT_CMD_ARG_LABEL_TYPE_ABSTRACT,
                 event.comment
             )
