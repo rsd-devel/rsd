@@ -143,7 +143,7 @@ class RSD_Parser( object ):
 
         self.ops = {}       # gid -> Op map
         self.events = {}    # cycle -> Event map
-        self.retired = set( [] )    # retired gids
+        self.flushedOpGIDs_ = set( [] )    # retired gids
         self.maxRetiredOp = 0      # The maximum number in retired ops.
         self.committedOpNum = 0    # Num of committed ops.
 
@@ -225,7 +225,7 @@ class RSD_Parser( object ):
         # it is not pipeline flush.
         flush = op.clear and not op.stall
 
-        if (op.gid in self.retired):
+        if (op.gid in self.flushedOpGIDs_):
             if flush:
                 # Ops in a backend may be flush more than once, because there
                 # are ops in pipeline stages and an active list.
@@ -237,6 +237,9 @@ class RSD_Parser( object ):
         current = self.currentCycle
         gid = op.gid
         retire = op.stageID == RSD_PARSER_RETIREMENT_STAGE_ID
+
+        if gid < self.maxRetiredOp:
+            print("A retired op is dumped. op: (%s)" % op.__repr__())
 
         # Check whether an event occurs or not.
         if gid in self.ops:
@@ -262,7 +265,7 @@ class RSD_Parser( object ):
                     # Count num of committed ops.
                     op.commit = True
                     op.cid = self.committedOpNum
-                    self.AddRetiredGID_(gid, op)
+                    self.RetireOp_(op)
                     self.committedOpNum += 1
                     # Close a last stage
                     self.AddEvent( current + 1, gid, RSD_Event.STAGE_END, op.stageID, "")
@@ -287,7 +290,7 @@ class RSD_Parser( object ):
                 # Add events about flush
                 self.AddEvent( current, gid, RSD_Event.STAGE_END, op.stageID, "")
                 self.AddEvent( current, gid, RSD_Event.FLUSH, op.stageID, comment)
-            self.AddRetiredGID_(gid, op)
+            self.FlushOp_(op)
 
         self.ops[ gid ] = op
 
@@ -357,11 +360,15 @@ class RSD_Parser( object ):
             del events[cycle]
 
 
-    def AddRetiredGID_(self, gid, op):
-        """ Add a gid to a retired op list. """
-        self.retired.add(gid)
-        self.maxRetiredOp = max(self.maxRetiredOp, gid)
+    def RetireOp_(self, op):
+        self.maxRetiredOp = max(self.maxRetiredOp, op.gid)
+        # リタイアした命令より前のフラッシュされた命令を削除
+        for gid in list(self.flushedOpGIDs_):
+            if gid < self.maxRetiredOp:
+                self.flushedOpGIDs_.remove(gid)
 
+    def FlushOp_(self, op):
+        self.flushedOpGIDs_.add(op.gid)
 
     def Parse(self, generator):
         """ Parse an input file. 
