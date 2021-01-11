@@ -20,7 +20,7 @@
 
 import re
 from KanataGenerator import KanataGenerator
-from RSD_Event import RSD_Event, RSD_Label
+from RSD_Event import RSD_Event
 from RISCV_Disassembler import RISCV_Disassembler
 
 #
@@ -109,8 +109,6 @@ class RSD_Parser( object ):
             self.clear = clear
             self.updatedCycle = updatedCycle
             self.commit = False
-
-            self.label = RSD_Label()
 
         def __repr__( self ):
             return (
@@ -243,7 +241,6 @@ class RSD_Parser( object ):
         # Check whether an event occurs or not.
         if gid in self.ops:
             prevOp = self.ops[ gid ]
-            op.label = prevOp.label
             op.updatedCycle = self.currentCycle
 
             # End stalling
@@ -328,19 +325,10 @@ class RSD_Parser( object ):
         code = words[4]
         gid = self.CreateGID( iid, mid )
 
-        # Add label information to a label database.
-        label = self.ops[ gid ].label
-        label.iid = iid
-        label.mid = mid
-        label.pc = pc
-        label.code = code
-
         pcStr = pc
         asmStr = self.disassembler.Disassemble(code)
         comment = "%s: %s" % (pcStr, asmStr)
         self.AddEvent(self.currentCycle, gid, RSD_Event.LABEL, -1, comment, None)
-
-        #self.generator.AddLabel(gid, label)
 
 
     def OnRSD_Cycle(self, words):

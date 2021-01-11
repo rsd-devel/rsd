@@ -27,7 +27,7 @@ import pprint
 
 #from RSD_Parser import RSD_Parser, RSD_ParserError
 import RISCV_Disassembler
-from RSD_Event import RSD_Event, RSD_Label
+from RSD_Event import RSD_Event
 
 #
 # Global constants
@@ -80,12 +80,11 @@ class KanataGenerator( object ):
     class Op( object ):
         """ It has information about an op. """
 
-        def __init__( self, sid, rid, cid, commit, label ):
+        def __init__( self, sid, rid, cid, commit ):
             self.sid = sid
             self.rid = rid
             self.cid = cid
             self.commit = commit
-            self.label = label
 
     def __init__( self ):
         self.outputFileName = ""
@@ -138,7 +137,7 @@ class KanataGenerator( object ):
             print("gid:%d is re-defined." % (gid))
         else:
             self.sidMap[gid] = self.nextSID
-            genOp = KanataGenerator.Op(self.nextSID, 0, 0, False, RSD_Label())
+            genOp = KanataGenerator.Op(self.nextSID, 0, 0, False)
             self.genOps[gid] = genOp
             self.nextSID += 1
 
