@@ -8,6 +8,7 @@
 
 package LoadStoreUnitTypes;
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import MemoryMapTypes::*;
 import CacheSystemTypes::*;
@@ -42,7 +43,7 @@ function automatic PhyAddrPath LSQ_ToFullAddrFromBlockAddr(LSQ_BlockAddrPath blo
 endfunction
 
 // Load queue
-localparam LOAD_QUEUE_ENTRY_NUM = 16;
+localparam LOAD_QUEUE_ENTRY_NUM = CONF_LOAD_QUEUE_ENTRY_NUM;
 localparam LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH = $clog2(LOAD_QUEUE_ENTRY_NUM);
 
 typedef logic [ LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH-1:0 ] LoadQueueIndexPath;
@@ -50,7 +51,7 @@ typedef logic [ LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH:0 ] LoadQueueCountPath;
 typedef logic [ (1<<LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH)-1:0 ] LoadQueueOneHotPath;
 
 // Store queue
-localparam STORE_QUEUE_ENTRY_NUM = 16;
+localparam STORE_QUEUE_ENTRY_NUM = CONF_STORE_QUEUE_ENTRY_NUM;
 localparam STORE_QUEUE_ENTRY_NUM_BIT_WIDTH = $clog2(STORE_QUEUE_ENTRY_NUM);
 
 typedef logic [ STORE_QUEUE_ENTRY_NUM_BIT_WIDTH-1:0 ] StoreQueueIndexPath;

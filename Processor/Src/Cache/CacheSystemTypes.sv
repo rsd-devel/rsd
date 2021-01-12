@@ -5,6 +5,7 @@
 
 package CacheSystemTypes;
 
+    import MicroArchConf::*;
     import BasicTypes::*;
     import MemoryMapTypes::*;
 
@@ -15,10 +16,10 @@ package CacheSystemTypes;
     // Main cache parameters.
     // The remaining cache parameters must be fixed or calculated by the following
     // parameters.
-    localparam DCACHE_WAY_NUM = 2;           // The number of ways in a single set
-    localparam DCACHE_INDEX_BIT_WIDTH = 9 - $clog2(DCACHE_WAY_NUM);   // The number of index bits
-    localparam DCACHE_LINE_BYTE_NUM = 8;     // Line size
-    localparam MSHR_NUM = 2;                 // The number of MSHR entries.
+    localparam DCACHE_WAY_NUM = CONF_DCACHE_WAY_NUM;                 // The number of ways in a single set
+    localparam DCACHE_INDEX_BIT_WIDTH = CONF_DCACHE_INDEX_BIT_WIDTH; // The number of index bits
+    localparam DCACHE_LINE_BYTE_NUM = CONF_DCACHE_LINE_BYTE_NUM;     // Line size
+    localparam MSHR_NUM = CONF_DCACHE_MSHR_NUM;                      // The number of MSHR entries.
 
     // Index bits
     localparam DCACHE_INDEX_NUM = 1 << DCACHE_INDEX_BIT_WIDTH;
@@ -256,9 +257,9 @@ package CacheSystemTypes;
     // Main cache parameters.
     // The remaining cache parameters must be fixed or calculated by the following
     // parameters.
-    localparam ICACHE_WAY_NUM = 2;           // Way Num
-    localparam ICACHE_INDEX_BIT_WIDTH = 9 - $clog2(ICACHE_WAY_NUM);   // The number of index bits
-    localparam ICACHE_LINE_BYTE_NUM = 8;    // Line size
+    localparam ICACHE_WAY_NUM = CONF_ICACHE_WAY_NUM;           // Way Num
+    localparam ICACHE_INDEX_BIT_WIDTH = CONF_ICACHE_INDEX_BIT_WIDTH;   // The number of index bits
+    localparam ICACHE_LINE_BYTE_NUM = CONF_ICACHE_LINE_BYTE_NUM;    // Line size
 
     // Index bits
     localparam ICACHE_INDEX_NUM = 1 << ICACHE_INDEX_BIT_WIDTH;

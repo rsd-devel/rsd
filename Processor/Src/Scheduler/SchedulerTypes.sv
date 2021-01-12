@@ -8,6 +8,7 @@
 
 package SchedulerTypes;
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import CacheSystemTypes::*;
 import MemoryMapTypes::*;
@@ -19,7 +20,7 @@ import LoadStoreUnitTypes::*;
 import FetchUnitTypes::*;
 
 // Issue queue
-localparam ISSUE_QUEUE_ENTRY_NUM = 16;
+localparam ISSUE_QUEUE_ENTRY_NUM = CONF_ISSUE_QUEUE_ENTRY_NUM;
 localparam ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH = $clog2(ISSUE_QUEUE_ENTRY_NUM);
 
 typedef logic [ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH-1:0] IssueQueueIndexPath;
@@ -56,7 +57,7 @@ localparam ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE
 //
 // --- Active list 
 //
-localparam ACTIVE_LIST_ENTRY_NUM = 64;
+localparam ACTIVE_LIST_ENTRY_NUM = CONF_ACTIVE_LIST_ENTRY_NUM;
 localparam ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH = $clog2( ACTIVE_LIST_ENTRY_NUM );
 typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] ActiveListIndexPath;
 typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH:0] ActiveListCountPath;
@@ -364,8 +365,14 @@ typedef struct packed // SchedulerSrcTag
     SchedulerRegPtr  [ISSUE_QUEUE_SRC_REG_NUM-1:0] regPtr;
 } SchedulerSrcTag;
 
+// Replay queue
+localparam REPLAY_QUEUE_ENTRY_NUM = CONF_REPLAY_QUEUE_ENTRY_NUM;
+localparam REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH = $clog2(REPLAY_QUEUE_ENTRY_NUM);
+typedef logic [REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH-1 : 0] ReplayQueueIndexPath;
+typedef logic [REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH : 0] ReplayQueueCountPath;
+
 // Memory Dependent Predictor
-localparam MDT_ENTRY_NUM = 1024;
+localparam MDT_ENTRY_NUM = CONF_MDT_ENTRY_NUM;
 localparam MDT_ENTRY_NUM_BIT_WIDTH = $clog2(MDT_ENTRY_NUM);
 typedef logic [MDT_ENTRY_NUM_BIT_WIDTH-1:0] MDT_IndexPath;
 

@@ -1,10 +1,9 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
-
-
 package BasicTypes;
 
+import MicroArchConf::*;
 
 
 localparam TRUE  = 1'b1;
@@ -58,7 +57,7 @@ localparam LSCALAR_NUM_BIT_WIDTH = $clog2( LSCALAR_NUM );
 typedef logic [LSCALAR_NUM_BIT_WIDTH-1:0] LScalarRegNumPath;
 
 // Physical register number width
-localparam PSCALAR_NUM = 64;
+localparam PSCALAR_NUM = CONF_PSCALAR_NUM;
 localparam PSCALAR_NUM_BIT_WIDTH = $clog2( PSCALAR_NUM );
 typedef logic [PSCALAR_NUM_BIT_WIDTH-1:0] PScalarRegNumPath;
 
@@ -84,7 +83,7 @@ typedef struct packed { // LRegNumPath
 `endif
 } LRegNumPath;
 
-// Physical general regiseter ( scalar register + vector register ) number width
+// Physical general register ( scalar register + vector register ) number width
 `ifdef RSD_ENABLE_VECTOR_PATH
 localparam PREG_NUM = 128; //PSCALAR_NUM + PVECTOR_NUM;
 localparam PREG_NUM_BIT_WIDTH = $clog2( PREG_NUM );
@@ -106,7 +105,7 @@ typedef struct packed { // PRegNumPath
 //
 
 // Fetch width
-localparam FETCH_WIDTH = 2;
+localparam FETCH_WIDTH = CONF_FETCH_WIDTH;
 localparam FETCH_WIDTH_BIT_SIZE = $clog2( FETCH_WIDTH ); // log2(FETCH_WIDTH)
 typedef logic [ FETCH_WIDTH_BIT_SIZE-1:0 ] FetchLaneIndexPath;
 
@@ -127,11 +126,7 @@ localparam DISPATCH_WIDTH_BIT_SIZE = FETCH_WIDTH_BIT_SIZE; // log2(DISPATCH_WIDT
 typedef logic [ DISPATCH_WIDTH_BIT_SIZE-1:0 ] DispatchLaneIndexPath;
 
 // Issue width
-`ifdef RSD_MARCH_INT_ISSUE_WIDTH
-    localparam INT_ISSUE_WIDTH =`RSD_MARCH_INT_ISSUE_WIDTH;
-`else
-    localparam INT_ISSUE_WIDTH = 2;
-`endif
+localparam INT_ISSUE_WIDTH = CONF_INT_ISSUE_WIDTH;
 localparam INT_ISSUE_WIDTH_BIT_SIZE = 1; // log2(INT_ISSUE_WIDTH)
 typedef logic [ INT_ISSUE_WIDTH_BIT_SIZE-1:0 ] IntIssueLaneIndexPath;
 typedef logic unsigned [ $clog2(INT_ISSUE_WIDTH):0 ] IntIssueLaneCountPath;
@@ -139,29 +134,16 @@ typedef logic unsigned [ $clog2(INT_ISSUE_WIDTH):0 ] IntIssueLaneCountPath;
 localparam MULDIV_ISSUE_WIDTH = 1;
 localparam MULDIV_STAGE_DEPTH = 3;
 
-`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-localparam COMPLEX_ISSUE_WIDTH = 0;
+localparam COMPLEX_ISSUE_WIDTH = CONF_COMPLEX_ISSUE_WIDTH;
 localparam COMPLEX_ISSUE_WIDTH_BIT_SIZE = 1; // log2(COMPLEX_ISSUE_WIDTH)
 typedef logic [ COMPLEX_ISSUE_WIDTH_BIT_SIZE-1:0 ] ComplexIssueLaneIndexPath;
 typedef logic unsigned [ $clog2(COMPLEX_ISSUE_WIDTH):0 ] ComplexIssueLaneCountPath;
-`else
-localparam COMPLEX_ISSUE_WIDTH = 1;
-localparam COMPLEX_ISSUE_WIDTH_BIT_SIZE = 1; // log2(COMPLEX_ISSUE_WIDTH)
-typedef logic [ COMPLEX_ISSUE_WIDTH_BIT_SIZE-1:0 ] ComplexIssueLaneIndexPath;
-typedef logic unsigned [ $clog2(COMPLEX_ISSUE_WIDTH):0 ] ComplexIssueLaneCountPath;
-`endif
 
-`ifdef RSD_MARCH_UNIFIED_LDST_MEM_PIPE
-    localparam LOAD_ISSUE_WIDTH = 1;
-    localparam STORE_ISSUE_WIDTH = 1;
-    localparam MEM_ISSUE_WIDTH = 1;
-    localparam STORE_ISSUE_LANE_BEGIN = 0;   // Load and store share the same lanes
-`else
-    localparam LOAD_ISSUE_WIDTH = 1;
-    localparam STORE_ISSUE_WIDTH = 1;
-    localparam MEM_ISSUE_WIDTH = 2;
-    localparam STORE_ISSUE_LANE_BEGIN = LOAD_ISSUE_WIDTH;    // Store uses dedicated lanes
-`endif
+localparam LOAD_ISSUE_WIDTH = CONF_LOAD_ISSUE_WIDTH;
+localparam STORE_ISSUE_WIDTH = CONF_STORE_ISSUE_WIDTH;
+localparam MEM_ISSUE_WIDTH = CONF_MEM_ISSUE_WIDTH;
+localparam STORE_ISSUE_LANE_BEGIN = CONF_STORE_ISSUE_LANE_BEGIN;   // Load and store share the same lanes
+
 
 localparam MEM_ISSUE_WIDTH_BIT_SIZE = 1; // log2(MEM_ISSUE_WIDTH)
 typedef logic [ MEM_ISSUE_WIDTH_BIT_SIZE-1:0 ] MemIssueLaneIndexPath;
@@ -173,7 +155,7 @@ typedef logic [ ISSUE_WIDTH_BIT_SIZE-1:0 ] IssueLaneIndexPath;
 typedef logic unsigned [ ISSUE_WIDTH_BIT_SIZE:0 ] IssueLaneCountPath;
 
 // Commit width
-localparam COMMIT_WIDTH = 2;     //must be more than RENAME_WIDTH for recovery
+localparam COMMIT_WIDTH = CONF_COMMIT_WIDTH;     //must be more than RENAME_WIDTH for recovery
 localparam COMMIT_WIDTH_BIT_SIZE = $clog2(COMMIT_WIDTH); // log2(COMMIT_WIDTH)
 typedef logic [ COMMIT_WIDTH_BIT_SIZE-1:0 ] CommitLaneIndexPath;
 typedef logic unsigned [ COMMIT_WIDTH_BIT_SIZE:0 ] CommitLaneCountPath;

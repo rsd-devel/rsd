@@ -22,12 +22,7 @@ module ReplayQueue(
     ControllerIF.ReplayQueue ctrl
 );
 
-    parameter REPLAY_QUEUE_ENTRY_NUM = 20;
-    parameter REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH = $clog2(REPLAY_QUEUE_ENTRY_NUM);
-    typedef logic [REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH-1 : 0] ReplayQueueIndexPath;
-    typedef logic [REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH : 0] ReplayQueueCountPath;
-
-    // A maximux replay interbal between two entries in ReplayQueue is
+    // A maximum replay interval between two entries in ReplayQueue is
     // equal to a maximum latency of all instruction.
     // TODO: modify this when adding an instruction whose latency is larger than
     //       memory access instructions.

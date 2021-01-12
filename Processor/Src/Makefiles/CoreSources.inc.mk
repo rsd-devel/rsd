@@ -15,6 +15,7 @@ RSD_SRC_CFG = \
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
 TYPES = \
+	MicroArchConf.sv \
 	BasicTypes.sv \
 	Memory/MemoryMapTypes.sv \
 	Cache/CacheSystemTypes.sv \
