@@ -136,6 +136,7 @@ class RSD_Parser(object):
         self.lineNum_ = 1
 
         self.disasm_ = RISCV_Disassembler()
+        self.wordRe_ = re.compile(r"[\t\n\r]")
 
 
     def Open(self, inputFileName):
@@ -153,14 +154,14 @@ class RSD_Parser(object):
     def ProcessHeader_(self, line):
         """ Process a file header """
 
-        words = re.split(r"[\t\n\r]", line)
+        words = self.wordRe_.split(line)
 
         header = words[0]
         if header != self.RSD_HEADER :
             raise RSD_ParserError("An unknown file format.")
 
         # Check a file version
-        version = int(words[1] )
+        version = int(words[1])
         if version != self.RSD_VERSION :
             raise RSD_ParserError("An unknown file version: %d" % (version))
 
@@ -168,7 +169,7 @@ class RSD_Parser(object):
     def ProcessLine_(self, line):
         """ Process a line. """
 
-        words = re.split(r"[\t\n\r]", line)
+        words = self.wordRe_.split(line)
         cmd = words[0]
 
         if cmd == self.RSD_CMD_STAGE :
