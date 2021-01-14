@@ -34,7 +34,9 @@ module PerformanceCounter (
         next.numBranchPredMissDetectedOnDecode += port.branchPredMissDetectedOnDecode ? 1 : 0;
 
         port.perfCounter = cur;  // Export current values
+`ifndef RSD_DISABLE_DEBUG_REGISTER
         debug.perfCounter = next;    // Export next values for updating registers in debug
+`endif
     end
     
 
