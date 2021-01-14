@@ -40,7 +40,7 @@ LEVEL1_TESTS = \
 #	test-RV32I-MisalignedMemAccess \
 
 # アドレス変更に伴い，一時的に無効に
-#	test-HardwareCounter \
+#	test-PerformanceCounter \
 
 LEVEL2_TESTS = \
 	test-riscv-compliance \
@@ -188,8 +188,8 @@ test-Coremark:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark
 test-Coremark_for_RV32I:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark_for_RV32I
-test-HardwareCounter:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HardwareCounter
+test-PerformanceCounter:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/PerformanceCounter
 test-Dhrystone:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone
 test-Dhrystone-for-contest:
@@ -288,8 +288,16 @@ test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
 
 # Aggregate cycle/IPC information from verilator/modelsim log.
 test-summary-all:
-	grep GoalCycle Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:GoalCycle:[ ]*/\1\/\2,/g" > verilator-cycles.csv
+	grep "Elapsed cycles" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Elapsed cycles:[ ]*/\1\/\2,/g" > verilator-cycles.csv
 	grep "IPC (RISC-V instruction)" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > verilator-ipc.csv
-	grep GoalCycle Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# GoalCycle:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
+	grep "Num of I$$ misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of I$$ misses:[ ]*/\1\/\2,/g" > verilator-icache-misses.csv
+	grep "Num of D$$ load misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of D$$ load misses:[ ]*/\1\/\2,/g" > verilator-load-misses.csv
+	grep "Num of D$$ store misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of D$$ store misses:[ ]*/\1\/\2,/g" > verilator-store-misses.csv
+	grep "Num of branch prediction misses" Verification/ --include=verilator.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/verilator.log:Num of branch prediction misses:[ ]*/\1\/\2,/g" > verilator-br-pred-misses.csv
+	grep "Elapsed cycles" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Elapsed cycles:[ ]*/\1\/\2,/g" > modelsim-cycles.csv
 	grep "IPC (RISC-V instruction)" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# IPC (RISC-V instruction):[ ]*/\1\/\2,/g" > modelsim-ipc.csv
+	grep "Num of I$$ misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Num of I$$ misses:[ ]*/\1\/\2,/g" > vsim-icache-misses.csv
+	grep "Num of D$$ load misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Num of D$$ load misses:[ ]*/\1\/\2,/g" > vsim-load-misses.csv
+	grep "Num of D$$ store misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Num of D$$ store misses:[ ]*/\1\/\2,/g" > vsim-store-misses.csv
+	grep "Num of branch prediction misses" Verification/ --include=vsim.log -r | sed -e "s/.\+\/\(.\+\)\/\(.\+\)\/vsim.log:# Num of branch prediction misses:[ ]*/\1\/\2,/g" > vsim-br-pred-misses.csv
 

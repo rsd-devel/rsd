@@ -26,7 +26,8 @@ input
 output 
     logic insnValidOut[DECODE_WIDTH],
     logic insnFlushed[DECODE_WIDTH],
-    logic flush,
+    logic insnFlushTriggering[DECODE_WIDTH],
+    logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
     PC_Path recoveredPC
 );
@@ -63,8 +64,8 @@ output
         // else if (popRAS) begin
         //     $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
         // end
-        // if (flush) begin
-        //     $display("flush @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+        // if (flushTriggered) begin
+        //     $display("flushTriggered @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
         // end
     end
 
@@ -82,7 +83,7 @@ output
         BTT_PC_RELATIVE = 1,         // BRANCH, JAL
         BTT_INDIRECT_JUMP  = 2,       // JALR
 
-        // This insn is serialized, so the succeding insns are flushed
+        // This insn is serialized, so the succeeding insns are flushed
         BTT_SERIALIZED  = 3 
     } BranchTargetType;
     BranchTargetType brTargetType[DECODE_WIDTH];
@@ -91,7 +92,7 @@ output
     always_comb begin
         
         // Initialize
-        flush = FALSE;
+        flushTriggered = FALSE;
         recoveredPC = '0;
 
         pushRAS = FALSE;
@@ -102,6 +103,7 @@ output
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             insnValidOut[i] = insnValidIn[i];
             insnFlushed[i] = FALSE;
+            insnFlushTriggering[i] = FALSE;
             brPredOut[i] = brPredIn[i];
             isfU[i] = isf[i];
         end
@@ -173,7 +175,7 @@ output
                 end
             end
             else if (brTargetType[i] == BTT_SERIALIZED) begin
-                // The succeeding instuructions are flushed.
+                // The succeeding instructions are flushed.
                 addrCheckLane = i;
                 addrCheck = TRUE;
                 addrIncorrect = TRUE;   // ミスが確定
@@ -209,7 +211,7 @@ output
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             if (((addrMismatch[i] && addrCheck) || addrIncorrect) && addrCheckLane == i) begin
-                flush = TRUE;
+                flushTriggered = TRUE;
                 brPredOut[i].predAddr = decodedPC[i];
                 brPredOut[i].predTaken = TRUE;
                 break;
@@ -231,13 +233,14 @@ output
             nextRAS_Ptr = rasPtr;
         end
 
-        if (flush) begin
+        if (flushTriggered) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin
                 if (i > addrCheckLane) begin
                     insnValidOut[i] = FALSE;
                     insnFlushed[i] = TRUE;
                 end
             end
+            insnFlushTriggering[addrCheckLane] = TRUE;
         end
     end // always_comb
 

@@ -223,8 +223,7 @@ module CommitStage(
     LoadStoreUnitIF.CommitStage loadStoreUnit,
     RecoveryManagerIF.CommitStage recovery,
     CSR_UnitIF.CommitStage csrUnit,
-    DebugIF.CommitStage debug,
-    HardwareCounterIF.CommitStage hwCounter
+    DebugIF.CommitStage debug
 );
 
     logic toRecoveryPhase;
@@ -353,17 +352,6 @@ module CommitStage(
 `endif
             debug.lastCommittedPC = lastCommittedPC;
         end
-
-        // Hardware Counter
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
-        hwCounter.commitNum = commitNum;
-        hwCounter.refetchThisPC =
-            toRecoveryPhase && (refetchType == REFETCH_TYPE_THIS_PC);
-        hwCounter.refetchNextPC =
-            toRecoveryPhase && (refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC});
-        hwCounter.refetchBrTarget =
-            toRecoveryPhase && (refetchType == REFETCH_TYPE_BRANCH_TARGET);
-`endif
     end
 
     generate

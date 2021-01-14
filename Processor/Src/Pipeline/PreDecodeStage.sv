@@ -68,7 +68,7 @@ module PreDecodeStage(
         );
     end
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic empty;
     DecodeStageRegPath nextStage[DECODE_WIDTH];
@@ -83,7 +83,7 @@ module PreDecodeStage(
             nextStage[i].valid = 
                 (stall || clear || port.rst) ? FALSE : pipeReg[i].valid;
             
-            // Decoded micr-op and context.
+            // Decoded micro-op and context.
             nextStage[i].insn = pipeReg[i].insn;
             nextStage[i].pc = pipeReg[i].pc;
             nextStage[i].brPred = pipeReg[i].brPred;

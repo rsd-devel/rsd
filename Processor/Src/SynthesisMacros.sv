@@ -1,16 +1,14 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+// This file is used only on synthesis and is not used for simulation.
 
-/*
- このファイルはSynplifyを用いた合成時のみ読み込まれます。
- QuestaSimによるシミュレーション時は読み込まれません。
-*/
 
 /*************************************/
 /* These macros must not be changed. */
 /*************************************/
-`define RSD_SYNTHESIS // 合成時であることを示す
+// RSD_SYNTHESIS specifies that RSD is compiled for synthesizing.
+`define RSD_SYNTHESIS 
 
 // 特定の信号(2次元以上のunpack配列？)は、
 // Synplifyの合成時はinput／QuestaSimのシミュレーション時はref
@@ -33,14 +31,13 @@
 //`define RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE 
 //`define RSD_MARCH_UNIFIED_LDST_MEM_PIPE
 
-// Microsemi 向け最適化
+// Enable Microsemi specific optimization
 //`define RSD_SYNTHESIS_OPT_MICROSEMI
 
 
 
-// ハードウェアカウンタ(実行サイクル数などをカウント)を合成しない場合、
-// `RSD_DISABLE_HARDWARE_COUNTERを定義する
-//`RSD_DISABLE_HARDWARE_COUNTER
+// if RSD_DISABLE_PERFORMANCE_COUNTER is defined, performance counters are not synthesized.
+`define RSD_DISABLE_PERFORMANCE_COUNTER
 
 /*
   Define one of these macros.

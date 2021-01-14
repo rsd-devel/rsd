@@ -12,7 +12,7 @@ TARGETS = all clean
 SRC_DIRS = \
 	Fibonacci \
 	HelloWorld \
-	HardwareCounter \
+	PerformanceCounter \
 	Exception \
 	DCache \
 

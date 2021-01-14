@@ -39,10 +39,25 @@ typedef enum logic[1:0]
 
 // Exception Type
 typedef enum logic [2:0] { // RefetchType
-    REFETCH_TYPE_THIS_PC                = 3'b000,
+    // Re-fetch starts from the PC of an instruction that causes an exception.
+    // This re-fetch occurs on store-load-forwarding miss when a load attempts 
+    // to read data whose range is outside the range of the stored data.
+    // It is determined in MemoryTagAccessStage.
+    REFETCH_TYPE_THIS_PC                = 3'b000,   
+
+    // Re-fetch starts from the next PC of an instruction that causes an exception.
+    // This re-fetch occurs on a load speculation miss when a load speculatively 
+    // reads a value before the dependent store is executed (memAccessOrderViolation).
+    // Is is determined in MemoryTagAccessStage.
     REFETCH_TYPE_NEXT_PC                = 3'b001,
     REFETCH_TYPE_STORE_NEXT_PC          = 3'b010,
+
+    // Re-fetch from a correct branch target.
+    // This re-fetch occurs on a branch prediction miss.
     REFETCH_TYPE_BRANCH_TARGET          = 3'b011,
+
+    // Re-fetch from a PC specified by CSR.
+    // This refetch occurs on a trap or an exception.
     REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET  = 3'b100,
     REFETCH_TYPE_THIS_PC_TO_CSR_TARGET  = 3'b101
 } RefetchType;

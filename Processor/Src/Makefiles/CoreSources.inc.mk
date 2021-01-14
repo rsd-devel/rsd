@@ -138,7 +138,6 @@ MODULES = \
 	Cache/DCache.sv \
 	Cache/DCacheIF.sv \
 	Cache/ICache.sv \
-	Cache/CachePrimitives.sv \
 	Cache/MemoryAccessController.sv \
 	Cache/CacheFlushManager.sv \
 	Cache/CacheFlushManagerIF.sv \
@@ -163,8 +162,8 @@ MODULES = \
 	Primitives/Divider.sv \
 	Debug/Debug.sv \
 	Debug/DebugIF.sv \
-	Debug/HardwareCounter.sv \
-	Debug/HardwareCounterIF.sv \
+	Debug/PerformanceCounter.sv \
+	Debug/PerformanceCounterIF.sv \
 	Memory/Axi4LiteControlRegisterIF.sv \
 	Memory/Axi4LiteControlRegister.sv \
 	Memory/ControlQueue.sv \

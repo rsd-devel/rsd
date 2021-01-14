@@ -4,7 +4,7 @@
 
 `timescale 1ns/1ps
 
-parameter KANATA_CYCLE_DISPLACEMENT = 12;
+parameter KANATA_CYCLE_DISPLACEMENT = -1;
 // Kanataのクロック表示とのズレを指定する
 // 例：最初の命令をメモリからL1Iに読み込んで
 //     フェッチステージに入るまで4サイクルかかるため、

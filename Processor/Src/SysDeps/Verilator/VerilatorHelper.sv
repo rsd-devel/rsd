@@ -1,6 +1,29 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+// Parameters defined in SV are exported from VerilatorHelper package.
+//
+// Members in packed struct cannot be accessed from cpp test bench, 
+// so we use proxy functions defined by several macros to access the members.
+//
+// * VerilatorHelper.sv
+//   RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName)
+//   This macros defines the following function
+//      memberTypeName typeName_memberName(o) begin
+//         return o.memberName
+//      end
+//
+// * VerilatorHelper.h
+//    #define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
+//        d->memberName = h->DebugRegister_##memberName(r); \
+//    This macro extracts a member value by using the macros defined in VerilatorHelper.sv 
+//
+//    GetDebugRegister function copies all the members in DebugRegister using the 
+//    above macros.
+// 
+// * TestMain.cpp
+//    It calls GetDebugRegister and extracts values in DebugRegister.
+//    The extracted values are passed to Dumper.
 
 package VerilatorHelper;
 
@@ -62,6 +85,12 @@ import MemoryMapTypes::*;
 
 
 
+`define RSD_MAKE_STRUCT_ACCESSOR_LV2(typeName, memberName0, member1TypeName, memberName1) \
+    function automatic member1TypeName typeName``_``memberName0``_``memberName1(typeName e); \
+        /*verilator public*/ \
+        return e.memberName0.memberName1; \
+    endfunction \
+
 `define RSD_MAKE_STRUCT_ACCESSOR_ARRAY(typeName, memberTypeName, memberName) \
     task typeName``_``memberName(output memberTypeName o, input typeName e, input int i); \
         /*verilator public*/ \
@@ -79,6 +108,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, valid);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, OpSerial, sid);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, flush);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, icMiss);
 
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, logic, valid);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, OpSerial, sid);
@@ -89,7 +119,8 @@ import MemoryMapTypes::*;
 `endif
 
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, valid);
-`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flush);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushed);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushTriggering);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, OpId, opId);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, AddrPath, pc);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, InsnPath, insn);
@@ -137,6 +168,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, DataPath, fuOpB);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntALU_Code, aluCode);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntMicroOpSubType, opType);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, logic, brPredMiss);
 `endif
 
 
@@ -215,6 +247,9 @@ import MemoryMapTypes::*;
 `ifdef RSD_FUNCTIONAL_SIMULATION
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeLoad);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedLoadAddr);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrAllocated);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrHit);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, mshrEntryID);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeStore);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedStoreAddr);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, executedStoreData);
@@ -267,6 +302,16 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, StoreQueueCountPath, storeQueueCount);
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, busyInRecovery);
 `RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, storeQueueEmpty);
+
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numIC_Miss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numMemDepPredMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMiss)
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMissDetectedOnDecode)
+`endif
 
 endpackage
 

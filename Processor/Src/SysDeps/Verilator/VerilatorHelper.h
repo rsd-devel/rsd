@@ -1,6 +1,10 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+//
+// Helper macros and functions to extract values defined in SystemVerilog from CPP. 
+// See comments in VerilatorHelper.h
+//
 
 #ifndef SYSDEPS_VERILATOR_VERILATOR_HELPER_H
 #define SYSDEPS_VERILATOR_VERILATOR_HELPER_H
@@ -96,6 +100,7 @@ struct FetchStageDebugRegister{
     bool valid;
     OpSerial sid;
     bool flush;
+    bool icMiss;
 };
 
 struct PreDecodeStageDebugRegister{ // PreDecodeStageDebugRegister
@@ -111,7 +116,8 @@ struct PreDecodeStageDebugRegister{ // PreDecodeStageDebugRegister
 
 struct DecodeStageDebugRegister{
     bool valid;
-    bool flush;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    bool flushed;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    bool flushTriggering;   // This op causes branch misprediction and triggers flush.
     OpId opId;
     AddrPath pc;
     InsnPath insn;
@@ -123,9 +129,9 @@ struct RenameStageDebugRegister{
     bool valid;
     OpId opId;
 
-    // Physical register numbers are outputed in the next stage, becuase
+    // Physical register numbers are outputted in the next stage, because
     // The pop flags of the free list is negated and correct physical
-    // register numbers cannot be outputed in this stage when the pipeline
+    // register numbers cannot be outputted in this stage when the pipeline
     // is stalled.
 };
 
@@ -179,6 +185,7 @@ struct IntegerExecutionStageDebugRegister{
     DataPath fuOpB;
     IntALU_Code aluCode;
     IntMicroOpSubType opType;
+    bool brPredMiss;
 #endif
 
 };
@@ -264,6 +271,9 @@ struct MemoryTagAccessStageDebugRegister{
 #ifdef RSD_FUNCTIONAL_SIMULATION
     bool executeLoad;
     AddrPath executedLoadAddr;
+    bool mshrHit;
+    bool mshrAllocated;
+    DataPath mshrEntryID;
     bool executeStore;
     AddrPath executedStoreAddr;
     DataPath executedStoreData;
@@ -311,6 +321,16 @@ struct SchedulerDebugRegister{
 struct IssueQueueDebugRegister{
     bool flush;
     OpId opId;
+};
+
+struct PerfCounterPath {
+    DataPath numIC_Miss;
+    DataPath numLoadMiss;
+    DataPath numStoreMiss;
+    DataPath numStoreLoadForwardingFail;
+    DataPath numMemDepPredMiss;
+    DataPath numBranchPredMiss;
+    DataPath numBranchPredMissDetectedOnDecode;
 };
 
 struct DebugRegister{
@@ -367,6 +387,9 @@ struct DebugRegister{
     StoreQueueCountPath storeQueueCount;
     bool busyInRecovery;
     bool storeQueueEmpty;
+    
+    // Performance counters
+    PerfCounterPath perfCounter;
 };
 
 static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
@@ -398,6 +421,9 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     #define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
         d->memberName = h->DebugRegister_##memberName(r); \
 
+    #define RSD_MAKE_STRUCT_ACCESSOR_LV2(typeName, memberName0, memberTypeName1, memberName1) \
+        d->memberName0.memberName1 = h->DebugRegister_##memberName0##_##memberName1(r); \
+
     #define RSD_MAKE_DEBUG_REG_PIPELINE_CTRL(typeName, memberTypeName, memberName) \
         d->memberName.stall = h->PipelineControll_stall(h->DebugRegister_##memberName(r)); \
         d->memberName.clear = h->PipelineControll_clear(h->DebugRegister_##memberName(r)); \
@@ -409,6 +435,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, OpSerial, sid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, ifReg, logic, icMiss);
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, pdReg, OpSerial, sid);
@@ -418,7 +445,8 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 #endif
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, valid);
-    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushed);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, logic, flushTriggering);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, idReg, OpId, opId);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, PC_Path, pc);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, idReg, InsnPath, insn);
@@ -463,6 +491,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, DataPath, fuOpB);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntALU_Code, aluCode);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, IntMicroOpSubType, opType);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intExReg, logic, brPredMiss);
 #endif
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intRwReg, logic, valid);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, intRwReg, logic, flush);
@@ -539,6 +568,9 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
 #ifdef RSD_FUNCTIONAL_SIMULATION
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeLoad);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedLoadAddr);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrAllocated);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, mshrHit);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, mshrEntryID);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, logic, executeStore);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, AddrPath, executedStoreAddr);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, mtReg, DataPath, executedStoreData);
@@ -591,6 +623,17 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, StoreQueueCountPath, storeQueueCount);
     RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, busyInRecovery);
     RSD_MAKE_STRUCT_ACCESSOR(DebugRegister, logic, storeQueueEmpty);
+
+
+#ifdef RSD_FUNCTIONAL_SIMULATION
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numIC_Miss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numLoadMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numStoreLoadForwardingFail)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numMemDepPredMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMiss)
+    RSD_MAKE_STRUCT_ACCESSOR_LV2(DebugRegister, perfCounter, DataPath, numBranchPredMissDetectedOnDecode)
+#endif
 }
 
 #endif
