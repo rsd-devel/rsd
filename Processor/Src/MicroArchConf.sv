@@ -33,10 +33,11 @@ localparam CONF_ACTIVE_LIST_ENTRY_NUM = 64;
 // The number of replay-queue entries
 localparam CONF_REPLAY_QUEUE_ENTRY_NUM = 20;
 
-// These macros are defined in CoreSources.mk ir SynthesisMacros.sv
-// * RSD_MARCH_UNIFIED_LDST_MEM_PIPE:  Use unified LS/ST pipeline
-// * RSD_MARCH_INT_ISSUE_WIDTH=N: Set issue width to N
+// The following macros can be defined from outside this file.
+//  (e.g., CoreSources.mk or SynthesisMacros.sv)
+// * RSD_MARCH_INT_ISSUE_WIDTH=N:       Set integer issue width to N
 // * RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE: Integrate mul/div to a memory pipe
+// * RSD_MARCH_UNIFIED_LDST_MEM_PIPE:   Use unified LS/ST pipeline
 
 // The issue width of integer pipelines.
 // CONF_INT_ISSUE_WIDTH must be 1 or 2
@@ -47,7 +48,7 @@ localparam CONF_REPLAY_QUEUE_ENTRY_NUM = 20;
 `endif
 
 // The issue width of complex pipelines.
-// CONF_COMPLEX_ISSUE_WIDTH cannot changed manually.
+// CONF_COMPLEX_ISSUE_WIDTH must be zero or one and cannot be changed manually.
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     localparam CONF_COMPLEX_ISSUE_WIDTH = 0;
 `else
@@ -56,16 +57,14 @@ localparam CONF_REPLAY_QUEUE_ENTRY_NUM = 20;
 
 // The issue width of memory pipelines.
 // These parameters cannot be changed manually.
+localparam CONF_LOAD_ISSUE_WIDTH = 1;       // must be 1
+localparam CONF_STORE_ISSUE_WIDTH = 1;      // must be 1
 `ifdef RSD_MARCH_UNIFIED_LDST_MEM_PIPE
-    localparam CONF_LOAD_ISSUE_WIDTH = 1;
-    localparam CONF_STORE_ISSUE_WIDTH = 1;
     localparam CONF_MEM_ISSUE_WIDTH = 1;
-    localparam CONF_STORE_ISSUE_LANE_BEGIN = 0;   // Load and store share the same lanes
+    localparam CONF_STORE_ISSUE_LANE_BEGIN = 0;   // Load and store share the same lane
 `else
-    localparam CONF_LOAD_ISSUE_WIDTH = 1;
-    localparam CONF_STORE_ISSUE_WIDTH = 1;
     localparam CONF_MEM_ISSUE_WIDTH = 2;
-    localparam CONF_STORE_ISSUE_LANE_BEGIN = CONF_LOAD_ISSUE_WIDTH;    // Store uses dedicated lanes
+    localparam CONF_STORE_ISSUE_LANE_BEGIN = CONF_LOAD_ISSUE_WIDTH;    // Store uses a dedicated lane
 `endif
 
 
