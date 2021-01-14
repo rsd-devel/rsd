@@ -64,7 +64,7 @@ module IntegerRegisterWriteStage(
 
     always_comb begin
 
-        // Pipeline controll
+        // Pipeline control
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 

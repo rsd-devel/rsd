@@ -70,7 +70,8 @@ module DecodeStage(
     DecodeStageIF.ThisStage port, 
     PreDecodeStageIF.NextStage prev,
     ControllerIF.DecodeStage ctrl,
-    DebugIF.DecodeStage debug
+    DebugIF.DecodeStage debug,
+    PerformanceCounterIF.DecodeStage perfCounter
 );
     // --- Pipeline registers
     DecodeStageRegPath pipeReg[DECODE_WIDTH];
@@ -96,12 +97,12 @@ module DecodeStage(
         end
     end
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic empty;
     RenameStageRegPath nextStage[DECODE_WIDTH];
     
-    // Micro op decoder
+    // Micro-op decoder
     OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps;  // Decoded micro ops
     InsnInfo [DECODE_WIDTH-1:0] insnInfo;   // Whether a decoded instruction is branch or not.
     
@@ -128,19 +129,32 @@ module DecodeStage(
     
     // Early branch misprediction detection.
     RISCV_ISF_Common [DECODE_WIDTH-1:0] isfIn;
-    logic flush;
+    logic stallBranchResolver;
     logic insnValidIn[DECODE_WIDTH];
-    logic insnValidOut[DECODE_WIDTH];
-    logic insnFlush[DECODE_WIDTH];
-    BranchPred brPredOut[DECODE_WIDTH];
     BranchPred [DECODE_WIDTH-1:0] brPredIn;
     PC_Path pcIn[DECODE_WIDTH];
+
+    logic insnValidOut[DECODE_WIDTH];
+    logic insnFlushed[DECODE_WIDTH];
+    logic insnFlushTriggering[DECODE_WIDTH];
+    logic flushTriggered;
+    BranchPred brPredOut[DECODE_WIDTH];
     PC_Path recoveredPC;
+
+    always_comb begin
+        stallBranchResolver = ctrl.idStage.stall && !ctrl.stallByDecodeStage;
+        for (int i = 0; i < DECODE_WIDTH; i++) begin
+            insnValidIn[i] = pipeReg[i].valid;
+            isfIn[i] = pipeReg[i].insn;
+            pcIn[i] = pipeReg[i].pc;
+            brPredIn[i] = pipeReg[i].brPred;
+        end
+    end
 
     DecodedBranchResolver decodeStageBranchResolver(
         .clk(port.clk),
         .rst(port.rst),
-        .stall(ctrl.idStage.stall && !ctrl.stallByDecodeStage),
+        .stall(stallBranchResolver),
         .decodeComplete(complete),
         .insnValidIn(insnValidIn),
         .isf(isfIn),
@@ -148,22 +162,15 @@ module DecodeStage(
         .pc(pcIn),
         .insnInfo(insnInfo),
         .insnValidOut(insnValidOut),
-        .insnFlushed(insnFlush),
-        .flush(flush),
+        .insnFlushed(insnFlushed),
+        .insnFlushTriggering(insnFlushTriggering),
+        .flushTriggered(flushTriggered),
         .brPredOut(brPredOut),
         .recoveredPC(recoveredPC)
     );
     
     always_comb begin
-        
-        for (int i = 0; i < DECODE_WIDTH; i++) begin
-            insnValidIn[i] = pipeReg[i].valid;
-            isfIn[i] = pipeReg[i].insn;
-            pcIn[i] = pipeReg[i].pc;
-            brPredIn[i] = pipeReg[i].brPred;
-        end
-        
-        port.nextFlush = complete && flush && !clear;
+        port.nextFlush = complete && flushTriggered && !clear;
         port.nextRecoveredPC = recoveredPC;
     end
     
@@ -206,11 +213,8 @@ module DecodeStage(
 
     always_comb begin
         
-        stall = ctrl.idStage.stall;
-        clear = ctrl.idStage.clear;
-
         //
-        // Setup current valid bits(=undecoded bits).
+        // Setup current valid bits(=un-decoded bits).
         //
         if (initiate) begin
             for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
@@ -230,7 +234,7 @@ module DecodeStage(
     MicroOpPicker picker(curValidMOps, serializedMOps, mopPicked, mopPickedIndex, pickedValidMOps);
 
     always_comb begin
-        // --- Picker picks micro ops
+        // --- The picker picks micro ops
 
         // Set picked results.
         nextValidMOps = pickedValidMOps;
@@ -253,6 +257,9 @@ module DecodeStage(
 
         // Stall decision
         ctrl.idStageStallUpper = !complete;
+        // After idStageStallUpper is received, the Controller returns stall/clear signals.
+        stall = ctrl.idStage.stall;
+        clear = ctrl.idStage.clear;
         
         
         // Pick decoded micro ops.
@@ -274,12 +281,17 @@ module DecodeStage(
         
         port.nextStage = nextStage;
 
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+        perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
+`endif
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             // 先頭が次に送られたら，デコード元は消える．
             debug.idReg[i].valid = pipeReg[i].valid;
-            debug.idReg[i].flush = insnFlush[i];
+            debug.idReg[i].flushed = insnFlushed[i];
+            debug.idReg[i].flushTriggering = insnFlushTriggering[i];
+
             for (int j = 0; j < MICRO_OP_MAX_NUM; j++) begin
                 if(microOps[i*MICRO_OP_MAX_NUM + j].valid && microOps[i*MICRO_OP_MAX_NUM + j].mid == 0) begin
                     if(!curValidMOps[i*MICRO_OP_MAX_NUM + j]) begin

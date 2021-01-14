@@ -24,7 +24,8 @@ module RecoveryManager(
     RecoveryManagerIF.RecoveryManager port,
     ActiveListIF.RecoveryManager activeList,
     CSR_UnitIF.RecoveryManager csrUnit,
-    ControllerIF.RecoveryManager ctrl
+    ControllerIF.RecoveryManager ctrl,
+    PerformanceCounterIF.RecoveryManager perfCounter
 );
     typedef struct packed
     {
@@ -105,7 +106,7 @@ module RecoveryManager(
             nextState.recoveryFromRwStage = FALSE;
         end
 
-        // Return to COOMIT_PHASE
+        // Return to COMMIT_PHASE
         toCommitPhase =
             (regState.phase == PHASE_RECOVER_1) &&  // must be PHASE_RECOVER_1 because PHASE_RECOVER_0 procedures has been finished
             !(port.renameLogicRecoveryRMT || port.issueQueueReturnIndex); // LSQ は1サイクルでリカバリが行われるので待つべきは RMT と IQ
@@ -208,6 +209,16 @@ module RecoveryManager(
             port.replayQueueFlushedOpExist || 
             port.wakeupPipelineRegFlushedOpExist;
 
+
+        // Hardware Counter
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+        perfCounter.storeLoadForwardingFail =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
+        perfCounter.memDepPredMiss =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC});
+        perfCounter.branchPredMiss =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_BRANCH_TARGET);
+`endif
     end
 
     

@@ -43,7 +43,7 @@ output
     // --- For Debug
     //
     DebugIF debugIF( clk, rst );
-    HardwareCounterIF hwCounterIF( clk, rst );
+    PerformanceCounterIF perfCounterIF( clk, rst );
 
     assign debugRegister = debugIF.debugRegister;
 
@@ -55,9 +55,8 @@ output
     end
 `endif
 
-`ifndef RSD_DISABLE_HARDWARE_COUNTER
-    //HardwareCounter hwCounter( hwCounterIF );
-    SimpleHardwareCounter hwCounter( hwCounterIF ); // 実行サイクル数のみカウント
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+    PerformanceCounter perfCounter(perfCounterIF, debugIF);
 `endif
 
     //
@@ -134,11 +133,11 @@ output
         PC pc( npStageIF );
         BTB btb( npStageIF, ifStageIF );
         BranchPredictor brPred( npStageIF, ifStageIF, ctrlIF );
-    FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF );
+    FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF, perfCounterIF );
         ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
     
     PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF );
-    DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF );
+    DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF, perfCounterIF );
 
     RenameStage rnStage( rnStageIF, idStageIF, renameLogicIF, activeListIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, debugIF );
         RenameLogic renameLogic( renameLogicIF, activeListIF, recoveryManagerIF );
@@ -175,12 +174,12 @@ output
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF,loadStoreUnitIF, mulDivUnitIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
-    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, hwCounterIF );
+    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, perfCounterIF );
     MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
-        LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF, hwCounterIF );
+        LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreQueue storeQueue( loadStoreUnitIF, recoveryManagerIF );
-        StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF);
+        StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF, perfCounterIF);
         DCache dCache( loadStoreUnitIF, cacheSystemIF, ctrlIF );
     MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 
@@ -191,10 +190,10 @@ output
         VectorBypassNetwork  vectorBypassNetwork( bypassNetworkIF, ctrlIF );
 `endif
     // A commitment stage generates a flush signal and this is send to scheduler.
-    CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF, hwCounterIF );
-        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF );
+    CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
+        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF, perfCounterIF );
 
-    CSR_Unit csrUnit(csrUnitIF);
+    CSR_Unit csrUnit(csrUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
     InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, csrUnitIF);

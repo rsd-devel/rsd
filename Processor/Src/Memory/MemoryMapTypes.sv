@@ -10,41 +10,37 @@ package MemoryMapTypes;
 
 import BasicTypes::*;
 
-//
-// --- Memory map
-//
-
-
 
 //
-// 命令アドレス
+// Related to instructions 
 //
 localparam INSN_RESET_VECTOR = 32'h00001000;
 
-// すべてのベンチマークは、PC_GOALを最終PCとする
+// The processor stops when it reaches PC_GOAL
 localparam PC_GOAL = 32'h80001004;
 
 //
 // PC
 //
 
- // PCを圧縮して19ビットにする．面積削減用．
+ // This option compresses PC to 19 bits for reducing resource consumption.
 `define RSD_NARROW_PC
- //    PCの圧縮は，現在の論理アドレス空間のメモリ配置をうまく利用して実現している
- //    現在の論理アドレス空間のメモリ配置は以下の通り．
- //      0x0000_1000 - 0x0000_FFFF: Section 0 (ROM)
- //      0x8000_0000 - 0x8003_FFFF: Section 1 (RAM)
- //      0x4000_0000 - 0x4000_000F: Timer IO
- //      0x4000_2000: Serial IO 
- //    このうち，IO 領域には命令アクセスを行うことはないため，
- //    有効な命令の範囲は ROM および RAM 領域のみである．
- //    この範囲内では，論理アドレスは最上位1ビットと下位18ビットしか使われることがない:
- //        ROM 領域: 最上位ビットは 0, 下位16ビットを使用
- //        RAM 領域: 最上位ビットは 1, 下位18ビットを使用
- //    したがって，使わないビットを捨てて，間を詰めることでPCの圧縮が可能
- //      例1) ROM 領域: 0x0000_2000 -> 0x0_2000
- //      例2) RAM 領域: 0x8000_2000 -> 0x4_2000 (最上位 1 ビットと下位 18 ビットを抽出)
- //    ただし，例外を取り扱う際は，32ビットのアドレスで処理する必要があるので注意
+// The PC compression is achieved by leveraging the memory map.
+// The memory map in the logical address space is as follows.
+//       0x0000_1000 --0x0000_FFFF: Section 0 (ROM)
+//       0x8000_0000 --0x8003_FFFF: Section 1 (RAM)
+//       0x8004_0000 --0x8004_FFFF: Section 2 (Uncachable RAM)
+//       0x4000_0000 --0x4000_000F: Timer IO
+//       0x4000_2000: Serial IO
+// In this map, instruction access is not performed in the IO area, so
+// the range of valid instructions is only in the ROM and RAM areas.
+// Within this range, only the most significant 1 bit and the lowest 18 bits are used:
+//       ROM area: Most significant bit is 0, lower 16 bits are used
+//       RAM area: Most significant bit is 1, low 18 bits
+// Therefore, it is possible to compress the PC by discarding unused bits and to close the gap.
+//       Example 1) ROM area: 0x0000_2000-> 0x0_2000
+//       Example 2) RAM area: 0x8000_2000-> 0x4_2000 (extract the most significant 1 bit and the lowest 18 bits)
+// Note that when handling exceptions, it is necessary to handle with a 32-bit address.
 
 `ifdef RSD_NARROW_PC
 localparam PC_WIDTH = 19;
@@ -104,57 +100,57 @@ typedef struct packed {
 
 
 //
-// 論理と物理メモリ空間のマッピング
+// Memory map between logical and physical address spaces
 // 
 
 
 //
 // Section 0 (ROM?)
-// 0x0000_1000 - 0x0000_ffff -> 0x0_1000 -> 0x0_ffff
+// logical [0x0000_1000 - 0x0000_ffff] -> physical [0x0_1000 - 0x0_ffff]
 //
-localparam LOG_ADDR_SECTION_0_BEGIN = 32'h0000_1000;
-localparam LOG_ADDR_SECTION_0_END   = 32'h0001_0000;
+localparam LOG_ADDR_SECTION_0_BEGIN = ADDR_WIDTH'('h0000_1000);
+localparam LOG_ADDR_SECTION_0_END   = ADDR_WIDTH'('h0001_0000);
 localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
 
-// 下位アドレスを切り出してそのまま加算できるように，0x1000 分は無視
-localparam PHY_ADDR_SECTION_0_BASE = 20'h0_0000;
+// Ignore 0x1000 so that the lower address bits can be added as it is
+localparam PHY_ADDR_SECTION_0_BASE = PHY_RAW_ADDR_WIDTH'('h0_0000);
 
 
 //
 // Section 1 (RAM?)
-// 0x8000_0000 - 0x8003_ffff -> 0x1_0000 -> 0x4_ffff
+// logical [0x8000_0000 - 0x8003_ffff] -> physical [0x1_0000 - 0x4_ffff]
 //
-localparam LOG_ADDR_SECTION_1_BEGIN = 32'h8000_0000;
-localparam LOG_ADDR_SECTION_1_END   = 32'h8004_0000;
+localparam LOG_ADDR_SECTION_1_BEGIN = ADDR_WIDTH'('h8000_0000);
+localparam LOG_ADDR_SECTION_1_END   = ADDR_WIDTH'('h8004_0000);
 localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
-
-localparam PHY_ADDR_SECTION_1_BASE = 20'h1_0000;
+localparam PHY_ADDR_SECTION_1_BASE = PHY_RAW_ADDR_WIDTH'('h1_0000);
 
 //
 // Uncachable section (RAM?)
-// 0x8004_0000 - 0x8004_ffff -> 0x5_0000 -> 0x5_ffff
+// logical [0x8004_0000 - 0x8004_ffff] -> uncachable [0x5_0000 -> 0x5_ffff]
 //
-localparam LOG_ADDR_UNCACHABLE_BEGIN = 32'h8004_0000;
-localparam LOG_ADDR_UNCACHABLE_END   = 32'h8005_0000;
+localparam LOG_ADDR_UNCACHABLE_BEGIN = ADDR_WIDTH'('h8004_0000);
+localparam LOG_ADDR_UNCACHABLE_END   = ADDR_WIDTH'('h8005_0000);
 localparam LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH = 19;
 
-// 下位アドレスを切り出してそのまま加算できるように，0x1000 分は無視
-localparam PHY_ADDR_UNCACHABLE_BASE = 20'h1_0000;
+// Ignore 0x1000 so that the lower address bits can be added as it is
+localparam PHY_ADDR_UNCACHABLE_BASE = PHY_RAW_ADDR_WIDTH'('h1_0000);
 
 //
 // --- Serial IO
+// logical [0x4000_2000] -> io [0x2000]
 //
-localparam LOG_ADDR_SERIAL_OUTPUT = 32'h4000_2000;
-localparam PHY_ADDR_SERIAL_OUTPUT = 20'h0_2000;
+localparam LOG_ADDR_SERIAL_OUTPUT = ADDR_WIDTH'('h4000_2000);
+localparam PHY_ADDR_SERIAL_OUTPUT = PHY_RAW_ADDR_WIDTH'('h0_2000);
 
 
 //
 // --- Timer IO
 //
 
-// Timer IO の 論理アドレス
+// Logical addresses for Timer IO 
 // 0x4000_0000 - 0x4000_000F
-localparam LOG_ADDR_TIMER_BASE    = 32'h4000_0000;
+localparam LOG_ADDR_TIMER_BASE    = ADDR_WIDTH'('h4000_0000);
 localparam LOG_ADDR_TIMER_LOW     = LOG_ADDR_TIMER_BASE + 0;
 localparam LOG_ADDR_TIMER_HI      = LOG_ADDR_TIMER_BASE + 4;
 localparam LOG_ADDR_TIMER_CMP_LOW = LOG_ADDR_TIMER_BASE + 8;
@@ -163,9 +159,9 @@ localparam LOG_ADDR_TIMER_CMP_HI  = LOG_ADDR_TIMER_BASE + 12;
 localparam LOG_ADDR_TIMER_BEGIN = LOG_ADDR_TIMER_BASE;
 localparam LOG_ADDR_TIMER_END   = LOG_ADDR_TIMER_BASE + 16;
 
-// タイマーの IO 物理アドレス
+// Physical addresses for Timer IO 
 // 0x0_0000 - 0x0_000F
-localparam PHY_ADDR_TIMER_BASE    = 20'h0_0000;
+localparam PHY_ADDR_TIMER_BASE    = PHY_RAW_ADDR_WIDTH'('h0_0000);
 localparam PHY_ADDR_TIMER_LOW     = PHY_ADDR_TIMER_BASE + 0;
 localparam PHY_ADDR_TIMER_HI      = PHY_ADDR_TIMER_BASE + 4;
 localparam PHY_ADDR_TIMER_CMP_LOW = PHY_ADDR_TIMER_BASE + 8;
@@ -174,9 +170,8 @@ localparam PHY_ADDR_TIMER_CMP_HI  = PHY_ADDR_TIMER_BASE + 12;
 localparam PHY_ADDR_TIMER_ZONE_BIT_WIDTH = 4;
 
 
-// 論理アドレスからメモリタイプを得る
+// Get a memory type from a logical address
 function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
-    // TODO: アドレス変換を真面目に実装する
     if (addr == LOG_ADDR_SERIAL_OUTPUT) begin
         return MMT_IO;
     end
@@ -197,7 +192,7 @@ function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
     end
 endfunction
 
-// 論理アドレスから物理アドレスへの変換
+// Convert a logical address to a physical address
 function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     PhyAddrPath phyAddr;
 

@@ -13,7 +13,7 @@ import MemoryMapTypes::*;
 import LoadStoreUnitTypes::*;
 
 // Convert a pointer of an active list to an "age."
-// An "age" is directly compared with a comparetor.
+// An "age" is directly compared with a comparator.
 function automatic LoadQueueCountPath LoadQueuePtrToAge(LoadQueueIndexPath ptr, LoadQueueIndexPath head);
     LoadQueueCountPath age;
     age = ptr;
@@ -55,7 +55,7 @@ module LoadQueue(
         );
 
     always_comb begin
-        // Generate push singnals.
+        // Generate push signals.
         pushCount = 0;
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
             if (tailPtr + pushCount < LOAD_QUEUE_ENTRY_NUM) begin
@@ -191,10 +191,10 @@ module LoadQueue(
             if (port.executeStore[si]) begin
                 violation[si] = picked[si];
 
-                // Violation is occured with instruction inside load queue.
+                // Violation is occurred with instruction inside load queue.
                 if (picked[si] && pickedPtr[si] < LOAD_QUEUE_ENTRY_NUM) begin
                     // Assign write address for Memory dependent predictor
-                    // with inst which caused viotion inside load queue.
+                    // with inst which caused violation inside load queue.
                     conflictLoadPC[si] = loadQueue[pickedPtr[si]].pc;
                 end
             end
@@ -232,7 +232,7 @@ module LoadQueue(
                 if (LoadQueuePtrToAge(port.executedLoadQueuePtrByLoad[li], headPtr) >=
                     LoadQueuePtrToAge(executedLoadQueuePtrByStore[si], headPtr)
                 ) begin
-                    // Violation is occured with load & store executed in this cycle.
+                    // Violation is caused by load & store executed in this cycle.
                     violation[si] = TRUE;
                     conflictLoadPC[si] = port.executedLoadPC[li];
                 end

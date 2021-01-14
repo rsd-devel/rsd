@@ -76,6 +76,8 @@ interface DebugIF( input logic clk, rst );
     logic busyInRecovery;
     logic storeQueueEmpty;
 
+    PerfCounterPath perfCounter;
+
     modport Debug (
     input 
         clk,
@@ -124,6 +126,7 @@ interface DebugIF( input logic clk, rst );
         storeQueueCount,
         busyInRecovery,
         storeQueueEmpty,
+        perfCounter,
     output
         debugRegister
     );
@@ -275,6 +278,11 @@ interface DebugIF( input logic clk, rst );
         toRecoveryPhase,
         cmReg
     );
+
+    modport PerformanceCounter (
+    output 
+        perfCounter
+    );
     
 `else
 
@@ -390,6 +398,10 @@ interface DebugIF( input logic clk, rst );
     modport CommitStage (
         input clk,
         output lastCommittedPC
+    );
+
+    modport PerformanceCounter (
+        input clk
     );
 `endif
 

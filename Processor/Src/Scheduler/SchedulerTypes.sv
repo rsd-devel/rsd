@@ -83,7 +83,7 @@ typedef enum logic [3:0] // ExecutionState
 
     EXEC_STATE_FAULT_INSN_ILLEGAL     = 4'b1100,  // Illegal instruction
     EXEC_STATE_FAULT_INSN_VIOLATION   = 4'b1101,  // Illegal instruction
-    EXEC_STATE_FAULT_INSN_MISALIGNED  = 4'b1110   // Mialigned instruciton address
+    EXEC_STATE_FAULT_INSN_MISALIGNED  = 4'b1110   // Misaligned instruction address
 } ExecutionState;
 localparam EXEC_STATE_BIT_WIDTH = $bits(ExecutionState);
 
@@ -103,7 +103,7 @@ typedef struct packed // ActiveListEntry
     logic isBranch; // TRUE if the op is BR or RIJ
     logic isEnv;    // TRUE if the op is ECALL/EBREAK
     
-    logic last; // そのARM命令における最後のマイクロ命令ならTRUEに
+    logic last;         // TRUE if this micro-op is the last micro-op in an instruction
     logic undefined;
     
     // For releasing a register to a free list on recovery.
@@ -132,7 +132,7 @@ typedef struct packed // ActiveListWriteData
 
 
 // Convert a pointer of an active list to an "age."
-// An "age" can be directly compared with a comparetor.
+// An "age" can be directly compared with a comparator.
 function automatic ActiveListCountPath ActiveListPtrToAge(ActiveListIndexPath ptr, ActiveListIndexPath head);
     ActiveListCountPath age;
     age = ptr;
@@ -272,7 +272,7 @@ typedef struct packed // MemOpInfo
     CSR_CtrlPath csrCtrl;
     ENV_Code envCode;
 
-    // FENCEI
+    // FENCE.I
     logic isFenceI;
 
     // Complex
@@ -328,11 +328,11 @@ typedef struct packed // SchedulerEntry
 
 //
 // A tag for a source CAM and a ready bit table.
-// These tags are used for a ready bit table, thus they are neccesary in
+// These tags are used for a ready bit table, thus they are necessary in
 // matrix based implementation.
 //
 
-// For a phyical register.
+// For a physic's register.
 typedef struct packed // SchedulerRegTag
 {
     PRegNumPath num;
@@ -343,7 +343,7 @@ typedef struct packed // SchedulerRegTag
 // A pointer for a producer matrix.
 //
 
-// For a phyical register.
+// For a physical register.
 typedef struct packed // SchedulerRegPtr
 {
     IssueQueueIndexPath ptr;

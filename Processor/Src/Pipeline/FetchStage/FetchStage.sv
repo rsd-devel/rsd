@@ -15,10 +15,11 @@ module FetchStage(
     FetchStageIF.ThisStage port,
     NextPCStageIF.NextStage prev,
     ControllerIF.FetchStage ctrl,
-    DebugIF.FetchStage debug
+    DebugIF.FetchStage debug,
+    PerformanceCounterIF.FetchStage perfCounter
 );
 
-    // Pipeline Controll
+    // Pipeline Control
     logic stall, clear;
     logic empty;
     logic regStall, beginStall;
@@ -37,13 +38,14 @@ module FetchStage(
     PreDecodeStageRegPath nextStage[ FETCH_WIDTH ];
 
     always_comb begin
+        // Stall upper stages if cannot fetch valid instruction 
+        // This request sends back ctrl.ifStage.stall/ctrl.ifStage.clear
+        ctrl.ifStageSendBubbleLower = 
+            pipeReg[0].valid && !port.icReadHit[0];
+
         // Control
         stall = ctrl.ifStage.stall;
         clear = ctrl.ifStage.clear;
-
-        // Stall upper stages if cannot fetch valid instruction 
-        ctrl.ifStageSendBubbleLower = 
-            pipeReg[0].valid && !port.icReadHit[0];
 
         // Check whether instructions exist in this stage
         empty = TRUE;
@@ -55,6 +57,11 @@ module FetchStage(
 
         // Detect beginning of stall
         beginStall = !regStall && stall;
+
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+        // Stall can be caused by another reason from an i-cache miss.
+        perfCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
+`endif
     end
 
     // Whether instruction is invalidated by branch prediction
@@ -186,7 +193,11 @@ module FetchStage(
             debug.ifReg[i].valid = pipeReg[i].valid;
             debug.ifReg[i].sid = pipeReg[i].sid;
             debug.ifReg[i].flush = isFlushed[i];
+            debug.ifReg[i].icMiss = FALSE;
         end
+        // it is correct that the index of pipeReg is zero because
+        // an i-cache miss occurs at the head of the fetch group.
+        debug.ifReg[0].icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
 `endif
     end
 

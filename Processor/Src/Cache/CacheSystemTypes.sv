@@ -62,7 +62,7 @@ package CacheSystemTypes;
 
     // Subset of index for MSHR identifier in ReplayQueue
     // This value MUST be less than or equal to DCACHE_INDEX_BIT_WIDTH.
-    localparam DCACHE_INDEX_SUBSET_BIT_WIDTH = 5;
+    localparam DCACHE_INDEX_SUBSET_BIT_WIDTH = DCACHE_INDEX_BIT_WIDTH;
     typedef logic [DCACHE_INDEX_SUBSET_BIT_WIDTH-1:0] DCacheIndexSubsetPath;
 
     // Memory Access Serial

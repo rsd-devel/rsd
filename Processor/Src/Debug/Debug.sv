@@ -96,6 +96,8 @@ module Debug (
         next.storeQueueCount = port.storeQueueCount;
         next.busyInRecovery = port.busyInRecovery;
         next.storeQueueEmpty = port.storeQueueEmpty;
+
+        next.perfCounter = port.perfCounter;
     end
 
     DebugRegister debugRegister;
@@ -108,7 +110,7 @@ module Debug (
     end
 `else
     always_comb begin
-        port.debugRegister = FALSE; // Suppresing warning.
+        port.debugRegister = FALSE; // Suppressing warning.
     end
 `endif
 endmodule : Debug

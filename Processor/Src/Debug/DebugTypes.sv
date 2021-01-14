@@ -22,30 +22,17 @@ import PipelineTypes::*;
 // --- Hardware Counter
 //
 
-// ハードウェアカウンタ用のアドレス範囲
-// アドレスの上位 HARDWARE_COUNTER_TAG_BIT_SIZE ビットが
-// HARDWARE_COUNTER_TAG と一致したら、ハードウェアカウンタ用アドレス
-localparam HARDWARE_COUNTER_TAG = 5'b11111; // addr: f8000000-ffffffff
-localparam HARDWARE_COUNTER_TAG_BIT_SIZE = 5;
-localparam HARDWARE_COUNTER_TAG_MSB = DATA_WIDTH - 1;
-localparam HARDWARE_COUNTER_TAG_LSB =
-    HARDWARE_COUNTER_TAG_MSB - HARDWARE_COUNTER_TAG_BIT_SIZE + 1;
+typedef struct packed { // 
+    DataPath numIC_Miss;
+    DataPath numLoadMiss;
+    DataPath numStoreMiss;
+    DataPath numBranchPredMiss;
 
-// ハードウェアカウンタの種類を指定するビットの指定
-localparam HARDWARE_COUNTER_TYPE_BIT_SIZE = 3;
-localparam HARDWARE_COUNTER_TYPE_LSB = DATA_BYTE_WIDTH_BIT_SIZE;
-localparam HARDWARE_COUNTER_TYPE_MSB =
-    HARDWARE_COUNTER_TYPE_LSB + HARDWARE_COUNTER_TYPE_BIT_SIZE - 1;
+    DataPath numBranchPredMissDetectedOnDecode;
+    DataPath numStoreLoadForwardingFail;
+    DataPath numMemDepPredMiss;
+} PerfCounterPath;
 
-// 各種ハードウェアカウンタ
-typedef enum logic [ HARDWARE_COUNTER_TYPE_BIT_SIZE-1:0 ] {
-    HW_CNT_TYPE_CYCLE = 0,
-    HW_CNT_TYPE_COMMIT = 1,
-    HW_CNT_TYPE_REFETCH_THIS_PC = 2,
-    HW_CNT_TYPE_REFETCH_NEXT_PC = 3,
-    HW_CNT_TYPE_REFETCH_BR_TARGET = 4,
-    HW_CNT_TYPE_LOAD_MISS = 5
-} HardwareCounterType;
 
 //
 // --- Debug Register
@@ -60,6 +47,7 @@ typedef struct packed { // FetchStageDebugRegister
     logic valid;
     OpSerial sid;
     logic flush;
+    logic icMiss;
 } FetchStageDebugRegister;
 
 typedef struct packed { // PreDecodeStageDebugRegister
@@ -75,7 +63,8 @@ typedef struct packed { // PreDecodeStageDebugRegister
 
 typedef struct packed { // DecodeStageDebugRegister
     logic valid;
-    logic flush;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    logic flushed;    // Branch misprediction is detected on instruction decode and flush this instruction.
+    logic flushTriggering;   // This op causes branch misprediction and triggers flush.
     OpId opId;
     AddrPath pc;
     InsnPath insn;
@@ -87,9 +76,9 @@ typedef struct packed { // RenameStageDebugRegister
     logic valid;
     OpId opId;
 
-    // Physical register numbers are outputed in the next stage, becuase
+    // Physical register numbers are outputted in the next stage, because
     // The pop flags of the free list is negated and correct physical
-    // register numbers cannot be outputed in this stage when the pipeline
+    // register numbers cannot be outputted in this stage when the pipeline
     // is stalled.
 } RenameStageDebugRegister;
 
@@ -136,13 +125,14 @@ typedef struct packed { // IntegerExecutionStageDebugRegister
     OpId opId;
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
-    // 合成時は、IOポートが足りなくて不可能であるため
+    // Output source values and an execution result only on functional simulation
+    // because actual chips do not have enough IO pins for these signals.
     DataPath dataOut;
     DataPath fuOpA;
     DataPath fuOpB;
     IntALU_Code aluCode;
     IntMicroOpSubType opType;
+    logic brPredMiss;
 `endif
 
 } IntegerExecutionStageDebugRegister;
@@ -228,6 +218,9 @@ typedef struct packed { // MemoryTagAccessStageDebugRegister
 `ifdef RSD_FUNCTIONAL_SIMULATION
     logic executeLoad;
     AddrPath executedLoadAddr;
+    logic mshrAllocated;
+    logic mshrHit;
+    DataPath mshrEntryID;
     logic executeStore;
     AddrPath executedStoreAddr;
     DataPath executedStoreData;
@@ -276,6 +269,8 @@ typedef struct packed { // IssueQueueDebugRegister
     logic flush;
     OpId opId;
 } IssueQueueDebugRegister;
+
+
 
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -335,6 +330,11 @@ typedef struct packed { // DebugRegister
     StoreQueueCountPath storeQueueCount;
     logic busyInRecovery;
     logic storeQueueEmpty;
+
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    // Performance monitoring counters are exported only on simulation.
+    PerfCounterPath perfCounter;
+`endif
 } DebugRegister;
 `else
     // Dummy definition

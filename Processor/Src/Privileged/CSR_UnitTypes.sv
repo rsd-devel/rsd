@@ -13,8 +13,8 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
 
-// If you add additonal status bits, check CSR_Unit.sv because 
-// only valid fileds are updated.
+// If you add additional status bits, check CSR_Unit.sv because 
+// only valid fields are updated.
 typedef struct packed {
     logic [23:0] padding_2;  // 31:8
     logic MPIE;               // 7
@@ -131,7 +131,7 @@ typedef union packed {
 } CSR_ValuePath;
 
 typedef struct packed {
-    // Inturrupt related registers
+    // Interrupt related registers
     CSR_MSTATUS_Path mstatus;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
@@ -199,17 +199,44 @@ localparam CSR_NUM_PMPADDR14 = 12'h3BE;
 localparam CSR_NUM_PMPADDR15 = 12'h3BF;
 
 localparam CSR_NUM_MCYCLE        = 12'hB00; // Machine cycle counter.
+                                            // hB01 is absence
 localparam CSR_NUM_MINSTRET      = 12'hB02; // Machine instructions-retired counter.
 
-localparam CSR_NUM_MHPMCOUNTER3  = 12'hB03; // Machine performance-monitoring counter.
-localparam CSR_NUM_MHPMCOUNTER4  = 12'hB04; // Machine performance-monitoring counter.
+// Machine performance-monitoring counter.
+localparam CSR_NUM_MHPMCOUNTER3   = 12'hB03; 
+localparam CSR_NUM_MHPMCOUNTER4   = 12'hB04;
+localparam CSR_NUM_MHPMCOUNTER5   = 12'hB05;
+localparam CSR_NUM_MHPMCOUNTER6   = 12'hB06;
+localparam CSR_NUM_MHPMCOUNTER7   = 12'hB07;
+localparam CSR_NUM_MHPMCOUNTER8   = 12'hB08;
+localparam CSR_NUM_MHPMCOUNTER9   = 12'hB09;
+localparam CSR_NUM_MHPMCOUNTER10  = 12'hB0A;
+localparam CSR_NUM_MHPMCOUNTER11  = 12'hB0B;
+localparam CSR_NUM_MHPMCOUNTER12  = 12'hB0C;
+localparam CSR_NUM_MHPMCOUNTER13  = 12'hB0D;
+localparam CSR_NUM_MHPMCOUNTER14  = 12'hB0E;
+localparam CSR_NUM_MHPMCOUNTER15  = 12'hB0F;
 // ... TODO: Define these counters
-localparam CSR_NUM_MHPMCOUNTER31 = 12'hB1F; // Machine performance-monitoring counter.
+localparam CSR_NUM_MHPMCOUNTER31 = 12'hB1F;
 
 localparam CSR_NUM_MCYCLEH       = 12'hB80; // Upper 32 bits of mcycle, RV32I only.
+                                            // hB81 is absence
 localparam CSR_NUM_MINSTRETH     = 12'hB82; // Upper 32 bits of minstret, RV32I only.
-localparam CSR_NUM_MHPMCOUNTER3H = 12'hB83; // Upper 32 bits of mhpmcounter3, RV32I only.
-localparam CSR_NUM_MHPMCOUNTER4H = 12'hB84; // Upper 32 bits of mhpmcounter4, RV32I only.
+
+// Upper 32 bits of mhpmcounterX, RV32I only.
+localparam CSR_NUM_MHPMCOUNTER3H  = 12'hB83;
+localparam CSR_NUM_MHPMCOUNTER4H  = 12'hB84;
+localparam CSR_NUM_MHPMCOUNTER5H  = 12'hB85;
+localparam CSR_NUM_MHPMCOUNTER6H  = 12'hB86;
+localparam CSR_NUM_MHPMCOUNTER7H  = 12'hB87;
+localparam CSR_NUM_MHPMCOUNTER8H  = 12'hB88;
+localparam CSR_NUM_MHPMCOUNTER9H  = 12'hB89;
+localparam CSR_NUM_MHPMCOUNTER10H = 12'hB8A;
+localparam CSR_NUM_MHPMCOUNTER11H = 12'hB8B;
+localparam CSR_NUM_MHPMCOUNTER12H = 12'hB8C;
+localparam CSR_NUM_MHPMCOUNTER13H = 12'hB8D;
+localparam CSR_NUM_MHPMCOUNTER14H = 12'hB8E;
+localparam CSR_NUM_MHPMCOUNTER15H = 12'hB8F;
 // ... TODO: Define these counters
 localparam CSR_NUM_MHPMCOUNTER31H = 12'hB9F; // Upper 32 bits of mhpmcounter31, RV32I only.
 

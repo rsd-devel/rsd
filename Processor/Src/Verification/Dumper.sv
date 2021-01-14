@@ -105,6 +105,9 @@ package DumperTypes;
                     0, // mid
                     "" // comment
                 );
+            end
+            for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
+                str =debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
                 this.DumpStage(
                     KS_IF, // stage id
                     debugRegister.ifReg[i].valid, // valid
@@ -114,12 +117,12 @@ package DumperTypes;
                         debugRegister.ifReg[i].flush, // clear
                     debugRegister.ifReg[i].sid, // sid
                     0, // mid
-                    "" // comment
+                    str // comment
                 );
             end
 
             // PreDecodeStage
-            for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
+            for ( int i = 0; i < DECODE_WIDTH; i++ ) begin
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 strAluCode.bintoa(debugRegister.pdReg[i].aluCode);
                 strOpType.bintoa(debugRegister.pdReg[i].opType);
@@ -153,16 +156,19 @@ package DumperTypes;
                     str = "An undefined instruction is decoded.";
                 if( debugRegister.idReg[i].unsupported )
                     str = "An unsupported instruction is decoded.";
+                if(debugRegister.idReg[i].flushTriggering)
+                    str = "Br-pred-miss-id\\n";
 
                 this.DumpStage(
                     KS_ID, // stage id
                     debugRegister.idReg[i].valid, // valid
                     debugRegister.idStagePipeCtrl.stall && !debugRegister.stallByDecodeStage, // stall
-                    debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flush , // clear
+                    debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flushed , // clear
                     debugRegister.idReg[i].opId.sid, // sid
                     debugRegister.idReg[i].opId.mid, // mid
                     str // comment
                 );
+
             end
 
             for ( int i = 0; i < DECODE_WIDTH; i++ ) begin
@@ -236,7 +242,7 @@ package DumperTypes;
                     );
                 end
 
-                // Issue queue allcation
+                // Issue queue allocation
                 $sformat( str, "%s\\nIQ alloc: %0d ",
                     str,
                     debugRegister.dsReg[i].issueQueuePtr
@@ -356,7 +362,7 @@ package DumperTypes;
             // ExecutionStage
             //
             for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
-                // Issue queue allcation
+                // Issue queue allocation
                 str = "";
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 $sformat( str, "%s\\nd:0x%0x = fu(a:0x%0x, b:0x%0x), alu:0b%b, op:0b%b", str,
@@ -366,6 +372,9 @@ package DumperTypes;
                     debugRegister.intExReg[i].aluCode,
                     debugRegister.intExReg[i].opType
                 );
+                if (debugRegister.intExReg[i].brPredMiss) begin
+                    $sformat(str, "%s\\nBr-pred-miss-ex", str);
+                end
 `endif
                 this.DumpStage(
                     KS_EX, // stage id
@@ -381,7 +390,7 @@ package DumperTypes;
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
                 for ( int j = 0; j < COMPLEX_EXEC_STAGE_DEPTH; j++ ) begin
-                    // Issue queue allcation
+                    // Issue queue allocation
                     str = "";
 `ifdef RSD_FUNCTIONAL_SIMULATION
                     if ( j == 0 ) begin
@@ -406,7 +415,7 @@ package DumperTypes;
 `endif
             for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
                 str = "";
-                // Issue queue allcation
+                // Issue queue allocation
 `ifdef RSD_FUNCTIONAL_SIMULATION
                 if (debugRegister.memExReg[i].opType == MEM_MOP_TYPE_CSR) begin
                     $sformat( str, "%s\\nd:0x%0x = csr[0x%0x], csr[0x%0x] <= fu(0x%0x)", str,
@@ -449,8 +458,22 @@ package DumperTypes;
                     if (debugRegister.mtReg[i].executeLoad) begin
                         $sformat( str, "%s\\n = load([#0x%0x])",
                             str,
-                            debugRegister.mtReg[i].executedLoadAddr
+                            debugRegister.mtReg[i].executedLoadAddr,
                         );
+                        if (debugRegister.mtReg[i].mshrAllocated) begin
+                            $sformat( str, 
+                                "%s\\nD$-miss. MSHR alloc: %0d",
+                                str,
+                                debugRegister.mtReg[i].mshrEntryID
+                            );
+                        end
+                        else if (debugRegister.mtReg[i].mshrHit) begin
+                            $sformat( str, 
+                                "%s\\nMSHR hit: %0d",
+                                str,
+                                debugRegister.mtReg[i].mshrEntryID
+                            );
+                        end
                     end
                     if (debugRegister.mtReg[i].executeStore) begin
                         $sformat( str, "%s\\nstore(#0x%0x, [#0x%0x])\\n", str,

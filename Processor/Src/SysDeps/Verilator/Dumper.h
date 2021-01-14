@@ -171,7 +171,10 @@ public:
                 0, // mid
                 "" // comment
             );
+        }
 
+        for (int i = 0; i < FETCH_WIDTH; i++) {
+            str = debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
             DumpStage(
                 KS_IF, // stage id
                 debugRegister.ifReg[i].valid, // valid
@@ -181,12 +184,12 @@ public:
                     debugRegister.ifReg[i].flush,      // clear
                 debugRegister.ifReg[i].sid, // sid
                 0, // mid
-                "" // comment
+                str // comment
             );
         }
 
         // PreDecodeStage
-        for(int i = 0; i < FETCH_WIDTH; i++) {
+        for(int i = 0; i < DECODE_WIDTH; i++) {
 #ifdef RSD_FUNCTIONAL_SIMULATION
             strAluCode = Bin2Str(debugRegister.pdReg[i].aluCode, 4, false);
             strOpType = Bin2Str(debugRegister.pdReg[i].opType, 3, false);
@@ -220,12 +223,14 @@ public:
                 str = "An undefined instruction is decoded.";
             if (debugRegister.idReg[i].unsupported)
                 str = "An unsupported instruction is decoded.";
+            if(debugRegister.idReg[i].flushTriggering)
+                str = "Br-pred-miss-id\\n";
 
             DumpStage(
                 KS_ID, // stage id
                 debugRegister.idReg[i].valid, // valid
                 debugRegister.idStagePipeCtrl.stall && !debugRegister.stallByDecodeStage, // stall
-                debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flush , // clear
+                debugRegister.idStagePipeCtrl.clear || debugRegister.idReg[i].flushed , // clear
                 debugRegister.idReg[i].opId.sid, // sid
                 debugRegister.idReg[i].opId.mid, // mid
                 str // comment
@@ -430,6 +435,9 @@ public:
                 Bin2Str(debugRegister.intExReg[i].aluCode, 4, true).c_str(),
                 Bin2Str(debugRegister.intExReg[i].opType, 3, true).c_str()
             );
+            if (debugRegister.intExReg[i].brPredMiss) {
+                str += "\\nBr-pred-miss-ex";
+            }
 #endif
             DumpStage(
                 KS_EX, // stage id
@@ -516,6 +524,18 @@ public:
                         "\\n = load([#0x%0x])",
                         debugRegister.mtReg[i].executedLoadAddr
                     );
+                    if (debugRegister.mtReg[i].mshrAllocated) {
+                        str += FormatString(
+                            "\\nD$-miss. MSHR alloc: %0d",
+                            debugRegister.mtReg[i].mshrEntryID
+                        );
+                    }
+                    else if (debugRegister.mtReg[i].mshrHit) {
+                        str += FormatString(
+                            "\\nMSHR hit: %0d",
+                            debugRegister.mtReg[i].mshrEntryID
+                        );
+                    }
                 }
                 if (debugRegister.mtReg[i].executeStore) {
                     str += FormatString(

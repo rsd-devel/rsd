@@ -17,8 +17,7 @@ import CacheSystemTypes::*;
 
 module LoadStoreUnit(
     LoadStoreUnitIF.LoadStoreUnit port,
-    ControllerIF.LoadStoreUnit ctrl,
-    HardwareCounterIF.LoadStoreUnit hwCounter
+    ControllerIF.LoadStoreUnit ctrl
 );
     // DCache/MSHR のラインとして読んだロードデータを、
     // アドレスのオフセットに合わせてシフト
@@ -55,8 +54,8 @@ module LoadStoreUnit(
     // ADDR  | D$TAG | D$DATA | WB
     //       |  LSQ  |        |
     //
-    // LSQ is acessed in the D$TAG stage (MemoryTagAccessStage) and D$DATA is accessed
-    // after this stage, thus forwarded resutls must be latched.
+    // LSQ is accessed in the D$TAG stage (MemoryTagAccessStage) and D$DATA is accessed
+    // after this stage, thus forwarded results must be latched.
 
     logic storeLoadForwardedReg[LOAD_ISSUE_WIDTH];
     LSQ_BlockDataPath forwardedLoadDataReg[LOAD_ISSUE_WIDTH];
@@ -93,10 +92,8 @@ module LoadStoreUnit(
     LSQ_BlockDataPath loadLSQ_BlockData[LOAD_ISSUE_WIDTH];
     DataPath shiftedLoadData[LOAD_ISSUE_WIDTH];
     DataPath extendedLoadData[LOAD_ISSUE_WIDTH];
-    DataPath executedLoadData [ LOAD_ISSUE_WIDTH ];
     always_comb begin
         for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            executedLoadData[i] = '0;
             port.executedLoadVectorData[i] = 0;
         end
         
@@ -112,25 +109,9 @@ module LoadStoreUnit(
                 mshrReadHitReg[i] ? ShiftCacheLineData(mshrReadDataReg[i], loadAddrReg[i]) :
                                     ShiftCacheLineData(port.dcReadData[i], loadAddrReg[i]);
             extendedLoadData[i] = ExtendLoadData(shiftedLoadData[i], loadMemAccessSizeReg[i]);
-
-
-            // executedLoadData
-`ifdef RSD_DISABLE_HARDWARE_COUNTER
-            executedLoadData[i] = extendedLoadData[i];
-`else
-            hwCounter.hardwareCounterType[i] =
-                HardwareCounterType'( loadAddrReg[i][ HARDWARE_COUNTER_TYPE_MSB:HARDWARE_COUNTER_TYPE_LSB ] ); // cast
-            if ( loadAddrReg[i][ HARDWARE_COUNTER_TAG_MSB:HARDWARE_COUNTER_TAG_LSB ] == HARDWARE_COUNTER_TAG ) begin
-                // メモリではなくハードウェアカウンタの値を使用
-                executedLoadData[i] = hwCounter.hardwareCounterData[i];
-            end
-            else begin
-                executedLoadData[i] = extendedLoadData[i];
-            end
-`endif
         end
 
-        port.executedLoadData = executedLoadData;
+        port.executedLoadData = extendedLoadData;
     end
 
 
