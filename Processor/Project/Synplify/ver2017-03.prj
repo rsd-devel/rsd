@@ -1,11 +1,12 @@
 #--  Synopsys, Inc.
 #--  Version M-2017.03-SP1
-#--  Project file /home/matsuo/workspace/rsd-verification/rsd-vivado/Processor/Project/Synplify/ver2017-03.prj
-#--  Written on Thu Dec 24 15:04:17 2020
+#--  Project file /home/shioya/work/rsd-open/Processor/Project/Synplify/ver2017-03.prj
+#--  Written on Wed Jan 13 02:14:59 2021
 
 
 #project files
 add_file -verilog -vlog_std sysv "../../Src/SynthesisMacros.sv"
+add_file -verilog -vlog_std sysv "../../Src/MicroArchConf.sv"
 add_file -verilog -vlog_std sysv "../../Src/BasicTypes.sv"
 add_file -verilog -vlog_std sysv "../../Src/Memory/MemoryMapTypes.sv"
 add_file -verilog -vlog_std sysv "../../Src/Cache/CacheSystemTypes.sv"

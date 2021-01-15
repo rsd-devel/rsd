@@ -8,6 +8,7 @@
 
 package FetchUnitTypes;
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import MemoryMapTypes::*;
 
@@ -15,7 +16,7 @@ import MemoryMapTypes::*;
 // BTB
 //
 
-localparam BTB_ENTRY_NUM = 1024;
+localparam BTB_ENTRY_NUM = CONF_BTB_ENTRY_NUM;
 
 // Entry: 1(valid)+4(BTB_TAG_WIDTH)+13(BTB_TAG_WIDTH) = 18 bits
 // The width of a block ram is 18bits, thus the sum of these parameters is set to 18 bits.
@@ -86,7 +87,7 @@ endfunction
 // GShare
 //
 
-localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = 10;
+localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
 typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
 
 
@@ -94,7 +95,7 @@ typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
 // PHT
 //
 
-localparam PHT_ENTRY_NUM = 2048;
+localparam PHT_ENTRY_NUM = CONF_PHT_ENTRY_NUM;
 localparam PHT_ENTRY_NUM_BIT_WIDTH = $clog2(PHT_ENTRY_NUM);
 typedef logic [PHT_ENTRY_NUM_BIT_WIDTH-1:0] PHT_IndexPath;
 
