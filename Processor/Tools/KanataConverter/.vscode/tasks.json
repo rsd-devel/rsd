@@ -1,0 +1,65 @@
+{
+    "version": "2.0.0",
+
+    // Configuration for cygwin
+    "windows": {
+        "options": {
+            "env": {
+                "CHERE_INVOKING": "1",
+                "LANG": "C"
+            },
+            "shell": {
+                "executable": "c:/tools/cygwin/bin/bash.exe",
+                "args": [
+                    "--login", "-c"
+                ]
+            }
+        }
+    },
+
+    "echoCommand": true,
+    "type": "shell",
+    "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+    },
+    "options": {
+        "cwd": "${workspaceRoot}"
+    },
+    "tasks": [
+        {
+            "label": "make",
+            "command": "make",
+            "args": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": {
+                "fileLocation": "absolute",
+                "pattern": [
+                    {
+                        "regexp": "^[ ]*.*File \"(.*)\", line (\\d+?), in.*$",
+                        "file": 1,
+                        "line": 2,
+                        "message": 0
+                    }
+                ]
+            }
+        },
+        {
+            "label": "run",
+            "command": "make",
+            "args": ["run"],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "clean",
+            "command": "make",
+            "args": ["clean"]
+        }
+    ]
+}
