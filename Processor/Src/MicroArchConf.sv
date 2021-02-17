@@ -13,6 +13,7 @@ localparam CONF_DECODE_WIDTH = CONF_FETCH_WIDTH;      // Decode width
 localparam CONF_RENAME_WIDTH = CONF_FETCH_WIDTH;      // Rename width
 localparam CONF_DISPATCH_WIDTH = CONF_FETCH_WIDTH;    // Dispatch width
 
+localparam CONF_RAS_ENTRY_NUM = 4;
 
 // ---- Commit
 // Commit width (instructions). This parameter is configurable.

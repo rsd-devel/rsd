@@ -7,6 +7,7 @@
 // This unit includes a simple return address stack.
 //
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import MemoryMapTypes::*;
 import OpFormatTypes::*;
@@ -32,7 +33,7 @@ output
     PC_Path recoveredPC
 );
     // Return address stack.
-    parameter RAS_ENTRY_NUM = 4;
+    parameter RAS_ENTRY_NUM = CONF_RAS_ENTRY_NUM;
     typedef logic [$clog2(RAS_ENTRY_NUM)-1 : 0] RAS_IndexPath;
     PC_Path ras[RAS_ENTRY_NUM];
     PC_Path nextRAS;
