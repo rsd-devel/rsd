@@ -127,7 +127,7 @@ module FetchStage(
         // Check whether instructions are flushed by branch prediction
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             isFlushed[i] = FALSE;
-            if (!regStall && pipeReg[i].valid && brPred[i].predTaken) begin
+            if (!regStall && pipeReg[i].valid && port.btbHit[i]) begin
                 for (int j = i + 1; j < FETCH_WIDTH; j++) begin
                     isFlushed[j] = pipeReg[j].valid;
                 end

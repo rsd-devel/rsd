@@ -120,6 +120,12 @@ module NextPCStage(
         end
         else begin
             writePC_FromOuter = FALSE;
+            for (int i = 0; i < FETCH_WIDTH; i++) begin
+                if (!regStall && next.fetchStageIsValid[i] && 
+                        next.btbHit[i]) begin
+                    writePC_FromOuter = TRUE;
+                end
+            end
         end
         
         // Update PC if not stalled.
@@ -157,9 +163,10 @@ module NextPCStage(
                 // In addition, if the branch is predicted as Taken, 
                 // the address read from BTB is used as next PC.
                 if (!regStall && next.fetchStageIsValid[i] && 
-                        next.btbHit[i] && next.brPredTaken[i]) begin
+                        next.btbHit[i]/* && next.brPredTaken[i]*/) begin
                     // Use PC from BTB
-                    predNextPC = next.btbOut[i];
+                    predNextPC = next.brPredTaken[i] ? 
+                        next.btbOut[i] : next.fetchStagePC[i]+INSN_BYTE_WIDTH;
                     break;
                 end
             end

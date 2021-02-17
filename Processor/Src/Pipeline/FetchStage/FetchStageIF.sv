@@ -44,6 +44,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         icReadHit,
         icReadDataOut,
         btbOut,
+        btbHit,
         brPredTaken,
         brGlobalHistory,
         phtPrevValue,
