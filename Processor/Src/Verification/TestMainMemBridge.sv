@@ -127,35 +127,35 @@ module TestMain;
     );
 
     // Memory
-    MemoryEntryDataPath memReadData;
-    logic memReadDataReady;
-    logic memAccessReadBusy;
-    logic memAccessWriteBusy;
-    logic memAccessBusy;
-    MemoryEntryDataPath memAccessWriteData;
-    AddrPath memAccessAddr;
-    logic memAccessRE;
-    logic memAccessWE;
-    MemAccessSerial nextMemReadSerial; // RSDの次の読み出し要求に割り当てられるシリアル(id)
-    MemWriteSerial nextMemWriteSerial; // RSDの次の書き込み要求に割り当てられるシリアル(id)
-    MemAccessSerial memReadSerial; // メモリの読み出しデータのシリアル
-    MemAccessResponse memAccessResponse; // メモリ書き込み完了通知
+    MemoryEntryDataPath pinMemReadData;
+    logic pinMemReadDataReady;
+    logic pinMemAccessReadBusy;
+    logic pinMemAccessWriteBusy;
+    logic pinMemAccessBusy;
+    MemoryEntryDataPath pinMemAccessWriteData;
+    AddrPath pinMemAccessAddr;
+    logic pinMemAccessRE;
+    logic pinMemAccessWE;
+    MemAccessSerial pinNextMemReadSerial; // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    MemWriteSerial pinNextMemWriteSerial; // RSDの次の書き込み要求に割り当てられるシリアル(id)
+    MemAccessSerial pinMemReadSerial; // メモリの読み出しデータのシリアル
+    MemAccessResponse pinMemAccessResponse; // メモリ書き込み完了通知
     SlowExternalMemory memory (
         .clk( clk ),
         .rst( rst ),
         // input
-        .memAccessAddr( memAccessAddr ),
-        .memAccessWriteData( memAccessWriteData ),
-        .memAccessRE( memAccessRE ),
-        .memAccessWE( memAccessWE ),
+        .memAccessAddr( pinMemAccessAddr ),
+        .memAccessWriteData( pinMemAccessWriteData ),
+        .memAccessRE( pinMemAccessRE ),
+        .memAccessWE( pinMemAccessWE ),
         // output
-        .memAccessBusy( memAccessBusy ),
-        .nextMemReadSerial( nextMemReadSerial ),
-        .nextMemWriteSerial( nextMemWriteSerial ),
-        .memReadDataReady( memReadDataReady ),
-        .memReadData( memReadData ),
-        .memReadSerial( memReadSerial ),
-        .memAccessResponse( memAccessResponse )
+        .memAccessBusy( pinMemAccessBusy ),
+        .nextMemReadSerial( pinNextMemReadSerial ),
+        .nextMemWriteSerial( pinNextMemWriteSerial ),
+        .memReadDataReady( pinMemReadDataReady ),
+        .memReadData( pinMemReadData ),
+        .memReadSerial( pinMemReadSerial ),
+        .memAccessResponse( pinMemAccessResponse )
     );
 
     //
@@ -166,9 +166,16 @@ module TestMain;
     DebugRegister debugRegister;
     logic serialWE;
     SerialDataPath serialWriteData;
+    logic reqExternalInterrupt;
+    ExternalInterruptCodePath externalInterruptCode;
+    always_comb begin
+        reqExternalInterrupt = FALSE;
+        externalInterruptCode = '0;
+    end
 
     Main_MemBridge main(
-        .clk_p( clk ),
+        .coreClk( clk ),
+        .pinClk( clk ),
         .negResetIn( ~rst ),
         .posResetOut( rstOut ),
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -178,20 +185,23 @@ module TestMain;
         .serialWriteData( serialWriteData ),
         .ledOut( ledOut ), // LED Output
 
+        .reqExternalInterrupt( reqExternalInterrupt ),
+        .externalInterruptCode( externalInterruptCode ),
+        
         // To memory 
-        .memAccessAddr( memAccessAddr ),
-        .memAccessWriteData( memAccessWriteData ),
-        .memAccessRE( memAccessRE ),
-        .memAccessWE( memAccessWE ),
+        .pinMemAccessAddr( pinMemAccessAddr ),
+        .pinMemAccessWriteData( pinMemAccessWriteData ),
+        .pinMemAccessRE( pinMemAccessRE ),
+        .pinMemAccessWE( pinMemAccessWE ),
 
         // From memory
-        .memAccessBusy( memAccessBusy ),
-        .nextMemReadSerial( nextMemReadSerial ),
-        .nextMemWriteSerial( nextMemWriteSerial ),
-        .memReadDataReady( memReadDataReady ),
-        .memReadData( memReadData ),
-        .memReadSerial( memReadSerial ),
-        .memAccessResponse( memAccessResponse )
+        .pinMemAccessBusy( pinMemAccessBusy ),
+        .pinNextMemReadSerial( pinNextMemReadSerial ),
+        .pinNextMemWriteSerial( pinNextMemWriteSerial ),
+        .pinMemReadDataReady( pinMemReadDataReady ),
+        .pinMemReadData( pinMemReadData ),
+        .pinMemReadSerial( pinMemReadSerial ),
+        .pinMemAccessResponse( pinMemAccessResponse )
     );
 
     //
