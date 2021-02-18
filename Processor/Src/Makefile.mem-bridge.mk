@@ -2,8 +2,8 @@
 MAX_TEST_CYCLES = 50000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-TEST_CODE = Verification/TestCode/Asm/CacheFlush
-#TEST_CODE = Verification/TestCode/C/HelloWorld
+#TEST_CODE = Verification/TestCode/Asm/CacheFlush
+TEST_CODE = Verification/TestCode/C/HelloWorld
 
 SOURCE_ROOT  = ./
 TOOLS_ROOT   = ../Tools/
@@ -26,6 +26,7 @@ REG_CSV_FILE 					= Register.csv
 
 # Include core source code definition
 include Makefiles/CoreSources.inc.mk
+MODULES += Main_MemBridge.sv
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
 	Verification/Dumper.sv \

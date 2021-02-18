@@ -132,23 +132,21 @@ module TestMain;
     LED_Path ledOut;
     LED_Path lastCommittedPC;
     DebugRegister debugRegister;
-    logic rxd, txd;
     logic serialWE;
     SerialDataPath serialWriteData;
 
-    Main_Zynq_Wrapper main(
+    Main_MemBridge main(
         .clk_p( clk ),
-        .clk_n ( ~clk ),
         .negResetIn( ~rst ),
         .posResetOut( rstOut ),
-        .*
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+        .debugRegister( debugRegister ),
+`endif
+        .serialWE( serialWE ),
+        .serialWriteData( serialWriteData ),
+        .ledOut( ledOut ) // LED Output
     );
 
-`ifdef RSD_SYNTHESIS_VIVADO
-    always_comb begin
-        debugRegister = main.debugRegister;
-    end
-`endif
     //
     // Dumpers
     //
