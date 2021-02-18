@@ -26,7 +26,10 @@ REG_CSV_FILE 					= Register.csv
 
 # Include core source code definition
 include Makefiles/CoreSources.inc.mk
-MODULES += Main_MemBridge.sv
+MODULES += \
+	Main_MemBridge.sv \
+	Memory/SlowExternalMemory.sv
+
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
 	Verification/Dumper.sv \
