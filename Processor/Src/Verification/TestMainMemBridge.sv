@@ -126,6 +126,38 @@ module TestMain;
         .rstOut( rstOut )
     );
 
+    // Memory
+    MemoryEntryDataPath memReadData;
+    logic memReadDataReady;
+    logic memAccessReadBusy;
+    logic memAccessWriteBusy;
+    logic memAccessBusy;
+    MemoryEntryDataPath memAccessWriteData;
+    AddrPath memAccessAddr;
+    logic memAccessRE;
+    logic memAccessWE;
+    MemAccessSerial nextMemReadSerial; // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    MemWriteSerial nextMemWriteSerial; // RSDの次の書き込み要求に割り当てられるシリアル(id)
+    MemAccessSerial memReadSerial; // メモリの読み出しデータのシリアル
+    MemAccessResponse memAccessResponse; // メモリ書き込み完了通知
+    SlowExternalMemory memory (
+        .clk( clk ),
+        .rst( rst ),
+        // input
+        .memAccessAddr( memAccessAddr ),
+        .memAccessWriteData( memAccessWriteData ),
+        .memAccessRE( memAccessRE ),
+        .memAccessWE( memAccessWE ),
+        // output
+        .memAccessBusy( memAccessBusy ),
+        .nextMemReadSerial( nextMemReadSerial ),
+        .nextMemWriteSerial( nextMemWriteSerial ),
+        .memReadDataReady( memReadDataReady ),
+        .memReadData( memReadData ),
+        .memReadSerial( memReadSerial ),
+        .memAccessResponse( memAccessResponse )
+    );
+
     //
     // Main module
     //
@@ -144,7 +176,22 @@ module TestMain;
 `endif
         .serialWE( serialWE ),
         .serialWriteData( serialWriteData ),
-        .ledOut( ledOut ) // LED Output
+        .ledOut( ledOut ), // LED Output
+
+        // To memory 
+        .memAccessAddr( memAccessAddr ),
+        .memAccessWriteData( memAccessWriteData ),
+        .memAccessRE( memAccessRE ),
+        .memAccessWE( memAccessWE ),
+
+        // From memory
+        .memAccessBusy( memAccessBusy ),
+        .nextMemReadSerial( nextMemReadSerial ),
+        .nextMemWriteSerial( nextMemWriteSerial ),
+        .memReadDataReady( memReadDataReady ),
+        .memReadData( memReadData ),
+        .memReadSerial( memReadSerial ),
+        .memAccessResponse( memAccessResponse )
     );
 
     //
@@ -213,7 +260,7 @@ module TestMain;
             `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Fill memory with dummy data 
                 // see InitializedBlockRAM module in Primitives/RAM.sv in details
-                main.main.memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
+                memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
 
 
                 // ファイル内容は物理メモリ空間の先頭から連続して展開される
@@ -223,7 +270,7 @@ module TestMain;
                 // たとえば 128KB のファイルの場合，
                 // 先頭 64KB は 論理空間の 0x0000_0000 - 0x0000_FFFF に，
                 // 後続 64KB は 論理空間の 0x8000_0000 - 0x8000_FFFF に展開されることになる
-                main.main.memory.body.InitializeMemory(codeFileName);
+                memory.body.InitializeMemory(codeFileName);
             `endif
         `endif
 

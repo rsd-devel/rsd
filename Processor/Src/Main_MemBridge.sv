@@ -31,7 +31,21 @@ output
     logic serialWE,
     SerialDataPath serialWriteData,
     logic posResetOut, // 正論理
-    LED_Path ledOut // LED Output
+    LED_Path ledOut, // LED Output
+// Memory
+output
+    AddrPath memAccessAddr,
+    MemoryEntryDataPath memAccessWriteData,
+    logic memAccessRE,
+    logic memAccessWE,
+input
+    logic memAccessBusy,    // メモリアクセス要求を受け付けられない
+    MemAccessSerial nextMemReadSerial, // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    MemWriteSerial nextMemWriteSerial, // RSDの次の書き込み要求に割り当てられるシリアル(id)
+    logic memReadDataReady, // TRUEなら、メモリの読出しデータあり
+    MemoryEntryDataPath memReadData, // メモリの読出しデータ
+    MemAccessSerial memReadSerial, // メモリの読み出しデータのシリアル
+    MemAccessResponse memAccessResponse // メモリ書き込み完了通知
 );
 
     Main_MemBridgeBody main (.*);
@@ -54,7 +68,22 @@ output
     logic serialWE,
     SerialDataPath serialWriteData,
     logic posResetOut, // 正論理
-    LED_Path ledOut // LED Output
+    LED_Path ledOut, // LED Output
+
+// Memory bus
+output
+    AddrPath memAccessAddr,
+    MemoryEntryDataPath memAccessWriteData,
+    logic memAccessRE,
+    logic memAccessWE,
+input
+    logic memAccessBusy,    // メモリアクセス要求を受け付けられない
+    MemAccessSerial nextMemReadSerial, // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    MemWriteSerial nextMemWriteSerial, // RSDの次の書き込み要求に割り当てられるシリアル(id)
+    logic memReadDataReady, // TRUEなら、メモリの読出しデータあり
+    MemoryEntryDataPath memReadData, // メモリの読出しデータ
+    MemAccessSerial memReadSerial, // メモリの読み出しデータのシリアル
+    MemAccessResponse memAccessResponse // メモリ書き込み完了通知
 );
 
     // RSD_POST_SYNTHESIS
@@ -91,43 +120,10 @@ output
     //
     // --- Memory
     //
-    MemoryEntryDataPath memReadData;
-    logic memReadDataReady;
-    logic memAccessReadBusy;
-    logic memAccessWriteBusy;
-    logic memAccessBusy;
-    
-    MemoryEntryDataPath memAccessWriteData;
     MemoryEntryDataPath memAccessWriteDataFromCore;
-    MemoryEntryDataPath memAccessWriteDataFromProgramLoader;
-
-    AddrPath memAccessAddr, memAccessAddrFromProgramLoader;
     PhyAddrPath memAccessAddrFromCore;
-
-    logic memAccessRE, memAccessRE_FromCore;
-    logic memAccessWE, memAccessWE_FromCore, memAccessWE_FromProgramLoader;
-
-    MemAccessSerial nextMemReadSerial; // RSDの次の読み出し要求に割り当てられるシリアル(id)
-    MemWriteSerial nextMemWriteSerial; // RSDの次の書き込み要求に割り当てられるシリアル(id)
-
-    MemAccessSerial memReadSerial; // メモリの読み出しデータのシリアル
-    MemAccessResponse memAccessResponse; // メモリ書き込み完了通知
-
-    SlowExternalMemory memory (
-        .clk( clk ),
-        .rst( rst ),
-        .memAccessAddr( memAccessAddr ),
-        .memAccessWriteData( memAccessWriteData ),
-        .memAccessRE( memAccessRE ),
-        .memAccessWE( memAccessWE ),
-        .memAccessBusy( memAccessBusy ),
-        .nextMemReadSerial( nextMemReadSerial ),
-        .nextMemWriteSerial( nextMemWriteSerial ),
-        .memReadDataReady( memReadDataReady ),
-        .memReadData( memReadData ),
-        .memReadSerial( memReadSerial ),
-        .memAccessResponse( memAccessResponse )
-    );
+    logic memAccessRE_FromCore;
+    logic memAccessWE_FromCore;
 
     assign memAccessReadBusy = memAccessBusy;
     assign memAccessWriteBusy = memAccessBusy;
