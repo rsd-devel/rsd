@@ -113,9 +113,7 @@ output
     MemAccessSerial memReadSerial; // メモリの読み出しデータのシリアル
     MemAccessResponse memAccessResponse; // メモリ書き込み完了通知
 
-    SlowExternalMemory #(
-        .INIT_HEX_FILE( "" )
-    ) memory (
+    SlowExternalMemory memory (
         .clk( clk ),
         .rst( rst ),
         .memAccessAddr( memAccessAddr ),

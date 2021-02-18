@@ -13,21 +13,13 @@ import CacheSystemTypes::*;
 import MemoryTypes::*;
 
 
-/* メインメモリモジュール
-Spartan-6のDRAMコントローラを模している。
-読み出しはパイプライン化されていて、DRAMアクセスの遅延をシミュレートできる。
-
+/* 
 memAccess**には読出/書込の要求を書き込む。
 要求が受け付けられない場合、出力memAccessBusyがTRUEになる。
 
 memRead**には、読出結果が数サイクル遅れて出てくる。
-
-読出レイテンシは、以下の式で表される。
-BlockRAMのレイテンシ + パイプラインの深さ
 */
-module SlowExternalMemory #(
-    parameter INIT_HEX_FILE = ""    // Memory initialization file path
-)(
+module SlowExternalMemory (
 input
     logic clk,
     logic rst,
@@ -67,44 +59,21 @@ output
     MemoryProcessLatencyCount processLatencyCount, nextProcessLatencyCount;
     
     MemoryEntryDataPath ramReadData;
-    
-    logic memoryWE;
-    AddrPath memoryWA;
-    MemoryEntryDataPath memoryWV;
-    AddrPath memoryRA;
 
     // Body
     InitializedBlockRAM #( 
         .ENTRY_NUM( MEMORY_ENTRY_NUM ),
-        .INIT_HEX_FILE( INIT_HEX_FILE ),
+        .INIT_HEX_FILE( "" ),
         .ENTRY_BIT_SIZE( MEMORY_ENTRY_BIT_NUM )
     ) body ( 
         .clk( clk ),
-        .we( memoryWE ),
-        .wa( memoryWA[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
-        .wv( memoryWV ),
-        .ra( memoryRA[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
+        .we( memAccessWE ),
+        .wa( memAccessAddr[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
+        .wv( memAccessWriteData ),
+        .ra( memAccessAddr[ MEMORY_ADDR_MSB : MEMORY_ADDR_LSB ] ),
         .rv( ramReadData )
     );
 
-    // Push memory request temporarily to queue
-    logic pushRequestQueue;
-    MemoryRequestData pushedData;
-
-    logic hasRequest, hasRequestReg;
-    MemoryRequestData requestData, requestDataReg;
-
-    MemoryRequestQueue memReqQueue(
-        .clk (clk),
-        .rst (rst),
-        .push (pushRequestQueue),
-        .pushedData (pushedData),
-        .hasRequest (hasRequest),
-        .requestData (requestData)
-    );
-    
-    // ARCコンテストのDDR2コントローラに合わせ、
-    // クロックの立ち下がりで動かす
     always_ff @( posedge clk ) begin
         if ( rst ) begin
             processLatencyCount <= FALSE;
@@ -112,8 +81,6 @@ output
             prevMemWriteAccessAck <= FALSE;
             nextMemReadSerial <= '0;
             nextMemWriteSerial <= '0;
-            requestDataReg <= '0;
-            hasRequestReg <= FALSE;
             
             for ( int i = 0; i < MEMORY_READ_PIPELINE_DEPTH; i++ ) begin
                 memPipeReg[i] <= '0;
@@ -125,10 +92,9 @@ output
             prevMemWriteAccessAck <= memWriteAccessAck;
             nextMemReadSerial <= nextNextMemReadSerial;
             nextMemWriteSerial <= nextNextMemWriteSerial;
-            requestDataReg <= requestData;
-            hasRequestReg <= hasRequest;
             
             memPipeReg[0] <= nextMemPipeReg;
+            // メモリレイテンシの分，出力を遅延させる
             for ( int i = 0; i < MEMORY_READ_PIPELINE_DEPTH-1; i++ ) begin
                 memPipeReg[i+1] <= memPipeReg[i];
             end
@@ -175,32 +141,11 @@ output
         
         // 前のサイクルで読出要求を受け付けたら、読出結果をパイプラインに入力
         
-        /* 修正前
         nextMemPipeReg.valid = prevMemReadAccessAck;
         nextMemPipeReg.data = ramReadData;
         nextMemPipeReg.serial = nextMemReadSerial;
         nextMemPipeReg.wserial = nextMemWriteSerial;
         nextMemPipeReg.wr = prevMemWriteAccessAck;
-        */
-        nextMemPipeReg.valid = hasRequestReg ? requestDataReg.isRead : FALSE;
-        nextMemPipeReg.data = ramReadData;
-        nextMemPipeReg.serial = requestDataReg.nextMemReadSerial;
-        nextMemPipeReg.wserial = requestDataReg.nextMemWriteSerial;
-        nextMemPipeReg.wr = requestDataReg.wr;
-
-        pushRequestQueue = memReadAccessAck || memWriteAccessAck;
-        pushedData.isRead = memAccessRE;
-        pushedData.isWrite = memAccessWE;
-        pushedData.memAccessAddr = memAccessAddr;
-        pushedData.memAccessWriteData = memAccessWriteData;
-        pushedData.nextMemReadSerial = nextNextMemReadSerial;
-        pushedData.nextMemWriteSerial = nextNextMemWriteSerial;
-        pushedData.wr = memWriteAccessAck;
-
-        memoryWE = hasRequest ? requestData.isWrite : FALSE;
-        memoryWA = requestData.memAccessAddr;
-        memoryWV = requestData.memAccessWriteData;
-        memoryRA = requestData.memAccessAddr;
 
     end
 
