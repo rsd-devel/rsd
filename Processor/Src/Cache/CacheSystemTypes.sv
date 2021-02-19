@@ -96,25 +96,26 @@ package CacheSystemTypes;
         MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA  = 3,  // Receive dirty data.
         MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM  = 4,  // Victim is written to a main memory.
         MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE = 5, // Wait until victim writeback is complete.
-        MSHR_PHASE_FLUSH_CHECK = 6,                 // Check if flush is completed.
+        MSHR_PHASE_FLUSH_INVALIDATE = 6,            // Invalidate a cache line
+        MSHR_PHASE_FLUSH_CHECK = 7,                 // Check if flush is completed.
 
         // Victim is read from the cache.
-        MSHR_PHASE_VICTIM_REQEUST       = 7,        //
-        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 8,        //
-        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 9,        // Receive dirty data.
-        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 10,       // Victim is written to a main memory.
-        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 11,      // Wait until victim writeback is complete.
+        MSHR_PHASE_VICTIM_REQEUST       = 8,        //
+        MSHR_PHASE_VICTIM_RECEIVE_TAG   = 9,        //
+        MSHR_PHASE_VICTIM_RECEIVE_DATA  = 10,        // Receive dirty data.
+        MSHR_PHASE_VICTIM_WRITE_TO_MEM  = 11,       // Victim is written to a main memory.
+        MSHR_PHASE_VICTIM_WRITE_COMPLETE = 12,      // Wait until victim writeback is complete.
 
-        MSHR_PHASE_MISS_MERGE_STORE_DATA = 12,      // Merge the allocator store's data and the fetched line.
+        MSHR_PHASE_MISS_MERGE_STORE_DATA = 13,      // Merge the allocator store's data and the fetched line.
 
-        MSHR_PHASE_MISS_READ_MEM_REQUEST = 13,      // Read from a main memory to a cache.
-        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 14,      // Read from a main memory to a cache.
-        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 15,    // (Uncachable store) Write data to a main memory.
-        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 16,  // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_MISS_READ_MEM_REQUEST = 14,      // Read from a main memory to a cache.
+        MSHR_PHASE_MISS_READ_MEM_RECEIVE = 15,      // Read from a main memory to a cache.
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM = 16,    // (Uncachable store) Write data to a main memory.
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE = 17,  // (Uncachable store) Write data to a main memory.
         // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE 
         // must be the highest numbers in the following order.
-        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 17,   // (Cachable load/store) Write data to a cache.
-        MSHR_PHASE_MISS_HANDLING_COMPLETE = 18
+        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST = 18,   // (Cachable load/store) Write data to a cache.
+        MSHR_PHASE_MISS_HANDLING_COMPLETE = 19
 
     } MSHR_Phase;
 
