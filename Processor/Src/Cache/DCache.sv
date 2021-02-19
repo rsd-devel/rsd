@@ -1280,12 +1280,10 @@ module DCacheMissHandler(
                     // Access the cache array.
                     port.mshrCacheReq[i] = TRUE;
                     port.mshrCacheMuxIn[i].indexIn = mshr[i].flushIndex;
-                    port.mshrCacheMuxIn[i].tagValidIn = FALSE;
-                    port.mshrCacheMuxIn[i].tagWE = TRUE;
-                    port.mshrCacheMuxIn[i].dataWE = TRUE;
+                    port.mshrCacheMuxIn[i].tagWE = FALSE;
+                    port.mshrCacheMuxIn[i].dataWE = FALSE;
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
-                    port.mshrCacheMuxIn[i].isFlushReq = TRUE;
 
                     nextMSHR[i].phase =
                         port.mshrCacheGrt[i] ?
@@ -1308,7 +1306,7 @@ module DCacheMissHandler(
                     else begin
                         nextMSHR[i].victimValid = FALSE;
                         // Skip receiving data and writing back.
-                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_INVALIDATE;
                     end
                 end
 
@@ -1325,7 +1323,7 @@ module DCacheMissHandler(
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
                     end
                     else begin
-                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_INVALIDATE;
                     end
                 end
 
@@ -1359,11 +1357,30 @@ module DCacheMissHandler(
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
                     end
                     else begin
-                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_INVALIDATE;
                     end
                 end
 
                 // FLUSH 6.
+                // Send a request to DCache to (1) get a victime line corresponding to flushIndex,
+                // and (2) subsequently reset the corresponding tag and data entry.
+                MSHR_PHASE_FLUSH_INVALIDATE: begin
+                    // Access the cache array.
+                    port.mshrCacheReq[i] = TRUE;
+                    port.mshrCacheMuxIn[i].indexIn = mshr[i].flushIndex;
+                    port.mshrCacheMuxIn[i].tagValidIn = FALSE;
+                    port.mshrCacheMuxIn[i].tagWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+                    port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+                    port.mshrCacheMuxIn[i].isFlushReq = TRUE;
+
+                    nextMSHR[i].phase =
+                        port.mshrCacheGrt[i] ?
+                        MSHR_PHASE_FLUSH_CHECK : MSHR_PHASE_FLUSH_INVALIDATE;
+                end
+
+                // FLUSH 7.
                 // Ckeck if all cache lines have been written back.
                 MSHR_PHASE_FLUSH_CHECK: begin
                     if (&(mshr[i].flushIndex)) begin
