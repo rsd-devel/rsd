@@ -144,8 +144,8 @@ module Gshare(
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Predict directions (Check the MSB).
-            brPredTaken[i] =
-                phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+            brPredTaken[i] = next.btbHit[i] && 
+                (phtRV[i][PHT_ENTRY_WIDTH - 1] || !next.readIsCondBr[i]);
 
             // Assert BTB is hit, ICache line is valid, and conditional branch.
             updateHistory[i] = next.btbHit[i] && next.readIsCondBr[i] && 
