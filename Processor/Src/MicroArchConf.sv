@@ -13,6 +13,7 @@ localparam CONF_DECODE_WIDTH = CONF_FETCH_WIDTH;      // Decode width
 localparam CONF_RENAME_WIDTH = CONF_FETCH_WIDTH;      // Rename width
 localparam CONF_DISPATCH_WIDTH = CONF_FETCH_WIDTH;    // Dispatch width
 
+// The number of return-address-stack entries
 localparam CONF_RAS_ENTRY_NUM = 4;
 
 // ---- Commit
