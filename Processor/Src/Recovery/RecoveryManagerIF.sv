@@ -11,6 +11,7 @@ import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
 import LoadStoreUnitTypes::*;
+import FetchUnitTypes::*;
 
 interface RecoveryManagerIF( input logic clk, rst );
 
@@ -94,6 +95,11 @@ interface RecoveryManagerIF( input logic clk, rst );
     // Why recovery is caused
     ExecutionState recoveryCauseFromCommitStage;
 
+    // Executed branch results for updating a branch predictor.
+    // This signal is written back from a write back stage.
+    BranchResult brResult[ INT_ISSUE_WIDTH ];
+    BranchGlobalHistoryPath recoveredBrHistoryFromRename;
+
     modport RecoveryManager(
     input
         clk,
@@ -128,7 +134,8 @@ interface RecoveryManagerIF( input logic clk, rst );
     modport RenameStage(
     output
         recoverFromRename,
-        recoveredPC_FromRename
+        recoveredPC_FromRename,
+        recoveredBrHistoryFromRename
     );
 
     modport CommitStage(
@@ -149,7 +156,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
         recoverFromRename,
-        recoveredPC_FromRename
+        recoveredPC_FromRename,
+        recoveredBrHistoryFromRename
     );
 
     modport RenameLogic(

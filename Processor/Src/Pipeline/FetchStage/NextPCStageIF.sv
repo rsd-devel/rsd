@@ -23,6 +23,9 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
     // Executed branch results for updating a branch predictor.
     // This signal is written back from a write back stage.
     BranchResult brResult[ INT_ISSUE_WIDTH ];
+    logic recoverFromRename;
+    BranchGlobalHistoryPath recoveredBrHistoryFromRename;
+
 
     // Interrupt
     PC_Path interruptAddrIn;
@@ -54,7 +57,9 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
         pcIn,
         predNextPC,
         icNextReadAddrIn,
-        nextStage
+        nextStage,
+        recoverFromRename,
+        recoveredBrHistoryFromRename
     );
 
     modport NextStage(
@@ -83,7 +88,9 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
         rst,
         rstStart,
         predNextPC,
-        brResult
+        brResult,
+        recoverFromRename,
+        recoveredBrHistoryFromRename
     );
 
     modport ICache(

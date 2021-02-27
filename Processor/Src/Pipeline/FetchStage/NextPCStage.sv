@@ -91,6 +91,9 @@ module NextPCStage(
     logic stall, clear;
     logic regStall, beginStall;
     logic writePC_FromOuter;
+    logic recoverFromRename;
+    BranchGlobalHistoryPath recoveredBrHistoryFromRename;
+
     always_ff @(posedge port.clk) begin
         if (port.rst) begin
             regStall <= FALSE;
@@ -142,6 +145,8 @@ module NextPCStage(
     // Branch Prediction
     //
     always_comb begin
+        recoverFromRename = FALSE;
+        recoveredBrHistoryFromRename = '0;
 
         // Decide the address to input to the branch predictor
         if (recovery.toRecoveryPhase) begin
@@ -152,6 +157,8 @@ module NextPCStage(
         else if (recovery.recoverFromRename) begin
             // Detect branch misprediction in decode stage
             predNextPC = recovery.recoveredPC_FromRename;
+            recoverFromRename = TRUE;
+            recoveredBrHistoryFromRename = recovery.recoveredBrHistoryFromRename;
         end
         else begin
             // Use current PC
@@ -173,6 +180,8 @@ module NextPCStage(
         end
         // To Branch predictor
         port.predNextPC = predNextPC;
+        port.recoverFromRename = recoverFromRename;
+        port.recoveredBrHistoryFromRename = recoveredBrHistoryFromRename;
     end
 
 

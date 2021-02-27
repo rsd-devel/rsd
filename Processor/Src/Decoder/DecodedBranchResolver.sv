@@ -30,7 +30,8 @@ output
     logic insnFlushTriggering[DECODE_WIDTH],
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
-    PC_Path recoveredPC
+    PC_Path recoveredPC,
+    BranchGlobalHistoryPath recoveredBrHistory
 );
     // Return address stack.
     parameter RAS_ENTRY_NUM = CONF_RAS_ENTRY_NUM;
@@ -95,6 +96,7 @@ output
         // Initialize
         flushTriggered = FALSE;
         recoveredPC = '0;
+        recoveredBrHistory = '0;
 
         pushRAS = FALSE;
         popRAS = FALSE;
@@ -219,6 +221,7 @@ output
             end
         end
         recoveredPC = decodedPC[addrCheckLane];
+        recoveredBrHistory = brPredIn[addrCheckLane].globalHistory;
 
         // Update the RAS.
         nextRAS = nextPC[addrCheckLane];

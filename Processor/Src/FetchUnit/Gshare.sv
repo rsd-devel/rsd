@@ -180,6 +180,11 @@ module Gshare(
             );
         end
 
+        if (port.recoverFromRename) begin
+            nextBrGlobalHistory = port.recoveredBrHistoryFromRename;
+        end
+
+
         updatePht = FALSE;
         pushPhtQueue = FALSE;
 
@@ -193,7 +198,7 @@ module Gshare(
                 updatePht |= phtWE[i];
             end
 
-            mispred = port.brResult[i].mispred && port.brResult[i].valid;
+            mispred[i] = port.brResult[i].mispred && port.brResult[i].valid;
 
             // Update PHT's counter (saturated up/down counter).
             if (port.brResult[i].execTaken) begin
@@ -206,7 +211,7 @@ module Gshare(
             end
 
             // When miss prediction is occured, recovory history.
-            if (mispred) begin
+            if (mispred[i]) begin
                 if (port.brResult[i].isCondBr) begin
                     nextBrGlobalHistory = 
                         (port.brResult[i].globalHistory << 1) | port.brResult[i].execTaken;

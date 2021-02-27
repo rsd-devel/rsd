@@ -9,6 +9,7 @@
 import BasicTypes::*;
 import PipelineTypes::*;
 import MicroOpTypes::*;
+import FetchUnitTypes::*;
 
 interface DecodeStageIF( input logic clk, rst );
 
@@ -16,6 +17,7 @@ interface DecodeStageIF( input logic clk, rst );
     RenameStageRegPath nextStage[ DECODE_WIDTH ];
     logic nextFlush;
     AddrPath nextRecoveredPC;
+    BranchGlobalHistoryPath nextRecoveredBrHistory;
     
     modport ThisStage(
     input 
@@ -24,14 +26,16 @@ interface DecodeStageIF( input logic clk, rst );
     output 
         nextStage,
         nextFlush,
-        nextRecoveredPC
+        nextRecoveredPC,
+        nextRecoveredBrHistory
     );
     
     modport NextStage(
     input
         nextStage,
         nextFlush,
-        nextRecoveredPC
+        nextRecoveredPC,
+        nextRecoveredBrHistory
     );
     
 endinterface : DecodeStageIF
