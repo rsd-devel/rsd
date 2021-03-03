@@ -49,7 +49,8 @@ module Gshare(
     BranchGlobalHistoryPath brGlobalHistory [ FETCH_WIDTH ];
 
     // assert when misprediction occured.
-    logic mispred;
+    logic mispred[INT_ISSUE_WIDTH], regMispred[INT_ISSUE_WIDTH];
+    logic mispredInBeforeCycle;
 
     logic pushPhtQueue, popPhtQueue;
     logic full, empty;
@@ -109,9 +110,13 @@ module Gshare(
         // update Branch Global History.
         if (port.rst) begin
             regBrGlobalHistory <= '0;
+            for (int i = 0; i < FETCH_WIDTH; i++) begin
+                regMispred[i] <= '0;
+            end
         end
         else begin
             regBrGlobalHistory <= nextBrGlobalHistory;
+            regMispred <= mispred;
         end
 
         // Push Pht Queue
@@ -142,6 +147,13 @@ module Gshare(
             updateHistory[i] = FALSE;
         end
 
+        mispredInBeforeCycle = FALSE;
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            if (regMispred[i]) begin
+                mispredInBeforeCycle = TRUE;
+            end
+        end
+
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Predict directions (Check the MSB).
             brPredTaken[i] = next.btbHit[i] && 
@@ -149,7 +161,7 @@ module Gshare(
 
             // Assert BTB is hit, ICache line is valid, and conditional branch.
             updateHistory[i] = next.btbHit[i] && next.readIsCondBr[i] && 
-                next.updateBrHistory[i];
+                next.updateBrHistory[i] && !mispredInBeforeCycle;
 
             // Generate next brGlobalHistory.
             if (updateHistory[i]) begin
@@ -161,6 +173,9 @@ module Gshare(
                     // If brPred is taken, next instruction don't be executed.
                     break;
                 end
+            end
+            if (next.btbHit[i]) begin
+                break;
             end
         end
         
@@ -180,8 +195,8 @@ module Gshare(
             );
         end
 
-        if (port.recoverFromRename) begin
-            nextBrGlobalHistory = port.recoveredBrHistoryFromRename;
+        if (port.recoverBrHistory) begin
+            nextBrGlobalHistory = port.recoveredBrHistory;
         end
 
 
