@@ -12,7 +12,7 @@ import FetchUnitTypes::*;
 
 module BTB(
     NextPCStageIF.BTB port,
-    FetchStageIF.BTB next
+    FetchStageIF.BTB fetch
 );
 
     // BTB access
@@ -176,9 +176,9 @@ module BTB(
             popBtbQueue = FALSE;
         end
 
-        next.readIsCondBr = readIsCondBr;
-        next.btbOut = btbOut;
-        next.btbHit = btbHit;
+        fetch.readIsCondBr = readIsCondBr;
+        fetch.btbOut = btbOut;
+        fetch.btbHit = btbHit;
         
     end
 

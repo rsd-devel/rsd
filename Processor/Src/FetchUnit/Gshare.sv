@@ -23,7 +23,7 @@ endfunction
 
 module Gshare(
     NextPCStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next,
+    FetchStageIF.BranchPredictor fetch,
     ControllerIF.BranchPredictor ctrl
 );
 
@@ -156,12 +156,12 @@ module Gshare(
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Predict directions (Check the MSB).
-            brPredTaken[i] = next.btbHit[i] && 
-                (phtRV[i][PHT_ENTRY_WIDTH - 1] || !next.readIsCondBr[i]);
+            brPredTaken[i] = fetch.btbHit[i] && 
+                (phtRV[i][PHT_ENTRY_WIDTH - 1] || !fetch.readIsCondBr[i]);
 
             // Assert BTB is hit, ICache line is valid, and conditional branch.
-            updateHistory[i] = next.btbHit[i] && next.readIsCondBr[i] && 
-                next.updateBrHistory[i] && !mispredInBeforeCycle;
+            updateHistory[i] = fetch.btbHit[i] && fetch.readIsCondBr[i] && 
+                fetch.updateBrHistory[i] && !mispredInBeforeCycle;
 
             // Generate next brGlobalHistory.
             if (updateHistory[i]) begin
@@ -174,14 +174,14 @@ module Gshare(
                     break;
                 end
             end
-            if (next.btbHit[i]) begin
+            if (fetch.btbHit[i]) begin
                 break;
             end
         end
         
-        next.phtPrevValue = phtRV;
-        next.brPredTaken = brPredTaken;
-        next.brGlobalHistory = brGlobalHistory;
+        fetch.phtPrevValue = phtRV;
+        fetch.brPredTaken = brPredTaken;
+        fetch.brGlobalHistory = brGlobalHistory;
 
         // Discard the result of previous cycle
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin

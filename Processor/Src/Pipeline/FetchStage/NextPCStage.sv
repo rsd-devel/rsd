@@ -21,7 +21,7 @@ endfunction
 
 module NextPCStage(
     NextPCStageIF.ThisStage port,
-    FetchStageIF.NextPCStage next,
+    FetchStageIF.NextPCStage fetch,
     RecoveryManagerIF.NextPCStage recovery,
     ControllerIF.NextPCStage ctrl,
     DebugIF.NextPCStage debug
@@ -124,8 +124,8 @@ module NextPCStage(
         else begin
             writePC_FromOuter = FALSE;
             for (int i = 0; i < FETCH_WIDTH; i++) begin
-                if (!regStall && next.fetchStageIsValid[i] && 
-                        next.btbHit[i]) begin
+                if (!regStall && fetch.fetchStageIsValid[i] && 
+                        fetch.btbHit[i]) begin
                     writePC_FromOuter = TRUE;
                 end
             end
@@ -169,11 +169,11 @@ module NextPCStage(
                 // If BTB is hit, the instruction is predicted to be a branch. 
                 // In addition, if the branch is predicted as Taken, 
                 // the address read from BTB is used as next PC.
-                if (!regStall && next.fetchStageIsValid[i] && 
-                        next.btbHit[i]/* && next.brPredTaken[i]*/) begin
+                if (!regStall && fetch.fetchStageIsValid[i] && 
+                        fetch.btbHit[i]/* && fetch.brPredTaken[i]*/) begin
                     // Use PC from BTB
-                    predNextPC = next.brPredTaken[i] ? 
-                        next.btbOut[i] : next.fetchStagePC[i]+INSN_BYTE_WIDTH;
+                    predNextPC = fetch.brPredTaken[i] ? 
+                        fetch.btbOut[i] : fetch.fetchStagePC[i]+INSN_BYTE_WIDTH;
                     break;
                 end
             end
@@ -242,9 +242,9 @@ module NextPCStage(
     AddrPath fetchAddr;
     always_comb begin
         // Decide input address of I-cache
-        if (next.fetchStageIsValid[0] && stall) begin
+        if (fetch.fetchStageIsValid[0] && stall) begin
             // Use the PC of the IF stage
-            fetchAddr = ToAddrFromPC(next.fetchStagePC[0]);
+            fetchAddr = ToAddrFromPC(fetch.fetchStagePC[0]);
         end
         else begin
             // Use the PC of this stage

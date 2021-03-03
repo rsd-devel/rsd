@@ -20,7 +20,7 @@ endfunction
 
 module Bimodal(
     NextPCStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next
+    FetchStageIF.BranchPredictor fetch
 );
 
     PC_Path pcIn;
@@ -111,12 +111,12 @@ module Bimodal(
         pcIn = port.predNextPC;
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            next.phtPrevValue[i] = phtRV[i];
+            fetch.phtPrevValue[i] = phtRV[i];
 
             // Predict directions (Check the MSB).
             brPredTaken =
                 phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
-            next.brPredTaken[i] = brPredTaken;
+            fetch.brPredTaken[i] = brPredTaken;
 
             if (brPredTaken) begin
                 // If brPred is taken, next instruction don't be executed.
