@@ -115,7 +115,7 @@ module Bimodal(
 
             // Predict directions (Check the MSB).
             brPredTaken =
-                phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+                phtRV[i][PHT_ENTRY_WIDTH - 1] && fetch.btbHit[i];
             fetch.brPredTaken[i] = brPredTaken;
 
             if (brPredTaken) begin

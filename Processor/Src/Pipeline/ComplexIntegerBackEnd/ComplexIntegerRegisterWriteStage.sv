@@ -48,7 +48,7 @@ module ComplexIntegerRegisterWriteStage(
     end
 
     ActiveListWriteData alWriteData[COMPLEX_ISSUE_WIDTH];
-    IntIssueQueueEntry iqData[COMPLEX_ISSUE_WIDTH];
+    ComplexIssueQueueEntry iqData[COMPLEX_ISSUE_WIDTH];
     logic stall, clear;
     logic flush[ COMPLEX_ISSUE_WIDTH ];
     logic update [ COMPLEX_ISSUE_WIDTH ];
