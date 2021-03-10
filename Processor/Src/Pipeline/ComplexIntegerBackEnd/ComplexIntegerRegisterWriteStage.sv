@@ -98,6 +98,8 @@ module ComplexIntegerRegisterWriteStage(
             alWriteData[i].dataAddr = '0;
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = FALSE;
+            alWriteData[i].brHistory = iqData[i].brHistory;
+
 
             // ExecState
             if ( update[i] && regValid[i] ) begin

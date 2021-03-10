@@ -153,6 +153,8 @@ module NextPCStage(
             // Branch misprediction or an exception etc. is detected
             // Refetch instruction specified by Rw, Cm stage
             predNextPC = recovery.recoveredPC_FromRwCommit;
+            recoverBrHistory = TRUE;
+            recoveredBrHistory = recovery.recoveredBrHistoryFromRwCommit;
         end
         else if (recovery.recoverFromRename) begin
             // Detect branch misprediction in decode stage

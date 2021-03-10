@@ -100,6 +100,10 @@ interface RecoveryManagerIF( input logic clk, rst );
     BranchResult brResult[ INT_ISSUE_WIDTH ];
     BranchGlobalHistoryPath recoveredBrHistoryFromRename;
 
+    BranchGlobalHistoryPath recoveredBrHistoryFromCommitStage;
+    BranchGlobalHistoryPath recoveredBrHistoryFromRwStage;
+    BranchGlobalHistoryPath recoveredBrHistoryFromRwCommit;
+
     modport RecoveryManager(
     input
         clk,
@@ -118,10 +122,13 @@ interface RecoveryManagerIF( input logic clk, rst );
         notIssued,
         flushIQ_Entry,
         recoveryCauseFromCommitStage,
+        recoveredBrHistoryFromCommitStage,
+        recoveredBrHistoryFromRwStage,
     output
         phase,
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
+        recoveredBrHistoryFromRwCommit,
         toCommitPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
@@ -155,6 +162,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         toCommitPhase,
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
+        recoveredBrHistoryFromRwCommit,
         recoverFromRename,
         recoveredPC_FromRename,
         recoveredBrHistoryFromRename
@@ -365,7 +373,9 @@ interface RecoveryManagerIF( input logic clk, rst );
         refetchTypeFromRwStage,
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
-        faultingDataAddr
+        faultingDataAddr,
+        recoveredBrHistoryFromCommitStage,
+        recoveredBrHistoryFromRwStage
     );
 
     modport InterruptController(

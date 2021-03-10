@@ -224,17 +224,6 @@ module Gshare(
                 phtWV[i] = (phtPrevValue[i] == 0) ? 
                     0 : phtPrevValue[i] - 1;
             end
-
-            // When miss prediction is occured, recovory history.
-            if (mispred[i]) begin
-                if (port.brResult[i].isCondBr) begin
-                    nextBrGlobalHistory = 
-                        (port.brResult[i].globalHistory << 1) | port.brResult[i].execTaken;
-                end
-                else begin
-                    nextBrGlobalHistory = port.brResult[i].globalHistory;
-                end
-            end
         end
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
