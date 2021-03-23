@@ -114,6 +114,7 @@ module BTB(
             readIsCondBr[i] = btbRV[i].isCondBr;
         end
 
+        // Write request from IntEx Stage
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             btbWE[i] = port.brResult[i].valid && port.brResult[i].execTaken;
             btbWA[i] = ToBTB_Index(port.brResult[i].brAddr);
@@ -125,15 +126,16 @@ module BTB(
 
         pushBtbQueue = FALSE;
         // check whether bank conflict occurs
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            // When branch instruction is executed, update BTB.
-            if (i > 0 && btbWE[i]) begin
+        for (int i = 1; i < INT_ISSUE_WIDTH; i++) begin
+            if (btbWE[i]) begin
                 for (int j = 0; j < i; j++) begin
-                    if (!btbWE[j]) begin
+                    if (!btbWE[j]) begin // check only valid write
                         continue;
                     end
 
                     if (IsBankConflict(btbWA[i], btbWA[j])) begin
+                        // Detect bank conflict
+                        // push this write access to queue
                         btbWE[i] = FALSE;
                         pushBtbQueue = TRUE;
                         btbQueueWV.wv = btbWV[i];
@@ -144,24 +146,29 @@ module BTB(
             end
         end
 
-        // Pop BTB Queue
+        // Write request from BTB Queue
         popBtbQueue = FALSE;
         if (!empty) begin
             for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin : outer
+                // Find idle write port 
                 if (btbWE[i]) begin
                     continue;
                 end
 
+                // Check whether bank conflict occurs
                 for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
                     if (i == j || !btbWE[j]) begin
                         continue;
                     end
 
                     if (IsBankConflict(btbQueue[headPtr].wa, btbWA[j])) begin
+                        // Detect bank conflict
+                        // skip popping BTB queue
                         disable outer;
                     end
                 end
 
+                // Write request from BTB queue
                 popBtbQueue = TRUE;
                 btbWE[i] = TRUE;
                 btbWA[i] = btbQueue[headPtr].wa;

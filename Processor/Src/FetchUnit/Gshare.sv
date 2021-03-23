@@ -166,7 +166,7 @@ module Gshare(
         fetch.brPredTaken = brPredTaken;
         fetch.brGlobalHistory = brGlobalHistory;
 
-        // Discard the result of previous cycle
+        // Write request from IntEx Stage
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             phtWE[i] = port.brResult[i].valid;
             phtWA[i] = ToPHT_Index_Global(
@@ -202,15 +202,17 @@ module Gshare(
 
         pushPhtQueue = FALSE;
         // check whether bank conflict occurs
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+        for (int i = 1; i < INT_ISSUE_WIDTH; i++) begin
             // When branch instruction is executed, update PHT.
-            if (i > 0 && port.brResult[i].valid) begin
+            if (phtWE[i]) begin
                 for (int j = 0; j < i; j++) begin
-                    if (!port.brResult[j].valid) begin
+                    if (!phtWE[j]) begin
                         continue;
                     end
 
                     if (IsBankConflict(phtWA[i], phtWA[j])) begin
+                        // Detect bank conflict
+                        // push this write access to queue
                         phtWE[i] = FALSE;
                         pushPhtQueue = TRUE;
                         phtQueueWV.wv = phtWV[i];
@@ -221,27 +223,34 @@ module Gshare(
             end
         end
 
-        // Pop PHT Queue
+        // Write request from PHT Queue
         popPhtQueue = FALSE;
         if (!empty) begin
             for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin : outer
+                // Find idle write port 
                 if (phtWE[i]) begin
                     continue;
                 end
+
+                // Check whether bank conflict occurs
                 for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
                     if (i == j || !phtWE[j]) begin
                         continue;
                     end
 
                     if (IsBankConflict(phtQueue[headPtr].wa, phtWA[j])) begin
+                        // Detect bank conflict
+                        // skip popping PHT queue
                         disable outer;
                     end
                 end
 
+                // Write request from PHT queue
                 popPhtQueue = TRUE;
                 phtWE[i] = TRUE;
                 phtWA[i] = phtQueue[headPtr].wa;
                 phtWV[i] = phtQueue[headPtr].wv;
+                disable outer;
             end
         end
 
