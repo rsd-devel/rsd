@@ -10,22 +10,33 @@ import BasicTypes::*;
 import MemoryMapTypes::*;
 import FetchUnitTypes::*;
 
-function automatic PHT_IndexPath ToPHT_Index_Global(AddrPath addr, BranchGlobalHistoryPath gh);
-    PHT_IndexPath phtIndex;
-    phtIndex =
-        addr[
-            PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
-            INSN_ADDR_BIT_WIDTH
-        ];
-    phtIndex[PHT_ENTRY_NUM_BIT_WIDTH - 1 : PHT_ENTRY_NUM_BIT_WIDTH - BRANCH_GLOBAL_HISTORY_BIT_WIDTH] ^= gh;
-    return phtIndex;
-endfunction
-
 module Gshare(
     NextPCStageIF.BranchPredictor port,
     FetchStageIF.BranchPredictor fetch,
     ControllerIF.BranchPredictor ctrl
 );
+
+    function automatic PHT_IndexPath ToPHT_Index_Global(AddrPath addr, BranchGlobalHistoryPath gh);
+        PHT_IndexPath phtIndex;
+        phtIndex =
+            addr[
+                PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
+                INSN_ADDR_BIT_WIDTH
+            ];
+        phtIndex[PHT_ENTRY_NUM_BIT_WIDTH - 1 : PHT_ENTRY_NUM_BIT_WIDTH - BRANCH_GLOBAL_HISTORY_BIT_WIDTH] ^= gh;
+        return phtIndex;
+    endfunction
+
+    function automatic logic HasBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
+        localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
+        localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
+        if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
+            return TRUE;
+        end
+        else begin
+            return FALSE;
+        end
+    endfunction
 
     logic stall, clear;
     PC_Path pcIn;
@@ -57,9 +68,7 @@ module Gshare(
     // Queue for multibank pht
     PhtQueueEntry phtQueue[PHT_QUEUE_SIZE];
     PhtQueuePointerPath headPtr, tailPtr;
-
-    // Check for write number in 1cycle.
-    logic updatePht;
+    PhtQueueEntry phtQueueWV;
 
     // the body of PHT.
     generate
@@ -118,8 +127,7 @@ module Gshare(
 
         // Push Pht Queue
         if (pushPhtQueue) begin
-            phtQueue[tailPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
-            phtQueue[tailPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
+            phtQueue[tailPtr] <= phtQueueWV;
         end
     end
 
@@ -171,39 +179,14 @@ module Gshare(
 
         // Discard the result of previous cycle
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            phtWE[i] = FALSE;
-            phtWV[i] = '0;
-            // Counter's value.
-            phtPrevValue[i] = port.brResult[i].phtPrevValue; 
+            phtWE[i] = port.brResult[i].valid;
             phtWA[i] = ToPHT_Index_Global(
                 port.brResult[i].brAddr,
                 port.brResult[i].globalHistory
             );
-        end
 
-        if (port.recoverBrHistory) begin
-            nextBrGlobalHistory = port.recoveredBrHistory;
-        end
-
-
-        updatePht = FALSE;
-        pushPhtQueue = FALSE;
-        hasMispred = FALSE;
-
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            // When branch instruction is executed, update PHT.
-            if (updatePht) begin
-                pushPhtQueue = port.brResult[i].valid;
-            end
-            else begin
-                phtWE[i] = port.brResult[i].valid;
-                updatePht |= phtWE[i];
-            end
-
-            if (port.brResult[i].mispred && port.brResult[i].valid) begin
-                hasMispred = TRUE;
-            end
-
+            // Counter's value.
+            phtPrevValue[i] = port.brResult[i].phtPrevValue; 
             // Update PHT's counter (saturated up/down counter).
             if (port.brResult[i].execTaken) begin
                 phtWV[i] = (phtPrevValue[i] == PHT_ENTRY_MAX) ? 
@@ -215,6 +198,64 @@ module Gshare(
             end
         end
 
+        if (port.recoverBrHistory) begin
+            nextBrGlobalHistory = port.recoveredBrHistory;
+        end
+
+
+        hasMispred = FALSE;
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            if (port.brResult[i].mispred && port.brResult[i].valid) begin
+                hasMispred = TRUE;
+            end
+        end
+
+
+        pushPhtQueue = FALSE;
+        // check whether bank conflict occurs
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            // When branch instruction is executed, update PHT.
+            if (i > 0 && port.brResult[i].valid) begin
+                for (int j = 0; j < i; j++) begin
+                    if (!port.brResult[j].valid) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(phtWA[i], phtWA[j])) begin
+                        phtWE[i] = FALSE;
+                        pushPhtQueue = TRUE;
+                        phtQueueWV.wv = phtWV[i];
+                        phtQueueWV.wa = phtWA[i];
+                        break;
+                    end
+                end
+            end
+        end
+
+        // Pop PHT Queue
+        popPhtQueue = FALSE;
+        if (!empty) begin
+            for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin : outer
+                if (phtWE[i]) begin
+                    continue;
+                end
+                for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
+                    if (i == j || !phtWE[j]) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(phtQueue[headPtr].wa, phtWA[j])) begin
+                        disable outer;
+                    end
+                end
+
+                popPhtQueue = TRUE;
+                phtWE[i] = TRUE;
+                phtWA[i] = phtQueue[headPtr].wa;
+                phtWV[i] = phtQueue[headPtr].wv;
+            end
+        end
+
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Read PHT entry for next cycle (use PC ^ brGlobalHistory).
             phtRA[i] = ToPHT_Index_Global(
@@ -223,16 +264,6 @@ module Gshare(
             );
         end
 
-        // Pop PHT Queue
-        if (!empty && !updatePht) begin
-            popPhtQueue = TRUE;
-            phtWE[0] = TRUE;
-            phtWA[0] = phtQueue[headPtr].phtWA;
-            phtWV[0] = phtQueue[headPtr].phtWV;
-        end 
-        else begin
-            popPhtQueue = FALSE;
-        end
 
         // In reset sequence, the write port 0 is used for initializing, and 
         // the other write ports are disabled.

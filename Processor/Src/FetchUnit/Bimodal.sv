@@ -10,18 +10,29 @@ import BasicTypes::*;
 import MemoryMapTypes::*;
 import FetchUnitTypes::*;
 
-function automatic PHT_IndexPath ToPHT_Index_Local(PC_Path addr);
-    return
-        addr[
-            PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
-            INSN_ADDR_BIT_WIDTH
-        ];
-endfunction
-
 module Bimodal(
     NextPCStageIF.BranchPredictor port,
     FetchStageIF.BranchPredictor fetch
 );
+
+    function automatic PHT_IndexPath ToPHT_Index_Local(PC_Path addr);
+        return
+            addr[
+                PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
+                INSN_ADDR_BIT_WIDTH
+            ];
+    endfunction
+
+    function automatic logic HasBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
+        localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
+        localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
+        if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
+            return TRUE;
+        end
+        else begin
+            return FALSE;
+        end
+    endfunction
 
     PC_Path pcIn;
 
@@ -42,6 +53,7 @@ module Bimodal(
 
     PhtQueueEntry phtQueue[PHT_QUEUE_SIZE];
     PhtQueuePointerPath headPtr, tailPtr;
+    PhtQueueEntry phtQueueWV;
 
     logic updatePht;
 
@@ -93,8 +105,7 @@ module Bimodal(
     always_ff @(posedge port.clk) begin
         // Push Pht Queue
         if (pushPhtQueue) begin
-            phtQueue[tailPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
-            phtQueue[tailPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
+            phtQueue[tailPtr] <= phtQueueWV;
         end
     end
 
@@ -102,6 +113,11 @@ module Bimodal(
     always_comb begin
     
         pcIn = port.predNextPC;
+
+        for (int i = 0; i < FETCH_WIDTH; i++) begin
+            // Read PHT entry for next cycle (use PC).
+            phtRA[i] = ToPHT_Index_Local(pcIn + i*INSN_BYTE_WIDTH);
+        end
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             brPredTaken[i] = FALSE;
@@ -121,30 +137,12 @@ module Bimodal(
         end
         fetch.brPredTaken = brPredTaken;
 
-        // Negate first. (to discard the result of previous cycle)
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            phtWE[i] = FALSE;
-            updatePht = FALSE;
-            pushPhtQueue = FALSE;
-        end
-
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            // When branch instruction is executed, update PHT.
-            if (updatePht) begin
-                pushPhtQueue = port.brResult[i].valid;
-            end
-            else begin
-                phtWE[i] = port.brResult[i].valid;
-                updatePht |= phtWE[i];
-            end
-
+            phtWE[i] = port.brResult[i].valid;
             phtWA[i] = ToPHT_Index_Local(port.brResult[i].brAddr);
 
-            mispred = port.brResult[i].mispred && port.brResult[i].valid;
-            
             // Counter's value.
             phtPrevValue[i] = port.brResult[i].phtPrevValue; 
-            
             // Update PHT's counter (saturated up/down counter).
             if (port.brResult[i].execTaken) begin
                 phtWV[i] = (phtPrevValue[i] == PHT_ENTRY_MAX) ? 
@@ -154,28 +152,54 @@ module Bimodal(
                 phtWV[i] = (phtPrevValue[i] == 0) ? 
                     0 : phtPrevValue[i] - 1;
             end
+        end
 
-            // When miss prediction is occured, recovory history.
-            if (mispred) begin
-                break;
+        pushPhtQueue = FALSE;
+        // check whether bank conflict occurs
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            // When branch instruction is executed, update PHT.
+            if (i > 0 && port.brResult[i].valid) begin
+                for (int j = 0; j < i; j++) begin
+                    if (!phtWE[j]) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(phtWA[i], phtWA[j])) begin
+                        // $display("%d %d\n", phtWA[i], phtWA[j]);
+
+                        phtWE[i] = FALSE;
+                        pushPhtQueue = TRUE;
+                        phtQueueWV.wv = phtWV[i];
+                        phtQueueWV.wa = phtWA[i];
+                        break;
+                    end
+                end
             end
         end
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            // Read PHT entry for next cycle (use PC).
-            phtRA[i] = ToPHT_Index_Local(pcIn + i*INSN_BYTE_WIDTH);
-        end
-
-
         // Pop PHT Queue
-        if (!empty && !updatePht) begin
-            popPhtQueue = TRUE;
-            phtWE[0] = TRUE;
-            phtWA[0] = phtQueue[headPtr].phtWA;
-            phtWV[0] = phtQueue[headPtr].phtWV;
-        end 
-        else begin
-            popPhtQueue = FALSE;
+        popPhtQueue = FALSE;
+        if (!empty) begin
+            for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin : outer
+                if (phtWE[i]) begin
+                    continue;
+                end
+                for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
+                    if (i == j || !phtWE[j]) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(phtQueue[headPtr].wa, phtWA[j])) begin
+                        disable outer;
+                    end
+                end
+
+                popPhtQueue = TRUE;
+                phtWE[i] = TRUE;
+                phtWA[i] = phtQueue[headPtr].wa;
+                phtWV[i] = phtQueue[headPtr].wv;
+                disable outer;
+            end
         end
 
         // In reset sequence, the write port 0 is used for initializing, and 

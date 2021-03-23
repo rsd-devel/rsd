@@ -15,6 +15,17 @@ module BTB(
     FetchStageIF.BTB fetch
 );
 
+    function automatic logic HasBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
+        localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
+        localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
+        if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
+            return TRUE;
+        end
+        else begin
+            return FALSE;
+        end
+    endfunction
+
     // BTB access
     logic btbWE[INT_ISSUE_WIDTH];
     BTB_IndexPath btbWA[INT_ISSUE_WIDTH];
@@ -37,8 +48,7 @@ module BTB(
 
     BTBQueueEntry btbQueue[BTB_QUEUE_SIZE];
     BTBQueuePointerPath headPtr, tailPtr;
-
-    logic updateBtb;
+    BTBQueueEntry btbQueueWV;
 
     generate
         BlockMultiBankRAM #(
@@ -93,8 +103,7 @@ module BTB(
     always_ff @(posedge port.clk) begin
         // Push btb Queue
         if (pushBtbQueue) begin
-            btbQueue[tailPtr].btbWA <= btbWA[INT_ISSUE_WIDTH-1];
-            btbQueue[tailPtr].btbWV <= btbWV[INT_ISSUE_WIDTH-1];
+            btbQueue[tailPtr] <= btbQueueWV;
         end 
     end
 
@@ -117,22 +126,7 @@ module BTB(
         end
 
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            btbWE[i] = FALSE;
-        end
-        updateBtb = FALSE;
-        pushBtbQueue = FALSE;
-
-        // Write to BTB.
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            // Make BTB entry when branch is Taken.
-            if (updateBtb) begin
-                pushBtbQueue = port.brResult[i].valid && port.brResult[i].execTaken;
-            end
-            else begin
-                btbWE[i] = port.brResult[i].valid && port.brResult[i].execTaken;
-                updateBtb |= btbWE[i];
-            end
-
+            btbWE[i] = port.brResult[i].valid && port.brResult[i].execTaken;
             btbWA[i] = ToBTB_Index(port.brResult[i].brAddr);
             btbWV[i].tag = ToBTB_Tag(port.brResult[i].brAddr);
             btbWV[i].data = ToBTB_Addr(port.brResult[i].nextAddr);
@@ -140,15 +134,50 @@ module BTB(
             btbWV[i].isCondBr = port.brResult[i].isCondBr;
         end
 
-        // Pop btb Queue
-        if (!empty && !updateBtb) begin
-            popBtbQueue = TRUE;
-            btbWE[0] = TRUE;
-            btbWA[0] = btbQueue[headPtr].btbWA;
-            btbWV[0] = btbQueue[headPtr].btbWV;
-        end 
-        else begin
-            popBtbQueue = FALSE;
+        pushBtbQueue = FALSE;
+        // check whether bank conflict occurs
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            // When branch instruction is executed, update BTB.
+            if (i > 0 && btbWE[i]) begin
+                for (int j = 0; j < i; j++) begin
+                    if (!btbWE[j]) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(btbWA[i], btbWA[j])) begin
+                        btbWE[i] = FALSE;
+                        pushBtbQueue = TRUE;
+                        btbQueueWV.wv = btbWV[i];
+                        btbQueueWV.wa = btbWA[i];
+                        break;
+                    end
+                end
+            end
+        end
+
+        // Pop BTB Queue
+        popBtbQueue = FALSE;
+        if (!empty) begin
+            for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin : outer
+                if (btbWE[i]) begin
+                    continue;
+                end
+
+                for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
+                    if (i == j || !btbWE[j]) begin
+                        continue;
+                    end
+
+                    if (HasBankConflict(btbQueue[headPtr].wa, btbWA[j])) begin
+                        disable outer;
+                    end
+                end
+
+                popBtbQueue = TRUE;
+                btbWE[i] = TRUE;
+                btbWA[i] = btbQueue[headPtr].wa;
+                btbWV[i] = btbQueue[headPtr].wv;
+            end
         end
 
         
