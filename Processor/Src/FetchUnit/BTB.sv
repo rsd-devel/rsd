@@ -92,11 +92,7 @@ module BTB(
 
     always_ff @(posedge port.clk) begin
         // Push btb Queue
-        if (port.rst) begin
-            btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWA <= '0;
-            btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWV <= '0;
-        end
-        else if (pushBtbQueue) begin
+        if (pushBtbQueue) begin
             btbQueue[tailPtr].btbWA <= btbWA[INT_ISSUE_WIDTH-1];
             btbQueue[tailPtr].btbWV <= btbWV[INT_ISSUE_WIDTH-1];
         end 
