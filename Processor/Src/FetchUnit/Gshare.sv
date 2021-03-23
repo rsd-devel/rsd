@@ -27,17 +27,6 @@ module Gshare(
         return phtIndex;
     endfunction
 
-    function automatic logic HasBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
-        localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
-        localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
-        if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
-            return TRUE;
-        end
-        else begin
-            return FALSE;
-        end
-    endfunction
-
     logic stall, clear;
     PC_Path pcIn;
 
@@ -221,7 +210,7 @@ module Gshare(
                         continue;
                     end
 
-                    if (HasBankConflict(phtWA[i], phtWA[j])) begin
+                    if (IsBankConflict(phtWA[i], phtWA[j])) begin
                         phtWE[i] = FALSE;
                         pushPhtQueue = TRUE;
                         phtQueueWV.wv = phtWV[i];
@@ -244,7 +233,7 @@ module Gshare(
                         continue;
                     end
 
-                    if (HasBankConflict(phtQueue[headPtr].wa, phtWA[j])) begin
+                    if (IsBankConflict(phtQueue[headPtr].wa, phtWA[j])) begin
                         disable outer;
                     end
                 end

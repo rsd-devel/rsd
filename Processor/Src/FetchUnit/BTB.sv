@@ -15,17 +15,6 @@ module BTB(
     FetchStageIF.BTB fetch
 );
 
-    function automatic logic HasBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
-        localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
-        localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
-        if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
-            return TRUE;
-        end
-        else begin
-            return FALSE;
-        end
-    endfunction
-
     // BTB access
     logic btbWE[INT_ISSUE_WIDTH];
     BTB_IndexPath btbWA[INT_ISSUE_WIDTH];
@@ -144,7 +133,7 @@ module BTB(
                         continue;
                     end
 
-                    if (HasBankConflict(btbWA[i], btbWA[j])) begin
+                    if (IsBankConflict(btbWA[i], btbWA[j])) begin
                         btbWE[i] = FALSE;
                         pushBtbQueue = TRUE;
                         btbQueueWV.wv = btbWV[i];
@@ -168,7 +157,7 @@ module BTB(
                         continue;
                     end
 
-                    if (HasBankConflict(btbQueue[headPtr].wa, btbWA[j])) begin
+                    if (IsBankConflict(btbQueue[headPtr].wa, btbWA[j])) begin
                         disable outer;
                     end
                 end

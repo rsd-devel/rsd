@@ -115,6 +115,17 @@ typedef struct packed // struct PhtQueueEntry
 } PhtQueueEntry;
 
 
+function automatic logic IsBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
+    localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
+    localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
+    if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
+        return TRUE;
+    end
+    else begin
+        return FALSE;
+    end
+endfunction
+
 //
 // Result/prediction
 //
