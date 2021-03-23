@@ -25,7 +25,7 @@ module Bimodal(
 
     PC_Path pcIn;
 
-    logic brPredTaken;
+    logic brPredTaken[FETCH_WIDTH];
 
     // PHT control logic
     logic phtWE[INT_ISSUE_WIDTH];
@@ -36,9 +36,6 @@ module Bimodal(
     // Read port need for branch predict and update counter.
     PHT_IndexPath phtRA[FETCH_WIDTH];
     PHT_EntryPath phtRV[FETCH_WIDTH];
-
-    // assert when misprediction occured.
-    logic mispred;
 
     logic pushPhtQueue, popPhtQueue;
     logic full, empty;
@@ -107,18 +104,22 @@ module Bimodal(
         pcIn = port.predNextPC;
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
+            brPredTaken[i] = FALSE;
+        end
+
+        for (int i = 0; i < FETCH_WIDTH; i++) begin
             fetch.phtPrevValue[i] = phtRV[i];
 
             // Predict directions (Check the MSB).
-            brPredTaken =
+            brPredTaken[i] =
                 phtRV[i][PHT_ENTRY_WIDTH - 1] && fetch.btbHit[i];
-            fetch.brPredTaken[i] = brPredTaken;
 
-            if (brPredTaken) begin
+            if (brPredTaken[i]) begin
                 // If brPred is taken, next instruction don't be executed.
                 break;
             end
         end
+        fetch.brPredTaken = brPredTaken;
 
         // Negate first. (to discard the result of previous cycle)
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
