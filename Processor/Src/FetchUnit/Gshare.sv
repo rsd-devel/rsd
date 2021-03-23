@@ -49,8 +49,7 @@ module Gshare(
     BranchGlobalHistoryPath brGlobalHistory [ FETCH_WIDTH ];
 
     // assert when misprediction occured.
-    logic mispred[INT_ISSUE_WIDTH], regMispred[INT_ISSUE_WIDTH];
-    logic mispredInBeforeCycle;
+    logic hasMispred, regHasMispred;
 
     logic pushPhtQueue, popPhtQueue;
     logic full, empty;
@@ -110,13 +109,11 @@ module Gshare(
         // update Branch Global History.
         if (port.rst) begin
             regBrGlobalHistory <= '0;
-            for (int i = 0; i < FETCH_WIDTH; i++) begin
-                regMispred[i] <= '0;
-            end
+            regHasMispred <= '0;
         end
         else begin
             regBrGlobalHistory <= nextBrGlobalHistory;
-            regMispred <= mispred;
+            regHasMispred <= hasMispred;
         end
 
         // Push Pht Queue
@@ -143,13 +140,6 @@ module Gshare(
             updateHistory[i] = FALSE;
         end
 
-        mispredInBeforeCycle = FALSE;
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if (regMispred[i]) begin
-                mispredInBeforeCycle = TRUE;
-            end
-        end
-
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Predict directions (Check the MSB).
             brPredTaken[i] = fetch.btbHit[i] && 
@@ -157,7 +147,7 @@ module Gshare(
 
             // Assert BTB is hit, ICache line is valid, and conditional branch.
             updateHistory[i] = fetch.btbHit[i] && fetch.readIsCondBr[i] && 
-                fetch.updateBrHistory[i] && !mispredInBeforeCycle;
+                fetch.updateBrHistory[i] && !regHasMispred;
 
             // Generate next brGlobalHistory.
             if (updateHistory[i]) begin
@@ -198,6 +188,7 @@ module Gshare(
 
         updatePht = FALSE;
         pushPhtQueue = FALSE;
+        hasMispred = FALSE;
 
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             // When branch instruction is executed, update PHT.
@@ -209,7 +200,9 @@ module Gshare(
                 updatePht |= phtWE[i];
             end
 
-            mispred[i] = port.brResult[i].mispred && port.brResult[i].valid;
+            if (port.brResult[i].mispred && port.brResult[i].valid) begin
+                hasMispred = TRUE;
+            end
 
             // Update PHT's counter (saturated up/down counter).
             if (port.brResult[i].execTaken) begin
