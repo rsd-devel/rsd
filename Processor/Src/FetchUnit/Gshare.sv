@@ -157,9 +157,6 @@ module Gshare(
                     break;
                 end
             end
-            if (fetch.btbHit[i]) begin
-                break;
-            end
         end
         
         fetch.phtPrevValue = phtRV;

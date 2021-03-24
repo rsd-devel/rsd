@@ -77,7 +77,7 @@ localparam CONF_STORE_QUEUE_ENTRY_NUM = 16; // The size of a store queue
 localparam CONF_BTB_ENTRY_NUM = 1024;
 localparam CONF_PHT_ENTRY_NUM = 2048;
 localparam CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH = 5;   // Global history length for g-share 
-localparam CONF_BRANCH_PREDICTOR_USE_GSHARE = 1;  // if this param is 0, bimodal predictor is used
+localparam CONF_BRANCH_PREDICTOR_USE_GSHARE = 1;  // if 0, bimodal predictor is used
 
 // The number of return-address-stack entries
 localparam CONF_RAS_ENTRY_NUM = 4;

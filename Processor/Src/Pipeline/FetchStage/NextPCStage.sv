@@ -172,10 +172,9 @@ module NextPCStage(
                 // In addition, if the branch is predicted as Taken, 
                 // the address read from BTB is used as next PC.
                 if (!regStall && fetch.fetchStageIsValid[i] && 
-                        fetch.btbHit[i]/* && fetch.brPredTaken[i]*/) begin
+                        fetch.brPredTaken[i]) begin
                     // Use PC from BTB
-                    predNextPC = fetch.brPredTaken[i] ? 
-                        fetch.btbOut[i] : fetch.fetchStagePC[i]+INSN_BYTE_WIDTH;
+                    predNextPC = fetch.btbOut[i];
                     break;
                 end
             end
