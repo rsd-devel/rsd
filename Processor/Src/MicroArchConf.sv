@@ -13,7 +13,6 @@ localparam CONF_DECODE_WIDTH = CONF_FETCH_WIDTH;      // Decode width
 localparam CONF_RENAME_WIDTH = CONF_FETCH_WIDTH;      // Rename width
 localparam CONF_DISPATCH_WIDTH = CONF_FETCH_WIDTH;    // Dispatch width
 
-
 // ---- Commit
 // Commit width (instructions). This parameter is configurable.
 // must be equal or larger than RENAME_WIDTH (FETCH_WIDTH) for recovery
@@ -77,7 +76,11 @@ localparam CONF_STORE_QUEUE_ENTRY_NUM = 16; // The size of a store queue
 // Branch predictor
 localparam CONF_BTB_ENTRY_NUM = 1024;
 localparam CONF_PHT_ENTRY_NUM = 2048;
-localparam CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH = 10;   // Global history length for g-share 
+localparam CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH = 5;   // Global history length for g-share 
+localparam CONF_BRANCH_PREDICTOR_USE_GSHARE = 1;  // if 0, bimodal predictor is used
+
+// The number of return-address-stack entries
+localparam CONF_RAS_ENTRY_NUM = 4;
 
 // Memory dependency predictor
 localparam CONF_MDT_ENTRY_NUM = 1024;   // The number of prediction table entries.

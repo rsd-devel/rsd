@@ -16,6 +16,7 @@ import SchedulerTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
+import FetchUnitTypes::*;
 
 
 //
@@ -175,6 +176,7 @@ module ActiveList(
         StoreQueueIndexPath storeQueuePtr;
         logic valid;
         ExecutionState state;
+        BranchGlobalHistoryPath brHistory;
     } RecoveryRegPath;
 
     ActiveListCountPath oldestAge;
@@ -229,6 +231,7 @@ module ActiveList(
                     nextRecoveryReg.pc = writeData[i].pc;
                     nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
                     nextRecoveryReg.state = writeData[i].state;
+                    nextRecoveryReg.brHistory = writeData[i].brHistory;
 
                     // Rwステージで例外が検出された時点でリカバリを開始する(詳細はRecoveryManager)
                     // EXEC_STATE_TRAP や例外は必ずコミット時に処理する（CSR の操作が伴うため）
@@ -261,6 +264,8 @@ module ActiveList(
         //これらのPCはRecoveryManagerのRecoveryRegisterを経由してFetchStageに送られる
         recovery.recoveredPC_FromCommitStage = ToAddrFromPC(recoveryReg.pc);
         recovery.recoveredPC_FromRwStage = ToAddrFromPC(nextRecoveryReg.pc);
+        recovery.recoveredBrHistoryFromCommitStage = recoveryReg.brHistory;
+        recovery.recoveredBrHistoryFromRwStage = nextRecoveryReg.brHistory;
 
         // Fault handling
         recovery.faultingDataAddr = recoveryReg.faultingDataAddr;

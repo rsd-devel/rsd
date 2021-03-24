@@ -142,6 +142,7 @@ module DispatchStage(
 
             // PC
             complexEntry[i].pc = pipeReg[i].pc;
+            complexEntry[i].brHistory = pipeReg[i].brPred.globalHistory;
 
             complexEntry[i].loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
             complexEntry[i].storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
@@ -204,6 +205,7 @@ module DispatchStage(
 
             // PC
             memEntry[i].pc = pipeReg[i].pc;
+            memEntry[i].brHistory = pipeReg[i].brPred.globalHistory;
 
             //
             // Scheduler Entry

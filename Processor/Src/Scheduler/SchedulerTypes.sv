@@ -114,6 +114,8 @@ typedef struct packed // ActiveListEntry
     PRegNumPath  phyPrevDstRegNum;
 
     IssueQueueIndexPath prevDependIssueQueuePtr;
+
+    BranchResult brResult;
     
 } ActiveListEntry;
 
@@ -128,6 +130,8 @@ typedef struct packed // ActiveListWriteData
     AddrPath            dataAddr;
     logic               isBranch;
     logic               isStore;
+    BranchGlobalHistoryPath brHistory;
+    BranchResult            brResult;
 } ActiveListWriteData;
 
 
@@ -249,6 +253,7 @@ typedef struct packed // ComplexIssueQueueEntry
     OpSrc opSrc;
     OpDst opDst;
     PC_Path pc;
+    BranchGlobalHistoryPath brHistory;
 } ComplexIssueQueueEntry;
 
 typedef struct packed // MemOpInfo
@@ -304,6 +309,7 @@ typedef struct packed // MemIssueQueueEntry
     OpSrc opSrc;
     OpDst opDst;
     PC_Path pc;
+    BranchGlobalHistoryPath brHistory;
 } MemIssueQueueEntry;
 
 //

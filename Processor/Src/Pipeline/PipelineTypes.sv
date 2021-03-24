@@ -354,6 +354,7 @@ typedef struct packed // MemoryAccessStageRegPath
     // CSR data out. csrDataOut is from dataIn in MemoryTagAccessStageRegPath
     // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
     DataPath csrDataOut; 
+    BranchGlobalHistoryPath brHistory;
 
 } MemoryAccessStageRegPath;
 
@@ -379,6 +380,7 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
 `ifdef RSD_ENABLE_VECTOR_PATH
     PVecDataPath vecDataOut; // Result of Vector Load
 `endif
+    BranchGlobalHistoryPath brHistory;
 
 } MemoryRegisterWriteStageRegPath;
 

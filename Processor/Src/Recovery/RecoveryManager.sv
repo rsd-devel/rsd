@@ -19,6 +19,7 @@ import MemoryMapTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import FetchUnitTypes::*;
 
 module RecoveryManager(
     RecoveryManagerIF.RecoveryManager port,
@@ -52,6 +53,9 @@ module RecoveryManager(
      
         logic recoveryFromRwStage;  // 例外がどこのステージで検出されたか
         RefetchType refetchType;    // リフェッチのタイプ
+
+        BranchGlobalHistoryPath recoveredBrHistoryFromRwStage;
+        BranchGlobalHistoryPath recoveredBrHistoryFromCommitStage;
 
     } RecoveryManagerStatePath;
     RecoveryManagerStatePath regState;
@@ -122,6 +126,8 @@ module RecoveryManager(
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
+        nextState.recoveredBrHistoryFromRwStage = port.recoveredBrHistoryFromRwStage;
+        nextState.recoveredBrHistoryFromCommitStage = port.recoveredBrHistoryFromCommitStage;
 
         // CSR への要求はすべて PHASE_RECOVER_0 に行う
         refetchFromCSR = regState.refetchType inside {
@@ -177,6 +183,8 @@ module RecoveryManager(
         // Update a PC in a fetcher if branch misprediction occurs.
         port.recoveredPC_FromRwCommit = recoveredPC;
         port.toCommitPhase = toCommitPhase;
+        port.recoveredBrHistoryFromRwCommit = regState.exceptionDetectedInCommitStage ?
+            regState.recoveredBrHistoryFromCommitStage : regState.recoveredBrHistoryFromRwStage;
 
         // To each logic to be recovered.
         port.toRecoveryPhase = regState.phase == PHASE_RECOVER_0;

@@ -258,6 +258,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].loadQueueRecoveryPtr  = ldIqData[i].loadQueueRecoveryPtr;
             ldNextStage[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldNextStage[i].pc = ldIqData[i].pc;
+            ldNextStage[i].brHistory  = ldIqData[i].brHistory;
 
 
             // ExecState
@@ -442,6 +443,7 @@ module MemoryTagAccessStage(
             stNextStage[i].loadQueueRecoveryPtr = stIqData[i].loadQueueRecoveryPtr;
             stNextStage[i].storeQueueRecoveryPtr = stIqData[i].storeQueueRecoveryPtr;
             stNextStage[i].pc  = stIqData[i].pc;
+            stNextStage[i].brHistory  = stIqData[i].brHistory;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する

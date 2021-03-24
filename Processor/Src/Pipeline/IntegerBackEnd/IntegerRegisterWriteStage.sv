@@ -104,7 +104,16 @@ module IntegerRegisterWriteStage(
             // Branch results.
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
-            ifStage.brResult = brResult;
+
+            if (brResult[i].isCondBr) begin
+                alWriteData[i].brHistory = 
+                    (brResult[i].globalHistory << 1) | brResult[i].execTaken;
+            end
+            else begin
+                alWriteData[i].brHistory = brResult[i].globalHistory;
+            end
+            alWriteData[i].brResult = brResult[i];
+
 
             // ExecState
             if ( update[i] ) begin
@@ -136,6 +145,9 @@ module IntegerRegisterWriteStage(
             scheduler.intRecordEntry[i] = update[i] && !regValid[i];
             scheduler.intRecordData[i] = pipeReg[i].intQueueData;
         end
+
+        ifStage.brResult = brResult;
+
 
         // Debug Register
         `ifndef RSD_DISABLE_DEBUG_REGISTER

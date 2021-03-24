@@ -7,6 +7,7 @@
 // This unit includes a simple return address stack.
 //
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import MemoryMapTypes::*;
 import OpFormatTypes::*;
@@ -29,10 +30,11 @@ output
     logic insnFlushTriggering[DECODE_WIDTH],
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
-    PC_Path recoveredPC
+    PC_Path recoveredPC,
+    BranchGlobalHistoryPath recoveredBrHistory
 );
     // Return address stack.
-    parameter RAS_ENTRY_NUM = 4;
+    parameter RAS_ENTRY_NUM = CONF_RAS_ENTRY_NUM;
     typedef logic [$clog2(RAS_ENTRY_NUM)-1 : 0] RAS_IndexPath;
     PC_Path ras[RAS_ENTRY_NUM];
     PC_Path nextRAS;
@@ -94,6 +96,7 @@ output
         // Initialize
         flushTriggered = FALSE;
         recoveredPC = '0;
+        recoveredBrHistory = '0;
 
         pushRAS = FALSE;
         popRAS = FALSE;
@@ -218,6 +221,7 @@ output
             end
         end
         recoveredPC = decodedPC[addrCheckLane];
+        recoveredBrHistory = brPredIn[addrCheckLane].globalHistory;
 
         // Update the RAS.
         nextRAS = nextPC[addrCheckLane];

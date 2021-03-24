@@ -48,8 +48,8 @@ typedef struct packed // struct BTB_Entry
 
 typedef struct packed // struct PhtQueueEntry
 {
-    AddrPath btbWA;            // Write Address
-    BTB_Entry btbWV;                        // result of bpred
+    AddrPath wa;            // Write Address
+    BTB_Entry wv;                        // result of bpred
 } BTBQueueEntry;
 
 function automatic BTB_IndexPath ToBTB_Index(PC_Path addr);
@@ -110,10 +110,21 @@ typedef logic [PHT_QUEUE_SIZE_BIT_WIDTH-1:0] PhtQueuePointerPath;
 
 typedef struct packed // struct PhtQueueEntry
 {
-    AddrPath phtWA;            // Write Address
-    PHT_EntryPath phtWV;                        // result of bpred
+    AddrPath wa;            // Write Address
+    PHT_EntryPath wv;    // result of bpred
 } PhtQueueEntry;
 
+
+function automatic logic IsBankConflict(PHT_IndexPath addr1, PHT_IndexPath addr2);
+    localparam BANK_NUM = FETCH_WIDTH > INT_ISSUE_WIDTH ? FETCH_WIDTH : INT_ISSUE_WIDTH;
+    localparam BANK_NUM_BIT_WIDTH = $clog2(BANK_NUM);
+    if (addr1[BANK_NUM_BIT_WIDTH-1:0] == addr2[BANK_NUM_BIT_WIDTH-1:0]) begin
+        return TRUE;
+    end
+    else begin
+        return FALSE;
+    end
+endfunction
 
 //
 // Result/prediction

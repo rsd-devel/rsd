@@ -16,6 +16,7 @@ import RenameLogicTypes::*;
 import SchedulerTypes::*;
 import LoadStoreUnitTypes::*;
 import DebugTypes::*;
+import FetchUnitTypes::*;
 
 // シリアライズ命令が送られて来た場合，パイプラインを適切にストールさせる
 // シリアライズ命令の前の命令がコミットして ROB が空になるまで待って，
@@ -123,6 +124,7 @@ module RenameStage(
     RenameStageRegPath pipeReg[RENAME_WIDTH];
     logic regFlush;
     PC_Path regRecoveredPC;
+    BranchGlobalHistoryPath regRecoveredBrHistory;
 
 
 `ifndef RSD_SYNTHESIS
@@ -145,17 +147,20 @@ module RenameStage(
             end
             regFlush <= '0;
             regRecoveredPC <= '0;
+            regRecoveredBrHistory <= '0;
         end
         else if(!ctrl.rnStage.stall) begin             // write data
             pipeReg <= prev.nextStage;
             regFlush <= prev.nextFlush;
             regRecoveredPC <= prev.nextRecoveredPC;
+            regRecoveredBrHistory <= prev.nextRecoveredBrHistory;
         end
     end
 
     always_comb begin
         recovery.recoverFromRename = regFlush;
         recovery.recoveredPC_FromRename = regRecoveredPC;
+        recovery.recoveredBrHistoryFromRename = regRecoveredBrHistory;
         ctrl.rnStageFlushUpper = regFlush;
     end
 
