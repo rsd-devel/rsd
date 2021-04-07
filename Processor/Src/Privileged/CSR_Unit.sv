@@ -140,7 +140,9 @@ module CSR_Unit(
                 CSR_NUM_MCAUSE:     csrNext.mcause = wv;
                 CSR_NUM_MTVEC:      csrNext.mtvec = wv;
                 CSR_NUM_MTVAL:      csrNext.mtval = wv;
-                CSR_NUM_MEPC:       csrNext.mepc = wv;
+                // The low bit of mepc is always zero,
+                // as described in Chapter 3.1.19 of RISC-V Privileged Architectures.
+                CSR_NUM_MEPC:       csrNext.mepc = {wv[31:1], 1'b0};
                 CSR_NUM_MSCRATCH:   csrNext.mscratch = wv;
 
                 CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
