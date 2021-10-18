@@ -1,4 +1,4 @@
-// Copyright 2019- RSD contributors.
+// Copyright 2021- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
 
@@ -21,8 +21,67 @@ output
     logic hasRequest,
     MemoryLatencySimRequestPath requestData
 );
-    RandomMemoryLatencySimulator sim(clk, rst, push, pushedData, hasRequest, requestData);
+    generate 
+        if (MEM_LATENCY_SIM_TYPE == MEM_LATENCY_SIM_TYPE_FIXED) begin 
+            FixedMemoryLatencySimulator sim(clk, rst, push, pushedData, hasRequest, requestData);
+        end 
+        else begin
+            RandomMemoryLatencySimulator sim(clk, rst, push, pushedData, hasRequest, requestData);
+        end
+    endgenerate
 endmodule
+
+
+module FixedMemoryLatencySimulator( 
+input 
+    logic clk,
+    logic rst,
+    logic push,
+    MemoryLatencySimRequestPath pushedData,
+output
+    logic hasRequest,
+    MemoryLatencySimRequestPath requestData
+);
+    localparam LATENCY = FIXED_MEM_LATENCY_SIM_LATENCY_CYCLES;
+    typedef struct packed { // MemoryShiftReg
+        logic valid;
+        MemoryLatencySimRequestPath req;
+    } MemoryShiftReg;
+    MemoryShiftReg memShiftReg[LATENCY];
+    MemoryShiftReg nextMemShiftReg;
+
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            for (int i = 0; i < LATENCY; i++) begin
+                memShiftReg[i].valid <= '0;
+                memShiftReg[i].req <= '0;
+            end
+        end
+        else begin
+            memShiftReg[0] <= nextMemShiftReg;
+            for (int i = 0; i < LATENCY - 1; i++) begin
+                memShiftReg[i + 1] <= memShiftReg[i];
+            end
+        end
+    end
+
+    always_comb begin
+        //nextMemShiftReg = '0;
+        nextMemShiftReg.valid = push;
+        nextMemShiftReg.req = pushedData;
+
+        hasRequest  = memShiftReg[LATENCY - 1].valid;
+        requestData = memShiftReg[LATENCY - 1].req;
+    end
+
+
+`ifdef RSD_SYNTHESIS
+    `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
+`endif
+
+endmodule : FixedMemoryLatencySimulator
+
+
 
 module RandomMemoryLatencySimulator( 
 input 
