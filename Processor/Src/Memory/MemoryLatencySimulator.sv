@@ -21,6 +21,19 @@ output
     logic hasRequest,
     MemoryLatencySimRequestPath requestData
 );
+    RandomMemoryLatencySimulator sim(clk, rst, push, pushedData, hasRequest, requestData);
+endmodule
+
+module RandomMemoryLatencySimulator( 
+input 
+    logic clk,
+    logic rst,
+    logic push,
+    MemoryLatencySimRequestPath pushedData,
+output
+    logic hasRequest,
+    MemoryLatencySimRequestPath requestData
+);
 
     typedef logic [$clog2(MEM_LATENCY_SIM_QUEUE_SIZE)-1:0] IndexPath;
     logic pop;
@@ -100,4 +113,4 @@ output
     `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
 `endif
 
-endmodule : MemoryLatencySimulator
+endmodule : RandomMemoryLatencySimulator
