@@ -39,11 +39,8 @@ TEST_MODULES = \
 	Verification/Dumper.sv \
 	Verification/TestMain.sv \
 
-# それ以外の module, interface の定義があるファイルを指定する．
-# ここの順番は適当でも大丈夫．
-MODULES = \
-	Main_Zynq_Wrapper.sv \
-	Main_Zynq.sv \
+# Core sources
+CORE_MODULES = \
 	Core.sv \
 	Pipeline/FetchStage/NextPCStage.sv \
 	Pipeline/FetchStage/NextPCStageIF.sv \
@@ -165,6 +162,12 @@ MODULES = \
 	Debug/DebugIF.sv \
 	Debug/PerformanceCounter.sv \
 	Debug/PerformanceCounterIF.sv \
+
+# それ以外の module, interface の定義があるファイルを指定する．
+# ここの順番は適当でも大丈夫．
+MODULES = \
+	Main_Zynq_Wrapper.sv \
+	Main_Zynq.sv \
 	Memory/Axi4LiteControlRegisterIF.sv \
 	Memory/Axi4LiteControlRegister.sv \
 	Memory/ControlQueue.sv \
@@ -173,6 +176,8 @@ MODULES = \
 	Memory/MemoryReadReqQueue.sv \
 	Memory/MemoryWriteDataQueue.sv \
 	Memory/MemoryLatencySimulator.sv \
+	$(CORE_MODULES) \
+
 
 # Header files
 # This list is used when generating Vivado custom IP of RSD
