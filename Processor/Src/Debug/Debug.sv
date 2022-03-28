@@ -97,7 +97,10 @@ module Debug (
         next.busyInRecovery = port.busyInRecovery;
         next.storeQueueEmpty = port.storeQueueEmpty;
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+        // Performance monitoring counters are exported to DebugRegister only on simulation.
         next.perfCounter = port.perfCounter;
+`endif
     end
 
     DebugRegister debugRegister;
