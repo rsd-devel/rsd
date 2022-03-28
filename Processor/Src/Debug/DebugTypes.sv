@@ -332,7 +332,7 @@ typedef struct packed { // DebugRegister
     logic storeQueueEmpty;
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    // Performance monitoring counters are exported only on simulation.
+    // Performance monitoring counters are exported to DebugRegister only on simulation.
     PerfCounterPath perfCounter;
 `endif
 } DebugRegister;
