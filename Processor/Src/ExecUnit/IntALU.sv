@@ -106,6 +106,8 @@ module IntALU(
         
         opA     = fuOpA_In;
         opB     = fuOpB_In;
+        signedOpA = '0;
+        signedOpB = '0;
         
         case( aluCode )
             // AND  論理積
