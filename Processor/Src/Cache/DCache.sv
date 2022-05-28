@@ -1431,6 +1431,8 @@ module DCacheMissHandler(
 
             // For flush
             mshrFlushComplete[i] = FALSE;
+            // For data merging
+            mergedLine[i] = '0;
 
             case(mshr[i].phase)
                 default: begin

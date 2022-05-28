@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
     // To access the module generated in generate,
     // use (Label given in generate section)__DOT__(module name)
     size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array) / sizeof(uint32_t);
-    uint32_t* mainMem = (uint32_t*)(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array);
+    uint32_t* mainMem = reinterpret_cast<uint32_t*>(&top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array);
 
     // Fill dummy data
     for (int i = 0; i < mainMemWordSize; i++) {
