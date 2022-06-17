@@ -132,6 +132,7 @@ module MemoryTagAccessStage(
             // Load store unit
             loadStoreUnit.executeLoad[i] = ldUpdate[i] && isLoad[i];
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
+            loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
             loadStoreUnit.executedLoadMemAccessMode[i] = ldIqData[i].memOpInfo.memAccessMode;
             loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].memOpInfo.storeQueuePtr;

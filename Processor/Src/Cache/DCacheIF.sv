@@ -114,6 +114,9 @@ input
     // MSHRをAllocateしたLoad命令がMemoryRegisterReadStageでflushされた場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalidByMemoryRegisterReadStage[MSHR_NUM];
 
+    // MSHRをAllocateしたLoad命令がMemoryExecutionStageでflushされた場合，AllocateされたMSHRは解放可能になる
+    logic makeMSHRCanBeInvalidByMemoryExecutionStage[MSHR_NUM];
+    
     // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
 
@@ -245,6 +248,7 @@ input
         isAllocatedByStore,
         isUncachable,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
+        makeMSHRCanBeInvalidByMemoryExecutionStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
         makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
@@ -323,6 +327,7 @@ input
         isAllocatedByStore,
         isUncachable,
         makeMSHRCanBeInvalidByMemoryRegisterReadStage,
+        makeMSHRCanBeInvalidByMemoryExecutionStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
         makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
