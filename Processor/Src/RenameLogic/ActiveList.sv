@@ -272,7 +272,13 @@ module ActiveList(
         //リカバリをしなければならない命令はアクティブリストのtailからリカバリを起こした命令(またはその命令の後ろ)までのエントリにあたる
         flushRangeHeadPtr = recovery.flushRangeHeadPtr;
         flushRangeTailPtr = recovery.flushRangeTailPtr;
-        if (flushRangeTailPtr == flushRangeHeadPtr && count == ACTIVE_LIST_ENTRY_NUM) begin
+
+        // Calculate # of flush insts
+        if (flushRangeHeadPtr == flushRangeTailPtr 
+                        && count == ACTIVE_LIST_ENTRY_NUM) begin
+            // Flush all insts in ActiveList
+            // Because head and tail pointers match when ActiveList is full or empty,
+            // flushAllInsns is needed to distinguish between them
             nextRecoveryEntryNum = ACTIVE_LIST_ENTRY_NUM;
             recovery.flushAllInsns = TRUE;
         end

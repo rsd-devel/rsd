@@ -51,6 +51,8 @@ interface RecoveryManagerIF( input logic clk, rst );
     // Flush range to broadcast
     ActiveListIndexPath flushRangeHeadPtr;
     ActiveListIndexPath flushRangeTailPtr;
+    // Whether flush all instructions in ActiveList
+    // This is necessary to distinguish when ActiveList is full or empty, 
     logic flushAllInsns;
 
     // ActiveList/LSQ TailPtr for recovery
