@@ -396,6 +396,9 @@ function automatic logic SelectiveFlushDetector(
         if(opPtr >= headPtr && opPtr < tailPtr) begin
             return TRUE;
         end
+        else if (headPtr == tailPtr) begin
+            return TRUE;
+        end
         else begin
             return FALSE;
         end
@@ -407,6 +410,9 @@ function automatic logic SelectiveFlushDetector(
         end
         //  |**i***t----h*******|
         else if(opPtr < headPtr && opPtr < tailPtr) begin
+            return TRUE;
+        end
+        else if (headPtr == tailPtr) begin
             return TRUE;
         end
         else begin
