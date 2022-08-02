@@ -272,13 +272,14 @@ module ActiveList(
         //リカバリをしなければならない命令はアクティブリストのtailからリカバリを起こした命令(またはその命令の後ろ)までのエントリにあたる
         flushRangeHeadPtr = recovery.flushRangeHeadPtr;
         flushRangeTailPtr = recovery.flushRangeTailPtr;
-        if (flushRangeTailPtr == flushRangeHeadPtr) begin
-            nextRecoveryEntryNum = (count == ACTIVE_LIST_ENTRY_NUM) ?
-                                ACTIVE_LIST_ENTRY_NUM : '0;
+        if (flushRangeTailPtr == flushRangeHeadPtr && count == ACTIVE_LIST_ENTRY_NUM) begin
+            nextRecoveryEntryNum = ACTIVE_LIST_ENTRY_NUM;
+            recovery.flushAllInsns = TRUE;
         end
         else begin
             nextRecoveryEntryNum = (flushRangeTailPtr >= flushRangeHeadPtr) ?
                                 flushRangeTailPtr - flushRangeHeadPtr : ACTIVE_LIST_ENTRY_NUM + flushRangeTailPtr - flushRangeHeadPtr;
+            recovery.flushAllInsns = FALSE;
         end
         // RenameLogicCommitterにtoRecoveryPhase信号が
         // 届いた次のサイクルに信号を送る必要があるので,1サイクルの遅延を入れている

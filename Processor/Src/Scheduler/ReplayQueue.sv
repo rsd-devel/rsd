@@ -502,6 +502,7 @@ module ReplayQueue(
                             canBeFlushedEntryCount != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             replayEntryReg.intData[i].activeListPtr
                             );
             port.intReplayEntry[i] = replayEntryReg.intValid[i] && !flushInt[i];
@@ -513,6 +514,7 @@ module ReplayQueue(
                                 canBeFlushedEntryCount != 0,
                                 flushRangeHeadPtr,
                                 flushRangeTailPtr,
+                                recovery.flushAllInsns,
                                 replayEntryReg.complexData[i].activeListPtr
                                 );
             port.complexReplayEntry[i] = replayEntryReg.complexValid[i] && !flushComplex[i];
@@ -524,6 +526,7 @@ module ReplayQueue(
                             canBeFlushedEntryCount != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             replayEntryReg.memData[i].activeListPtr
                             );
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];

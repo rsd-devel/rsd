@@ -184,6 +184,7 @@ module ComplexIntegerExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns,
                     regActiveListIndex[i]
                 );
             end
@@ -245,6 +246,7 @@ module ComplexIntegerExecutionStage(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
                 recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
                 pipeReg[i].complexQueueData.activeListPtr
             );
 
@@ -255,6 +257,7 @@ module ComplexIntegerExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns,
                     localPipeReg[i][j-1].complexQueueData.activeListPtr 
                 );
             end

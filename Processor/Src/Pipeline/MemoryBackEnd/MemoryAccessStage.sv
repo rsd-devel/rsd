@@ -88,6 +88,7 @@ module MemoryAccessStage(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             pipeReg[i].activeListPtr
                         );
             isStore[i] = pipeReg[i].isStore;
