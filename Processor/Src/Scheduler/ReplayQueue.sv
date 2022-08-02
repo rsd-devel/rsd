@@ -124,6 +124,7 @@ module ReplayQueue(
     ReplayQueueCountPath canBeFlushedEntryCount;    //FlushedOpが存在している可能性があるエントリの個数
     ActiveListIndexPath flushRangeHeadPtr;  //フラッシュされた命令の範囲のhead
     ActiveListIndexPath flushRangeTailPtr;  //フラッシュされた命令の範囲のtail
+    logic flushAllInsns;
     logic flushInt[ INT_ISSUE_WIDTH ];
     logic flushMem[ MEM_ISSUE_WIDTH ];
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -502,7 +503,7 @@ module ReplayQueue(
                             canBeFlushedEntryCount != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             replayEntryReg.intData[i].activeListPtr
                             );
             port.intReplayEntry[i] = replayEntryReg.intValid[i] && !flushInt[i];
@@ -514,7 +515,7 @@ module ReplayQueue(
                                 canBeFlushedEntryCount != 0,
                                 flushRangeHeadPtr,
                                 flushRangeTailPtr,
-                                recovery.flushAllInsns,
+                                flushAllInsns,
                                 replayEntryReg.complexData[i].activeListPtr
                                 );
             port.complexReplayEntry[i] = replayEntryReg.complexValid[i] && !flushComplex[i];
@@ -526,7 +527,7 @@ module ReplayQueue(
                             canBeFlushedEntryCount != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             replayEntryReg.memData[i].activeListPtr
                             );
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];
@@ -565,6 +566,7 @@ module ReplayQueue(
             canBeFlushedEntryCount <= count;
             flushRangeHeadPtr <= recovery.flushRangeHeadPtr;
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
+            flushAllInsns <= recovery.flushAllInsns;
         end
         else if (canBeFlushedEntryCount > 0 && port.replay) begin
             canBeFlushedEntryCount <= canBeFlushedEntryCount - 1;
