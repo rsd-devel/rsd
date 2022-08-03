@@ -182,13 +182,21 @@ module ActiveList(
     logic exceptionDetected;
     RefetchType refetchType;
     IssueLaneIndexPath exceptionIndex;
+    // Some exceptions (e.g. EXEC_STATE_FAULT_LOAD_VIOLATION) must be handled at commit time
+    // because of handling CSRs correctly.
+    logic startRecoveryAtCommit;
 
     RecoveryRegPath recoveryReg;
     RecoveryRegPath nextRecoveryReg;
     ActiveListCountPath recoveryEntryNum, nextRecoveryEntryNum;
     ActiveListIndexPath flushRangeHeadPtr, flushRangeTailPtr;
     always_ff@(posedge port.clk) begin
-        if (port.rst || recovery.toRecoveryPhase && !exceptionDetected ) begin
+        if (port.rst || 
+                ((recovery.toRecoveryPhase && !exceptionDetected) && !startRecoveryAtCommit)) begin
+            // Reset recoveryReg
+            // But, to handle exceptions correctly, do not reset the recoveryReg in the following cases:
+            //   1) another exception occurs when starting recovery
+            //   2) need to start recovery at commit time
             recoveryReg <= '0;
         end
         else begin
@@ -212,6 +220,7 @@ module ActiveList(
         exceptionIndex = '0;
         exceptionDetected = FALSE;
         refetchType = REFETCH_TYPE_THIS_PC;
+        startRecoveryAtCommit = FALSE;
 
         for (int i = 0; i < ISSUE_WIDTH; i++) begin
             writeAge[i] = ActiveListPtrToAge(writeData[i].ptr, headPtr);
@@ -236,6 +245,11 @@ module ActiveList(
                         EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS
                     };
                     exceptionIndex = i;
+                    if (!(writeData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS})) begin
+                        // Need to update the recovery register when handling exceptions at commit time
+                        startRecoveryAtCommit = TRUE;
+                    end
+
                     // refetchTypeはflushOpのheadPtrを決めるためとrecoveredPCを確定するために使う
                     // Int命令の例外は分岐命令なので分岐ターゲットに飛ぶ
                     // Mem命令のREFETCH_NEXTは順序違反検出なので次のPCに飛ぶ
