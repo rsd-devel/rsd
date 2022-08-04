@@ -1880,6 +1880,30 @@ module DCacheMissHandler(
         end // for (int i = 0; i < MSHR_NUM; i++) begin
     end
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    localparam MSHR_DEADLOCK_DETECT_CYCLES = 500;
+    integer cycles[MSHR_NUM];
+    always_ff @(posedge port.clk) begin
+        for (int i = 0; i < MSHR_NUM; i++) begin
+            if (port.rst || !mshr[i].valid ) begin
+                cycles[i] <= 0;
+            end
+            else begin
+                cycles[i] <= cycles[i] + 1;
+            end
+        end
+    end
+
+    generate
+        for (genvar i = 0; i < MSHR_NUM; i++) begin
+            `RSD_ASSERT_CLK(
+                port.clk,
+                !(cycles[i] > MSHR_DEADLOCK_DETECT_CYCLES),
+                "MSHR deadlock detected"
+            );
+        end
+    endgenerate
+`endif
 
 
 endmodule : DCacheMissHandler
