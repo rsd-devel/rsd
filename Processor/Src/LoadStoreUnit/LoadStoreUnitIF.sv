@@ -93,6 +93,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     PhyAddrPath dcReadAddr[LOAD_ISSUE_WIDTH];
     DCacheLinePath dcReadData[LOAD_ISSUE_WIDTH];
     logic dcReadUncachable[LOAD_ISSUE_WIDTH];
+    ActiveListIndexPath dcReadActiveListPtr[LOAD_ISSUE_WIDTH];
 
     // Forward されたのでメインメモリアクセスや MSHR 確保をキャンセルする 
     // MSHR を確保してしまうと，フォワードしたロードの方はヒット扱いでリタイアするので
@@ -121,20 +122,11 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     DCacheLinePath mshrReadData[LOAD_ISSUE_WIDTH];
 
     // MSHRをAllocateした命令からのメモリリクエストかどうか
-    // MSHRをAllocateしたLoad命令がMemoryRegisterReadStageでflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryRegisterReadStage[MSHR_NUM];
-
     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
     
-    // MSHRをAllocateしたLoad命令がMemoryExecutionStageでflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryExecutionStage[MSHR_NUM];
-
     // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がReplayQueueの先頭でflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
     // MSHR
     logic mshrValid[MSHR_NUM];
@@ -159,12 +151,10 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteUncachable,
         dcReadAddr,
         dcReadUncachable,
+        dcReadActiveListPtr,
         dcReadCancelFromMT_Stage,
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage,
         makeMSHRCanBeInvalid,
-        makeMSHRCanBeInvalidByMemoryExecutionStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
-        makeMSHRCanBeInvalidByReplayQueue,
     output
         dcReadHit,
         dcReadBusy,
@@ -313,11 +303,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         allocateStoreQueue
     );
 
-    modport MemoryRegisterReadStage(
-    output
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage
-    );
-
     modport MemoryExecutionStage(
     input
         clk,
@@ -325,8 +310,8 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcReadReq,
         dcReadAddr,
         dcReadUncachable,
-        makeMSHRCanBeInvalid,
-        makeMSHRCanBeInvalidByMemoryExecutionStage
+        dcReadActiveListPtr,
+        makeMSHRCanBeInvalid
     );
 
     modport MemoryTagAccessStage(
@@ -373,9 +358,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     input
         mshrValid,
         mshrPhase,
-        mshrAddrSubset,
-    output
-        makeMSHRCanBeInvalidByReplayQueue
+        mshrAddrSubset
     );
 
     modport CommitStage(

@@ -147,7 +147,6 @@ module ReplayQueue(
     logic mshrValid[MSHR_NUM];
     MSHR_Phase mshrPhase[MSHR_NUM]; // MSHR phase.
     DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
-    logic mshrMakeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
     `ifndef RSD_VIVADO_SIMULATION
@@ -414,6 +413,7 @@ module ReplayQueue(
                     (replayEntryOut.memData[i].memOpInfo.opType
                         inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
                     replayEntryOut.memData[i].memOpInfo.hasAllocatedMSHR && // has allocated MSHR entries,
+                    targetMSHRValid[i] && // the MSHR entry is valid
                     mshrNotReady[i] // the corresponding MSHR entry has not receive data yet.
                 ) begin
                     popEntry = FALSE;
@@ -536,22 +536,6 @@ module ReplayQueue(
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];
             port.memReplayData[i] = replayEntryReg.memData[i];
         end
-
-        // MSHR can be invalid when its allocator load is flushed at ReplayQueue.
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            mshrMakeMSHRCanBeInvalidByReplayQueue[i] = FALSE;
-        end
-
-        for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-            if (replayEntryReg.memValid[i] && replayEntryReg.memData[i].memOpInfo.hasAllocatedMSHR && (flushMem[i] || flush[i])) begin
-                mshrMakeMSHRCanBeInvalidByReplayQueue[replayEntryReg.memData[i].memOpInfo.mshrID] = TRUE;
-            end
-        end
-
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            mshr.makeMSHRCanBeInvalidByReplayQueue[i] = mshrMakeMSHRCanBeInvalidByReplayQueue[i];
-        end
-
 
         // Stall issue and schedule stages
         // when ReplayQueue issues or

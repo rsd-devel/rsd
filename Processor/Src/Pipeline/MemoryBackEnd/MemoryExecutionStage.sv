@@ -86,7 +86,6 @@ module MemoryExecutionStage(
     // MSHRをAllocateした命令からのメモリリクエストかどうか
     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
-    MSHR_IndexPath mshrID;
 
     // FENCE.I
     logic cacheFlushReq;
@@ -144,10 +143,6 @@ module MemoryExecutionStage(
 
         end // for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
 
-        for ( int i = 0; i < MSHR_NUM; i++ ) begin
-            loadStoreUnit.makeMSHRCanBeInvalidByMemoryExecutionStage[i] = FALSE;
-        end
-
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             // --- DCache access
             // TODO: メモリマップが MMT_MEMORY じゃなかったとしても，一度 MSHR を確保して
@@ -162,14 +157,11 @@ module MemoryExecutionStage(
 
             loadStoreUnit.dcReadUncachable[i] = isUncachable[i];
 
+            // AL Ptr to release MSHR entry when allocator load is flushed.
+            loadStoreUnit.dcReadActiveListPtr[i] = pipeReg[i].memQueueData.activeListPtr;
+
             // To notify MSHR that the requester is its allocator load.
             loadStoreUnit.makeMSHRCanBeInvalid[i] = makeMSHRCanBeInvalid[i] && pipeReg[i].valid;
-
-            // To notify MSHR that the requester is flushed.
-            mshrID = memOpInfo[i].mshrID;
-            if (pipeReg[i].valid && flush[i] && memOpInfo[i].hasAllocatedMSHR) begin
-                loadStoreUnit.makeMSHRCanBeInvalidByMemoryExecutionStage[mshrID] = TRUE;
-            end
         end
 
         // FENCE.I (with ICache and DCache flush)

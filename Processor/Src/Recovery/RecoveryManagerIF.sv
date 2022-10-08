@@ -246,6 +246,17 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase
     );
 
+     modport DCache(
+    input
+        toRecoveryPhase
+    );
+
+    modport DCacheMissHandler(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr
+    );
 
     modport IntegerIssueStage(
     input

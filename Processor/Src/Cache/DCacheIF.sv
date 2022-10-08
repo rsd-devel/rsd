@@ -98,6 +98,7 @@ input
     // Miss handler
     logic initMSHR[MSHR_NUM];
     PhyAddrPath initMSHR_Addr[MSHR_NUM];
+    ActiveListIndexPath initMSHR_ActiveListPtr[MSHR_NUM];
 
     logic mshrValid[MSHR_NUM];
     PhyAddrPath mshrAddr[MSHR_NUM];
@@ -111,17 +112,8 @@ input
 
     logic isUncachable[MSHR_NUM];
 
-    // MSHRをAllocateしたLoad命令がMemoryRegisterReadStageでflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryRegisterReadStage[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がMemoryExecutionStageでflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryExecutionStage[MSHR_NUM];
-    
     // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
     logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がReplayQueueの先頭でflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
@@ -237,6 +229,7 @@ input
         rst,
         initMSHR,
         initMSHR_Addr,
+        initMSHR_ActiveListPtr,
         mshrCacheGrt,
         mshrCacheMuxTagOut,
         mshrCacheMuxDataOut,
@@ -247,10 +240,7 @@ input
         mshrCanBeInvalid,
         isAllocatedByStore,
         isUncachable,
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage,
-        makeMSHRCanBeInvalidByMemoryExecutionStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
-        makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
         storedLineByteWE,
         dcFlushing,
@@ -324,12 +314,10 @@ input
         memAccessResponse,
         initMSHR,
         initMSHR_Addr,
+        initMSHR_ActiveListPtr,
         isAllocatedByStore,
         isUncachable,
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage,
-        makeMSHRCanBeInvalidByMemoryExecutionStage,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
-        makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
         storedLineByteWE,
         dcFlushReq,
