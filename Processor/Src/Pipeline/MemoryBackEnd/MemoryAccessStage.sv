@@ -186,6 +186,7 @@ module MemoryAccessStage(
             nextStage[i].pc = pipeReg[i].pc;
             nextStage[i].addrOut = pipeReg[i].addrOut;
             nextStage[i].isStore = pipeReg[i].isStore;
+            nextStage[i].brHistory = pipeReg[i].brHistory;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

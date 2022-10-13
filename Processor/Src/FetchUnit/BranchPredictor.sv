@@ -6,21 +6,23 @@
 // Branch predictor
 //
 
+import MicroArchConf::*;
 import BasicTypes::*;
 import FetchUnitTypes::*;
 
-`define USE_GSHARE
-
 module BranchPredictor(
     NextPCStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next,
+    FetchStageIF.BranchPredictor fetch,
     ControllerIF.BranchPredictor ctrl
 );
 
-`ifdef USE_GSHARE
-    Gshare predictor( port, next, ctrl );
-`else
-    Bimodal predictor( port, next );
-`endif
+    generate
+        if (CONF_BRANCH_PREDICTOR_USE_GSHARE) begin
+            Gshare predictor( port, fetch, ctrl );
+        end
+        else begin
+            Bimodal predictor( port, fetch );
+        end
+    endgenerate
 
 endmodule : BranchPredictor

@@ -95,6 +95,8 @@ module MemoryRegisterWriteStage(
 
             alWriteData[i].pc = pipeReg[i].pc;
             alWriteData[i].dataAddr = pipeReg[i].addrOut;
+            alWriteData[i].brHistory = pipeReg[i].brHistory;
+
 
             activeList.memWrite[i] = update[i];
             activeList.memWriteData[i] = alWriteData[i];
