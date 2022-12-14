@@ -10,7 +10,7 @@ import BasicTypes::*;
 import SchedulerTypes::*;
 
 module ProducerMatrix (
-    input logic clk, stall,
+    input logic clk,
 
     input logic dispatch[ DISPATCH_WIDTH ],
     input logic dispatchedSrcRegReady [ DISPATCH_WIDTH ][ ISSUE_QUEUE_SRC_REG_NUM ],
@@ -64,11 +64,6 @@ module ProducerMatrix (
         // It is ready when its all source bits are zero.
         for (int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
             opReady[i] = !(|(nextMatrix[i]));
-        end
-
-        if (stall) begin
-            // Does not update.
-            nextMatrix = matrix;
         end
 
         // Dispatch
