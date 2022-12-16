@@ -52,6 +52,8 @@ module ProducerMatrix (
             // A producer column can be cleared without regarding to validness of wakeup.
             //if (wakeup[w]) begin
             //end
+            // wakeupDstVector determined in WakeupPipelineRegister already contains stall information,
+            // so stall check in ProducerMatrix is unnecessary.
             wakeupVector |= wakeupDstVector[w];
         end
 
