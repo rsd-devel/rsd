@@ -1,0 +1,441 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+
+//
+// FP Execution stage
+//
+// 浮動小数点演算の実行を行う
+// FP_EXEC_STAGE_DEPTH 段にパイプライン化されている
+//
+
+`include "BasicMacros.sv"
+import BasicTypes::*;
+import OpFormatTypes::*;
+import MicroOpTypes::*;
+import SchedulerTypes::*;
+import PipelineTypes::*;
+import DebugTypes::*;
+
+`ifdef RSD_ENABLE_FP_PATH
+
+module FPExecutionStage(
+    FPExecutionStageIF.ThisStage port,
+    FPRegisterReadStageIF.NextStage prev,
+    FPDivSqrtUnitIF.FPExecutionStage fpDivSqrtUnit,
+    SchedulerIF.FPExecutionStage scheduler,
+    BypassNetworkIF.FPExecutionStage bypass,
+    RecoveryManagerIF.FPExecutionStage recovery,
+    ControllerIF.FPExecutionStage ctrl,
+    DebugIF.FPExecutionStage debug,
+    CSR_UnitIF.FPExecutionStage csrUnit
+);
+    // Pipeline controll
+    logic stall, clear;
+    logic flush[ FP_ISSUE_WIDTH ][ FP_EXEC_STAGE_DEPTH ];
+
+    //`RSD_STATIC_ASSERT(FP_ISSUE_WIDTH == FPDIVSQRT_ISSUE_WIDTH, "These muse be same");
+    //`RSD_STATIC_ASSERT(FP_EXEC_STAGE_DEPTH == FPDIVSQRT_STAGE_DEPTH, "These muse be same");
+
+    //
+    // --- Local Pipeline Register
+    //
+
+    // 複数サイクルにわたる FPExecutionStage 内で
+    // 使用するパイプラインレジスタ
+    typedef struct packed // LocalPipeReg
+    {
+
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+        OpId      opId;
+`endif
+
+        logic valid;  // Valid flag. If this is 0, its op is treated as NOP.
+        logic regValid; // Valid flag of a destination register.
+        FPIssueQueueEntry fpQueueData;
+    } LocalPipeReg;
+
+    LocalPipeReg localPipeReg [ FP_ISSUE_WIDTH ][ FP_EXEC_STAGE_DEPTH-1 ];
+    LocalPipeReg nextLocalPipeReg [ FP_ISSUE_WIDTH ][ FP_EXEC_STAGE_DEPTH-1 ];
+
+`ifndef RSD_SYNTHESIS
+    // Don't care these values, but avoiding undefined status in Questa.
+    initial begin
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            for (int j = 0; j < FP_EXEC_STAGE_DEPTH-1; j++) begin
+                localPipeReg[i][j] <= '0;
+            end
+        end
+    end
+`endif
+
+    always_ff@( posedge port.clk ) begin
+        if (port.rst || clear) begin
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                for ( int j = 0; j < FP_EXEC_STAGE_DEPTH-1; j++ ) begin
+                    localPipeReg[i][j].valid <= '0;
+                    localPipeReg[i][j].regValid <= '0;
+                end
+            end
+        end
+        else if(!ctrl.backEnd.stall) begin   // write data
+            localPipeReg <= nextLocalPipeReg;
+        end
+    end
+
+
+    //
+    // --- Pipeline Register
+    //
+
+    // FPRegisterReadStage との境界にあるパイプラインレジスタ
+    FPExecutionStageRegPath pipeReg[FP_ISSUE_WIDTH];
+
+`ifndef RSD_SYNTHESIS
+    // Don't care these values, but avoiding undefined status in Questa.
+    initial begin
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            pipeReg[i] = '0;
+        end
+    end
+`endif
+    always_ff@(posedge port.clk)   // synchronous rst
+    begin
+        if (port.rst) begin
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                pipeReg[i].valid <= '0;
+            end
+        end
+        else if(!ctrl.backEnd.stall) begin   // write data
+            pipeReg <= prev.nextStage;
+        end
+    end
+
+    //
+    // Signals
+    //
+    FPIssueQueueEntry iqData        [ FP_ISSUE_WIDTH ] [FP_EXEC_STAGE_DEPTH];
+    FPOpInfo          fpOpInfo [ FP_ISSUE_WIDTH ];
+    FPMicroOpSubType opType [FP_ISSUE_WIDTH];
+    FPU_Code fpuCode [FP_ISSUE_WIDTH];
+    Rounding_Mode rm [FP_ISSUE_WIDTH];
+
+    PRegDataPath  fuOpA    [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fuOpB    [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fuOpC    [ FP_ISSUE_WIDTH ];
+    logic         regValid [ FP_ISSUE_WIDTH ];
+    PRegDataPath  dataOut  [ FP_ISSUE_WIDTH ];
+
+    PRegDataPath  addDataOut   [ FP_ISSUE_WIDTH ];
+    PRegDataPath  mulDataOut   [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fmaDataOut   [ FP_ISSUE_WIDTH ];
+    PRegDataPath  otherDataOut [ FP_ISSUE_WIDTH ];
+
+
+
+    //
+    // Divider/Sqrt Unit
+    //
+    logic isDivSqrt         [ FP_ISSUE_WIDTH ]; 
+
+    // For selective flush
+    ActiveListIndexPath regActiveListIndex  [ FP_ISSUE_WIDTH ];
+    ActiveListIndexPath nextActiveListIndex [ FP_ISSUE_WIDTH ];
+    logic divSqrtReset[ FP_ISSUE_WIDTH ];
+
+    always_ff @(posedge port.clk) begin
+        if (port.rst) begin
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                regActiveListIndex[i] <= '0;
+            end
+        end
+        else begin
+            regActiveListIndex <= nextActiveListIndex;
+        end
+    end
+
+    for ( genvar i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+        FP32PipelinedAdder #(
+            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
+        ) fpAdder (
+            .clk (port.clk),
+            .lhs ( fuOpA[i].data ),
+            .rhs ( fuOpB[i].data ),
+            .fpuCode (fpuCode[i]),
+            .rm (rm[i]),
+            .result ( addDataOut[i] )
+        );
+        
+        FP32PipelinedMultiplier #(
+            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
+        ) fpMultiplier (
+            .clk (port.clk),
+            .lhs ( fuOpA[i].data ),
+            .rhs ( fuOpB[i].data ),
+            .fpuCode (fpuCode[i]),
+            .rm (rm[i]),
+            .result ( mulDataOut[i] )
+        );
+
+        FP32PipelinedFMAer fpFMAer (
+            .clk (port.clk),
+            .mullhs ( fuOpA[i].data ),
+            .mulrhs ( fuOpB[i].data ),
+            .addend ( fuOpC[i].data ),
+            .fpuCode (fpuCode[i]),
+            .rm (rm[i]),
+            .result ( fmaDataOut[i] )
+        );
+        
+        FP32PipelinedOther #(
+            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
+        ) fpOther (
+            .clk (port.clk),
+            .lhs ( fuOpA[i].data ),
+            .rhs ( fuOpB[i].data ),
+            .fpuCode (fpuCode[i]),
+            .rm (rm[i]),
+            .result ( otherDataOut[i] )
+        );
+    end
+
+    always_comb begin
+        // FP Div/Sqrt Unit
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+
+            fpDivSqrtUnit.dataInA[i] = fuOpA[i].data;
+            fpDivSqrtUnit.dataInB[i] = fuOpB[i].data;
+
+            // DIV or SQRT
+            fpDivSqrtUnit.fpuCode[i] = fpOpInfo[i].fpuCode;
+            fpDivSqrtUnit.rm[i] = fpOpInfo[i].rm;
+
+            isDivSqrt[i] =  
+                pipeReg[i].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};
+
+            // Reset 条件
+            divSqrtReset[i] = FALSE;
+            // DivSqrt Unitで処理中のdiv/sqrtがフラッシュされたら，状態をFREEに変更して
+            // IQからdiv/sqrtを発行できるようにする
+            if (recovery.toRecoveryPhase) begin
+                divSqrtReset[i] = SelectiveFlushDetector( 
+                    recovery.toRecoveryPhase, 
+                    recovery.flushRangeHeadPtr, 
+                    recovery.flushRangeTailPtr, 
+                    regActiveListIndex[i]
+                );
+            end
+            if (clear) begin
+                divSqrtReset[i] = TRUE;
+            end
+            if (isDivSqrt[i] && (pipeReg[i].isFlushed || (pipeReg[i].valid && flush[i][0]))) begin
+                // Div/Sqrt is flushed at register read stage, so release the divider
+                divSqrtReset[i] = TRUE;
+            end
+            fpDivSqrtUnit.Reset[i] = divSqrtReset[i];
+
+            // Request to the divider/sqrter
+            // NOT make a request when below situation
+            // 1) When any operands of inst. are invalid
+            // 2) When the divider/sqrter is waiting for the instruction
+            //    to receive the result of the divider/sqrter
+            fpDivSqrtUnit.Req[i] = 
+                fpDivSqrtUnit.Reserved[i] && 
+                pipeReg[i].valid && isDivSqrt[i] && 
+                fuOpA[i].valid && fuOpB[i].valid;
+
+            if (fpDivSqrtUnit.Finished[i] &&
+                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid &&
+                (localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT})&& 
+                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid
+            ) begin 
+                // Div/Sqrt Unitから結果を取得できたので，
+                // IQからの発行を許可する 
+                fpDivSqrtUnit.Release[i] = TRUE;
+            end
+            else begin
+                fpDivSqrtUnit.Release[i] = FALSE;
+            end
+
+            if (pipeReg[i].valid && isDivSqrt[i] && fpDivSqrtUnit.Reserved[i]) begin
+                nextActiveListIndex[i] = 
+                    pipeReg[i].fpQueueData.activeListPtr;
+            end
+            else begin
+                nextActiveListIndex[i] = regActiveListIndex[i];
+            end
+        end
+    end
+
+    always_comb begin
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            iqData[i][0] = pipeReg[i].fpQueueData;
+            fpOpInfo[i]  = pipeReg[i].fpQueueData.fpOpInfo;
+            opType[i]    = fpOpInfo[i].opType;
+            fpuCode[i]   = fpOpInfo[i].fpuCode;
+            rm[i]   = fpOpInfo[i].rm;
+            
+
+            flush[i][0] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                pipeReg[i].fpQueueData.activeListPtr
+            );
+
+            // From local pipeline 
+            for (int j = 1; j < FP_EXEC_STAGE_DEPTH; j++) begin 
+                iqData[i][j] = localPipeReg[i][j-1].fpQueueData; 
+                flush[i][j] = SelectiveFlushDetector( 
+                    recovery.toRecoveryPhase, 
+                    recovery.flushRangeHeadPtr, 
+                    recovery.flushRangeTailPtr, 
+                    localPipeReg[i][j-1].fpQueueData.activeListPtr 
+                );
+            end
+
+            // オペランド
+            fuOpA[i] = ( pipeReg[i].bCtrl.rA.valid ? bypass.fpSrcRegDataOutA[i] : pipeReg[i].operandA );
+            fuOpB[i] = ( pipeReg[i].bCtrl.rB.valid ? bypass.fpSrcRegDataOutB[i] : pipeReg[i].operandB );
+            fuOpC[i] = ( pipeReg[i].bCtrl.rC.valid ? bypass.fpSrcRegDataOutC[i] : pipeReg[i].operandC );
+           
+
+            
+            //
+            // --- regValid
+            //
+
+            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // TODO FMAとそれ以外で区別必要か?
+            regValid[i] =
+                fuOpA[i].valid &&
+                fuOpB[i].valid &&
+                fuOpC[i].valid;
+            
+
+            //
+            // --- データアウト(実行ステージの最終段の処理)
+            //
+            dataOut[i].valid
+                = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid;
+
+            unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
+                FP_MOP_TYPE_ADD:
+                    dataOut[i].data = addDataOut[i];
+                FP_MOP_TYPE_MUL:
+                    dataOut[i].data = mulDataOut[i];
+                FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT:
+                    dataOut[i].data = fpDivSqrtUnit.DataOut[i];
+                FP_MOP_TYPE_FMA:
+                    dataOut[i].data = fmaDataOut[i];
+                default: /* FP_MOP_TYPE_OTHER */
+                    dataOut[i].data = otherDataOut[i];
+            endcase
+
+            //
+            // --- Bypass
+            //
+
+            // 最初のステージで出力
+            bypass.fpCtrlIn[i] = pipeReg[i].bCtrl;
+
+            // 最後のステージで出力
+            bypass.fpDstRegDataOut[i] = dataOut[i];
+
+            //
+            // --- Replay
+            //
+
+            // ISから3ステージ後=EX1ステージでReplayを出力
+            // このとき、localPipeReg[lane][0]のデータを使う
+            scheduler.fpRecordEntry[i] =
+                !stall &&
+                !clear &&
+                !flush[i][1] &&
+                localPipeReg[i][0].valid &&
+                !localPipeReg[i][0].regValid;
+            scheduler.fpRecordData[i] =
+                localPipeReg[i][0].fpQueueData;
+        end
+    end
+
+    //
+    // --- Pipeline レジスタ書き込み
+    //
+    FPRegisterWriteStageRegPath nextStage [ FP_ISSUE_WIDTH ];
+
+    always_comb begin
+        // Local Pipeline Register
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+            nextLocalPipeReg[i][0].opId = pipeReg[i].opId;
+`endif
+
+            nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
+            nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
+
+            // Regvalid of local pipeline 
+            if (isDivSqrt[i]) begin
+                nextLocalPipeReg[i][0].regValid = 
+                    pipeReg[i].replay && (fpDivSqrtUnit.Finished[i]);
+            end
+            else begin
+                nextLocalPipeReg[i][0].regValid = regValid[i];
+            end
+            
+
+            for (int j = 1; j < FP_EXEC_STAGE_DEPTH-1; j++) begin
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+                nextLocalPipeReg[i][j].opId = localPipeReg[i][j-1].opId;
+`endif 
+                nextLocalPipeReg[i][j].valid = flush[i][j] ? FALSE : localPipeReg[i][j-1].valid;
+                nextLocalPipeReg[i][j].regValid = localPipeReg[i][j-1].regValid; 
+                nextLocalPipeReg[i][j].fpQueueData = localPipeReg[i][j-1].fpQueueData;
+            end 
+        end
+
+        // To FPRegisterWriteStage
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+            nextStage[i].opId
+                = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].opId;
+`endif
+
+            nextStage[i].fpQueueData
+                = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData;
+
+            // リセットorフラッシュ時はNOP
+            nextStage[i].valid =
+                (stall || clear || port.rst || flush[i][FP_EXEC_STAGE_DEPTH-1]) ? FALSE : localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid;
+
+            nextStage[i].dataOut = dataOut[i];
+        end
+
+        port.nextStage = nextStage;
+
+        // Debug Register
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            debug.fpExReg[i].valid[0] = pipeReg[i].valid;
+            debug.fpExReg[i].flush[0] = flush[i][0];
+            debug.fpExReg[i].opId[0] = pipeReg[i].opId;
+            for ( int j = 1; j < FP_EXEC_STAGE_DEPTH; j++ ) begin
+                debug.fpExReg[i].valid[j] = localPipeReg[i][j-1].valid;
+                debug.fpExReg[i].opId[j] = localPipeReg[i][j-1].opId;
+                debug.fpExReg[i].flush[j] = flush[i][j];
+            end
+`ifdef RSD_FUNCTIONAL_SIMULATION
+            debug.fpExReg[i].dataOut = dataOut[i];
+            debug.fpExReg[i].fuOpA   = fuOpA[i];
+            debug.fpExReg[i].fuOpB   = fuOpB[i];
+            debug.fpExReg[i].fuOpC   = fuOpC[i];
+
+`endif
+        end
+end
+
+endmodule : FPExecutionStage
+
+`endif

@@ -132,12 +132,18 @@ typedef struct packed // DispatchStageRegPath
     // Renamed physical register numbers.
     PRegNumPath phySrcRegNumA;
     PRegNumPath phySrcRegNumB;
+`ifdef RSD_ENABLE_FP_PATH
+    PRegNumPath phySrcRegNumC;
+`endif
     PRegNumPath phyDstRegNum;
     PRegNumPath phyPrevDstRegNum;  // For releasing a register.
 
     // Source pointer for a matrix scheduler.
     IssueQueueIndexPath srcIssueQueuePtrRegA;
     IssueQueueIndexPath srcIssueQueuePtrRegB;
+`ifdef RSD_ENABLE_FP_PATH
+    IssueQueueIndexPath srcIssueQueuePtrRegC;
+`endif
 
     IssueQueueIndexPath issueQueuePtr;
     ActiveListIndexPath activeListPtr;
@@ -381,6 +387,55 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
 `endif
 
 } MemoryRegisterWriteStageRegPath;
+
+//
+// FP back end
+//
+typedef struct packed // FPRegisterReadStageRegPath
+{
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+    OpId      opId;
+`endif
+
+    logic valid;     // Valid flag. If this is 0, its op is treated as NOP.
+    logic replay;
+    FPIssueQueueEntry fpQueueData;
+} FPRegisterReadStageRegPath;
+
+
+typedef struct packed // FPExecutionStageRegPath
+{
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+    OpId      opId;
+`endif
+
+    logic valid;      // Valid flag. If this is 0, its op is treated as NOP.
+    logic replay;
+    logic isFlushed;
+    FPIssueQueueEntry fpQueueData;
+
+    // register read out
+    PRegDataPath operandA;
+    PRegDataPath operandB;
+    PRegDataPath operandC;
+
+    // Bypass control
+    BypassControll bCtrl;
+} FPExecutionStageRegPath;
+
+
+typedef struct packed // FPRegisterWriteStageRegPath
+{
+
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+    OpId      opId;
+`endif
+
+    logic valid;  // Valid flag. If this is 0, its op is treated as NOP.
+    FPIssueQueueEntry fpQueueData;
+
+    PRegDataPath dataOut;   // Result of Execution
+} FPRegisterWriteStageRegPath;
 
 function automatic logic SelectiveFlushDetector(
     input logic detectRange,

@@ -98,6 +98,12 @@ typedef struct packed { // DispatchStageDebugRegister
     LRegNumPath logSrcRegB;
     PRegNumPath phySrcRegB;
 
+`ifdef RSD_ENABLE_FP_PATH
+    logic readRegC;
+    LRegNumPath logSrcRegC;
+    PRegNumPath phySrcRegC;
+`endif
+
     logic writeReg;
     LRegNumPath logDstReg;
     PRegNumPath phyDstReg;
@@ -245,6 +251,42 @@ typedef struct packed { // MemoryRegisterWriteStageDebugRegister
     OpId opId;
 } MemoryRegisterWriteStageDebugRegister;
 
+`ifdef RSD_ENABLE_FP_PATH
+typedef struct packed { // FPIssueStageDebugRegister
+    logic valid;
+    logic flush;
+    OpId opId;
+} FPIssueStageDebugRegister;
+
+typedef struct packed { // FPRegisterReadStageDebugRegister
+    logic valid;
+    logic flush;
+    OpId opId;
+} FPRegisterReadStageDebugRegister;
+
+typedef struct packed { // FPExecutionStageDebugRegister
+    logic [ FP_EXEC_STAGE_DEPTH-1:0 ] valid;
+    logic [ FP_EXEC_STAGE_DEPTH-1:0 ] flush;
+    OpId [ FP_EXEC_STAGE_DEPTH-1:0 ] opId;
+
+`ifdef RSD_FUNCTIONAL_SIMULATION
+    // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+    // 合成時は、IOポートが足りなくて不可能であるため
+    DataPath dataOut;
+    DataPath fuOpA;
+    DataPath fuOpB;
+    DataPath fuOpC;
+`endif
+
+} FPExecutionStageDebugRegister;
+
+typedef struct packed { // FPRegisterWriteStageDebugRegister
+    logic valid;
+    logic flush;
+    OpId opId;
+} FPRegisterWriteStageDebugRegister;
+`endif
+
 typedef struct packed { // CommitStageDebugRegister
     logic commit;
     logic flush;
@@ -302,6 +344,13 @@ typedef struct packed { // DebugRegister
     MemoryTagAccessStageDebugRegister      [ MEM_ISSUE_WIDTH-1:0 ] mtReg;
     MemoryAccessStageDebugRegister         [ MEM_ISSUE_WIDTH-1:0 ] maReg;
     MemoryRegisterWriteStageDebugRegister  [ MEM_ISSUE_WIDTH-1:0 ] memRwReg;
+
+`ifdef RSD_ENABLE_FP_PATH
+    FPIssueStageDebugRegister         [ FP_ISSUE_WIDTH-1:0 ] fpIsReg;
+    FPRegisterReadStageDebugRegister  [ FP_ISSUE_WIDTH-1:0 ] fpRrReg;
+    FPExecutionStageDebugRegister     [ FP_ISSUE_WIDTH-1:0 ] fpExReg;
+    FPRegisterWriteStageDebugRegister [ FP_ISSUE_WIDTH-1:0 ] fpRwReg;
+`endif
 
     CommitStageDebugRegister [ COMMIT_WIDTH-1:0 ] cmReg;
 

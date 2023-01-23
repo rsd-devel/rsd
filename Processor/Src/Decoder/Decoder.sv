@@ -76,6 +76,10 @@ function automatic void RISCV_EmitOpImm(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
     opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
@@ -107,6 +111,9 @@ function automatic void RISCV_EmitOpImm(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -198,6 +205,10 @@ function automatic void RISCV_EmitOp(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
     opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
@@ -230,6 +241,9 @@ function automatic void RISCV_EmitOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -311,6 +325,10 @@ function automatic void RISCV_EmitUTypeInst(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
     opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
@@ -338,6 +356,9 @@ function automatic void RISCV_EmitUTypeInst(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = isf.opCode == RISCV_AUIPC ? OOT_PC : OOT_REG;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -410,6 +431,10 @@ function automatic void RISCV_EmitJAL(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.brOp.dstRegNum.regNum  = isfU.rd;
     opInfo.operand.brOp.srcRegNumA.regNum = '0;
@@ -423,6 +448,9 @@ function automatic void RISCV_EmitJAL(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_PC;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -496,6 +524,10 @@ function automatic void RISCV_EmitJALR(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.brOp.dstRegNum.regNum  = isfI.rd;
     opInfo.operand.brOp.srcRegNumA.regNum = isfI.rs1;
@@ -509,6 +541,9 @@ function automatic void RISCV_EmitJALR(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -586,6 +621,10 @@ function automatic void RISCV_EmitBranch(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.brOp.dstRegNum.regNum  = 0;
     opInfo.operand.brOp.srcRegNumA.regNum = isfR.rs1;
@@ -599,6 +638,9 @@ function automatic void RISCV_EmitBranch(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_INT;
@@ -681,6 +723,10 @@ function automatic void RISCV_EmitMemOp(
     opInfo.operand.memOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.memOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.memOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.memOp.dstRegNum.regNum  = isLoad ? isfI.rd : '0;
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
@@ -696,6 +742,9 @@ function automatic void RISCV_EmitMemOp(
     // ストア時はBを読む
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = isLoad ? OOT_IMM : OOT_REG;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_MEM;
@@ -787,6 +836,10 @@ function automatic void RISCV_EmitComplexOp(
     opInfo.operand.complexOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.complexOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.complexOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    opInfo.operand.complexOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.complexOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.complexOp.srcRegNumB.isFP = FALSE;
 `endif
     opInfo.operand.complexOp.dstRegNum.regNum  = dstRegNum;
     opInfo.operand.complexOp.srcRegNumA.regNum = srcRegNumA;
@@ -809,6 +862,9 @@ function automatic void RISCV_EmitComplexOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -891,6 +947,10 @@ function automatic void RISCV_EmitMiscMemOp(
     miscMemOp.dstRegNum.isVector  = FALSE;
     miscMemOp.srcRegNumA.isVector = FALSE;
     miscMemOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    miscMemOp.dstRegNum.isFP  = FALSE;
+    miscMemOp.srcRegNumA.isFP = FALSE;
+    miscMemOp.srcRegNumB.isFP = FALSE;
 `endif
     miscMemOp.dstRegNum.regNum  = '0;
     miscMemOp.srcRegNumA.regNum = '0;
@@ -920,6 +980,9 @@ function automatic void RISCV_EmitMiscMemOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_MEM;
@@ -997,6 +1060,10 @@ function automatic void RISCV_EmitCSR_Op(
     memOp.dstRegNum.isVector  = FALSE;
     memOp.srcRegNumA.isVector = FALSE;
     memOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    memOp.dstRegNum.isFP  = FALSE;
+    memOp.srcRegNumA.isFP = FALSE;
+    memOp.srcRegNumB.isFP = FALSE;
 `endif
     memOp.dstRegNum.regNum  = isfSystem.rd;
     memOp.srcRegNumA.regNum = isfSystem.rs1;
@@ -1048,6 +1115,9 @@ function automatic void RISCV_EmitCSR_Op(
     // CSR 命令の即値だけは特殊なので REG にしておき，ユニット側で対処する
     opInfo.opTypeA = OOT_REG;  
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_MEM;
@@ -1086,6 +1156,10 @@ function automatic void RISCV_EmitSystemOp(
     systemOp.dstRegNum.isVector  = FALSE;
     systemOp.srcRegNumA.isVector = FALSE;
     systemOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    systemOp.dstRegNum.isFP  = FALSE;
+    systemOp.srcRegNumA.isFP = FALSE;
+    systemOp.srcRegNumB.isFP = FALSE;
 `endif
     systemOp.dstRegNum.regNum  = '0;
     systemOp.srcRegNumA.regNum = '0;
@@ -1127,6 +1201,9 @@ function automatic void RISCV_EmitSystemOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
 
     // 条件コード
@@ -1177,6 +1254,299 @@ function automatic void RISCV_DecodeSystem(
 
 endfunction
 
+`ifdef RSD_ENABLE_FP_PATH
+//
+// --- FP ld/st
+//
+function automatic void RISCV_EmitFPMemOp(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf
+);
+    RISCV_ISF_S isfS;
+    RISCV_ISF_I isfI;
+    MemFunct3 memFunct3;
+    logic isLoad;
+
+    MemAccessMode memAccessMode;
+
+    isfS = isf;
+    isfI = isf;
+    memFunct3 = MemFunct3'(isfS.funct3);
+    isLoad = ( isfI.opCode == RISCV_F_LD );
+
+    // 論理レジスタ番号
+    opInfo.operand.memOp.dstRegNum.isFP  = TRUE;
+    opInfo.operand.memOp.srcRegNumA.isFP = TRUE;
+    opInfo.operand.memOp.srcRegNumB.isFP = TRUE;
+    opInfo.operand.memOp.dstRegNum.regNum  = isLoad ? isfI.rd : '0;
+    opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
+    opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
+    
+    opInfo.operand.memOp.csrCtrl = '0; // unused
+    opInfo.operand.memOp.padding = '0;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = ( isfI.rd != ZERO_REGISTER ) & isLoad;
+
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = isLoad ? OOT_IMM : OOT_REG;
+    opInfo.opTypeC = OOT_IMM;
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_MEM;
+    opInfo.mopSubType.memType = isLoad ? MEM_MOP_TYPE_LOAD : MEM_MOP_TYPE_STORE;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // アドレッシング
+    opInfo.operand.memOp.addrIn    = isLoad ? isfI.imm : {isfS.imm2, isfS.imm1};
+    opInfo.operand.memOp.isAddAddr = TRUE;
+    opInfo.operand.memOp.isRegAddr = TRUE;
+    RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+    opInfo.operand.memOp.memAccessMode = memAccessMode;
+
+    opInfo.valid = TRUE;
+
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = FALSE;
+
+    // Serialized
+    opInfo.serialized = FALSE;
+endfunction
+
+function automatic void RISCV_DecodeFPMemOp(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo memOp;
+    MicroOpIndex mid;
+
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+
+    RISCV_EmitFPMemOp(
+        .opInfo( memOp ),
+        .isf( isf )
+    );
+
+    // Initizalize
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+
+    insnInfo.writePC    = FALSE;
+    insnInfo.isCall     = FALSE;
+    insnInfo.isReturn   = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    insnInfo.isSerialized = FALSE;
+endfunction
+
+//
+// --- FP Op
+//
+function automatic void RISCV_EmitFPOp(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf,
+    input LScalarRegNumPath srcRegNumA,
+    input LScalarRegNumPath srcRegNumB,
+    input LScalarRegNumPath dstRegNum
+);
+    RISCV_ISF_R isfR;
+    RV32FFunct3 rv32fFunct3;
+    RV32FFunct7 rv32fFunct7;
+    FCVTFunct5  fcvtfunct5;
+
+    FPU_Code fpuCode;
+    Rounding_Mode rm;
+
+    isfR = isf;
+    rv32fFunct3 = RV32FFunct3'(isfR.funct3);
+    rv32fFunct7 = RV32FFunct7'(isfR.funct7);
+    fcvtfunct5  = FCVTFunct5'(isfR.rs2);
+    rm = Rounding_Mode'(isfR.funct3);
+
+    // 論理レジスタ番号
+    opInfo.operand.fpOp.dstRegNum.isFP  = TRUE;
+    opInfo.operand.fpOp.srcRegNumA.isFP = TRUE;
+    opInfo.operand.fpOp.srcRegNumB.isFP = TRUE;
+    opInfo.operand.fpOp.srcRegNumC.isFP = TRUE;
+    opInfo.operand.fpOp.dstRegNum.regNum  = dstRegNum;
+    opInfo.operand.fpOp.srcRegNumA.regNum = srcRegNumA;
+    opInfo.operand.fpOp.srcRegNumB.regNum = srcRegNumB;
+    opInfo.operand.fpOp.srcRegNumC.regNum = '0;
+
+    // Rounding Mode
+    opInfo.operand.fpOp.rm = rm;
+
+    // FPU
+    RISCV_DecodeFPOpFunct3( fpuCode, rv32fFunct3, rv32fFunct7, fcvtfunct5);
+    opInfo.operand.fpOp.fpuCode = fpuCode;
+    opInfo.operand.fpOp.padding = '0;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = ( dstRegNum != ZERO_REGISTER ) ? TRUE : FALSE;
+
+    // 論理レジスタを読むかどうか
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_REG;
+    opInfo.opTypeC = OOT_REG;
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_FP;
+    opInfo.mopSubType.fpType = (fpuCode == FC_ADD || fpuCode == FC_SUB ) ? FP_MOP_TYPE_ADD  :
+                                                    (fpuCode == FC_MUL ) ? FP_MOP_TYPE_MUL  :
+                                                    (fpuCode == FC_DIV ) ? FP_MOP_TYPE_DIV  :
+                                                    (fpuCode == FC_SQRT) ? FP_MOP_TYPE_SQRT : FP_MOP_TYPE_OTHER;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // 未定義命令
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = FALSE;
+
+    // Serialized
+    opInfo.serialized = FALSE;
+
+    // Control
+    opInfo.valid = TRUE;    // Valid outputs
+endfunction
+
+function automatic void RISCV_DecodeFPOp(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo fpOp;
+    MicroOpIndex mid;
+
+    RISCV_EmitFPOp(
+        .opInfo( fpOp ),
+        .isf( isf ),
+        .srcRegNumA( isf.rs1 ),
+        .srcRegNumB( isf.rs2 ),
+        .dstRegNum( isf.rd )
+    );
+
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(fpOp, mid, FALSE, TRUE);
+    mid += 1;
+
+    insnInfo.writePC = FALSE;
+    insnInfo.isCall = FALSE;
+    insnInfo.isReturn = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    insnInfo.isSerialized = FALSE;
+endfunction
+
+//
+// --- FP FMA Op
+//
+function automatic void RISCV_EmitFPFMAOp(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf
+);
+    RISCV_ISF_R4 isfR4;
+    RISCV_OpCode opCode;
+    FPU_Code fpuCode;
+    Rounding_Mode rm;
+
+    isfR4 = isf;
+    opCode = isfR4.opCode;
+    rm = Rounding_Mode'(isfR4.funct3);
+
+    // 論理レジスタ番号
+    opInfo.operand.fpOp.dstRegNum.isFP  = TRUE;
+    opInfo.operand.fpOp.srcRegNumA.isFP = TRUE;
+    opInfo.operand.fpOp.srcRegNumB.isFP = TRUE;
+    opInfo.operand.fpOp.srcRegNumC.isFP = TRUE;
+    opInfo.operand.fpOp.dstRegNum.regNum  = isfR4.rd;
+    opInfo.operand.fpOp.srcRegNumA.regNum = isfR4.rs1;
+    opInfo.operand.fpOp.srcRegNumB.regNum = isfR4.rs2;
+    opInfo.operand.fpOp.srcRegNumC.regNum = isfR4.rs3;
+
+    // Rounding Mode
+    opInfo.operand.fpOp.rm = rm;
+
+    // FPU
+    RISCV_DecodeFPFMAOpFunct3( fpuCode, opCode);
+    opInfo.operand.fpOp.fpuCode = fpuCode;
+    opInfo.operand.fpOp.padding = '0;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = ( isfR4.rd != ZERO_REGISTER ) ? TRUE : FALSE;
+
+    // 論理レジスタを読むかどうか
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_REG;
+    opInfo.opTypeC = OOT_REG;
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_FP;
+    opInfo.mopSubType.fpType = FP_MOP_TYPE_FMA;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // 未定義命令
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = FALSE;
+
+    // Serialized
+    opInfo.serialized = FALSE;
+
+    // Control
+    opInfo.valid = TRUE;    // Valid outputs
+endfunction
+
+function automatic void  RISCV_DecodeFPFMAOp(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo fpOp;
+    MicroOpIndex mid;
+
+    RISCV_EmitFPFMAOp(
+        .opInfo( fpOp ),
+        .isf( isf )
+    );
+
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(fpOp, mid, FALSE, TRUE);
+    mid += 1;
+
+    insnInfo.writePC = FALSE;
+    insnInfo.isCall = FALSE;
+    insnInfo.isReturn = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    insnInfo.isSerialized = FALSE;
+endfunction
+
+`endif
 
 function automatic void RISCV_EmitIllegalOp(
     output OpInfo opInfo,
@@ -1331,7 +1701,19 @@ output
             RISCV_SYSTEM : begin
                 RISCV_DecodeSystem(microOps, insnInfo, insn);
             end
+`ifdef RSD_ENABLE_FP_PATH
+            RISCV_F_LD, RISCV_F_ST : begin
+                RISCV_DecodeFPMemOp(microOps, insnInfo, insn);
+            end
 
+            RISCV_F_OP : begin
+                RISCV_DecodeFPOp(microOps, insnInfo, insn);
+            end
+
+            RISCV_F_FMADD, RISCV_F_FMSUB, RISCV_F_FNMSUB, RISCV_F_FNMADD : begin
+                RISCV_DecodeFPFMAOp(microOps, insnInfo, insn);
+            end
+`endif
             default : begin
                 RISCV_DecodeIllegal(microOps, insnInfo, insn, illegalPC);
             end

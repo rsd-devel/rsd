@@ -31,13 +31,21 @@ typedef logic [ALL_DECODED_MICRO_OP_WIDTH-DECODE_WIDTH-1:0] RemainingDecodedMicr
 typedef logic [ALL_DECODED_MICRO_OP_WIDTH_BIT_SIZE-1:0] AllDecodedMicroOpIndex;
 
 
+`ifdef RSD_ENABLE_FP_PATH
+localparam MICRO_OP_SOURCE_REG_NUM = 3;
+`else
 localparam MICRO_OP_SOURCE_REG_NUM = 2;
+`endif
 
 typedef enum logic [1:0]
 {
     MOP_TYPE_INT     = 2'b00,
     MOP_TYPE_COMPLEX = 2'b01,
     MOP_TYPE_MEM     = 2'b10
+`ifdef RSD_ENABLE_FP_PATH
+    ,
+    MOP_TYPE_FP      = 2'b11
+`endif
 } MicroOpType;
 
 // 各サブタイプは，パイプライン中で処理を見分けるために使用される
@@ -75,11 +83,24 @@ typedef enum logic [2:0]
 
 } MemMicroOpSubType;
 
+typedef enum logic [2:0]
+{
+    FP_MOP_TYPE_ADD    = 3'b000,
+    FP_MOP_TYPE_MUL    = 3'b001,
+    FP_MOP_TYPE_DIV    = 3'b010,
+    FP_MOP_TYPE_SQRT   = 3'b011,
+    FP_MOP_TYPE_FMA    = 3'b100,
+    FP_MOP_TYPE_OTHER  = 3'b101
+} FPMicroOpSubType;
+
 typedef union packed    // OpSubType
 {
     IntMicroOpSubType     intType;
     ComplexMicroOpSubType complexType;
     MemMicroOpSubType     memType;
+`ifdef RSD_ENABLE_FP_PATH
+    FPMicroOpSubType     fpType;
+`endif
 } MicroOpSubType;
 
 typedef struct packed // OpId
@@ -197,6 +218,20 @@ typedef struct packed // SystemMicroOpOperand
     logic [11:0] imm;
 } SystemMicroOpOperand;
 
+//FPMicroOpOperand: 6+6+6+6 +5+3 +21 = 53 bits
+typedef struct packed // FPMicroOpOperand
+{
+    // 論理レジスタ番号
+    LRegNumPath dstRegNum;
+    LRegNumPath srcRegNumA;    // 第1オペランド
+    LRegNumPath srcRegNumB;    // 第2オペランド
+    LRegNumPath srcRegNumC;    // 第3オペランド
+
+    FPU_Code fpuCode;
+    Rounding_Mode rm;
+    logic [20:0] padding;        // Padding field.
+} FPMicroOpOperand;
+
 typedef union packed    // MicroOpOperand
 {
     IntMicroOpOperand     intOp;
@@ -205,6 +240,9 @@ typedef union packed    // MicroOpOperand
     ComplexMicroOpOperand complexOp;
     MiscMemMicroOpOperand miscMemOp;
     SystemMicroOpOperand  systemOp;
+`ifdef RSD_ENABLE_FP_PATH
+    FPMicroOpOperand fpOp;
+`endif
 } MicroOpOperand;
 
 
@@ -222,6 +260,9 @@ typedef struct packed // OpInfo
 
     OpOperandType opTypeA;
     OpOperandType opTypeB;
+`ifdef RSD_ENABLE_FP_PATH
+    OpOperandType opTypeC;
+`endif
 
     logic writeReg;     // レジスタ書き込みを行うかどうか
     

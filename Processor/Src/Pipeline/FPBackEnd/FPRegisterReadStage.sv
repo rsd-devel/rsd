@@ -1,0 +1,151 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+
+//
+// A pipeline stage for register read.
+//
+
+
+import BasicTypes::*;
+import OpFormatTypes::*;
+import MicroOpTypes::*;
+import SchedulerTypes::*;
+import PipelineTypes::*;
+import DebugTypes::*;
+
+`ifdef RSD_ENABLE_FP_PATH
+
+module FPRegisterReadStage(
+    FPRegisterReadStageIF.ThisStage port,
+    FPIssueStageIF.NextStage prev,
+    RegisterFileIF.FPRegisterReadStage registerFile,
+    BypassNetworkIF.FPRegisterReadStage bypass,
+    RecoveryManagerIF.FPRegisterReadStage recovery,
+    ControllerIF.FPRegisterReadStage ctrl,
+    DebugIF.FPRegisterReadStage debug
+);
+
+    // --- Pipeline registers
+    FPRegisterReadStageRegPath pipeReg[FP_ISSUE_WIDTH];
+
+`ifndef RSD_SYNTHESIS
+    // Don't care these values, but avoiding undefined status in Questa.
+    initial begin
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            pipeReg[i] = '0;
+        end
+    end
+`endif
+
+    always_ff@( posedge port.clk )   // synchronous rst
+    begin
+        if (port.rst) begin
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                pipeReg[i].valid <= '0;
+            end
+        end
+        else if(!ctrl.backEnd.stall) begin              // write data
+            pipeReg <= prev.nextStage;
+        end
+    end
+
+
+
+    // Pipeline controll
+    logic stall, clear;
+    logic flush[ FP_ISSUE_WIDTH ];
+    FPIssueQueueEntry iqData[FP_ISSUE_WIDTH];
+    OpSrc opSrc[FP_ISSUE_WIDTH];
+    OpDst opDst[FP_ISSUE_WIDTH];
+    FPExecutionStageRegPath nextStage[FP_ISSUE_WIDTH];
+
+    always_comb begin
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            iqData[i] = pipeReg[i].fpQueueData;
+            opSrc[i] = iqData[i].opSrc;
+            opDst[i] = iqData[i].opDst;
+
+            //
+            // To the register file.
+            //
+
+            registerFile.fpSrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            registerFile.fpSrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+            registerFile.fpSrcRegNumC[i] = opSrc[i].phySrcRegNumC;
+
+            //
+            // To the bypass network.
+            // ストールやフラッシュの制御は，Bypass モジュールの内部で
+            // コントローラの信号を参照して行われている
+            //
+            bypass.fpPhySrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            bypass.fpPhySrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+            bypass.fpPhySrcRegNumC[i] = opSrc[i].phySrcRegNumC;
+
+            bypass.fpWriteReg[i]  = opDst[i].writeReg & pipeReg[i].valid;
+            bypass.fpPhyDstRegNum[i] = opDst[i].phyDstRegNum;
+
+            // FP(ld/st除く) では、operandTypeはOOT_REGのみ
+            bypass.fpReadRegA[i] = TRUE;
+            bypass.fpReadRegB[i] = TRUE;
+            bypass.fpReadRegC[i] = TRUE;
+
+            //
+            // --- Pipeline ラッチ書き込み
+            //
+            `ifndef RSD_DISABLE_DEBUG_REGISTER
+            nextStage[i].opId = pipeReg[i].opId;
+            `endif
+
+            // リセットorフラッシュ時はNOP
+            flush[i] = SelectiveFlushDetector(
+                        recovery.toRecoveryPhase,
+                        recovery.flushRangeHeadPtr,
+                        recovery.flushRangeTailPtr,
+                        iqData[i].activeListPtr
+                        );
+            nextStage[i].valid =
+                (stall || clear || port.rst || flush[i]) ? FALSE : pipeReg[i].valid;
+
+            nextStage[i].replay = pipeReg[i].replay;
+
+            // divがこのステージ内でフラッシュされた場合：
+            // Dividerへの要求予約を取り消し，
+            // IQからdivを発行できるようにする 
+            if (iqData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT}) begin
+                nextStage[i].isFlushed = pipeReg[i].valid && flush[i];
+            end
+            else begin
+                nextStage[i].isFlushed = FALSE;
+            end
+            
+            // レジスタ値&フラグ
+            nextStage[i].operandA = registerFile.fpSrcRegDataA[i];
+            nextStage[i].operandB = registerFile.fpSrcRegDataB[i];
+            nextStage[i].operandC = registerFile.fpSrcRegDataC[i];
+            
+            // Issue queue data
+            nextStage[i].fpQueueData = pipeReg[i].fpQueueData;
+
+            // バイパス制御
+            nextStage[i].bCtrl = bypass.fpCtrlOut[i];
+
+        end
+        port.nextStage = nextStage;
+
+        // Debug Register
+        `ifndef RSD_DISABLE_DEBUG_REGISTER
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            debug.fpRrReg[i].valid = pipeReg[i].valid;
+            debug.fpRrReg[i].flush = flush[i];
+            debug.fpRrReg[i].opId = pipeReg[i].opId;
+        end
+        `endif
+    end
+endmodule : FPRegisterReadStage
+
+`endif

@@ -56,6 +56,9 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
     logic loadIssueReq[ISSUE_QUEUE_ENTRY_NUM];
     logic storeIssueReq[ISSUE_QUEUE_ENTRY_NUM];
+`ifdef RSD_ENABLE_FP_PATH
+    logic fpIssueReq[ISSUE_QUEUE_ENTRY_NUM];
+`endif
 
 
     // A scheduler module is entrance of a wakeup/select logic.
@@ -76,6 +79,9 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
         loadIssueReq,
         storeIssueReq,
+`ifdef RSD_ENABLE_FP_PATH
+        fpIssueReq,
+`endif
         notIssued,
         dispatchStore,
         dispatchLoad,
@@ -125,6 +131,9 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
         loadIssueReq,
         storeIssueReq,
+`ifdef RSD_ENABLE_FP_PATH
+        fpIssueReq,
+`endif
     output
         selected,
         selectedPtr,

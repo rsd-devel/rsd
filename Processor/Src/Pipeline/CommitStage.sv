@@ -250,6 +250,10 @@ module CommitStage(
 
     always_ff@(posedge port.clk) begin
         prevLastCommittedPC <= lastCommittedPC;
+        for(int i=0;i<COMMIT_WIDTH;++i) begin
+            if(commit[i])
+                $display("%x", alReadData[i].pc);
+        end
     end
 
     always_comb begin

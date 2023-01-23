@@ -42,6 +42,14 @@ module WakeupPipelineRegister(
     IssueQueueIndexPath complexSelectedPtr[ COMPLEX_ISSUE_WIDTH ];
 `endif
 
+`ifdef RSD_ENABLE_FP_PATH
+    WakeupPipeReg fpPipeReg[ FP_ISSUE_WIDTH ][ ISSUE_QUEUE_FP_LATENCY ];
+    WakeupPipeReg nextFPPipeReg[ FP_ISSUE_WIDTH ];
+    logic [$clog2(ISSUE_QUEUE_FP_LATENCY):0] canBeFlushedRegCountFP;    //FlushedOpが存在している可能性があるFPパイプラインレジスタの段数
+    logic flushFP[ FP_ISSUE_WIDTH ];
+    IssueQueueIndexPath fpSelectedPtr[ FP_ISSUE_WIDTH ];
+`endif
+
     // Flushed Op detection
     logic [$clog2(ISSUE_QUEUE_INT_LATENCY):0] canBeFlushedRegCountInt;    //FlushedOpが存在している可能性があるIntパイプラインレジスタの段数
     logic [$clog2(ISSUE_QUEUE_MEM_LATENCY):0] canBeFlushedRegCountMem;    //FlushedOpが存在している可能性があるMemパイプラインレジスタの段数
@@ -81,6 +89,16 @@ module WakeupPipelineRegister(
                 memPipeReg[i][j].activeListPtr <= '1;
             end
         end
+
+`ifdef RSD_ENABLE_FP_PATH
+        for( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            for( int j = 0; j < ISSUE_QUEUE_FP_LATENCY; j++ ) begin
+                fpPipeReg[i][j].ptr <= '1;
+                fpPipeReg[i][j].depVector <= '1;
+                fpPipeReg[i][j].activeListPtr <= '1;
+            end
+        end
+`endif
     end
 `endif
 
@@ -107,6 +125,14 @@ module WakeupPipelineRegister(
                     memPipeReg[i][j].valid <= FALSE;
                 end
             end
+
+`ifdef RSD_ENABLE_FP_PATH
+            for( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+                for( int j = 0; j < ISSUE_QUEUE_FP_LATENCY; j++ ) begin
+                    fpPipeReg[i][j].valid <= FALSE;
+                end
+            end
+`endif
         end
         else if ( !port.stall ) begin
             // 通常動作
@@ -132,6 +158,15 @@ module WakeupPipelineRegister(
                 end
                 memPipeReg[i][ ISSUE_QUEUE_MEM_LATENCY-1 ] <= nextMemPipeReg[i];
             end
+
+`ifdef RSD_ENABLE_FP_PATH
+            for( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+                for( int j = 1; j < ISSUE_QUEUE_FP_LATENCY; j++ ) begin
+                    fpPipeReg[i][j-1] <= fpPipeReg[i][j];
+                end
+                fpPipeReg[i][ ISSUE_QUEUE_FP_LATENCY-1 ] <= nextFPPipeReg[i];
+            end
+`endif
         end
     end
 
@@ -168,6 +203,16 @@ module WakeupPipelineRegister(
             nextMemPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
             nextMemPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
         end
+
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            fpSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+            nextFPPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] && !flushIQ_Entry[fpSelectedPtr[i]];
+            nextFPPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+            nextFPPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+            nextFPPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+        end
+`endif
 
         //
         // Exit from the pipeline registers and now wakeup consumers.
@@ -240,6 +285,21 @@ module WakeupPipelineRegister(
             port.wakeupVector[i+WAKEUP_WIDTH] = memPipeReg[i+LOAD_ISSUE_WIDTH][0].depVector;
         end
 `endif
+
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            flushFP[i] = SelectiveFlushDetector(
+                            canBeFlushedRegCountFP != 0,
+                            flushRangeHeadPtr,
+                            flushRangeTailPtr,
+                            fpPipeReg[i][0].activeListPtr
+                            );
+            port.wakeup[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = fpPipeReg[i][0].valid && !flushFP[i];
+            port.wakeupPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = fpPipeReg[i][0].ptr;
+            port.wakeupVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = fpPipeReg[i][0].depVector;
+        end
+`endif
+
     end
 
     // To an issue queue.
@@ -263,6 +323,12 @@ module WakeupPipelineRegister(
             port.releaseEntry[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].valid && !port.stall;
             port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].ptr;
         end
+`ifdef RSD_ENABLE_FP_PATH
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            port.releaseEntry[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].valid && !port.stall;
+            port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].ptr;
+        end
+`endif
     end
 
     always_ff @( posedge port.clk ) begin
@@ -272,6 +338,9 @@ module WakeupPipelineRegister(
             canBeFlushedRegCountComplex <= 0;
 `endif
             canBeFlushedRegCountMem <= 0;
+`ifdef RSD_ENABLE_FP_PATH
+            canBeFlushedRegCountFP <= 0;
+`endif
             flushRangeHeadPtr <= 0;
             flushRangeTailPtr <= 0;
         end
@@ -281,6 +350,9 @@ module WakeupPipelineRegister(
             canBeFlushedRegCountComplex <= ISSUE_QUEUE_COMPLEX_LATENCY;
 `endif
             canBeFlushedRegCountMem <= ISSUE_QUEUE_MEM_LATENCY;
+`ifdef RSD_ENABLE_FP_PATH
+            canBeFlushedRegCountFP <= ISSUE_QUEUE_FP_LATENCY;
+`endif
             flushRangeHeadPtr <= recovery.flushRangeHeadPtr;
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
         end
@@ -296,6 +368,11 @@ module WakeupPipelineRegister(
             if(canBeFlushedRegCountMem>0 && !port.stall) begin
                 canBeFlushedRegCountMem <= canBeFlushedRegCountMem-1;
             end
+`ifdef RSD_ENABLE_FP_PATH
+            if(canBeFlushedRegCountFP>0 && !port.stall) begin
+                canBeFlushedRegCountFP <= canBeFlushedRegCountFP-1;
+            end
+`endif
         end
     end
 
@@ -304,6 +381,9 @@ module WakeupPipelineRegister(
             (canBeFlushedRegCountInt != 0) || 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             (canBeFlushedRegCountComplex != 0) || 
+`endif
+`ifdef RSD_ENABLE_FP_PATH
+            (canBeFlushedRegCountFP != 0) || 
 `endif
             (canBeFlushedRegCountMem != 0);
     end

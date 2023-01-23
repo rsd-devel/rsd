@@ -17,6 +17,7 @@ module ReplayQueue(
     SchedulerIF.ReplayQueue port,
     LoadStoreUnitIF.ReplayQueue mshr,
     MulDivUnitIF.ReplayQueue mulDivUnit,
+    FPDivSqrtUnitIF.ReplayQueue fpDivSqrtUnit,
     CacheFlushManagerIF.ReplayQueue cacheFlush,
     RecoveryManagerIF.ReplayQueue recovery,
     ControllerIF.ReplayQueue ctrl
@@ -26,9 +27,13 @@ module ReplayQueue(
     // equal to a maximum latency of all instruction.
     // TODO: modify this when adding an instruction whose latency is larger than
     //       memory access instructions.
+`ifdef RSD_ENABLE_FP_PATH
+    parameter REPLAY_QUEUE_MAX_INTERVAL = ISSUE_QUEUE_FP_LATENCY;
+`else
     parameter REPLAY_QUEUE_MAX_INTERVAL = ISSUE_QUEUE_COMPLEX_LATENCY;
+`endif
 //    parameter REPLAY_QUEUE_MAX_INTERVAL = ISSUE_QUEUE_MEM_LATENCY;
-    parameter REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH = $clog2(REPLAY_QUEUE_MAX_INTERVAL);
+    parameter REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH = $clog2(REPLAY_QUEUE_MAX_INTERVAL+1);
     typedef logic [REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH-1 : 0] ReplayQueueIntervalPath;
 
 
@@ -47,6 +52,11 @@ module ReplayQueue(
         MemIssueQueueEntry [MEM_ISSUE_WIDTH-1 : 0] memData;
         logic [MEM_ISSUE_WIDTH-1 : 0] memAddrHit;
         DCacheIndexSubsetPath [MEM_ISSUE_WIDTH-1 : 0] memAddrSubset;
+`ifdef RSD_ENABLE_FP_PATH
+        // FP op data
+        logic [FP_ISSUE_WIDTH-1 : 0] fpValid;
+        FPIssueQueueEntry [FP_ISSUE_WIDTH-1 : 0] fpData;
+`endif
         // How many cycles to replay after waiting
         ReplayQueueIntervalPath replayInterval;
     } ReplayQueueEntry;
@@ -128,6 +138,9 @@ module ReplayQueue(
     logic flushMem[ MEM_ISSUE_WIDTH ];
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     logic flushComplex[ COMPLEX_ISSUE_WIDTH ];
+`endif
+`ifdef RSD_ENABLE_FP_PATH 
+    logic flushFP[ FP_ISSUE_WIDTH ];
 `endif
 
     // Outputs are pipelined for timing optimization.
@@ -291,6 +304,12 @@ module ReplayQueue(
             recordData.memAddrHit[i] = port.memRecordAddrHit[i];
             recordData.memAddrSubset[i] = port.memRecordAddrSubset[i];
         end
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            recordData.fpValid[i] = port.fpRecordEntry[i];
+            recordData.fpData[i] = port.fpRecordData[i];
+        end
+`endif
         recordData.replayInterval = intervalIn;
 
 
@@ -306,6 +325,11 @@ module ReplayQueue(
             for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
                 recordData.memValid[i] = FALSE;
             end
+`ifdef RSD_ENABLE_FP_PATH
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                recordData.fpValid[i] = FALSE;
+            end
+`endif
             recordData.replayInterval = '0;
         end
 
@@ -332,6 +356,13 @@ module ReplayQueue(
                     replayEntryValidIn = TRUE;
                 end
             end
+`ifdef RSD_ENABLE_FP_PATH
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                if (recordData.fpValid[i]) begin
+                    replayEntryValidIn = TRUE;
+                end
+            end
+`endif
         end
 
         if (port.rst) begin
@@ -356,6 +387,13 @@ module ReplayQueue(
                     replayEntryValidOut = TRUE;
                 end
             end
+`ifdef RSD_ENABLE_FP_PATH
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                if (replayEntryOut.fpValid[i]) begin
+                    replayEntryValidOut = TRUE;
+                end
+            end
+`endif
         end
 
 
@@ -390,6 +428,13 @@ module ReplayQueue(
                     pushEntry = TRUE;
                 end
             end
+`ifdef RSD_ENABLE_FP_PATH
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+                if (recordData.fpValid[i]) begin
+                    pushEntry = TRUE;
+                end
+            end
+`endif
         end
 
         // To an output of ReplayQueue
@@ -463,6 +508,18 @@ module ReplayQueue(
                 end 
             end 
 `endif
+`ifdef RSD_ENABLE_FP_PATH
+            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin 
+                if (replayEntryOut.fpValid[i] && 
+                    replayEntryOut.fpData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT} && 
+                    fpDivSqrtUnit.Busy[i]   // FP Div/Sqrt unit is busy and wait it
+                ) begin 
+                    // Div/Sqrt interlock (stop issuing div/sqrt while there is 
+                    // any divs in the complex pipeline including replay queue)
+                    popEntry = FALSE; 
+                end 
+            end 
+`endif
         end
 
         // To stall upper stages.
@@ -491,6 +548,12 @@ module ReplayQueue(
             nextReplayEntry.memAddrHit[i] = replayEntryOut.memAddrHit[i];
             nextReplayEntry.memAddrSubset[i] = replayEntryOut.memAddrSubset[i];
         end
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            nextReplayEntry.fpValid[i] = popEntry && replayEntryOut.fpValid[i];
+            nextReplayEntry.fpData[i] = replayEntryOut.fpData[i];
+        end
+`endif
 
         nextReplayEntry.replayInterval = replayEntryOut.replayInterval;
         nextReplay = (popEntry && replayEntryValidOut) ? TRUE : FALSE;
@@ -529,6 +592,18 @@ module ReplayQueue(
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];
             port.memReplayData[i] = replayEntryReg.memData[i];
         end
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            flushFP[i] = SelectiveFlushDetector(
+                                canBeFlushedEntryCount != 0,
+                                flushRangeHeadPtr,
+                                flushRangeTailPtr,
+                                replayEntryReg.fpData[i].activeListPtr
+                                );
+            port.fpReplayEntry[i] = replayEntryReg.fpValid[i] && !flushFP[i];
+            port.fpReplayData[i] = replayEntryReg.fpData[i];
+        end
+`endif
 
         // MSHR can be invalid when its allocator load is flushed at ReplayQueue.
         for (int i = 0; i < MSHR_NUM; i++) begin

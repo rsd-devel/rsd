@@ -22,7 +22,9 @@ localparam CONF_COMMIT_WIDTH = 2;
 
 // --- Back-end
 // The number of physical registers
+// INT and FP must be the same at present.
 localparam CONF_PSCALAR_NUM = 64;
+localparam CONF_PSCALAR_FP_NUM = 64;
 
 // The number of issue-queue entries
 localparam CONF_ISSUE_QUEUE_ENTRY_NUM = 16;
@@ -67,6 +69,12 @@ localparam CONF_STORE_ISSUE_WIDTH = 1;      // must be 1
     localparam CONF_STORE_ISSUE_LANE_BEGIN = CONF_LOAD_ISSUE_WIDTH;    // Store uses a dedicated lane
 `endif
 
+// The issue width of fp pipelines.
+`ifdef RSD_ENABLE_FP_PATH
+    localparam CONF_FP_ISSUE_WIDTH = 1;
+`else
+    localparam CONF_FP_ISSUE_WIDTH = 0;
+`endif
 
 // --- Load store unit
 // These parameters must be a power of two.

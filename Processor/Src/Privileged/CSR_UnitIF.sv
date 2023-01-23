@@ -48,6 +48,11 @@ interface CSR_UnitIF(
     // Used in updating minstret
     CommitLaneCountPath commitNum;
 
+`ifdef RSD_ENABLE_FP_PATH
+    // dynamic fp rounding mode; 
+    DataPath fcsr;
+`endif
+
     modport MemoryExecutionStage(
     input
         clk, rst, rstStart,
@@ -58,6 +63,13 @@ interface CSR_UnitIF(
         csrCode,
         csrWriteIn
     );
+
+`ifdef RSD_ENABLE_FP_PATH
+    modport FPExecutionStage(
+    input
+        fcsr
+    );
+`endif
 
     // 割り込みは以下の流れで要求が流れる
     // IO_Unit -> reqTimerInterrupt ->

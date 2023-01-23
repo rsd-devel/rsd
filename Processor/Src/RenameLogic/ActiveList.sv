@@ -161,6 +161,12 @@ module ActiveList(
             we[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memWrite[i];
             writeData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memWriteData[i];
         end
+`ifdef RSD_ENABLE_FP_PATH
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            we[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpWrite[i];
+            writeData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpWriteData[i];
+        end
+`endif
     end
 
 

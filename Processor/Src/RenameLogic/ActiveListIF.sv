@@ -55,6 +55,10 @@ interface ActiveListIF( input logic clk, rst );
     logic               memWrite[MEM_ISSUE_WIDTH];
     ActiveListWriteData memWriteData[MEM_ISSUE_WIDTH];
 
+`ifdef RSD_ENABLE_FP_PATH
+    logic               fpWrite[FP_ISSUE_WIDTH];
+    ActiveListWriteData fpWriteData[FP_ISSUE_WIDTH];
+`endif
     // Status of an active list.
     logic allocatable;
 
@@ -85,6 +89,10 @@ interface ActiveListIF( input logic clk, rst );
 `endif
         memWrite,
         memWriteData,
+`ifdef RSD_ENABLE_FP_PATH
+        fpWrite,
+        fpWriteData,
+`endif
     output
         pushedTailPtr,
         readData,
@@ -130,6 +138,14 @@ interface ActiveListIF( input logic clk, rst );
         memWrite,
         memWriteData
     );
+
+`ifdef RSD_ENABLE_FP_PATH
+    modport FPRegisterWriteStage(
+    output
+        fpWrite,
+        fpWriteData
+    );
+`endif
 
     modport CommitStage(
     input

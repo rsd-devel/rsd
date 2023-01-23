@@ -21,7 +21,7 @@ TOP_MODULE = Main_Zynq_Wrapper
 VERILATED_TOP_MODULE_NAME = V$(TOP_MODULE)
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python2 ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
@@ -124,9 +124,9 @@ clean:
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = @python ../Tools/TestDriver/RunTest.py --simulator=verilator
+RUN_TEST = @python2 ../Tools/TestDriver/RunTest.py --simulator=verilator
 RUN_TEST_OMIT_MSG = \
-	@python ../Tools/TestDriver/RunTest.py -o --simulator=verilator 
+	@python2 ../Tools/TestDriver/RunTest.py -o --simulator=verilator 
 include Makefiles/TestCommands.inc.mk
 
 

@@ -137,8 +137,8 @@ module IntegerRegisterReadStage(
 
             bypass.intWriteReg[i]  = opDst[i].writeReg & pipeReg[i].valid;
             bypass.intPhyDstRegNum[i] = opDst[i].phyDstRegNum;
-            bypass.intReadRegA[i] = ( intSubInfo[i].operandTypeA == OOT_REG ) || ( brSubInfo[i].operandTypeA == OOT_REG );
-            bypass.intReadRegB[i] = ( intSubInfo[i].operandTypeB == OOT_REG ) || ( brSubInfo[i].operandTypeA == OOT_REG );
+            bypass.intReadRegA[i] = intSubInfo[i].operandTypeA == OOT_REG;
+            bypass.intReadRegB[i] = intSubInfo[i].operandTypeB == OOT_REG;
 
             //
             // --- オペランド選択

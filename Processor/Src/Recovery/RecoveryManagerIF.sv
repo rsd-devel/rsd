@@ -345,6 +345,36 @@ interface RecoveryManagerIF( input logic clk, rst );
         flushRangeTailPtr
     );
 
+`ifdef RSD_ENABLE_FP_PATH 
+    modport FPIssueStage(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr
+    );
+
+    modport FPRegisterReadStage(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr
+    );
+
+    modport FPExecutionStage(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr
+    );
+
+    modport FPRegisterWriteStage(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr
+    );
+`endif
+
     modport ActiveList(
     input
         toRecoveryPhase,
