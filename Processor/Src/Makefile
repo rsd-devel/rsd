@@ -3,7 +3,9 @@ MAX_TEST_CYCLES = 50000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
 #TEST_CODE = Verification/TestCode/Asm/CacheFlush
-TEST_CODE = Verification/TestCode/C/HelloWorld
+#TEST_CODE = Verification/TestCode/C/HelloWorld
+TEST_CODE = Verification/TestCode/C/FP
+#TEST_CODE = Verification/TestCode/Asm/FP
 
 SOURCE_ROOT  = ./
 TOOLS_ROOT   = ../Tools/
@@ -63,7 +65,7 @@ VSIM_OPTIONS_DUMP = \
 include Makefile.inc
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python2 ../Tools/KanataConverter/KanataConverter.py
 
 kanata: rtl-kanata
 
@@ -72,8 +74,8 @@ rtl-kanata: rtl-run
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = python ../Tools/TestDriver/RunTest.py
-RUN_TEST_OMIT_MSG = python ../Tools/TestDriver/RunTest.py -o
+RUN_TEST = python2 ../Tools/TestDriver/RunTest.py
+RUN_TEST_OMIT_MSG = python2 ../Tools/TestDriver/RunTest.py -o
 include Makefiles/TestCommands.inc.mk
 
 # -------------------------------

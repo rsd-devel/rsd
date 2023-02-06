@@ -16,6 +16,7 @@ import SchedulerTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
+import OpFormatTypes::*;
 
 
 //

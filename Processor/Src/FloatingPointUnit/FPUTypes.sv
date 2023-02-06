@@ -1,8 +1,5 @@
 package FPUTypes;
 
-localparam TRUE = 1'b1;
-localparam FALSE = 1'b0;
-
 typedef struct packed {
     logic sign;
     logic [7:0] expo;

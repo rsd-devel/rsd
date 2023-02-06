@@ -15,6 +15,7 @@ output
     FAddStage1 stg1(clk, stg0Out, stg1Out);
     FAddStage2 stg2(clk, stg1Out, stg2Out);
 
+    logic [31:0] pipeReg[PIPELINE_DEPTH - 3];
     always_comb begin
         if( PIPELINE_DEPTH > 3) begin
             result = pipeReg[0];
@@ -22,7 +23,6 @@ output
             result = stg2Out;
         end
     end
-    logic [31:0] pipeReg[PIPELINE_DEPTH - 3];
     always_ff @(posedge clk) begin
         if (PIPELINE_DEPTH > 3) begin
             pipeReg[PIPELINE_DEPTH-4] <= stg2Out;

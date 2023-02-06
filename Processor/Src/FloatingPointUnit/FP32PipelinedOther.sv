@@ -1,4 +1,6 @@
 import OpFormatTypes::*;
+import BasicTypes::*;
+
 function automatic [5:0] leading_zeros_count(
     input logic [31:0] x
 );

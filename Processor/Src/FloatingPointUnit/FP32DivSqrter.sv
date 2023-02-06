@@ -42,68 +42,6 @@ output
     logic [4:0] regCounter, nextCounter;
     FDivSqrtRegPath regData, nextData;
     logic [31:0] regResult, nextResult;
-    
-    always_ff @(posedge clk) begin
-        if (rst) begin
-            regPhase <= PHASE_FINISHED;
-            regCounter <= '0;
-            regData <= '0;
-            regResult <= '0; 
-        end
-        else begin
-            regPhase <= nextPhase;
-            regCounter <= nextCounter;
-            regData <= nextData;
-            regResult <= nextResult; 
-        end
-    end
-    always_comb begin
-        nextCounter = regCounter;
-        nextData = regData;
-        nextResult = regResult;
-        if (req && regPhase == PHASE_FINISHED) begin
-            nextData.v_lhs_expo = v_lhs_expo;
-            nextData.v_lhs_mant = v_lhs_mant;
-            nextData.v_rhs_expo = v_rhs_expo;
-            nextData.v_rhs_mant = v_rhs_mant;
-            nextData.result_sign = result_sign;
-            nextData.lhs_sign = lhs_sign;
-            nextData.is_divide = is_divide;
-            nextData.res_is_nan = res_is_nan;
-            nextData.res_is_inf = is_divide ? (lhs_is_inf | rhs_is_zero) : (!lhs_sign & lhs_is_inf);
-            nextData.res_is_zero = is_divide ? (lhs_is_zero | rhs_is_inf) : lhs_is_zero;
-            nextData.nan = nan;
-            nextPhase = PHASE_PREPARATION;
-        end
-        else if (regPhase == PHASE_PREPARATION) begin
-            nextData.virtual_expo = virtual_expo; 
-            nextData.subnormal = subnormal;
-            nextData.res_is_zero = res_is_zero;
-            nextData.rem = rem_0;
-            nextData.quo = quo_0;
-            nextPhase = PHASE_PROCESSING;
-            nextCounter = regData.is_divide ? 24 : 22;
-        end
-        else if (regPhase == PHASE_PROCESSING) begin
-            nextData.rem = rem;
-            nextData.quo = quo;
-            nextCounter = regCounter - 2;
-            nextPhase = (regCounter == 0) ? PHASE_ROUNDING : PHASE_PROCESSING;
-        end
-        // Here, quo has a <1/3ULP error.
-        else if (regPhase == PHASE_ROUNDING) begin
-            nextResult = final_result;
-            nextPhase = PHASE_FINISHED;
-            nextCounter = '0;
-            nextData = '0;
-        end
-        else begin
-            nextPhase = regPhase;
-        end
-        finished = regPhase == PHASE_FINISHED;
-        result = regResult;
-    end
-
 
     wire       lhs_sign = lhs[31];
     wire       rhs_sign = rhs[31];
@@ -181,6 +119,68 @@ output
     wire[31:0] final_result = regData.res_is_nan  ? regData.nan :
                               regData.res_is_zero ? zero :
                               res_is_inf  ? inf  : { regData.result_sign, result_expo, result_mant };
+    
+    always_ff @(posedge clk) begin
+        if (rst) begin
+            regPhase <= PHASE_FINISHED;
+            regCounter <= '0;
+            regData <= '0;
+            regResult <= '0; 
+        end
+        else begin
+            regPhase <= nextPhase;
+            regCounter <= nextCounter;
+            regData <= nextData;
+            regResult <= nextResult; 
+        end
+    end
+    always_comb begin
+        nextCounter = regCounter;
+        nextData = regData;
+        nextResult = regResult;
+        if (req && regPhase == PHASE_FINISHED) begin
+            nextData.v_lhs_expo = v_lhs_expo;
+            nextData.v_lhs_mant = v_lhs_mant;
+            nextData.v_rhs_expo = v_rhs_expo;
+            nextData.v_rhs_mant = v_rhs_mant;
+            nextData.result_sign = result_sign;
+            nextData.lhs_sign = lhs_sign;
+            nextData.is_divide = is_divide;
+            nextData.res_is_nan = res_is_nan;
+            nextData.res_is_inf = is_divide ? (lhs_is_inf | rhs_is_zero) : (!lhs_sign & lhs_is_inf);
+            nextData.res_is_zero = is_divide ? (lhs_is_zero | rhs_is_inf) : lhs_is_zero;
+            nextData.nan = nan;
+            nextPhase = PHASE_PREPARATION;
+        end
+        else if (regPhase == PHASE_PREPARATION) begin
+            nextData.virtual_expo = virtual_expo; 
+            nextData.subnormal = subnormal;
+            nextData.res_is_zero = res_is_zero;
+            nextData.rem = rem_0;
+            nextData.quo = quo_0;
+            nextPhase = PHASE_PROCESSING;
+            nextCounter = regData.is_divide ? 24 : 22;
+        end
+        else if (regPhase == PHASE_PROCESSING) begin
+            nextData.rem = rem;
+            nextData.quo = quo;
+            nextCounter = regCounter - 2;
+            nextPhase = (regCounter == 0) ? PHASE_ROUNDING : PHASE_PROCESSING;
+        end
+        // Here, quo has a <1/3ULP error.
+        else if (regPhase == PHASE_ROUNDING) begin
+            nextResult = final_result;
+            nextPhase = PHASE_FINISHED;
+            nextCounter = '0;
+            nextData = '0;
+        end
+        else begin
+            nextPhase = regPhase;
+        end
+        finished = regPhase == PHASE_FINISHED;
+        result = regResult;
+    end
+
 endmodule
 
 

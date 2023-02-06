@@ -12,6 +12,7 @@ import RenameLogicTypes::*;
 import SchedulerTypes::*;
 import PipelineTypes::*;
 import LoadStoreUnitTypes::*;
+import OpFormatTypes::*;
 
 interface ActiveListIF( input logic clk, rst );
 
