@@ -435,6 +435,7 @@ typedef struct packed // FPRegisterWriteStageRegPath
     FPIssueQueueEntry fpQueueData;
 
     PRegDataPath dataOut;   // Result of Execution
+    FFlags_Path fflagsOut;
 } FPRegisterWriteStageRegPath;
 
 function automatic logic SelectiveFlushDetector(

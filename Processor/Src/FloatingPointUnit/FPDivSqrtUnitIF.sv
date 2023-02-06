@@ -20,7 +20,8 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
     DataPath dataInB[FP_ISSUE_WIDTH];
 
     DataPath    DataOut  [FP_ISSUE_WIDTH];
-    FPU_Code fpuCode     [FP_ISSUE_WIDTH];
+    FFlags_Path FFlagsOut[FP_ISSUE_WIDTH];
+    logic is_divide      [FP_ISSUE_WIDTH];
     Rounding_Mode rm     [FP_ISSUE_WIDTH];
     logic       Reset    [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Req      [FP_DIVSQRT_ISSUE_WIDTH];
@@ -41,7 +42,7 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         stall,
         dataInA,
         dataInB,
-        fpuCode,
+        is_divide,
         rm,
         Reset,
         ResetFromFPIssue_Stage,
@@ -50,6 +51,7 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         Release,
     output
         DataOut,
+        FFlagsOut,
         Finished,
         Busy,
         Reserved,
@@ -71,11 +73,12 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         Busy,
         Reserved,
         Free,
+        FFlagsOut,
     output
         stall,
         dataInA,
         dataInB,
-        fpuCode,
+        is_divide,
         rm,
         Reset,
         Req,

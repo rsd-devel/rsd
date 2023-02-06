@@ -26,6 +26,7 @@ TYPES = \
 	Decoder/MicroOp.sv \
 	RegisterFile/BypassTypes.sv \
 	FetchUnit/FetchUnitTypes.sv \
+	FloatingPointUnit/FPUTypes.sv \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
 	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \
@@ -111,8 +112,9 @@ CORE_MODULES = \
 	LoadStoreUnit/StoreCommitter.sv \
 	FloatingPointUnit/FP32PipelinedAdder.sv \
 	FloatingPointUnit/FP32PipelinedMultiplier.sv \
-	FloatingPointUnit/FP32PipelinedFMAer.sv \
+	FloatingPointUnit/FP32PipelinedFMA.sv \
 	FloatingPointUnit/FP32PipelinedOther.sv \
+	FloatingPointUnit/FP32DivSqrter.sv \
 	FloatingPointUnit/FPDivSqrtUnit.sv \
 	FloatingPointUnit/FPDivSqrtUnitIF.sv \
 	RenameLogic/RenameLogic.sv \

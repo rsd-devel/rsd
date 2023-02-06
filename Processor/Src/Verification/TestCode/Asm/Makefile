@@ -9,7 +9,9 @@ include ../Makefile.inc
 #
 
 SRC_DIRS = \
-	ControlTransfer \
+    FP \
+
+#	ControlTransfer \
 	IntRegImm \
 	IntRegReg \
 	LoadAndStore \

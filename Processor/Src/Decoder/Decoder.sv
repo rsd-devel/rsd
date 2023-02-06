@@ -1276,7 +1276,7 @@ function automatic void RISCV_EmitFPMemOp(
 
     // 論理レジスタ番号
     opInfo.operand.memOp.dstRegNum.isFP  = TRUE;
-    opInfo.operand.memOp.srcRegNumA.isFP = TRUE;
+    opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.memOp.srcRegNumB.isFP = TRUE;
     opInfo.operand.memOp.dstRegNum.regNum  = isLoad ? isfI.rd : '0;
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
@@ -1286,8 +1286,8 @@ function automatic void RISCV_EmitFPMemOp(
     opInfo.operand.memOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
-    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
-    opInfo.writeReg  = ( isfI.rd != ZERO_REGISTER ) & isLoad;
+    // fp registerにはゼロレジスタが無い
+    opInfo.writeReg  = isLoad;
 
     // 論理レジスタを読むかどうか
     // ストア時はBを読む
@@ -1364,6 +1364,7 @@ function automatic void RISCV_EmitFPOp(
     RV32FFunct3 rv32fFunct3;
     RV32FFunct7 rv32fFunct7;
     FCVTFunct5  fcvtfunct5;
+    logic dstFP, rs1FP, readrs2;
 
     FPU_Code fpuCode;
     Rounding_Mode rm;
@@ -1374,9 +1375,14 @@ function automatic void RISCV_EmitFPOp(
     fcvtfunct5  = FCVTFunct5'(isfR.rs2);
     rm = Rounding_Mode'(isfR.funct3);
 
+    RISCV_DecodeFPOpFunct3( fpuCode, rv32fFunct3, rv32fFunct7, fcvtfunct5);
+    dstFP   = !(fpuCode inside {FC_FCVT_WS, FC_FCVT_WUS, FC_FMV_XW, FC_FEQ, FC_FLT, FC_FLE, FC_FCLASS});
+    rs1FP   = !(fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU, FC_FMV_WX});
+    readrs2 = !(fpuCode inside {FC_SQRT, FC_FCVT_SW, FC_FCVT_SWU, FC_FCVT_WS, FC_FCVT_WUS, FC_FMV_WX, FC_FMV_XW, FC_FCLASS});
+    
     // 論理レジスタ番号
-    opInfo.operand.fpOp.dstRegNum.isFP  = TRUE;
-    opInfo.operand.fpOp.srcRegNumA.isFP = TRUE;
+    opInfo.operand.fpOp.dstRegNum.isFP  = dstFP;
+    opInfo.operand.fpOp.srcRegNumA.isFP = rs1FP;
     opInfo.operand.fpOp.srcRegNumB.isFP = TRUE;
     opInfo.operand.fpOp.srcRegNumC.isFP = TRUE;
     opInfo.operand.fpOp.dstRegNum.regNum  = dstRegNum;
@@ -1388,18 +1394,17 @@ function automatic void RISCV_EmitFPOp(
     opInfo.operand.fpOp.rm = rm;
 
     // FPU
-    RISCV_DecodeFPOpFunct3( fpuCode, rv32fFunct3, rv32fFunct7, fcvtfunct5);
     opInfo.operand.fpOp.fpuCode = fpuCode;
     opInfo.operand.fpOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
-    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
-    opInfo.writeReg  = ( dstRegNum != ZERO_REGISTER ) ? TRUE : FALSE;
+    // fp registerにはゼロレジスタが無い
+    opInfo.writeReg  = ( dstFP || dstRegNum != ZERO_REGISTER ) ? TRUE : FALSE;
 
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
-    opInfo.opTypeB = OOT_REG;
-    opInfo.opTypeC = OOT_REG;
+    opInfo.opTypeB = readrs2 ? OOT_REG : OOT_IMM;
+    opInfo.opTypeC = OOT_IMM;
 
     // 命令の種類
     opInfo.mopType = MOP_TYPE_FP;
@@ -1490,8 +1495,8 @@ function automatic void RISCV_EmitFPFMAOp(
     opInfo.operand.fpOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
-    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
-    opInfo.writeReg  = ( isfR4.rd != ZERO_REGISTER ) ? TRUE : FALSE;
+    // fp registerにはゼロレジスタが無い
+    opInfo.writeReg  = TRUE;
 
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
@@ -1563,6 +1568,10 @@ function automatic void RISCV_EmitIllegalOp(
     systemOp.dstRegNum.isVector  = FALSE;
     systemOp.srcRegNumA.isVector = FALSE;
     systemOp.srcRegNumB.isVector = FALSE;
+`elsif RSD_ENABLE_FP_PATH
+    systemOp.dstRegNum.isFP  = FALSE;
+    systemOp.srcRegNumA.isFP = FALSE;
+    systemOp.srcRegNumB.isFP = FALSE;
 `endif
     systemOp.dstRegNum.regNum  = '0;
     systemOp.srcRegNumA.regNum = '0;
@@ -1588,6 +1597,9 @@ function automatic void RISCV_EmitIllegalOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_ENABLE_FP_PATH 
+    opInfo.opTypeC = OOT_IMM;
+`endif
 
     // 条件コード
     opInfo.cond = COND_AL;

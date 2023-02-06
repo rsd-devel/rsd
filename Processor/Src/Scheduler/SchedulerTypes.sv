@@ -314,9 +314,9 @@ typedef struct packed // FPOpInfo
     Rounding_Mode rm;
 
     // 論理レジスタを読むかどうか
-    //OpOperandType operandTypeA;
-    //OpOperandType operandTypeB;
-    //OpOperandType operandTypeC;
+    OpOperandType operandTypeA;
+    OpOperandType operandTypeB;
+    OpOperandType operandTypeC;
 } FPOpInfo;
 
 typedef struct packed // FPIssueQueueEntry

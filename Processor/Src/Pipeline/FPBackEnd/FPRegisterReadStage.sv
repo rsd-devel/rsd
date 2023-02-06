@@ -56,6 +56,11 @@ module FPRegisterReadStage(
     logic stall, clear;
     logic flush[ FP_ISSUE_WIDTH ];
     FPIssueQueueEntry iqData[FP_ISSUE_WIDTH];
+    FPOpInfo          fpOpInfo [FP_ISSUE_WIDTH];
+    
+    PRegDataPath operandA [ FP_ISSUE_WIDTH ];
+    PRegDataPath operandB [ FP_ISSUE_WIDTH ];
+    PRegDataPath operandC [ FP_ISSUE_WIDTH ];
     OpSrc opSrc[FP_ISSUE_WIDTH];
     OpDst opDst[FP_ISSUE_WIDTH];
     FPExecutionStageRegPath nextStage[FP_ISSUE_WIDTH];
@@ -66,6 +71,7 @@ module FPRegisterReadStage(
 
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             iqData[i] = pipeReg[i].fpQueueData;
+            fpOpInfo[i]  = pipeReg[i].fpQueueData.fpOpInfo;
             opSrc[i] = iqData[i].opSrc;
             opDst[i] = iqData[i].opDst;
 
@@ -89,10 +95,16 @@ module FPRegisterReadStage(
             bypass.fpWriteReg[i]  = opDst[i].writeReg & pipeReg[i].valid;
             bypass.fpPhyDstRegNum[i] = opDst[i].phyDstRegNum;
 
-            // FP(ld/st除く) では、operandTypeはOOT_REGのみ
-            bypass.fpReadRegA[i] = TRUE;
-            bypass.fpReadRegB[i] = TRUE;
-            bypass.fpReadRegC[i] = TRUE;
+            bypass.fpReadRegA[i] = fpOpInfo[i].operandTypeA == OOT_REG;
+            bypass.fpReadRegB[i] = fpOpInfo[i].operandTypeB == OOT_REG;
+            bypass.fpReadRegC[i] = fpOpInfo[i].operandTypeC == OOT_REG;
+
+            operandA[i] = registerFile.fpSrcRegDataA[i];
+            operandB[i] = registerFile.fpSrcRegDataB[i];
+            operandC[i] = registerFile.fpSrcRegDataC[i];
+            operandA[i].valid = (fpOpInfo[i].operandTypeA != OOT_REG || registerFile.fpSrcRegDataA[i].valid);
+            operandB[i].valid = (fpOpInfo[i].operandTypeB != OOT_REG || registerFile.fpSrcRegDataB[i].valid);
+            operandC[i].valid = (fpOpInfo[i].operandTypeC != OOT_REG || registerFile.fpSrcRegDataC[i].valid);
 
             //
             // --- Pipeline ラッチ書き込み
@@ -124,9 +136,9 @@ module FPRegisterReadStage(
             end
             
             // レジスタ値&フラグ
-            nextStage[i].operandA = registerFile.fpSrcRegDataA[i];
-            nextStage[i].operandB = registerFile.fpSrcRegDataB[i];
-            nextStage[i].operandC = registerFile.fpSrcRegDataC[i];
+            nextStage[i].operandA = operandA[i];
+            nextStage[i].operandB = operandB[i];
+            nextStage[i].operandC = operandC[i];
             
             // Issue queue data
             nextStage[i].fpQueueData = pipeReg[i].fpQueueData;

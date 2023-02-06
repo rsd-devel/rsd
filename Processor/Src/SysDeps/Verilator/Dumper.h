@@ -296,6 +296,15 @@ public:
                     debugRegister.dsReg[i].phySrcRegB
                 );
             }
+#ifdef RSD_ENABLE_FP_PATH
+            if( debugRegister.dsReg[i].readRegC ) {
+                str += FormatString(
+                    "r%0d(p%0d), ",
+                    debugRegister.dsReg[i].logSrcRegC,
+                    debugRegister.dsReg[i].phySrcRegC
+                );
+            }
+#endif
 
             // Previously mapped registers
             str += "\\nprev: ";
@@ -381,6 +390,20 @@ public:
                 str // comment
             );
         }
+#ifdef RSD_ENABLE_FP_PATH
+        for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
+            str = "";
+            DumpStage(
+                KS_IS, // stage id
+                debugRegister.fpIsReg[i].valid, // valid
+                debugRegister.backEndPipeCtrl.stall, // stall
+                debugRegister.fpIsReg[i].flush, // clear
+                debugRegister.fpIsReg[i].opId.sid, // sid
+                debugRegister.fpIsReg[i].opId.mid, // mid
+                str // comment
+            );
+        }
+#endif
 
 
         //
@@ -419,6 +442,19 @@ public:
                 "" // comment
             );
         }
+#ifdef RSD_ENABLE_FP_PATH
+        for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
+            DumpStage(
+                KS_RR, // stage id
+                debugRegister.fpRrReg[i].valid, // valid
+                debugRegister.backEndPipeCtrl.stall, // stall
+                debugRegister.fpRrReg[i].flush, // clear
+                debugRegister.fpRrReg[i].opId.sid, // sid
+                debugRegister.fpRrReg[i].opId.mid, // mid
+                "" // comment
+            );
+        }
+#endif
 
         //
         // ExecutionStage
@@ -511,6 +547,35 @@ public:
                 str
             );
         }
+
+#ifdef RSD_ENABLE_FP_PATH
+        for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
+            for(int j = 0; j < FP_EXEC_STAGE_DEPTH; j++ ) {
+                // Issue queue allcation
+                str = "";
+#ifdef RSD_FUNCTIONAL_SIMULATION
+                if ( j == 0 ) {
+                    // 複数段の実行ステージの最初に、オペランドを表示
+                    str += FormatString(
+                        "\\nfp-ex(a:0x%0x, b:0x%0x, c:0x%0x)", 
+                        debugRegister.fpExReg[i].fuOpA,
+                        debugRegister.fpExReg[i].fuOpB,
+                        debugRegister.fpExReg[i].fuOpC
+                    );
+                }
+#endif
+                DumpStage(
+                    KS_EX, // stage id
+                    debugRegister.fpExReg[i].valid[j], // valid
+                    debugRegister.backEndPipeCtrl.stall, // stall
+                    debugRegister.fpExReg[i].flush, // clear
+                    debugRegister.fpExReg[i].opId[j].sid, // sid
+                    debugRegister.fpExReg[i].opId[j].mid, // mid
+                    str
+                );
+            }
+        }
+#endif
 
         //
         // --- Memory Tag Access Stage
@@ -618,6 +683,19 @@ public:
                 ""
             );
         }
+#ifdef RSD_ENABLE_FP_PATH
+        for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
+            DumpStage(
+                KS_RW, // stage id
+                debugRegister.fpRwReg[i].valid, // valid
+                debugRegister.backEndPipeCtrl.stall, // stall
+                debugRegister.fpRwReg[i].flush, // clear
+                debugRegister.fpRwReg[i].opId.sid, // sid
+                debugRegister.fpRwReg[i].opId.mid, // mid
+                ""
+            );
+        }
+#endif
 
         //
         // --- Commit stage
@@ -743,7 +821,7 @@ public:
     void Dump(AddrPath pc, DataPath* regData)
     {
         // Dump logical register R0-R31
-        for (int i = 0; i < LSCALAR_NUM; i++) {
+        for (int i = 0; i < LSCALAR_NUM+LSCALAR_FP_NUM; i++) {
             fprintf(m_file, "0x%08x\n", regData[i]);
         }
 
@@ -798,7 +876,7 @@ public:
         fprintf(m_file, "0x%08x", pc);
 
         // Dump logical register R0-R15.
-        for(int i = 0; i < LSCALAR_NUM; i++) {
+        for(int i = 0; i < LSCALAR_NUM+LSCALAR_FP_NUM; i++) {
             fprintf(m_file, ",0x%08x", regData[i]);
         }
 

@@ -14,20 +14,20 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port);
         DIVIDER_PHASE_PROCESSING = 2,  // In processing
         DIVIDER_PHASE_WAITING    = 3   // Wait for issuing div from replayqueue
     } DividerPhase;
-    DividerPhase regPhase  [MULDIV_ISSUE_WIDTH];
-    DividerPhase nextPhase [MULDIV_ISSUE_WIDTH];
-    logic finished[MULDIV_ISSUE_WIDTH];
+    DividerPhase regPhase  [FP_DIVSQRT_ISSUE_WIDTH];
+    DividerPhase nextPhase [FP_DIVSQRT_ISSUE_WIDTH];
+    logic finished[FP_DIVSQRT_ISSUE_WIDTH];
 
-    for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockDivUnit
-        DividerUnit divUnit(
+    for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : BlockDivUnit
+        FP32DivSqrter fpDivSqrter(
             .clk(port.clk),
             .rst(port.rst),
+            .lhs(port.dataInA[i]),
+            .rhs(port.dataInB[i]),
+            .is_divide(port.is_divide[i]),
             .req(port.Req[i]),
-            .fuOpA_In(port.dataInA[i]),
-            .fuOpB_In(port.dataInB[i]),
-            .divCode('0),
             .finished(finished[i]),
-            .dataOut(port.DataOut[i])
+            .result(port.DataOut[i])
         );
     end
 

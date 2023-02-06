@@ -221,9 +221,9 @@ module DispatchStage(
             fpEntry[i].fpOpInfo.opType = opInfo[i].mopSubType.fpType;
             fpEntry[i].fpOpInfo.fpuCode = opInfo[i].operand.fpOp.fpuCode;
             fpEntry[i].fpOpInfo.rm = opInfo[i].operand.fpOp.rm;
-            //fpEntry[i].fpOpInfo.operandTypeA = opInfo[i].opTypeA;
-            //fpEntry[i].fpOpInfo.operandTypeB = opInfo[i].opTypeB;
-            //fpEntry[i].fpOpInfo.operandTypeC = opInfo[i].opTypeC;
+            fpEntry[i].fpOpInfo.operandTypeA = opInfo[i].opTypeA;
+            fpEntry[i].fpOpInfo.operandTypeB = opInfo[i].opTypeB;
+            fpEntry[i].fpOpInfo.operandTypeC = opInfo[i].opTypeC;
             
             // OpSrc
             fpEntry[i].opSrc = opSrc[i];
@@ -294,7 +294,7 @@ module DispatchStage(
             debug.dsReg[i].logSrcRegB = opInfo[i].operand.intOp.srcRegNumB;
             debug.dsReg[i].phySrcRegB = pipeReg[i].phySrcRegNumB;
 `ifdef RSD_ENABLE_FP_PATH 
-            debug.dsReg[i].readRegC = opInfo[i].opTypeB == OOT_REG;
+            debug.dsReg[i].readRegC = opInfo[i].opTypeC == OOT_REG;
             debug.dsReg[i].logSrcRegC = opInfo[i].operand.fpOp.srcRegNumC;
             debug.dsReg[i].phySrcRegC = pipeReg[i].phySrcRegNumC;
 `endif

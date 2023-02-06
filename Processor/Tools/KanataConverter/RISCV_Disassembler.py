@@ -42,6 +42,20 @@ class RISCV_Disassembler( object ):
                 insn = self.InstructionMiscMem( code )
             elif common.IsSystem():
                 insn = self.InstructionSystem( code )
+            elif common.IsFLoad():
+                insn = self.InstructionFLoad( code )
+            elif common.IsFStore():
+                insn = self.InstructionFStore( code )
+            elif common.IsFOp():
+                insn = self.InstructionFOp( code )
+            elif common.IsFMADD():
+                insn = self.InstructionFMADD( code )
+            elif common.IsFMSUB():
+                insn = self.InstructionFMSUB( code )
+            elif common.IsFNMSUB():
+                insn = self.InstructionFNMSUB( code )
+            elif common.IsFNMADD():
+                insn = self.InstructionFNMADD( code )
             return insn.__str__()
 
         except ValueError:
@@ -56,7 +70,7 @@ class RISCV_Disassembler( object ):
         RV64M = False
         RV32A = False
         RV64A = False
-        RV32F = False
+        RV32F = True
         RV64F = False
         RV32D = False
         RV64D = False
@@ -88,6 +102,14 @@ class RISCV_Disassembler( object ):
         OC_LUI      = "0110111"
         OC_MISC_MEM = "0001111"
         OC_SYSTEM   = "1110011"
+        OC_F_LOAD   = "0000111"
+        OC_F_STORE  = "0100111"
+        OC_F_OP     = "1010011"
+        OC_F_FMADD  = "1000011"
+        OC_F_FMSUB  = "1000111"
+        OC_F_FNMSUB = "1001011"
+        OC_F_FNMADD = "1001111"
+
 
         intRegName = ['zero', 'ra', 'sp', 'gp', 'tp', 't0', 't1', 't2',
                           's0/fp', 's1', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5',
@@ -106,6 +128,7 @@ class RISCV_Disassembler( object ):
             inst = "{0:032b}".format(self.Bits(code, 31, 0))
 
             self.opCode = inst[-7:]
+            self.funct2 = inst[-27:-25]
             self.funct3 = inst[-15:-12]
             self.funct7 = inst[-32:-25]
             self.funct6 = inst[-32:-26]
@@ -114,6 +137,11 @@ class RISCV_Disassembler( object ):
             self.rd  = self.intRegName[int(inst[-12:-7], 2)]
             self.rs1 = self.intRegName[int(inst[-20:-15], 2)]
             self.rs2 = self.intRegName[int(inst[-25:-20], 2)]
+            self.rd  = self.intRegName[int(inst[-12:-7], 2)]
+            self.frs1 = self.floatRegName[int(inst[-20:-15], 2)]
+            self.frs2 = self.floatRegName[int(inst[-25:-20], 2)]
+            self.frs3 = self.floatRegName[int(inst[-32:-27], 2)]
+            self.frd  = self.floatRegName[int(inst[-12:-7], 2)]
 
             # Hex Style
             self.shamt5 = str(hex(int(inst[-25:-20], 2)))
@@ -160,6 +188,27 @@ class RISCV_Disassembler( object ):
         def IsSystem( self ):
             return self.opCode == self.OC_SYSTEM
 
+        def IsFLoad(self):
+            return self.opCode == self.OC_F_LOAD
+
+        def IsFStore(self):
+            return self.opCode == self.OC_F_STORE
+
+        def IsFOp(self):
+            return self.opCode == self.OC_F_OP
+
+        def IsFMADD(self):
+            return self.opCode == self.OC_F_FMADD
+
+        def IsFMSUB(self):
+            return self.opCode == self.OC_F_FMSUB
+
+        def IsFNMSUB(self):
+            return self.opCode == self.OC_F_FNMSUB
+
+        def IsFNMADD(self):
+            return self.opCode == self.OC_F_FNMADD
+
     class InstructionLoad( InstructionCommon ):
         """ Load instruction """
 
@@ -204,7 +253,7 @@ class RISCV_Disassembler( object ):
                 opType = 'sd '
             else:
                 opType = 'Unknown'
-            asmStr = opType + self.rs2 + ', ' + self.rs1 + ', ' + self.S_Imm
+            asmStr = opType + self.rs2 + ', ' + self.S_Imm + '(' + self.rs1 + ')'
             return asmStr
 
     class InstructionBranch( InstructionCommon ):
@@ -440,4 +489,173 @@ class RISCV_Disassembler( object ):
             else:
                 opType = 'unknown system'
             asmStr = opType
+            return asmStr
+
+    class InstructionFOp( InstructionCommon ):
+        """ FP Op instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct7 == '0000000' and self.RV32F:
+                opType = 'fadd.s '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '0000100' and self.RV32F:
+                opType = 'fsub.s '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '0001000' and self.RV32F:
+                opType = 'fmul.s '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '0001100' and self.RV32F:
+                opType = 'fdiv.s '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '0101100' and self.RV32F:
+                opType = 'fsqrt.s '
+                asmStr = opType + self.frd + ', ' + self.frs1
+            elif self.funct7 == '0010000' and self.RV32F:
+                if self.funct3 == '000':
+                    opType = 'fsgnj.s '
+                elif self.funct3 == '001':
+                    opType = 'fsgnjn.s '
+                elif self.funct3 == '010':
+                    opType = 'fsgnjx.s '
+                else:
+                    opType == 'unknown fop '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '0010100' and self.RV32F:
+                if self.funct3 == '000':
+                    opType = 'fmin.s '
+                elif self.funct3 == '001':
+                    opType = 'fmax.s '
+                else:
+                    opType = 'unknown fop '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '1100000' and self.RV32F:
+                if self.funct5 == '00000':
+                    opType = 'fcvt.w.s '
+                elif self.funct5 == '00001':
+                    opType = 'fcvt.wu.s '
+                else:
+                    opType = 'unknoen fop '
+                asmStr = opType + self.rd + ', ' + self.frs1
+            elif self.funct7 == '1110000' and self.RV32F:
+                if self.funct3 == '000':
+                    opType = 'fmv.x.w '
+                elif self.funct3 == '001':
+                    opType = 'fclass.s '
+                else:
+                    opType = 'unknown fop '
+                asmStr = opType + self.rd + ', ' + self.frs1
+            elif self.funct7 == '1010000' and self.RV32F:
+                if self.funct3 == '010':
+                    opType = 'feq.s '
+                elif self.funct3 == '001':
+                    opType = 'flt.s '
+                elif self.funct3 == '000':
+                    opType = 'fle.s '
+                else:
+                    opType = 'unknown fop '
+                asmStr = opType + self.rd + ', ' + self.frs1 + ', ' + self.frs2
+            elif self.funct7 == '1101000' and self.RV32F:
+                if self.funct5 == '00000':
+                    opType = 'fcvt.s.w '
+                elif self.funct5 == '00001':
+                    opType = 'fcvt.s.wu '
+                else:
+                    opType = 'unknown fop '
+                asmStr = opType + self.frd + ', ' + self.rs1
+            elif self.funct7 == '1111000' and self.RV32F:
+                opType = 'fmv.w.x '
+                asmStr = opType + self.frd + ', ' + self.rs1
+            else:
+                opType = 'unknown fop '
+                asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2
+            
+            return asmStr
+
+    class InstructionFLoad( InstructionCommon ):
+        """ FP Load instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct3 == '010' and self.RV32F:
+                opType = 'flw '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frd + ', ' + self.I_Imm + '(' + self.rs1 + ')'
+            return asmStr
+
+
+    class InstructionFStore( InstructionCommon ):
+        """ FP Store instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct3 == '010' and self.RV32F:
+                opType = 'fsw '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frs2 + ', ' + self.S_Imm + '(' + self.rs1 + ')'
+            return asmStr
+
+
+    class InstructionFMADD( InstructionCommon ):
+        """ FP FMADD instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct2 == '00' and self.RV32F:
+                opType = 'fmadd.s '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2 + ', ' + self.frs3
+            return asmStr
+    
+    class InstructionFMSUB( InstructionCommon ):
+        """ FP FMSUB instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct2 == '00' and self.RV32F:
+                opType = 'fmsub.s '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2 + ', ' + self.frs3
+            return asmStr
+    
+    class InstructionFNMSUB( InstructionCommon ):
+        """ FP FNMSUB instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct2 == '00' and self.RV32F:
+                opType = 'fnmsub.s '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2 + ', ' + self.frs3
+            return asmStr
+    
+    class InstructionFNMADD( InstructionCommon ):
+        """ FP FNMADD instruction """
+
+        def __init__( self, code ):
+            RISCV_Disassembler.InstructionCommon.__init__( self, code )
+
+        def __str__( self ):
+            if self.funct2 == '00' and self.RV32F:
+                opType = 'fnmadd.s '
+            else:
+                opType = 'Unknown'
+            asmStr = opType + self.frd + ', ' + self.frs1 + ', ' + self.frs2 + ', ' + self.frs3
             return asmStr

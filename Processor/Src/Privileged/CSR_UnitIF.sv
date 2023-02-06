@@ -49,8 +49,9 @@ interface CSR_UnitIF(
     CommitLaneCountPath commitNum;
 
 `ifdef RSD_ENABLE_FP_PATH
-    // dynamic fp rounding mode; 
-    DataPath fcsr;
+    Rounding_Mode frm;
+    logic fflagsWE;
+    FFlags_Path fflagsData;
 `endif
 
     modport MemoryExecutionStage(
@@ -67,7 +68,7 @@ interface CSR_UnitIF(
 `ifdef RSD_ENABLE_FP_PATH
     modport FPExecutionStage(
     input
-        fcsr
+        frm
     );
 `endif
 
@@ -85,6 +86,11 @@ interface CSR_UnitIF(
     modport CommitStage (
     output
         commitNum
+`ifdef RSD_ENABLE_FP_PATH
+        ,
+        fflagsWE,
+        fflagsData
+`endif
     );
 
 
@@ -116,7 +122,14 @@ interface CSR_UnitIF(
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
+`ifdef RSD_ENABLE_FP_PATH
+        fflagsWE,
+        fflagsData,
+`endif
     output 
+`ifdef RSD_ENABLE_FP_PATH
+        frm,
+`endif
         csrWholeOut,
         csrReadOut,
         excptTargetAddr,

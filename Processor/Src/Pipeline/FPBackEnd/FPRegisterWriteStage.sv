@@ -105,6 +105,7 @@ module FPRegisterWriteStage(
 
             activeList.fpWrite[i] = update[i];
             activeList.fpWriteData[i] = alWriteData[i];
+            activeList.fpFFlagsData[i] = pipeReg[i].fflagsOut;
         end
 
         // Debug Register

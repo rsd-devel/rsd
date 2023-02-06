@@ -113,6 +113,12 @@ typedef struct packed {
     CSR_MTVEC_ModePath  mode;    //  1:0
 } CSR_MTVEC_Path;
 
+typedef struct packed {
+    logic [23:0] padding;
+    Rounding_Mode frm;
+    FFlags_Path fflags;
+} CSR_FCSR_Path;
+
 localparam logic [1:0] CSR_MTVEC_BASE_PADDING = 2'b0;
 
 // All members have 32bit width
@@ -128,6 +134,7 @@ typedef union packed {
 
     DataPath mcycle;
     DataPath minstret;
+    CSR_FCSR_Path fcsr;
 } CSR_ValuePath;
 
 typedef struct packed {
@@ -143,6 +150,9 @@ typedef struct packed {
 
     DataPath mcycle;
     DataPath minstret;
+`ifdef RSD_ENABLE_FP_PATH
+    CSR_FCSR_Path fcsr;
+`endif
 } CSR_BodyPath;
 
 //
@@ -262,6 +272,10 @@ localparam CSR_NUM_DCSR      = 12'h7B0; // Debug control and status register.
 localparam CSR_NUM_DPC       = 12'h7B1; // Debug PC.
 localparam CSR_NUM_DSCRATCH  = 12'h7B2; // Debug scratch register.
 
+// Floating-Point CSRs
+localparam CSR_NUM_FFLAGS    = 12'h001; // FP accrued exceptions.
+localparam CSR_NUM_FRM       = 12'h002; // FP dynamic rounding mode.
+localparam CSR_NUM_FCSR      = 12'h003; // FP CSR (frm + fflags)
 
 endpackage
 

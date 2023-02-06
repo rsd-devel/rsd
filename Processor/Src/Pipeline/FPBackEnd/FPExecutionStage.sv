@@ -119,17 +119,25 @@ module FPExecutionStage(
     FPMicroOpSubType opType [FP_ISSUE_WIDTH];
     FPU_Code fpuCode [FP_ISSUE_WIDTH];
     Rounding_Mode rm [FP_ISSUE_WIDTH];
+    Rounding_Mode stRM [FP_ISSUE_WIDTH];
+    Rounding_Mode dynRM [FP_ISSUE_WIDTH];
 
     PRegDataPath  fuOpA    [ FP_ISSUE_WIDTH ];
     PRegDataPath  fuOpB    [ FP_ISSUE_WIDTH ];
     PRegDataPath  fuOpC    [ FP_ISSUE_WIDTH ];
     logic         regValid [ FP_ISSUE_WIDTH ];
     PRegDataPath  dataOut  [ FP_ISSUE_WIDTH ];
+    FFlags_Path   fflagsOut[ FP_ISSUE_WIDTH ];
 
-    PRegDataPath  addDataOut   [ FP_ISSUE_WIDTH ];
-    PRegDataPath  mulDataOut   [ FP_ISSUE_WIDTH ];
-    PRegDataPath  fmaDataOut   [ FP_ISSUE_WIDTH ];
-    PRegDataPath  otherDataOut [ FP_ISSUE_WIDTH ];
+    PRegDataPath  addDataOut     [ FP_ISSUE_WIDTH ];
+    PRegDataPath  mulDataOut     [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fmaDataOut     [ FP_ISSUE_WIDTH ];
+    PRegDataPath  otherDataOut   [ FP_ISSUE_WIDTH ];
+
+    FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
+    FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
+    FFlags_Path   fmaFFlagsOut [ FP_ISSUE_WIDTH ];
+    FFlags_Path   otherFFlagsOut [ FP_ISSUE_WIDTH ];
 
 
 
@@ -160,10 +168,10 @@ module FPExecutionStage(
         ) fpAdder (
             .clk (port.clk),
             .lhs ( fuOpA[i].data ),
-            .rhs ( fuOpB[i].data ),
-            .fpuCode (fpuCode[i]),
-            .rm (rm[i]),
+            .rhs ( fpuCode[i] == FC_SUB ? {~fuOpB[i].data[31], fuOpB[i].data[30:0]} : fuOpB[i].data ),
+            //.rm (rm[i]),
             .result ( addDataOut[i] )
+            //.fflags ( addFFlagsOut[i])
         );
         
         FP32PipelinedMultiplier #(
@@ -172,19 +180,19 @@ module FPExecutionStage(
             .clk (port.clk),
             .lhs ( fuOpA[i].data ),
             .rhs ( fuOpB[i].data ),
-            .fpuCode (fpuCode[i]),
-            .rm (rm[i]),
+            //.rm (rm[i]),
             .result ( mulDataOut[i] )
+            //.fflags ( mulFFlagsOut[i])
         );
 
-        FP32PipelinedFMAer fpFMAer (
+        FP32PipelinedFMA fpFMA (
             .clk (port.clk),
-            .mullhs ( fuOpA[i].data ),
+            .mullhs ( fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data),
             .mulrhs ( fuOpB[i].data ),
-            .addend ( fuOpC[i].data ),
-            .fpuCode (fpuCode[i]),
-            .rm (rm[i]),
+            .addend ( fpuCode[i] inside {FC_FMSUB, FC_FNMADD} ? {~fuOpC[i].data[31], fuOpC[i].data[30:0]} : fuOpC[i].data ),
+            //.rm (rm[i]),
             .result ( fmaDataOut[i] )
+            //.fflags ( fmaFFlagsOut[i])
         );
         
         FP32PipelinedOther #(
@@ -195,7 +203,8 @@ module FPExecutionStage(
             .rhs ( fuOpB[i].data ),
             .fpuCode (fpuCode[i]),
             .rm (rm[i]),
-            .result ( otherDataOut[i] )
+            .result ( otherDataOut[i] ),
+            .fflags ( otherFFlagsOut[i])
         );
     end
 
@@ -207,7 +216,7 @@ module FPExecutionStage(
             fpDivSqrtUnit.dataInB[i] = fuOpB[i].data;
 
             // DIV or SQRT
-            fpDivSqrtUnit.fpuCode[i] = fpOpInfo[i].fpuCode;
+            fpDivSqrtUnit.is_divide[i] = fpOpInfo[i].fpuCode == FC_DIV;
             fpDivSqrtUnit.rm[i] = fpOpInfo[i].rm;
 
             isDivSqrt[i] =  
@@ -276,7 +285,14 @@ module FPExecutionStage(
             fpOpInfo[i]  = pipeReg[i].fpQueueData.fpOpInfo;
             opType[i]    = fpOpInfo[i].opType;
             fpuCode[i]   = fpOpInfo[i].fpuCode;
-            rm[i]   = fpOpInfo[i].rm;
+            stRM[i]      = fpOpInfo[i].rm;
+            dynRM[i]     = csrUnit.frm;
+            if (stRM[i] == RM_DYN) begin
+                rm[i] = dynRM[i];
+            end
+            else begin
+                rm[i] = stRM[i];
+            end
             
 
             flush[i][0] = SelectiveFlushDetector(
@@ -309,11 +325,10 @@ module FPExecutionStage(
             //
 
             // If invalid regisers are read, regValid is negated and this op must be replayed.
-            // TODO FMAとそれ以外で区別必要か?
             regValid[i] =
-                fuOpA[i].valid &&
-                fuOpB[i].valid &&
-                fuOpC[i].valid;
+                (fpOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
+                (fpOpInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid ) &&
+                (fpOpInfo[i].operandTypeC != OOT_REG || fuOpC[i].valid );
             
 
             //
@@ -321,18 +336,32 @@ module FPExecutionStage(
             //
             dataOut[i].valid
                 = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid;
-
+            // TODO fflagsをちゃんと実装
             unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
-                FP_MOP_TYPE_ADD:
+                FP_MOP_TYPE_ADD: begin
                     dataOut[i].data = addDataOut[i];
-                FP_MOP_TYPE_MUL:
+                    //fflagsData[i] = addFFlagsOut[i];
+                    fflagsOut[i] = '0;
+                end
+                FP_MOP_TYPE_MUL: begin
                     dataOut[i].data = mulDataOut[i];
-                FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT:
+                    //fflagsData[i] = mulFFlagsOut[i];
+                    fflagsOut[i] = '0;
+                end
+                FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
                     dataOut[i].data = fpDivSqrtUnit.DataOut[i];
-                FP_MOP_TYPE_FMA:
+                    //fflagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
+                    fflagsOut[i] = '0;
+                end 
+                FP_MOP_TYPE_FMA: begin
                     dataOut[i].data = fmaDataOut[i];
-                default: /* FP_MOP_TYPE_OTHER */
+                    //fflagsData[i] = fmaFFlagsOut[i];
+                    fflagsOut[i] = '0;
+                end
+                default: begin /* FP_MOP_TYPE_OTHER */
                     dataOut[i].data = otherDataOut[i];
+                    fflagsOut[i] = otherFFlagsOut[i];
+                end
             endcase
 
             //
@@ -406,6 +435,8 @@ module FPExecutionStage(
 
             nextStage[i].fpQueueData
                 = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData;
+            // TODO implment fflags
+            nextStage[i].fflagsOut = fflagsOut[i];
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

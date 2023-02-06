@@ -1,9 +1,10 @@
 # Specify test code and simulation cycles
-MAX_TEST_CYCLES = 10000
+MAX_TEST_CYCLES = 100000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-#TEST_CODE = Verification/TestCode/Asm/ControlTransfer
-TEST_CODE = Verification/TestCode/C/HelloWorld
+TEST_CODE = Verification/TestCode/Asm/FP
+#TEST_CODE = Verification/TestCode/C/FP
+#TEST_CODE = Verification/TestCode/C/HelloWorld
 
 ifndef RSD_VERILATOR_BIN
 VERILATOR_BIN = verilator
@@ -76,6 +77,7 @@ VERILATOR_OPTION = \
 VERILATOR_TARGET_CXXFLAGS= \
 	-D RSD_FUNCTIONAL_SIMULATION_VERILATOR \
 	-D RSD_FUNCTIONAL_SIMULATION \
+	-D RSD_ENABLE_FP_PATH \
 	-D RSD_VERILATOR_TRACE \
 	-D RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
 	-Wno-attributes \

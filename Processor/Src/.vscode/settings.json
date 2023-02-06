@@ -46,6 +46,7 @@
         "streambuf": "cpp",
         "cinttypes": "cpp"
     },
+    "editor.formatOnSave": false,
     "cSpell.words": [
         "LREG",
         "LSCALAR",
