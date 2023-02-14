@@ -354,9 +354,11 @@ module CommitStage(
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 fflagsWE = TRUE;
-                fflagsData = activeList.fflagsData[i];
+                fflagsData |= activeList.fflagsData[i];
             end
         end
+        csrUnit.fflagsWE = fflagsWE;
+        csrUnit.fflagsData = fflagsData;
 `endif
 
         // Debug Register
