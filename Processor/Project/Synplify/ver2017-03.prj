@@ -70,7 +70,7 @@ add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegiste
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/MemoryBackEnd/MemoryRegisterWriteStage.sv"
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPIssueStage.sv"
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPIssueStageIF.sv"
-add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/RegisterReadStage.sv"
+add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPRegisterReadStage.sv"
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPRegisterReadStageIF.sv"
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPExecutionStageIF.sv"
 add_file -verilog -vlog_std sysv "../../Src/Pipeline/FPBackEnd/FPExecutionStage.sv"

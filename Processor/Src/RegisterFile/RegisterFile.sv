@@ -23,6 +23,20 @@ module RegisterFile(
     PScalarRegNumPath srcRegNum  [ REG_READ_NUM ];
     PRegDataPath srcRegData [ REG_READ_NUM ];
 
+`ifdef RSD_ENABLE_FP_PATH
+    //
+    // FP Register
+    //
+    parameter FP_READ_NUM = FP_ISSUE_WIDTH * 3 + MEM_ISSUE_WIDTH;
+    parameter FP_WRITE_NUM = FP_ISSUE_WIDTH + LOAD_ISSUE_WIDTH;
+
+    logic             fpRegWE      [ FP_WRITE_NUM ];
+    PScalarFPRegNumPath       dstFPRegNum  [ FP_WRITE_NUM ];
+    PRegDataPath      dstFPRegData [ FP_WRITE_NUM ];
+    PScalarFPRegNumPath       srcFPRegNum  [ FP_READ_NUM ];
+    PRegDataPath      srcFPRegData [ FP_READ_NUM ];
+`endif
+    
     DistributedMultiPortRAM #(
         .ENTRY_NUM( PSCALAR_NUM ),
         .ENTRY_BIT_SIZE( $bits(PRegDataPath) ),
@@ -202,14 +216,6 @@ module RegisterFile(
     // FP
     //
 `ifdef RSD_ENABLE_FP_PATH
-    parameter FP_READ_NUM = FP_ISSUE_WIDTH * 3 + MEM_ISSUE_WIDTH;
-    parameter FP_WRITE_NUM = FP_ISSUE_WIDTH + LOAD_ISSUE_WIDTH;
-
-    logic             fpRegWE      [ FP_WRITE_NUM ];
-    PScalarFPRegNumPath       dstFPRegNum  [ FP_WRITE_NUM ];
-    PRegDataPath      dstFPRegData [ FP_WRITE_NUM ];
-    PScalarFPRegNumPath       srcFPRegNum  [ FP_READ_NUM ];
-    PRegDataPath      srcFPRegData [ FP_READ_NUM ];
     DistributedMultiPortRAM #(
         .ENTRY_NUM( PSCALAR_FP_NUM ),
         .ENTRY_BIT_SIZE( $bits(PRegDataPath) ),

@@ -129,10 +129,10 @@ module FPExecutionStage(
     PRegDataPath  dataOut  [ FP_ISSUE_WIDTH ];
     FFlags_Path   fflagsOut[ FP_ISSUE_WIDTH ];
 
-    PRegDataPath  addDataOut     [ FP_ISSUE_WIDTH ];
-    PRegDataPath  mulDataOut     [ FP_ISSUE_WIDTH ];
-    PRegDataPath  fmaDataOut     [ FP_ISSUE_WIDTH ];
-    PRegDataPath  otherDataOut   [ FP_ISSUE_WIDTH ];
+    DataPath  addDataOut     [ FP_ISSUE_WIDTH ];
+    DataPath  mulDataOut     [ FP_ISSUE_WIDTH ];
+    DataPath  fmaDataOut     [ FP_ISSUE_WIDTH ];
+    DataPath  otherDataOut   [ FP_ISSUE_WIDTH ];
 
     FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
@@ -447,6 +447,7 @@ module FPExecutionStage(
 
         port.nextStage = nextStage;
 
+`ifndef RSD_DISABLE_DEBUG_REGISTER
         // Debug Register
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             debug.fpExReg[i].valid[0] = pipeReg[i].valid;
@@ -462,10 +463,10 @@ module FPExecutionStage(
             debug.fpExReg[i].fuOpA   = fuOpA[i];
             debug.fpExReg[i].fuOpB   = fuOpB[i];
             debug.fpExReg[i].fuOpC   = fuOpC[i];
-
 `endif
         end
-end
+`endif
+    end
 
 endmodule : FPExecutionStage
 
