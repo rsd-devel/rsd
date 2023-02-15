@@ -191,8 +191,8 @@ typedef enum logic [4:0] // enum FCVTFunct5
 
 typedef enum logic [2:0] // enum FCLASSFMVFunct3
 {
-    FCLASS_FMV_FUNCT3_FCLASS = 3'b000,
-    FCLASS_FMV_FUNCT3_FMV_XW = 3'b001
+    FCLASS_FMV_FUNCT3_FMV_XW = 3'b000,
+    FCLASS_FMV_FUNCT3_FCLASS = 3'b001
 } FCLASSFMVFunct3;
 
 typedef enum logic [2:0] // enum FCMPFunct3

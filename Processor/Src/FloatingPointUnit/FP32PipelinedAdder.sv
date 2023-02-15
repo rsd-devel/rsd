@@ -60,7 +60,8 @@ module FAddStage0(
         lhs_is_inf = lhs_expo == 8'hff & lhs_mant == 0;
         rhs_is_inf = rhs_expo == 8'hff & rhs_mant == 0;
         res_is_nan = lhs_is_nan | rhs_is_nan | (lhs_sign != rhs_sign & lhs_is_inf & rhs_is_inf);
-        nan = lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000: 32'hffc00000; // qNan
+        //nan = lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000: 32'hffc00000; // qNan
+        nan = 32'h7fc00000;
 
         // Preparation
         swap_is_needed   = lhs[30:0] < rhs[30:0];

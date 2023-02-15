@@ -151,9 +151,9 @@ module CSR_Unit(
                 CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
                 CSR_NUM_MINSTRET:   csrNext.minstret = wv;
 `ifdef RSD_ENABLE_FP_PATH
-                CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv.fcsr.fflags;
-                CSR_NUM_FRM:        csrNext.fcsr.frm = wv.fcsr.frm;
-                CSR_NUM_FCSR:       csrNext.fcsr = wv.fcsr;
+                CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
+                CSR_NUM_FRM:        csrNext.fcsr.frm = wv;
+                CSR_NUM_FCSR:       csrNext.fcsr = wv;
 `endif
                 default:            wv = '0;    // dummy
             endcase 

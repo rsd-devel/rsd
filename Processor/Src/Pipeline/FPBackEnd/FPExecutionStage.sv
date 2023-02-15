@@ -217,7 +217,7 @@ module FPExecutionStage(
 
             // DIV or SQRT
             fpDivSqrtUnit.is_divide[i] = fpOpInfo[i].fpuCode == FC_DIV;
-            fpDivSqrtUnit.rm[i] = fpOpInfo[i].rm;
+            fpDivSqrtUnit.rm[i] = rm[i];
 
             isDivSqrt[i] =  
                 pipeReg[i].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};

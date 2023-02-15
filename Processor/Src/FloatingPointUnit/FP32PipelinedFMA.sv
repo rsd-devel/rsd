@@ -69,7 +69,8 @@ module FMAStage0(
     wire result_is_nan  = mullhs_is_nan | mulrhs_is_nan | addend_is_nan // One of the input is NaN
                           | (mullhs_is_zero & mulrhs_is_inf) | (mullhs_is_inf & mulrhs_is_zero) // Inf * Zero
                           | (is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf); // Inf - Inf
-    wire[31:0]      nan = mullhs_is_nan ? mullhs | 32'h00400000 : mulrhs_is_nan ? mulrhs | 32'h00400000 : addend_is_nan ? addend | 32'h00400000 : 32'hffc00000; // qNan
+    //wire[31:0]      nan = mullhs_is_nan ? mullhs | 32'h00400000 : mulrhs_is_nan ? mulrhs | 32'h00400000 : addend_is_nan ? addend | 32'h00400000 : 32'hffc00000; // qNan
+    wire[31:0]      nan = 32'h7fc00000;
 
     // Inf handling
     wire result_is_inf  = addend_is_inf | mullhs_is_inf | mulrhs_is_inf;

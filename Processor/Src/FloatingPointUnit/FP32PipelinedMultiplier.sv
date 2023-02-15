@@ -60,7 +60,8 @@ module FMulStage0(
     wire lhs_is_nan  = lhs_expo == 8'hff & lhs_mant != 0;
     wire rhs_is_nan  = rhs_expo == 8'hff & rhs_mant != 0;
     wire res_is_nan  = lhs_is_nan | rhs_is_nan | (lhs_is_zero & rhs_is_inf) | (lhs_is_inf & rhs_is_zero);
-    wire[31:0]  nan  = lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000 : 32'hffc00000; // qNan
+    //wire[31:0]  nan  = lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000 : 32'hffc00000; // qNan
+    wire[31:0]   nan = 32'h7fc00000;  
     
     // Preparation
     wire       result_sign  = lhs_sign ^ rhs_sign;

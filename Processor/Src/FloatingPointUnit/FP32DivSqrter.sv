@@ -122,8 +122,9 @@ output
     wire lhs_is_neg  = lhs_sign & lhs != 32'h80000000;
     wire res_is_nan  = is_divide ? lhs_is_nan | rhs_is_nan | (lhs_is_zero & rhs_is_zero) | (lhs_is_inf & rhs_is_inf)
                                  : lhs_is_nan | lhs_is_neg;
-    wire[31:0]  nan  = is_divide ? lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000 : 32'hffc00000
-                                 : lhs_is_nan ? lhs | 32'h00400000 : 32'hffc00000; // qNaN
+    //wire[31:0]  nan  = is_divide ? lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000 : 32'hffc00000
+    //                             : lhs_is_nan ? lhs | 32'h00400000 : 32'hffc00000; // qNaN
+    wire[31:0]   nan = 32'h7fc00000;
 
     // Preparation
     wire       result_sign  = is_divide & (lhs_sign ^ rhs_sign);
