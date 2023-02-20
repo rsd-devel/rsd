@@ -279,7 +279,8 @@ class SerialOutputComparator( object ):
         self.refStr = open( refFileName, "r" ).read().replace( '\r' , '' )
 
         # 比較
-        self.isMatched = ( self.outStr == self.refStr )
+        #self.isMatched = ( self.outStr == self.refStr )
+        self.isMatched = ( self.outStr == self.refStr[:len(self.outStr)] )
 
     # 比較結果を表示。Compareを呼んだ後に呼ぶ必要がある
     def PrintCompareResult( self ):

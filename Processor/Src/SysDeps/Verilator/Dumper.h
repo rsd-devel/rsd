@@ -821,12 +821,19 @@ public:
     void Dump(AddrPath pc, DataPath* regData)
     {
         // Dump logical register R0-R31
-        for (int i = 0; i < LSCALAR_NUM+LSCALAR_FP_NUM; i++) {
+        for (int i = 0; i < LSCALAR_NUM; i++) {
             fprintf(m_file, "0x%08x\n", regData[i]);
         }
 
         // Dump PC
         fprintf(m_file, "0x%08x\n", pc);
+
+#ifdef RSD_ENABLE_FP_PATH
+        // Dump fp logical register R0-R31
+        for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+            fprintf(m_file, "0x%08x\n", regData[i]);
+        }
+#endif
     }
 };
 
@@ -876,9 +883,15 @@ public:
         fprintf(m_file, "0x%08x", pc);
 
         // Dump logical register R0-R15.
-        for(int i = 0; i < LSCALAR_NUM+LSCALAR_FP_NUM; i++) {
+        for(int i = 0; i < LSCALAR_NUM; i++) {
             fprintf(m_file, ",0x%08x", regData[i]);
         }
+#ifdef RSD_ENABLE_FP_PATH
+        // Dump fp logical register R0-R15.
+        for(int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+            fprintf(m_file, ",0x%08x", regData[i]);
+        }
+#endif
 
         fprintf(m_file, "\n");
     }

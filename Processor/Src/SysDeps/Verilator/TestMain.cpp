@@ -33,9 +33,14 @@ int GetCommittedRegisterValue(
     typeof (core->retirementRMT->regRMT->debugValue) phyRegNum;
 
     // Copy RMT to local variable.
-    for (int i = 0; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+    for (int i = 0; i < LSCALAR_NUM; i++) {
         phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
     }
+#ifdef RSD_ENABLE_FP_PATH
+    for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+        phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
+    }
+#endif
 
     // Update RRMT
     //ActiveListIndexPath alHeadPtr;
@@ -53,9 +58,11 @@ int GetCommittedRegisterValue(
     for(int i = 0; i < LSCALAR_NUM; i++) {
         regData[i] = core->registerFile->phyReg->debugValue[phyRegNum[i]];
     }
+#ifdef RSD_ENABLE_FP_PATH
     for(int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
         regData[i] = core->registerFile->phyFPReg->debugValue[phyRegNum[i]];
     }
+#endif
     
     return 0;
 }

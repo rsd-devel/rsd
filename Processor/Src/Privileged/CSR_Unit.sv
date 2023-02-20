@@ -152,8 +152,8 @@ module CSR_Unit(
                 CSR_NUM_MINSTRET:   csrNext.minstret = wv;
 `ifdef RSD_ENABLE_FP_PATH
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
-                CSR_NUM_FRM:        csrNext.fcsr.frm = wv;
-                CSR_NUM_FCSR:       csrNext.fcsr = wv;
+                CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
+                CSR_NUM_FCSR:       csrNext.fcsr = FFlags_Path'(wv);
 `endif
                 default:            wv = '0;    // dummy
             endcase 
