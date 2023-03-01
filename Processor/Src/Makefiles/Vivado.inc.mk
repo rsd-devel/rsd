@@ -123,7 +123,7 @@ $(ARM_LINUX_ROOT):
 $(KERNEL_ROOT):
 	$(MAKE) xilinx-arm-linux-kernel-fetch; \
 	cd $(KERNEL_ROOT); \
-	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff || $(MAKE) xilinx-arm-linux-kernel-clean
+	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff
 
 # Do NOT use this command.
 xilinx-arm-linux-kernel-fetch:
@@ -138,7 +138,7 @@ xilinx-arm-linux-kernel-clean:
 $(UBOOT_ROOT):
 	$(MAKE) xilinx-arm-linux-u-boot-fetch; \
 	cd $(UBOOT_ROOT); \
-	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff || $(MAKE) xilinx-arm-linux-u-boot-clean
+	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff
 
 # Do NOT use this command.
 xilinx-arm-linux-u-boot-fetch:
