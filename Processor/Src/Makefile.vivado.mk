@@ -57,22 +57,21 @@ XSIM_OPTIONS = \
 	-testplusarg SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
 	-testplusarg RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \
 
-
+# Vivado sim may require the following additonal components:
+# sudo apt install libncurses5 libtinfo5
 all: Makefiles/CoreSources.inc.mk
 	mkdir $(PROJECT_WORK) -p
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
+	# elaboration
+	# cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
 
 run:
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -runall $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
 run-gui:
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE) -debug all
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -gui $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 

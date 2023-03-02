@@ -12,7 +12,7 @@ REG_OUT_FILE_NAME = 'reg.out.hex'
 SERIAL_OUT_FILE_NAME = 'serial.out.txt'
 SERIAL_REF_FILE_NAME = 'serial.ref.txt'
 
-# Warning! : vsim cannot use abspath as commandline argument
+# Warning! : vsim cannot use abspath as command line argument
 QUESTASIM_PROJECT_DIR_PATH = os.path.relpath(
     os.path.join( os.path.dirname( __file__ ), '../../Project/ModelSim' )
 )
@@ -146,6 +146,9 @@ class SimulationDriver( object ):
             print(cmd)
         os.system( cmd )
 
+    def GetLogPath(self):
+        return self.vsimLogPath
+
 
 class VerilatorSimulationDriver(object):
     VERILATOR_LOG_FILE_NAME = 'verilator.log'
@@ -177,17 +180,24 @@ class VerilatorSimulationDriver(object):
             print(cmd)
         os.system( cmd )
 
+    def GetLogPath(self):
+        return self.verilatorLogPath
+
 
 class VivadoSimulationDriver(object):
     TOP_MODULE_NAME    = 'TestMain'
     XSIM_LOG_FILE_NAME = 'xsim.log'
-    SOURCE_ROOT        = '../Src/'
+    XELAB_LOG_FILE_NAME = 'xelab.log'
+    SOURCE_ROOT        = '../../../Src/'
 
     def __init__(self, projectDirPath, testCodeDirPath, config, options):
         self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
         self.testCodeDirPath = testCodeDirPath  # Test code directory
         self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
+        self.xelabLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XELAB_LOG_FILE_NAME)
         self.xsimPath = os.environ['RSD_VIVADO_BIN'] + '/xsim'
+        self.xelabPath = os.environ['RSD_VIVADO_BIN'] + '/xelab'
+        self.testID = testCodeDirPath.replace("/", "-") # Make test id from testCodeDirPath
 
         self.additionalOptionList = []
         self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
@@ -200,17 +210,30 @@ class VivadoSimulationDriver(object):
 
     # Run simulation
     def RunSimulation(self):
+        cmd = "cd %s && %s -relax -s %s %s %s" % (
+            self.projectDirPath,
+            self.xelabPath,
+            self.testID,
+            self.TOP_MODULE_NAME,
+            "> " + self.xelabLogPath if self.omitStdout else "| tee " + self.xelabLogPath
+        )
+        if (not self.omitPrintCommand):
+            print(cmd)
+        os.system( cmd )
+
         cmd = "cd %s && %s -runall %s %s %s" % (
             self.projectDirPath,
             self.xsimPath,
             " ".join( self.additionalOptionList ),
-            self.TOP_MODULE_NAME,
+            self.testID,
             "> " + self.xsimLogPath if self.omitStdout else "| tee " + self.xsimLogPath
         )
-
         if (not self.omitPrintCommand):
             print(cmd)
         os.system( cmd )
+
+    def GetLogPath(self):
+        return self.xsimLogPath
 
 
 class RegisterValueComparator( object ):
@@ -303,6 +326,7 @@ class SerialOutputComparator( object ):
 def RemoveTestResult( regOutPath, serialOutPath ):
     # OSErrorを無視するためにtry-exceptを使用
     try:
+        print("Remove " + regOutPath)
         os.remove( regOutPath )
     except:
         pass
@@ -337,7 +361,7 @@ if not testCodePathList:
     print ("Error : no TestCode specified.")
     sys.exit(3)
 
-# Detect a simlulation mode
+# Detect a simulation mode
 simName = "modelsim"
 if options.simulatorName is not None:
     simName = options.simulatorName
@@ -348,7 +372,7 @@ if options.simulatorName is not None:
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
-        print ("Unkown simulation mode: " + simName)
+        print ("Unknown simulation mode: " + simName)
         sys.exit(3)
     
 
