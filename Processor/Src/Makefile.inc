@@ -123,7 +123,7 @@ DEPS_VIVADO = \
 # Unit test helper
 #
 
-REPLACE_PATH = python $(TOOLS_ROOT)/UnitTestHelper/ReplacePath.py
+REPLACE_PATH = python3 $(TOOLS_ROOT)/UnitTestHelper/ReplacePath.py
 
 # -------------------------------
 # Program options
