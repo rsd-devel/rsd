@@ -386,10 +386,14 @@ function automatic logic SelectiveFlushDetector(
     input logic detectRange,
     input ActiveListIndexPath headPtr,
     input ActiveListIndexPath tailPtr,
+    input logic flushAllInsns,
     input ActiveListIndexPath opPtr
 );
     if(!detectRange) begin
         return FALSE;
+    end
+    else if (flushAllInsns) begin
+        return TRUE;
     end
     else if(detectRange && tailPtr >= headPtr) begin
         //  |---h***i***t-------|

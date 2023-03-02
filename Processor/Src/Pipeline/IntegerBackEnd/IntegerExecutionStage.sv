@@ -154,6 +154,7 @@ module IntegerExecutionStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
 

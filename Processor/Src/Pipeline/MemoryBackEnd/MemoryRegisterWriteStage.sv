@@ -70,6 +70,7 @@ module MemoryRegisterWriteStage(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
                 recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
                 pipeReg[i].activeListPtr
             );
             update[i] = !stall && !clear && valid[i] && !flush[i];

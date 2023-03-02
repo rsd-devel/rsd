@@ -119,6 +119,7 @@ module MemoryTagAccessStage(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             ldIqData[i].activeListPtr
                         );
             ldUpdate[i]  = ldPipeReg[i].valid && !stall && !clear && !ldFlush[i];
@@ -382,6 +383,7 @@ module MemoryTagAccessStage(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             stIqData[i].activeListPtr
                         );
             stUpdate[i]  = stPipeReg[i].valid && !stall && !clear && !stFlush[i];

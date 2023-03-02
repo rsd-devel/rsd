@@ -105,6 +105,7 @@ module MemoryExecutionStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             memOpInfo[i]  = iqData[i].memOpInfo;
@@ -272,6 +273,7 @@ module MemoryExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns,
                     regActiveListIndex[i]
                 );
             end
