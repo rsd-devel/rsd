@@ -7,8 +7,8 @@
   <ns0:busInterfaces>
     <ns0:busInterface>
       <ns0:name>axi4LitePsToPlControlRegisterIF_S_AXI</ns0:name>
-      <ns0:busType ns0:library="interface" ns0:name="aximm" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="interface" ns0:name="aximm_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm_rtl" ns0:version="1.0"/>
       <ns0:slave>
         <ns0:memoryMapRef ns0:memoryMapRef="axi4LitePsToPlControlRegisterIF_S_AXI"/>
       </ns0:slave>
@@ -169,8 +169,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4MemoryIF_M_AXI</ns0:name>
-      <ns0:busType ns0:library="interface" ns0:name="aximm" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="interface" ns0:name="aximm_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm_rtl" ns0:version="1.0"/>
       <ns0:master>
         <ns0:addressSpaceRef ns0:addressSpaceRef="axi4MemoryIF_M_AXI"/>
       </ns0:master>
@@ -515,8 +515,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4LitePlToPsControlRegisterIF_S_AXI_ARESETN</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="reset" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="reset_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -531,14 +531,14 @@
       <ns0:parameters>
         <ns0:parameter>
           <ns0:name>POLARITY</ns0:name>
-          <ns0:value ns0:choiceRef="choice_list_9d8b0d81" ns0:id="BUSIFPARAM_VALUE.AXI4LITEPLTOPSCONTROLREGISTERIF_S_AXI_ARESETN.POLARITY">ACTIVE_LOW</ns0:value>
+          <ns0:value ns0:id="BUSIFPARAM_VALUE.AXI4LITEPLTOPSCONTROLREGISTERIF_S_AXI_ARESETN.POLARITY" ns0:choiceRef="choice_list_9d8b0d81">ACTIVE_LOW</ns0:value>
         </ns0:parameter>
       </ns0:parameters>
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4LitePsToPlControlRegisterIF_S_AXI_ARESETN</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="reset" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="reset_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -553,14 +553,14 @@
       <ns0:parameters>
         <ns0:parameter>
           <ns0:name>POLARITY</ns0:name>
-          <ns0:value ns0:choiceRef="choice_list_9d8b0d81" ns0:id="BUSIFPARAM_VALUE.AXI4LITEPSTOPLCONTROLREGISTERIF_S_AXI_ARESETN.POLARITY">ACTIVE_LOW</ns0:value>
+          <ns0:value ns0:id="BUSIFPARAM_VALUE.AXI4LITEPSTOPLCONTROLREGISTERIF_S_AXI_ARESETN.POLARITY" ns0:choiceRef="choice_list_9d8b0d81">ACTIVE_LOW</ns0:value>
         </ns0:parameter>
       </ns0:parameters>
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4MemoryIF_M_AXI_ARESETN</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="reset" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="reset_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -575,14 +575,14 @@
       <ns0:parameters>
         <ns0:parameter>
           <ns0:name>POLARITY</ns0:name>
-          <ns0:value ns0:choiceRef="choice_list_9d8b0d81" ns0:id="BUSIFPARAM_VALUE.AXI4MEMORYIF_M_AXI_ARESETN.POLARITY">ACTIVE_LOW</ns0:value>
+          <ns0:value ns0:id="BUSIFPARAM_VALUE.AXI4MEMORYIF_M_AXI_ARESETN.POLARITY" ns0:choiceRef="choice_list_9d8b0d81">ACTIVE_LOW</ns0:value>
         </ns0:parameter>
       </ns0:parameters>
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4LitePlToPsControlRegisterIF_S_AXI_ACLK</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="clock" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="clock_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -607,8 +607,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4LitePsToPlControlRegisterIF_S_AXI_ACLK</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="clock" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="clock_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -633,8 +633,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4MemoryIF_M_AXI_ACLK</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="clock" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="clock_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -659,8 +659,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>clk</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="clock" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="clock_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="clock_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -681,8 +681,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>axi4LitePlToPsControlRegisterIF_S_AXI</ns0:name>
-      <ns0:busType ns0:library="interface" ns0:name="aximm" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="interface" ns0:name="aximm_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="interface" ns0:name="aximm_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -753,8 +753,8 @@
     </ns0:busInterface>
     <ns0:busInterface>
       <ns0:name>negResetIn</ns0:name>
-      <ns0:busType ns0:library="signal" ns0:name="reset" ns0:vendor="xilinx.com" ns0:version="1.0"/>
-      <ns0:abstractionType ns0:library="signal" ns0:name="reset_rtl" ns0:vendor="xilinx.com" ns0:version="1.0"/>
+      <ns0:busType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset" ns0:version="1.0"/>
+      <ns0:abstractionType ns0:vendor="xilinx.com" ns0:library="signal" ns0:name="reset_rtl" ns0:version="1.0"/>
       <ns0:slave/>
       <ns0:portMaps>
         <ns0:portMap>
@@ -771,7 +771,7 @@
   <ns0:addressSpaces>
     <ns0:addressSpace>
       <ns0:name>axi4MemoryIF_M_AXI</ns0:name>
-      <ns0:range ns0:format="long" ns0:minimum="4096" ns0:rangeType="long" ns0:resolve="user">4294967296</ns0:range>
+      <ns0:range ns0:format="long" ns0:resolve="user" ns0:minimum="4096" ns0:rangeType="long">4294967296</ns0:range>
       <ns0:width ns0:format="long" ns0:resolve="user">64</ns0:width>
     </ns0:addressSpace>
   </ns0:addressSpaces>
@@ -780,8 +780,8 @@
       <ns0:name>axi4LitePsToPlControlRegisterIF_S_AXI</ns0:name>
       <ns0:addressBlock>
         <ns0:name>reg0</ns0:name>
-        <ns0:baseAddress ns0:bitStringLength="32" ns0:format="bitString" ns0:resolve="user">0</ns0:baseAddress>
-        <ns0:range ns0:format="long" ns0:minimum="4096" ns0:rangeType="long" ns0:resolve="user">128</ns0:range>
+        <ns0:baseAddress ns0:format="bitString" ns0:resolve="user" ns0:bitStringLength="32">0</ns0:baseAddress>
+        <ns0:range ns0:format="long" ns0:resolve="user" ns0:minimum="4096" ns0:rangeType="long">128</ns0:range>
         <ns0:width ns0:format="long" ns0:resolve="user">32</ns0:width>
         <ns0:usage>register</ns0:usage>
       </ns0:addressBlock>
@@ -2181,6 +2181,11 @@
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
+        <ns0:name>../../../../../../Src/MicroArchConf.sv</ns0:name>
+        <ns0:fileType>systemVerilogSource</ns0:fileType>
+        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
+      </ns0:file>
+      <ns0:file>
         <ns0:name>../../../../../../Src/BasicTypes.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
@@ -2252,16 +2257,6 @@
       </ns0:file>
       <ns0:file>
         <ns0:name>../../../../../../Src/Debug/DebugTypes.sv</ns0:name>
-        <ns0:fileType>systemVerilogSource</ns0:fileType>
-        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
-      </ns0:file>
-      <ns0:file>
-        <ns0:name>../../../../../../Src/Main_Zynq_Wrapper.sv</ns0:name>
-        <ns0:fileType>systemVerilogSource</ns0:fileType>
-        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
-      </ns0:file>
-      <ns0:file>
-        <ns0:name>../../../../../../Src/Main_Zynq.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
@@ -2741,11 +2736,6 @@
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
-        <ns0:name>../../../../../../Src/Cache/CachePrimitives.sv</ns0:name>
-        <ns0:fileType>systemVerilogSource</ns0:fileType>
-        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
-      </ns0:file>
-      <ns0:file>
         <ns0:name>../../../../../../Src/Cache/MemoryAccessController.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
@@ -2866,12 +2856,22 @@
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
-        <ns0:name>../../../../../../Src/Debug/HardwareCounter.sv</ns0:name>
+        <ns0:name>../../../../../../Src/Debug/PerformanceCounter.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
       <ns0:file>
-        <ns0:name>../../../../../../Src/Debug/HardwareCounterIF.sv</ns0:name>
+        <ns0:name>../../../../../../Src/Debug/PerformanceCounterIF.sv</ns0:name>
+        <ns0:fileType>systemVerilogSource</ns0:fileType>
+        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
+      </ns0:file>
+      <ns0:file>
+        <ns0:name>../../../../../../Src/Main_Zynq_Wrapper.sv</ns0:name>
+        <ns0:fileType>systemVerilogSource</ns0:fileType>
+        <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
+      </ns0:file>
+      <ns0:file>
+        <ns0:name>../../../../../../Src/Main_Zynq.sv</ns0:name>
         <ns0:fileType>systemVerilogSource</ns0:fileType>
         <ns0:userFileType>IMPORTED_FILE</ns0:userFileType>
       </ns0:file>
@@ -2938,7 +2938,7 @@
       <ns0:name>xilinx_anylanguagebehavioralsimulation_xilinx_com_ip_processing_system7_5_5__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="processing_system7" ns1:vendor="xilinx.com" ns1:version="5.5" xsi:type="xilinx:componentRefType">
+          <ns1:componentRef xsi:type="xilinx:componentRefType" ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="processing_system7" ns1:version="5.5">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2948,7 +2948,7 @@
       <ns0:name>xilinx_anylanguagebehavioralsimulation_xilinx_com_ip_proc_sys_reset_5_0__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="proc_sys_reset" ns1:vendor="xilinx.com" ns1:version="5.0">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="proc_sys_reset" ns1:version="5.0">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2958,7 +2958,7 @@
       <ns0:name>xilinx_anylanguagebehavioralsimulation_xilinx_com_ip_axi_protocol_converter_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_protocol_converter" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_protocol_converter" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2968,7 +2968,7 @@
       <ns0:name>xilinx_anylanguagebehavioralsimulation_xilinx_com_ip_axi_crossbar_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_crossbar" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_crossbar" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2978,7 +2978,7 @@
       <ns0:name>xilinx_implementation_xilinx_com_ip_processing_system7_5_5__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="processing_system7" ns1:vendor="xilinx.com" ns1:version="5.5" xsi:type="xilinx:componentRefType">
+          <ns1:componentRef xsi:type="xilinx:componentRefType" ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="processing_system7" ns1:version="5.5">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2988,7 +2988,7 @@
       <ns0:name>xilinx_implementation_xilinx_com_ip_proc_sys_reset_5_0__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="proc_sys_reset" ns1:vendor="xilinx.com" ns1:version="5.0">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="proc_sys_reset" ns1:version="5.0">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -2998,7 +2998,7 @@
       <ns0:name>xilinx_implementation_xilinx_com_ip_axi_protocol_converter_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_protocol_converter" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_protocol_converter" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3008,7 +3008,7 @@
       <ns0:name>xilinx_implementation_xilinx_com_ip_axi_crossbar_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_crossbar" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_crossbar" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3027,7 +3027,7 @@
       <ns0:name>xilinx_anylanguagesynthesis_xilinx_com_ip_processing_system7_5_5__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="processing_system7" ns1:vendor="xilinx.com" ns1:version="5.5" xsi:type="xilinx:componentRefType">
+          <ns1:componentRef xsi:type="xilinx:componentRefType" ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="processing_system7" ns1:version="5.5">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3037,7 +3037,7 @@
       <ns0:name>xilinx_anylanguagesynthesis_xilinx_com_ip_proc_sys_reset_5_0__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="proc_sys_reset" ns1:vendor="xilinx.com" ns1:version="5.0">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="proc_sys_reset" ns1:version="5.0">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3047,7 +3047,7 @@
       <ns0:name>xilinx_anylanguagesynthesis_xilinx_com_ip_axi_protocol_converter_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_protocol_converter" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_protocol_converter" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3057,7 +3057,7 @@
       <ns0:name>xilinx_anylanguagesynthesis_xilinx_com_ip_axi_crossbar_2_1__ref_view_fileset</ns0:name>
       <ns0:vendorExtensions>
         <ns1:subCoreRef>
-          <ns1:componentRef ns1:library="ip" ns1:name="axi_crossbar" ns1:vendor="xilinx.com" ns1:version="2.1">
+          <ns1:componentRef ns1:vendor="xilinx.com" ns1:library="ip" ns1:name="axi_crossbar" ns1:version="2.1">
             <ns1:mode ns1:name="create_mode"/>
           </ns1:componentRef>
         </ns1:subCoreRef>
@@ -3068,7 +3068,7 @@
   <ns0:parameters>
     <ns0:parameter>
       <ns0:name>Component_Name</ns0:name>
-      <ns0:value ns0:id="PARAM_VALUE.Component_Name" ns0:order="1" ns0:resolve="user">RSD_v1_0</ns0:value>
+      <ns0:value ns0:resolve="user" ns0:id="PARAM_VALUE.Component_Name" ns0:order="1">RSD_v1_0</ns0:value>
     </ns0:parameter>
   </ns0:parameters>
   <ns0:vendorExtensions>
