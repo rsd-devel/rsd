@@ -25,7 +25,7 @@ XELAB = $(RSD_VIVADO_BIN)/xelab
 XSIM  = $(RSD_VIVADO_BIN)/xsim
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
@@ -250,7 +250,7 @@ $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(RSD_LOG_FILE_POST_IMPLEMENTATIO
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = @python ../Tools/TestDriver/RunTest.py --simulator=vivadosim
+RUN_TEST = @python3 ../Tools/TestDriver/RunTest.py --simulator=vivadosim
 RUN_TEST_OMIT_MSG = \
-	@python ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
+	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
 include Makefiles/TestCommands.inc.mk

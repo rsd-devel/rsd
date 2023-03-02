@@ -63,7 +63,7 @@ VSIM_OPTIONS_DUMP = \
 include Makefile.inc
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 
 kanata: rtl-kanata
 
@@ -72,8 +72,8 @@ rtl-kanata: rtl-run
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = python ../Tools/TestDriver/RunTest.py
-RUN_TEST_OMIT_MSG = python ../Tools/TestDriver/RunTest.py -o
+RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
+RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
 include Makefiles/TestCommands.inc.mk
 
 # -------------------------------

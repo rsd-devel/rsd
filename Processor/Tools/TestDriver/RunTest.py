@@ -275,8 +275,8 @@ class SerialOutputComparator( object ):
 
     def Compare( self, refFileName, outFileName ):
         # 比較するファイル読み込む。改行コードはLFに統一。
-        self.outStr = open( outFileName, "r" ).read().replace( '\r' , '' )
-        self.refStr = open( refFileName, "r" ).read().replace( '\r' , '' )
+        self.outStr = open( outFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
+        self.refStr = open( refFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
 
         # 比較
         self.isMatched = ( self.outStr == self.refStr )
