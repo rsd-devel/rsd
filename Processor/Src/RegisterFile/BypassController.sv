@@ -3,7 +3,7 @@
 
 
 import BasicTypes::*;
-import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import BypassTypes::*;
 

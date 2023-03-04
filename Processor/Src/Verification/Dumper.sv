@@ -8,6 +8,7 @@ package DumperTypes;
     import PipelineTypes::*;
     import RenameLogicTypes::*;
     import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
     import MicroOpTypes::*;
     import LoadStoreUnitTypes::*;
     import IO_UnitTypes::*;

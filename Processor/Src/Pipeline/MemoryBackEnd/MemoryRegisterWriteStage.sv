@@ -11,6 +11,7 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 

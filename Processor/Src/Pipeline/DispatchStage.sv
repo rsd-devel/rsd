@@ -13,6 +13,7 @@ import MemoryMapTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 module DispatchStage(

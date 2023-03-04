@@ -8,6 +8,7 @@ package CacheSystemTypes;
     import MicroArchConf::*;
     import BasicTypes::*;
     import MemoryMapTypes::*;
+    import ActiveListIndexTypes::*;
 
     //
     // --- DCache
@@ -130,9 +131,6 @@ package CacheSystemTypes;
 
     } MSHR_Phase;
 
-    localparam ACTIVE_LIST_ENTRY_NUM = CONF_ACTIVE_LIST_ENTRY_NUM;
-    localparam ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH = $clog2( ACTIVE_LIST_ENTRY_NUM );
-    typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] ActiveListIndexPath;
     typedef struct packed   // MissStatusHandlingRegister;
     {
         logic valid;

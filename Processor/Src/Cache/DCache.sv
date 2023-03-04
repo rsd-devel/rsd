@@ -29,6 +29,7 @@ import CacheSystemTypes::*;
 import OpFormatTypes::*;
 import MemoryMapTypes::*;
 import LoadStoreUnitTypes::*;
+import ActiveListIndexTypes::*;
 
 // Merge stored data and fetched line.
 function automatic void MergeStoreDataToLine(
@@ -890,7 +891,7 @@ module DCache(
     LoadStoreUnitIF.DCache lsu,
     CacheSystemIF.DCache cacheSystem,
     ControllerIF.DCache ctrl,
-    RecoveryManagerIF.DCache recovery
+    RecoveryManagerIF.DCacheMissHandler recovery    // connected to DCacheMissHandler
 );
 
     logic hit[DCACHE_LSU_PORT_NUM];
@@ -1870,6 +1871,7 @@ module DCacheMissHandler(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             mshr[i].activeListPtr
                         );
             if (port.makeMSHRCanBeInvalidByMemoryTagAccessStage[i]) begin

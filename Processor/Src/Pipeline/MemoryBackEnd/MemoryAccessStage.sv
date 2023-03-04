@@ -15,6 +15,7 @@ import PipelineTypes::*;
 import DebugTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
+import ActiveListIndexTypes::*;
 
 module MemoryAccessStage(
     MemoryAccessStageIF.ThisStage port,

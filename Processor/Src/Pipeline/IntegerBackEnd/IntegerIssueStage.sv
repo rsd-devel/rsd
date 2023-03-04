@@ -11,6 +11,7 @@ import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 module IntegerIssueStage(

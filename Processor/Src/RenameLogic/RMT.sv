@@ -8,6 +8,7 @@
 
 import BasicTypes::*;
 import RenameLogicTypes::*;
+import ActiveListIndexTypes::*;
 import SchedulerTypes::*;
 
 

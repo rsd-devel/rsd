@@ -18,6 +18,7 @@ import BypassTypes::*;
 import RenameLogicTypes::*;
 import LoadStoreUnitTypes::*;
 import FetchUnitTypes::*;
+import ActiveListIndexTypes::*;
 
 // Issue queue
 localparam ISSUE_QUEUE_ENTRY_NUM = CONF_ISSUE_QUEUE_ENTRY_NUM;
@@ -53,14 +54,6 @@ localparam ISSUE_QUEUE_RESET_CYCLE
 localparam ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE
     = $clog2( ISSUE_QUEUE_RESET_CYCLE );
 
-
-//
-// --- Active list 
-//
-localparam ACTIVE_LIST_ENTRY_NUM = CONF_ACTIVE_LIST_ENTRY_NUM;
-localparam ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH = $clog2( ACTIVE_LIST_ENTRY_NUM );
-typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] ActiveListIndexPath;
-typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH:0] ActiveListCountPath;
 
 // Information about the execution of an op.
 typedef enum logic [3:0] // ExecutionState

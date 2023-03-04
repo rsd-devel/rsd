@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import MicroOpTypes::*;
 
 //

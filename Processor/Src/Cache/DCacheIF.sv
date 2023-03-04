@@ -11,6 +11,7 @@ import OpFormatTypes::*;
 import CacheSystemTypes::*;
 import OpFormatTypes::*;
 import MemoryMapTypes::*;
+import ActiveListIndexTypes::*;
 
 interface DCacheIF(
 input

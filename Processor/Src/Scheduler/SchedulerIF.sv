@@ -11,6 +11,7 @@ import CacheSystemTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 
 interface SchedulerIF( input logic clk, rst, rstStart );

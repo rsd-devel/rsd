@@ -13,6 +13,7 @@ import CacheSystemTypes::*;
 import OpFormatTypes::*;
 import LoadStoreUnitTypes::*;
 import MemoryMapTypes::*;
+import ActiveListIndexTypes::*;
 
 interface LoadStoreUnitIF( input logic clk, rst, rstStart );
 

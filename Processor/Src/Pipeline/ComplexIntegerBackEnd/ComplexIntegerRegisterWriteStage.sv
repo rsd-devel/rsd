@@ -12,6 +12,7 @@ import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE

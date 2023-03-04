@@ -11,6 +11,7 @@
 import BasicTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 
 
 module RenameLogicCommitter(

@@ -33,6 +33,7 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import MemoryMapTypes::*;

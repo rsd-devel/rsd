@@ -33,7 +33,7 @@
             "command": "make",
             
             "args": ["-f", "Makefile.verilator.mk"],
-            //"args": ["-f", "Makefile"],
+            // "args": ["-f", "Makefile"],
             
             "group": {
                 "kind": "build",
@@ -42,6 +42,7 @@
             "problemMatcher": [
                 // Verilator
                 {
+                    "owner": "verilator", 
                     "fileLocation": [
                         "relative",
                         "${workspaceRoot}"
@@ -57,6 +58,7 @@
                     }
                 },
                 {
+                    "owner": "verilator", 
                     "fileLocation": [
                         "relative",
                         "${workspaceRoot}"
@@ -71,6 +73,7 @@
                     }
                 },
                 {
+                    "owner": "verilator", 
                     "fileLocation": [
                         "relative",
                         "${workspaceRoot}"
@@ -82,7 +85,9 @@
                     }
                 },
                 // Modelsim
-                {   // only line is included
+                {   
+                    "owner": "modelsim", 
+                    // only line is included
                     //"fileLocation": ["relative", "${fileDirname}"],
                     "fileLocation": ["relative", "${workspaceRoot}"],
                     "pattern": [
@@ -94,7 +99,9 @@
                         },
                     ]
                 },
-                {   // line+column are included
+                {   
+                    "owner": "modelsim", 
+                    // line+column are included
                     "fileLocation": ["relative", "${fileDirname}"],
                     "pattern": [
                         {
@@ -108,6 +115,7 @@
                 },
                 // gcc rules for files translated by verilator
                 {
+                    "owner": "verilator", 
                     "fileLocation": [
                         "relative",
                         "${workspaceRoot}/../Project/Veriltor/obj_dir"

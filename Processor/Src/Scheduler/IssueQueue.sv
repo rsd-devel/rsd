@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import RenameLogicTypes::*;
 
 module IssueQueue (

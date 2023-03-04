@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import CacheSystemTypes::*;
 import RenameLogicTypes::*;
 
@@ -535,6 +536,7 @@ module ReplayQueue(
                             recoveryFromRwStage || recoveryFromCmStage,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            flushAllInsns,
                             replayEntryReg.memData[i].activeListPtr
                             );
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];

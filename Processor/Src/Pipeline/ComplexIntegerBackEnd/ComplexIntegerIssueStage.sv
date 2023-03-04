@@ -10,6 +10,7 @@
 import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
+import ActiveListIndexTypes::*;
 import SchedulerTypes::*;
 import DebugTypes::*;
 

@@ -14,6 +14,7 @@ import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import DebugTypes::*;
 
