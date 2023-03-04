@@ -179,6 +179,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountInt != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             intPipeReg[i][0].activeListPtr
                             );
             port.wakeup[i] = intPipeReg[i][0].valid && !flushInt[i];
@@ -192,6 +193,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountComplex != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             complexPipeReg[i][0].activeListPtr
                             );
             port.wakeup[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].valid && !flushComplex[i];
@@ -207,6 +209,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountMem != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             memPipeReg[i][0].activeListPtr
                           );
             port.wakeup[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].valid && !flushMem[i];
@@ -227,6 +230,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountMem != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             memPipeReg[i][0].activeListPtr
                             );
             port.wakeup[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].valid && !flushMem[i];

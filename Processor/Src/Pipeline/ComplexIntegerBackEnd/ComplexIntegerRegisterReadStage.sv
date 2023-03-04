@@ -107,6 +107,7 @@ module ComplexIntegerRegisterReadStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             nextStage[i].valid =

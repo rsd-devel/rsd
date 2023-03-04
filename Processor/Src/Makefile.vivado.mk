@@ -25,7 +25,7 @@ XELAB = $(RSD_VIVADO_BIN)/xelab
 XSIM  = $(RSD_VIVADO_BIN)/xsim
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
@@ -57,22 +57,21 @@ XSIM_OPTIONS = \
 	-testplusarg SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
 	-testplusarg RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \
 
-
+# Vivado sim may require the following additonal components:
+# sudo apt install libncurses5 libtinfo5
 all: Makefiles/CoreSources.inc.mk
 	mkdir $(PROJECT_WORK) -p
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
+	# elaboration
+	# cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
 
 run:
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -runall $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
 run-gui:
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE) -debug all
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -gui $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
@@ -250,7 +249,7 @@ $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(RSD_LOG_FILE_POST_IMPLEMENTATIO
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = @python ../Tools/TestDriver/RunTest.py --simulator=vivadosim
+RUN_TEST = @python3 ../Tools/TestDriver/RunTest.py --simulator=vivadosim
 RUN_TEST_OMIT_MSG = \
-	@python ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
+	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
 include Makefiles/TestCommands.inc.mk

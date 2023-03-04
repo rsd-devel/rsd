@@ -80,6 +80,20 @@ vivado-clean:
 	rm -f vivado*.zip
 	rm -f vivado*.str
 
+# Vivado を使った合成
+vivado-synthesis: $(VIVADO_BIT_FILE)
+
+# ビットストリームの生成
+$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
+	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	
+# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
+$(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
+#	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
+#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
+#	@echo "(Re-)build hdf using Vivado!"
+#	exit 1
+
 
 # -------------------------------
 # ARM-Linux : Make fsbl, initrd, u-boot, kernel, device-tree and boot.bin for TARGET_BOARD.
@@ -109,7 +123,7 @@ $(ARM_LINUX_ROOT):
 $(KERNEL_ROOT):
 	$(MAKE) xilinx-arm-linux-kernel-fetch; \
 	cd $(KERNEL_ROOT); \
-	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff || $(MAKE) xilinx-arm-linux-kernel-clean
+	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff
 
 # Do NOT use this command.
 xilinx-arm-linux-kernel-fetch:
@@ -124,7 +138,7 @@ xilinx-arm-linux-kernel-clean:
 $(UBOOT_ROOT):
 	$(MAKE) xilinx-arm-linux-u-boot-fetch; \
 	cd $(UBOOT_ROOT); \
-	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff || $(MAKE) xilinx-arm-linux-u-boot-clean
+	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff
 
 # Do NOT use this command.
 xilinx-arm-linux-u-boot-fetch:
@@ -165,17 +179,12 @@ xilinx-arm-linux-all:
 	$(MAKE) xilinx-arm-linux-bootbin
 	$(MAKE) xilinx-arm-linux-download-rootfs
 
-$(FSBL_FILE): $(VIVADO_FSBL_FILE)
-	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
-
+# First Stage Boot Loader
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
 	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 
-$(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
-#	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
-#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
-#	@echo "(Re-)build hdf using Vivado!"
-#	exit 1
+$(FSBL_FILE): $(VIVADO_FSBL_FILE)
+	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
 $(UBOOT_FILE): $(UBOOT_ROOT)
 	$(MAKE) xilinx-arm-linux-u-boot
@@ -221,9 +230,6 @@ xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 
 $(BIT_FILE): $(VIVADO_BIT_FILE)
 	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
-
-$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:

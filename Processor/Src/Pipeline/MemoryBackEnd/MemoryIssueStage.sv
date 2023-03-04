@@ -47,6 +47,7 @@ module MemoryIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         scheduler.memIssuedData[i].activeListPtr
                     );
             end
@@ -90,6 +91,7 @@ module MemoryIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         issuedData[i].activeListPtr
                         );
 

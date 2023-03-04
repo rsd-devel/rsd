@@ -1,17 +1,16 @@
 {
     "configurations": [
         {
-            "name": "Cygwin-verilator",
+            "name": "Verilator",
             "includePath": [
                 "${workspaceFolder}/../Project/Verilator/obj_dir",
-                "${env:RSD_CYGWIN_PATH}/usr/local/share/verilator/include",
-                "${env:RSD_CYGWIN_PATH}/usr/local/share/verilator/include/vltstd"
+                "/usr/share/verilator/include",
+                "/usr/share/verilator/include/vltstd"
             ],
             "defines": [
                 "RSD_FUNCTIONAL_SIMULATION",
                 "RSD_FUNCTIONAL_SIMULATION_VERILATOR"
             ],
-            "compilerPath": "${env:RSD_CYGWIN_PATH}/bin/g++",
             "cStandard": "c11",
             "cppStandard": "c++17",
             "intelliSenseMode": "gcc-x64"

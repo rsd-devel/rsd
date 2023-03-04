@@ -48,6 +48,7 @@ module ComplexIntegerIssueStage(
                                         recovery.toRecoveryPhase,
                                         recovery.flushRangeHeadPtr,
                                         recovery.flushRangeTailPtr,
+                                        recovery.flushAllInsns,
                                         scheduler.complexIssuedData[i].activeListPtr
                                         );
             end
@@ -91,6 +92,7 @@ module ComplexIntegerIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         issuedData[i].activeListPtr
                         );
 
