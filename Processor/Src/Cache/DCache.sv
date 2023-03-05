@@ -1310,8 +1310,8 @@ module DCacheMissHandler(
 
     MissStatusHandlingRegister nextMSHR[MSHR_NUM];
     MissStatusHandlingRegister mshr[MSHR_NUM];
-    logic flush[MSHR_NUM];
-    logic initFlush[MSHR_NUM];
+    logic flushMSHR_Entry[MSHR_NUM];
+    logic flushMSHR_Allocation[MSHR_NUM];
 
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
@@ -1377,16 +1377,31 @@ module DCacheMissHandler(
         end
 
         for (int i = 0; i < MSHR_NUM; i++) begin
-            initFlush[i] = SelectiveFlushDetector(
+            nextMSHR[i] = mshr[i];
+
+            flushMSHR_Allocation[i] = SelectiveFlushDetector(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
                             recovery.flushAllInsns,
                             port.initMSHR_ActiveListPtr[i]
                         );
-        end
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            nextMSHR[i] = mshr[i];
+            if (port.mshrCanBeInvalidDirect[i]) begin
+                // its allocator load has received data in the RW stage.
+                nextMSHR[i].canBeInvalid = TRUE;
+            end
+            flushMSHR_Entry[i] = SelectiveFlushDetector(
+                            recovery.toRecoveryPhase,
+                            recovery.flushRangeHeadPtr,
+                            recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
+                            mshr[i].activeListPtr
+                        );
+            if (flushMSHR_Entry[i] && !mshr[i].isAllocatedByStore) begin
+                // its allocator load is flushed
+                nextMSHR[i].canBeInvalid = TRUE;
+            end
+
 
             // Both MSHR_PHASE_VICTIM_READ_FROM_CACHE & MSHR_PHASE_MISS_WRITE_CACHE_REQUEST phases
             // use newAddr for a cache index.
@@ -1427,7 +1442,7 @@ module DCacheMissHandler(
                 default: begin
 
                     // Initialize or read a  MSHR.
-                    if (port.initMSHR[i] && !initFlush[i]) begin
+                    if (port.initMSHR[i] && !flushMSHR_Allocation[i]) begin
                         // 1. MSHR 登録
                         // Initial phase
 
@@ -1852,21 +1867,6 @@ module DCacheMissHandler(
                 end
             endcase // case(mshr[i].phase)
 
-            flush[i] = SelectiveFlushDetector(
-                            recovery.toRecoveryPhase,
-                            recovery.flushRangeHeadPtr,
-                            recovery.flushRangeTailPtr,
-                            recovery.flushAllInsns,
-                            mshr[i].activeListPtr
-                        );
-            if (port.mshrCanBeInvalidDirect[i]) begin
-                // its allocator load has received data in the RW stage.
-                nextMSHR[i].canBeInvalid = TRUE;
-            end
-            else if (flush[i] && !mshr[i].isAllocatedByStore) begin
-                // its allocator load is flushed
-                nextMSHR[i].canBeInvalid = TRUE;
-            end
         end // for (int i = 0; i < MSHR_NUM; i++) begin
     end
 
