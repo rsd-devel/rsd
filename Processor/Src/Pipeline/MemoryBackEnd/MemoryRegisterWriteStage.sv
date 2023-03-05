@@ -14,12 +14,14 @@ import SchedulerTypes::*;
 import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
+import CacheSystemTypes::*;
 
 
 
 module MemoryRegisterWriteStage(
     //MemoryRegisterWriteStageIF.ThisStage port,
     MemoryAccessStageIF.NextStage prev,
+    LoadStoreUnitIF.MemoryRegisterWriteStage loadStoreUnit,
     RegisterFileIF.MemoryRegisterWriteStage registerFile,
     ActiveListIF.MemoryRegisterWriteStage activeList,
     RecoveryManagerIF.MemoryRegisterWriteStage recovery,
@@ -58,12 +60,37 @@ module MemoryRegisterWriteStage(
     ActiveListWriteData alWriteData[MEM_ISSUE_WIDTH];
 
     ExecutionState execState[MEM_ISSUE_WIDTH];
+    MSHR_IndexPath mshrID;
+    logic makeMSHRCanBeInvalid[MSHR_NUM];
 
     always_comb begin
 
         // Pipeline controll
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
+
+        // for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
+        //     // MSHRをAllocateした命令からのメモリリクエストかどうか
+        //     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
+        //     // To notify MSHR that the requester is its allocator load.
+        //     loadStoreUnit.makeMSHRCanBeInvalid[i] = pipeReg[i].hasAllocatedMSHR && pipeReg[i].valid;
+        // end
+        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
+            loadStoreUnit.makeMSHRCanBeInvalid[i] = FALSE;
+        end
+        for (int j = 0; j < MSHR_NUM; j++) begin
+            loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
+            for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
+                if (j == pipeReg[i].mshrID && 
+                    pipeReg[i].hasAllocatedMSHR && 
+                    pipeReg[i].valid && 
+                    pipeReg[i].dataOut.valid && 
+                    pipeReg[i].isLoad
+                ) begin
+                    loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;
+                end
+            end
+        end
 
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             valid[i] = pipeReg[i].valid;

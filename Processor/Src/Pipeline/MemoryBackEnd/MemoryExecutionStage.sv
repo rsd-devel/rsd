@@ -84,9 +84,6 @@ module MemoryExecutionStage(
     PhyAddrPath phyAddrOut[MEM_ISSUE_WIDTH];
     logic isUncachable[MEM_ISSUE_WIDTH];
 
-    // MSHRをAllocateした命令からのメモリリクエストかどうか
-    // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
 
     // FENCE.I
     logic cacheFlushReq;
@@ -94,11 +91,6 @@ module MemoryExecutionStage(
     always_comb begin
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
-
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            makeMSHRCanBeInvalid[i] = 
-                pipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
-        end
 
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             iqData[i] = pipeReg[i].memQueueData;
@@ -162,8 +154,6 @@ module MemoryExecutionStage(
             // AL Ptr to release MSHR entry when allocator load is flushed.
             loadStoreUnit.dcReadActiveListPtr[i] = pipeReg[i].memQueueData.activeListPtr;
 
-            // To notify MSHR that the requester is its allocator load.
-            loadStoreUnit.makeMSHRCanBeInvalid[i] = makeMSHRCanBeInvalid[i] && pipeReg[i].valid;
         end
 
         // FENCE.I (with ICache and DCache flush)
@@ -344,11 +334,6 @@ module MemoryExecutionStage(
 `endif
         end
 
-        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            if (makeMSHRCanBeInvalid[i]) begin
-                nextStage[i].memQueueData.memOpInfo.hasAllocatedMSHR = FALSE;
-            end
-        end
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
             nextStage[i+STORE_ISSUE_LANE_BEGIN].memQueueData.memOpInfo.hasAllocatedMSHR = FALSE;
         end

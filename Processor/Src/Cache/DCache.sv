@@ -958,6 +958,7 @@ module DCache(
 
     // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
     logic lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
+    logic lsuMakeMSHRCanBeInvalidDirect[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
     `ifndef RSD_VIVADO_SIMULATION
@@ -1289,6 +1290,15 @@ module DCache(
         end
     end
 
+    always_comb begin
+        for (int i = 0; i < MSHR_NUM; i++) begin
+            lsuMakeMSHRCanBeInvalidDirect[i] = lsu.makeMSHRCanBeInvalidDirect[i];
+        end
+        for (int i = 0; i < MSHR_NUM; i++) begin
+            port.mshrCanBeInvalidDirect[i] = lsuMakeMSHRCanBeInvalidDirect[i];
+        end
+    end
+
 
     //
     // Main memory
@@ -1335,6 +1345,7 @@ module DCacheMissHandler(
     MissStatusHandlingRegister nextMSHR[MSHR_NUM];
     MissStatusHandlingRegister mshr[MSHR_NUM];
     logic flush[MSHR_NUM];
+    logic initFlush[MSHR_NUM];
 
     logic portIsAllocatedByStore[MSHR_NUM];
     DCacheLinePath mergedLine[MSHR_NUM];
@@ -1400,6 +1411,15 @@ module DCacheMissHandler(
         end
 
         for (int i = 0; i < MSHR_NUM; i++) begin
+            initFlush[i] = SelectiveFlushDetector(
+                            recovery.toRecoveryPhase,
+                            recovery.flushRangeHeadPtr,
+                            recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
+                            port.initMSHR_ActiveListPtr[i]
+                        );
+        end
+        for (int i = 0; i < MSHR_NUM; i++) begin
             nextMSHR[i] = mshr[i];
 
             // Both MSHR_PHASE_VICTIM_READ_FROM_CACHE & MSHR_PHASE_MISS_WRITE_CACHE_REQUEST phases
@@ -1442,7 +1462,7 @@ module DCacheMissHandler(
                 default: begin
 
                     // Initialize or read a  MSHR.
-                    if (port.initMSHR[i]) begin
+                    if (port.initMSHR[i] && !initFlush[i]) begin
                         // 1. MSHR 登録
                         // Initial phase
 
@@ -1874,12 +1894,13 @@ module DCacheMissHandler(
                             recovery.flushAllInsns,
                             mshr[i].activeListPtr
                         );
-            if (port.makeMSHRCanBeInvalidByMemoryTagAccessStage[i]) begin
+            /*if (port.makeMSHRCanBeInvalidByMemoryTagAccessStage[i]) begin
                 // MSHR can be invalid when
                 // its allocator load has completed correctly because of StoreForwarding.
                 nextMSHR[i].canBeInvalid = TRUE;
             end
-            else if (port.mshrCanBeInvalid[i] && (mshr[i].phase >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST)) begin
+            else */
+            if (port.mshrCanBeInvalidDirect[i]/* && (mshr[i].phase >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST)*/) begin
                 // its allocator load has received data
                 nextMSHR[i].canBeInvalid = TRUE;
             end

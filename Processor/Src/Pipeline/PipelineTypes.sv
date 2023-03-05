@@ -18,6 +18,7 @@ import SchedulerTypes::*;
 import ActiveListIndexTypes::*;
 import FetchUnitTypes::*;
 import MemoryMapTypes::*;
+import CacheSystemTypes::*;
 
 // Controll of a pipeline
 // See comments in Controller
@@ -356,6 +357,8 @@ typedef struct packed // MemoryAccessStageRegPath
     // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
     DataPath csrDataOut; 
 
+    logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
+    MSHR_IndexPath mshrID;
 } MemoryAccessStageRegPath;
 
 
@@ -375,12 +378,15 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     OpDst    opDst;
     ExecutionState execState; // Execution status. See RenameLogicTypes.sv
     logic isStore;
+    logic isLoad;
 
     PRegDataPath dataOut;    // Result of Load
 `ifdef RSD_ENABLE_VECTOR_PATH
     PVecDataPath vecDataOut; // Result of Vector Load
 `endif
 
+    logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
+    MSHR_IndexPath mshrID;
 } MemoryRegisterWriteStageRegPath;
 
 

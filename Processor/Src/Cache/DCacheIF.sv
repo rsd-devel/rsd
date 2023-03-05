@@ -109,6 +109,7 @@ input
     DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
     logic mshrCanBeInvalid[MSHR_NUM];
+    logic mshrCanBeInvalidDirect[MSHR_NUM];
     logic isAllocatedByStore[MSHR_NUM];
 
     logic isUncachable[MSHR_NUM];
@@ -239,6 +240,7 @@ input
         memAccessResult,
         memAccessResponse,
         mshrCanBeInvalid,
+        mshrCanBeInvalidDirect,
         isAllocatedByStore,
         isUncachable,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
@@ -318,6 +320,7 @@ input
         initMSHR_ActiveListPtr,
         isAllocatedByStore,
         isUncachable,
+        mshrCanBeInvalidDirect,
         makeMSHRCanBeInvalidByMemoryTagAccessStage,
         storedLineData,
         storedLineByteWE,
