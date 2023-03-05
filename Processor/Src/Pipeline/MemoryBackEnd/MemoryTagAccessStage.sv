@@ -69,9 +69,6 @@ module MemoryTagAccessStage(
     // Pipeline control
     logic stall, clear;
 
-    logic lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
-    MSHR_IndexPath mshrID;
-
     MemIssueQueueEntry ldIqData[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry stIqData[STORE_ISSUE_WIDTH];
 
@@ -110,10 +107,6 @@ module MemoryTagAccessStage(
     DataPath ldMSHR_EntryID[LOAD_ISSUE_WIDTH];
 
     always_comb begin
-        for ( int i = 0; i < MSHR_NUM; i++ ) begin
-            lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-        end
-
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
 
             ldFlush[i] = SelectiveFlushDetector(
@@ -261,7 +254,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].loadQueueRecoveryPtr  = ldIqData[i].loadQueueRecoveryPtr;
             ldNextStage[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldNextStage[i].pc = ldIqData[i].pc;
-            
+
             ldNextStage[i].hasAllocatedMSHR = ldRecordData[i].memOpInfo.hasAllocatedMSHR;
             ldNextStage[i].mshrID = ldRecordData[i].memOpInfo.mshrID;
 
@@ -279,9 +272,6 @@ module MemoryTagAccessStage(
                     // フォワードされた場合
                     ldNextStage[i].execState =
                         loadStoreUnit.forwardMiss[i] ? EXEC_STATE_REFETCH_THIS : EXEC_STATE_SUCCESS;
-                    if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
-                        lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[ldRecordData[i].memOpInfo.mshrID] = TRUE;
-                    end
                 end
                 else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
                     ldNextStage[i].execState =
@@ -347,25 +337,6 @@ module MemoryTagAccessStage(
 `endif
         end // for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
 
-        //フラッシュによってMSHRをアロケートしたロード命令がフラッシュされる場合のMSHRの解放処理
-        for ( int i = 0; i < MSHR_NUM; i++ ) begin
-            loadStoreUnit.makeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-        end
-        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            if (ldPipeReg[i].valid && isLoad[i]) begin
-                if (ldFlush[i]) begin
-                    lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = ldRecordData[i].memOpInfo.hasAllocatedMSHR;
-                end
-            end
-            else begin
-                lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-            end
-
-            mshrID = ldRecordData[i].memOpInfo.mshrID;
-            if (lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] && isLoad[i]) begin
-                loadStoreUnit.makeMSHRCanBeInvalidByMemoryTagAccessStage[mshrID] = TRUE;
-            end
-        end
 
     end // always_comb
 

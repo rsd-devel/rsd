@@ -75,9 +75,6 @@ module MemoryRegisterWriteStage(
         //     // To notify MSHR that the requester is its allocator load.
         //     loadStoreUnit.makeMSHRCanBeInvalid[i] = pipeReg[i].hasAllocatedMSHR && pipeReg[i].valid;
         // end
-        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            loadStoreUnit.makeMSHRCanBeInvalid[i] = FALSE;
-        end
         for (int j = 0; j < MSHR_NUM; j++) begin
             loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
             for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin

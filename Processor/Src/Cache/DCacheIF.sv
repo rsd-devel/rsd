@@ -108,14 +108,10 @@ input
     DCacheLinePath mshrData[MSHR_NUM]; // Data in MSHR.
     DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
-    logic mshrCanBeInvalid[MSHR_NUM];
     logic mshrCanBeInvalidDirect[MSHR_NUM];
     logic isAllocatedByStore[MSHR_NUM];
 
     logic isUncachable[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
 
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
@@ -197,8 +193,7 @@ input
         dataArrayDoesReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
-        replArrayDataIn,
-        mshrCanBeInvalid
+        replArrayDataIn
     );
 
 
@@ -239,11 +234,9 @@ input
         mshrMemMuxOut,
         memAccessResult,
         memAccessResponse,
-        mshrCanBeInvalid,
         mshrCanBeInvalidDirect,
         isAllocatedByStore,
         isUncachable,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
         storedLineData,
         storedLineByteWE,
         dcFlushing,
@@ -321,7 +314,6 @@ input
         isAllocatedByStore,
         isUncachable,
         mshrCanBeInvalidDirect,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
         storedLineData,
         storedLineByteWE,
         dcFlushReq,

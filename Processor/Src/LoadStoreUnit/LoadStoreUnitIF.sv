@@ -124,11 +124,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
 
     // MSHRをAllocateした命令からのメモリリクエストかどうか
     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
     logic makeMSHRCanBeInvalidDirect[MSHR_NUM];
-    
-    // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
 
     // MSHR
     logic mshrValid[MSHR_NUM];
@@ -155,9 +151,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcReadUncachable,
         dcReadActiveListPtr,
         dcReadCancelFromMT_Stage,
-        makeMSHRCanBeInvalid,
         makeMSHRCanBeInvalidDirect,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
     output
         dcReadHit,
         dcReadBusy,
@@ -346,7 +340,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         executedStoreRegValid,
         executedLoadMemAccessMode,
         executedStoreMemAccessMode,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
         memAccessOrderViolation
     );
 
@@ -358,7 +351,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
 
     modport MemoryRegisterWriteStage(
     output
-        makeMSHRCanBeInvalid,
         makeMSHRCanBeInvalidDirect
     );
 

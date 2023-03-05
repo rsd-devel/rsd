@@ -406,7 +406,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     logic mshrReadHit[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath mshrReadData[DCACHE_ARRAY_PORT_NUM];
     DCacheLinePath portMSHRData[MSHR_NUM];
-    logic portMSHRCanBeInvalid[MSHR_NUM];
 
     logic           repIsHit[DCACHE_ARRAY_PORT_NUM];
     DCacheWayPath   repHitWay[DCACHE_ARRAY_PORT_NUM];
@@ -464,7 +463,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         end
 
         for (int r = 0; r < MSHR_NUM; r++) begin
-            portMSHRCanBeInvalid[r] = FALSE;
             portMSHRData[r] = port.mshrData[r];
         end
 
@@ -516,9 +514,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
                         // To bypass data from MSHR.
                         if (port.mshrPhase[m] >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
                         //if (port.mshrPhase[m] >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST) begin
-                            if (muxInReg[p].makeMSHRCanBeInvalid) begin
-                                portMSHRCanBeInvalid[m] = TRUE;
-                            end
                             mshrReadHit[p] = TRUE;
                         end
                         mshrAddrHit[p] = TRUE;
@@ -556,10 +551,6 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             muxTagOut[r].mshrReadData = mshrReadData[ portOutRegTagStg[r] ];
         end
 
-
-        for (int r = 0; r < MSHR_NUM; r++) begin
-            port.mshrCanBeInvalid[r] = portMSHRCanBeInvalid[r];
-        end
 
         // Data array inputs
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++) begin
@@ -952,12 +943,7 @@ module DCache(
     logic lsuMSHRReadHit[DCACHE_LSU_READ_PORT_NUM];
     DCacheLinePath lsuMSHRReadData[DCACHE_LSU_READ_PORT_NUM];
 
-    // MSHRをAllocateした命令からのメモリリクエストかどうか
-    // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
-    logic lsuMakeMSHRCanBeInvalid[DCACHE_LSU_READ_PORT_NUM];
-
-    // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
-    logic lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
+    //
     logic lsuMakeMSHRCanBeInvalidDirect[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
@@ -1018,10 +1004,6 @@ module DCache(
 
     always_comb begin
 
-        for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
-            lsuMakeMSHRCanBeInvalid[i] = lsu.makeMSHRCanBeInvalid[i];
-        end
-
         // --- In the address execution stage (MemoryExecutionStage)
         // Load request
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
@@ -1036,7 +1018,6 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataWE = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataWE_OnTagHit = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].dataDirtyIn = FALSE;
-            port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].makeMSHRCanBeInvalid = lsuMakeMSHRCanBeInvalid[i];
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].evictWay = '0;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isVictimEviction = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_READ_PORT_BEGIN)].isFlushReq = FALSE;
@@ -1090,8 +1071,6 @@ module DCache(
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].dataWE = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].dataWE_OnTagHit = TRUE;
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].dataDirtyIn = TRUE;
-            // ストアはコミット時に初めて MSHR にアクセスするので，キャンセルはしないはず？
-            port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].makeMSHRCanBeInvalid = FALSE;//lsuMakeMSHRCanBeInvalid[(i+DCACHE_LSU_WRITE_PORT_BEGIN)];
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].evictWay = '0;
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isVictimEviction = FALSE;
             port.lsuMuxIn[(i+DCACHE_LSU_WRITE_PORT_BEGIN)].isFlushReq = FALSE;
@@ -1134,8 +1113,7 @@ module DCache(
                 !hit[i] && 
                 !port.lsuMuxTagOut[i].mshrConflict && 
                 dcReadReqReg[i] && 
-                lsuCacheGrtReg[i] && 
-                !lsu.dcReadCancelFromMT_Stage[i];
+                lsuCacheGrtReg[i];
             missAddr[i] = dcReadAddrRegTagStg[i];
             missIsUncachable[i] = dcReadUncachableReg[i];
             missActiveListPtr[i] = dcReadActiveListPtrReg[i];
@@ -1276,18 +1254,6 @@ module DCache(
             lsu.storeMSHRID[i] = lsuStoreMSHRID[i];
         end
 
-    end
-
-    always_comb begin
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = lsu.makeMSHRCanBeInvalidByMemoryTagAccessStage[i];
-        end
-    end
-
-    always_comb begin
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            port.makeMSHRCanBeInvalidByMemoryTagAccessStage[i] = lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i];
-        end
     end
 
     always_comb begin
@@ -1439,7 +1405,6 @@ module DCacheMissHandler(
             port.mshrCacheMuxIn[i].dataWE = FALSE;
             port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
             port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
-            port.mshrCacheMuxIn[i].makeMSHRCanBeInvalid = FALSE;
             port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
             port.mshrCacheMuxIn[i].isVictimEviction = FALSE;
             port.mshrCacheMuxIn[i].isFlushReq = FALSE;
@@ -1894,14 +1859,8 @@ module DCacheMissHandler(
                             recovery.flushAllInsns,
                             mshr[i].activeListPtr
                         );
-            /*if (port.makeMSHRCanBeInvalidByMemoryTagAccessStage[i]) begin
-                // MSHR can be invalid when
-                // its allocator load has completed correctly because of StoreForwarding.
-                nextMSHR[i].canBeInvalid = TRUE;
-            end
-            else */
-            if (port.mshrCanBeInvalidDirect[i]/* && (mshr[i].phase >= MSHR_PHASE_MISS_WRITE_CACHE_REQUEST)*/) begin
-                // its allocator load has received data
+            if (port.mshrCanBeInvalidDirect[i]) begin
+                // its allocator load has received data in the RW stage.
                 nextMSHR[i].canBeInvalid = TRUE;
             end
             else if (flush[i] && !mshr[i].isAllocatedByStore) begin

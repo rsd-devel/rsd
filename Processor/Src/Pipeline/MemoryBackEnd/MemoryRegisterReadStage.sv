@@ -88,8 +88,6 @@ module MemoryRegisterReadStage(
     MemoryExecutionStageRegPath nextStage [MEM_ISSUE_WIDTH];
     MSHR_IndexPath mshrID;
 
-    logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
-
     always_comb begin
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;

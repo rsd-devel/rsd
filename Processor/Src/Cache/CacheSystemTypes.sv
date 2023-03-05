@@ -190,9 +190,6 @@ package CacheSystemTypes;
         DCacheByteEnablePath    dataByteWE;
         logic                   dataDirtyIn;
 
-        // To notify MSHR that this request is by allocator load.
-        logic           makeMSHRCanBeInvalid;
-
         // To notify DCache which way will be evicted.
         DCacheWayPath   evictWay;
 
