@@ -256,6 +256,7 @@ module DispatchStage(
             debug.dsReg[i].phyDstReg = pipeReg[i].phyDstRegNum;
             debug.dsReg[i].phyPrevDstReg = pipeReg[i].phyPrevDstRegNum;
 
+            debug.dsReg[i].activeListPtr = pipeReg[i].activeListPtr;
             debug.dsReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
 `endif
         end

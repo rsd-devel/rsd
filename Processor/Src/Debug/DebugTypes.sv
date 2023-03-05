@@ -104,6 +104,7 @@ typedef struct packed { // DispatchStageDebugRegister
     PRegNumPath phyDstReg;
     PRegNumPath phyPrevDstReg;
 
+    ActiveListIndexPath activeListPtr;
     IssueQueueIndexPath issueQueuePtr;
 `endif
 } DispatchStageDebugRegister;
