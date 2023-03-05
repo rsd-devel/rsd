@@ -155,8 +155,6 @@ module MemoryTagAccessStage(
             if (ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR) begin
                 ldRecordData[i].memOpInfo.hasAllocatedMSHR = ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
                 ldRecordData[i].memOpInfo.mshrID = ldPipeReg[i].memQueueData.memOpInfo.mshrID;
-                // TODO: バグで Ex ステージで hasAllocatedMSHR が落とされているので，
-                // ここに来ることは絶対無い
             end
             else begin
                 if (i < LOAD_ISSUE_WIDTH) begin
@@ -173,8 +171,6 @@ module MemoryTagAccessStage(
                         ldMSHR_EntryID[i] = loadStoreUnit.loadMSHRID[i];
                     end
                     else if (loadStoreUnit.mshrAddrHit[i]) begin
-                        // TODO: バグで Ex ステージで hasAllocatedMSHR が落とされているので，
-                        // MSHR 確保後はここのパスを通ってしまう．意図してはいないがたまたま動いている．
                         ldRecordData[i].memOpInfo.mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
                         // MSHR Hit?
                         ldMSHR_Hit[i] = loadStoreUnit.mshrReadHit[i];
@@ -190,13 +186,11 @@ module MemoryTagAccessStage(
                 end
             end
 
-            loadStoreUnit.dcReadCancelFromMT_Stage[i] = FALSE;
-            
+           
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i]) begin
                 if (loadStoreUnit.storeLoadForwarded[i]) begin
-                    loadStoreUnit.dcReadCancelFromMT_Stage[i] = TRUE;   // キャンセルしてMSHR の確保を行わせない
                     ldRegValid[i] = loadStoreUnit.forwardMiss[i] ? FALSE : ldPipeReg[i].regValid;
                 end
                 else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin

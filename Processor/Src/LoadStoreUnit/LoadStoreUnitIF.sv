@@ -96,11 +96,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     logic dcReadUncachable[LOAD_ISSUE_WIDTH];
     ActiveListIndexPath dcReadActiveListPtr[LOAD_ISSUE_WIDTH];
 
-    // Forward されたのでメインメモリアクセスや MSHR 確保をキャンセルする 
-    // MSHR を確保してしまうと，フォワードしたロードの方はヒット扱いでリタイアするので
-    // 永久に MSHR のエントリが解放されない
-    logic dcReadCancelFromMT_Stage[LOAD_ISSUE_WIDTH];    
-
     // MSHRをAllocateした命令かどうか
     logic loadHasAllocatedMSHR[DCACHE_LSU_READ_PORT_NUM];
     MSHR_IndexPath loadMSHRID[DCACHE_LSU_READ_PORT_NUM];
@@ -150,7 +145,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcReadAddr,
         dcReadUncachable,
         dcReadActiveListPtr,
-        dcReadCancelFromMT_Stage,
         makeMSHRCanBeInvalidDirect,
     output
         dcReadHit,
@@ -322,7 +316,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         loadHasAllocatedMSHR,
         loadMSHRID,
     output
-        dcReadCancelFromMT_Stage,
         executeLoad,
         executedLoadQueuePtrByLoad,
         executedLoadQueuePtrByStore,
