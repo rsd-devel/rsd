@@ -215,7 +215,7 @@ module ReplayQueue(
         end
 
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-            mshrID[i] = replayEntryOut.memData[i].memOpInfo.mshrID;
+            mshrID[i] = replayEntryOut.memData[i].mshrID;
         end
     end
 
@@ -414,7 +414,7 @@ module ReplayQueue(
                 if (replayEntryOut.memValid[i] &&
                     (replayEntryOut.memData[i].memOpInfo.opType
                         inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
-                    replayEntryOut.memData[i].memOpInfo.hasAllocatedMSHR && // has allocated MSHR entries,
+                    replayEntryOut.memData[i].hasAllocatedMSHR && // has allocated MSHR entries,
                     targetMSHRValid[i] && // the MSHR entry is valid
                     mshrNotReady[i] // the corresponding MSHR entry has not receive data yet.
                 ) begin

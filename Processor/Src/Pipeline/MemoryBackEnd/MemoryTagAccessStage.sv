@@ -130,21 +130,23 @@ module MemoryTagAccessStage(
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
             loadStoreUnit.executedLoadMemAccessMode[i] = ldIqData[i].memOpInfo.memAccessMode;
-            loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].memOpInfo.storeQueuePtr;
-            loadStoreUnit.executedLoadQueuePtrByLoad[i] = ldIqData[i].memOpInfo.loadQueuePtr;
+            loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].storeQueuePtr;
+            loadStoreUnit.executedLoadQueuePtrByLoad[i] = ldIqData[i].loadQueuePtr;
 
             // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
             // whether missed loads have allocated MSHRs or not.
 `ifndef RSD_DISABLE_DEBUG_REGISTER // Debug info
-            ldRecordData[i].opId = ldPipeReg[i].memQueueData.opId;
+            ldRecordData[i].opId = ldIqData[i].opId;
 `endif
-            ldRecordData[i].activeListPtr = ldPipeReg[i].memQueueData.activeListPtr;
-            ldRecordData[i].opSrc         = ldPipeReg[i].memQueueData.opSrc;
-            ldRecordData[i].opDst         = ldPipeReg[i].memQueueData.opDst;
-            ldRecordData[i].pc            = ldPipeReg[i].memQueueData.pc;
-            ldRecordData[i].memOpInfo     = ldPipeReg[i].memQueueData.memOpInfo;
+            ldRecordData[i].activeListPtr = ldIqData[i].activeListPtr;
+            ldRecordData[i].opSrc         = ldIqData[i].opSrc;
+            ldRecordData[i].opDst         = ldIqData[i].opDst;
+            ldRecordData[i].pc            = ldIqData[i].pc;
+            ldRecordData[i].memOpInfo     = ldIqData[i].memOpInfo;
             ldRecordData[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldRecordData[i].loadQueueRecoveryPtr  = ldIqData[i].loadQueueRecoveryPtr;
+            ldRecordData[i].loadQueuePtr  = ldIqData[i].loadQueuePtr;
+            ldRecordData[i].storeQueuePtr  = ldIqData[i].storeQueuePtr;
 
             // For performance counters
             ldMSHR_Allocated[i] = FALSE;
@@ -152,37 +154,37 @@ module MemoryTagAccessStage(
             ldMSHR_EntryID[i] = 0;
 
             // Set MSHR id if the load instruction allocated a MSHR entry.
-            if (ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR) begin
-                ldRecordData[i].memOpInfo.hasAllocatedMSHR = ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
-                ldRecordData[i].memOpInfo.mshrID = ldPipeReg[i].memQueueData.memOpInfo.mshrID;
+            if (ldIqData[i].hasAllocatedMSHR) begin
+                ldRecordData[i].hasAllocatedMSHR = ldIqData[i].hasAllocatedMSHR;
+                ldRecordData[i].mshrID = ldIqData[i].mshrID;
             end
             else begin
                 if (i < LOAD_ISSUE_WIDTH) begin
-                    ldRecordData[i].memOpInfo.hasAllocatedMSHR = loadStoreUnit.loadHasAllocatedMSHR[i];
+                    ldRecordData[i].hasAllocatedMSHR = loadStoreUnit.loadHasAllocatedMSHR[i];
 
                     // There are two sources of MSHR ID to memorize,
                     // 1. when a load hits a MSHR entry, the hit MSHR ID,
                     // 2. when a load allocates a MSHR entry, the allocated MSHR ID.
                     // 3. when otherwise (no hit and no allocate), don't ldUpdate.
                     if (loadStoreUnit.loadHasAllocatedMSHR[i]) begin
-                        ldRecordData[i].memOpInfo.mshrID = loadStoreUnit.loadMSHRID[i];
+                        ldRecordData[i].mshrID = loadStoreUnit.loadMSHRID[i];
                         // MSHR allocation is performed 
                         ldMSHR_Allocated[i] = TRUE;
                         ldMSHR_EntryID[i] = loadStoreUnit.loadMSHRID[i];
                     end
                     else if (loadStoreUnit.mshrAddrHit[i]) begin
-                        ldRecordData[i].memOpInfo.mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
+                        ldRecordData[i].mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
                         // MSHR Hit?
                         ldMSHR_Hit[i] = loadStoreUnit.mshrReadHit[i];
                         ldMSHR_EntryID[i] = loadStoreUnit.mshrAddrHitMSHRID[i];
                     end
                     else begin
-                        ldRecordData[i].memOpInfo.mshrID = ldPipeReg[i].memQueueData.memOpInfo.mshrID;
+                        ldRecordData[i].mshrID = ldIqData[i].mshrID;
                     end
                 end
                 else begin
-                    ldRecordData[i].memOpInfo.hasAllocatedMSHR = FALSE;
-                    ldRecordData[i].memOpInfo.mshrID = '0;
+                    ldRecordData[i].hasAllocatedMSHR = FALSE;
+                    ldRecordData[i].mshrID = '0;
                 end
             end
 
@@ -193,7 +195,7 @@ module MemoryTagAccessStage(
                 if (loadStoreUnit.storeLoadForwarded[i]) begin
                     ldRegValid[i] = loadStoreUnit.forwardMiss[i] ? FALSE : ldPipeReg[i].regValid;
                 end
-                else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+                else if (ldRecordData[i].hasAllocatedMSHR) begin
                     // When the load has allocated an MSHR entry,
                     // The data will come from MSHR.
                     ldRegValid[i] = loadStoreUnit.mshrReadHit[i] ? ldPipeReg[i].regValid : FALSE;
@@ -206,7 +208,7 @@ module MemoryTagAccessStage(
                     ldRegValid[i] = loadStoreUnit.dcReadHit[i] ? ldPipeReg[i].regValid : FALSE;
                 end
             end
-            else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+            else if (ldRecordData[i].hasAllocatedMSHR) begin
                 // When the prefetch load has allocated an MSHR entry,
                 // The data will come from MSHR.
                 ldRegValid[i] = loadStoreUnit.mshrReadHit[i] ? ldPipeReg[i].regValid : FALSE;
@@ -249,8 +251,8 @@ module MemoryTagAccessStage(
             ldNextStage[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldNextStage[i].pc = ldIqData[i].pc;
 
-            ldNextStage[i].hasAllocatedMSHR = ldRecordData[i].memOpInfo.hasAllocatedMSHR;
-            ldNextStage[i].mshrID = ldRecordData[i].memOpInfo.mshrID;
+            ldNextStage[i].hasAllocatedMSHR = ldRecordData[i].hasAllocatedMSHR;
+            ldNextStage[i].mshrID = ldRecordData[i].mshrID;
 
 
             // ExecState
@@ -267,7 +269,7 @@ module MemoryTagAccessStage(
                     ldNextStage[i].execState =
                         loadStoreUnit.forwardMiss[i] ? EXEC_STATE_REFETCH_THIS : EXEC_STATE_SUCCESS;
                 end
-                else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+                else if (ldRecordData[i].hasAllocatedMSHR) begin
                     ldNextStage[i].execState =
                             loadStoreUnit.mshrReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
@@ -280,7 +282,7 @@ module MemoryTagAccessStage(
                         loadStoreUnit.dcReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
             end
-            else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+            else if (ldRecordData[i].hasAllocatedMSHR) begin
                 ldNextStage[i].execState =
                         loadStoreUnit.mshrReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
             end
@@ -371,23 +373,25 @@ module MemoryTagAccessStage(
             loadStoreUnit.executedStoreCondEnabled[i]   = stPipeReg[i].condEnabled;
             loadStoreUnit.executedStoreRegValid[i] = stPipeReg[i].regValid;
             loadStoreUnit.executedStoreMemAccessMode[i] = stIqData[i].memOpInfo.memAccessMode;
-            loadStoreUnit.executedLoadQueuePtrByStore[i] = stIqData[i].memOpInfo.loadQueuePtr;
-            loadStoreUnit.executedStoreQueuePtrByStore[i] = stIqData[i].memOpInfo.storeQueuePtr;
+            loadStoreUnit.executedLoadQueuePtrByStore[i] = stIqData[i].loadQueuePtr;
+            loadStoreUnit.executedStoreQueuePtrByStore[i] = stIqData[i].storeQueuePtr;
 
             // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
             // whether missed loads have allocated MSHRs or not.
 `ifndef RSD_DISABLE_DEBUG_REGISTER // Debug info
-            stRecordData[i].opId = stPipeReg[i].memQueueData.opId;
+            stRecordData[i].opId = stIqData[i].opId;
 `endif
-            stRecordData[i].activeListPtr = stPipeReg[i].memQueueData.activeListPtr;
-            stRecordData[i].opSrc         = stPipeReg[i].memQueueData.opSrc;
-            stRecordData[i].opDst         = stPipeReg[i].memQueueData.opDst;
-            stRecordData[i].pc = stPipeReg[i].memQueueData.pc;
+            stRecordData[i].activeListPtr = stIqData[i].activeListPtr;
+            stRecordData[i].opSrc         = stIqData[i].opSrc;
+            stRecordData[i].opDst         = stIqData[i].opDst;
+            stRecordData[i].pc = stIqData[i].pc;
             stRecordData[i].storeQueueRecoveryPtr = stIqData[i].storeQueueRecoveryPtr;
             stRecordData[i].loadQueueRecoveryPtr  = stIqData[i].loadQueueRecoveryPtr;
-            stRecordData[i].memOpInfo = stPipeReg[i].memQueueData.memOpInfo;
-            stRecordData[i].memOpInfo.hasAllocatedMSHR = FALSE;
-            stRecordData[i].memOpInfo.mshrID = '0;
+            stRecordData[i].memOpInfo = stIqData[i].memOpInfo;
+            stRecordData[i].loadQueuePtr  = stIqData[i].loadQueuePtr;
+            stRecordData[i].storeQueuePtr  = stIqData[i].storeQueuePtr;
+            stRecordData[i].hasAllocatedMSHR = FALSE;
+            stRecordData[i].mshrID = '0;
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             stRegValid[i] = stPipeReg[i].regValid;

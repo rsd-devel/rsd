@@ -190,6 +190,7 @@ typedef struct packed // IntIssueQueueEntry
     OpId      opId;
 `endif
 
+    // Decoded op information
     IntOpInfo intOpInfo;
 
     IntMicroOpSubType opType;
@@ -233,6 +234,7 @@ typedef struct packed // ComplexIssueQueueEntry
     OpId      opId;
 `endif
 
+    // Decoded op information
     ComplexOpInfo complexOpInfo;
     ComplexMicroOpSubType opType;
 
@@ -274,14 +276,6 @@ typedef struct packed // MemOpInfo
     DivOpSubInfo divSubInfo;
 `endif
 
-    // Pointer of LSQ
-    LoadQueueIndexPath loadQueuePtr;
-    StoreQueueIndexPath storeQueuePtr;
-
-    // MSHRをAllocateした命令かどうか
-    logic hasAllocatedMSHR;
-    MSHR_IndexPath mshrID;
-
 } MemOpInfo;
 
 typedef struct packed // MemIssueQueueEntry
@@ -290,7 +284,17 @@ typedef struct packed // MemIssueQueueEntry
     OpId      opId;
 `endif
 
-    MemOpInfo memOpInfo;
+    // Decoded op information
+    MemOpInfo memOpInfo;    
+
+    // Pointer of LSQ
+    LoadQueueIndexPath loadQueuePtr;
+    StoreQueueIndexPath storeQueuePtr;
+
+    // Whether this load has allocated MSHR or not
+    logic hasAllocatedMSHR;
+    MSHR_IndexPath mshrID;
+
     ActiveListIndexPath activeListPtr;
     LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery
     StoreQueueIndexPath storeQueueRecoveryPtr;    //for recovery
