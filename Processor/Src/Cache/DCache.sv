@@ -1379,6 +1379,16 @@ module DCacheMissHandler(
         for (int i = 0; i < MSHR_NUM; i++) begin
             nextMSHR[i] = mshr[i];
 
+
+            if (port.mshrCanBeInvalidDirect[i]) begin
+                // its allocator load has received data in the RW stage.
+                // Note that a load that has allocated MSHR releases its 
+                // allocated MSHR entry even if it receives a value through 
+                // store-load forwarding.
+                nextMSHR[i].canBeInvalid = TRUE;
+            end
+
+            // Cancel MSHR allocation on pipeline flush
             flushMSHR_Allocation[i] = SelectiveFlushDetector(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
@@ -1386,10 +1396,7 @@ module DCacheMissHandler(
                             recovery.flushAllInsns,
                             port.initMSHR_ActiveListPtr[i]
                         );
-            if (port.mshrCanBeInvalidDirect[i]) begin
-                // its allocator load has received data in the RW stage.
-                nextMSHR[i].canBeInvalid = TRUE;
-            end
+            // Release MSHR entry
             flushMSHR_Entry[i] = SelectiveFlushDetector(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
