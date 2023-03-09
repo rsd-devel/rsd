@@ -99,6 +99,7 @@ module MemoryTagAccessStage(
     logic isDiv     [LOAD_ISSUE_WIDTH];
     logic isMul     [LOAD_ISSUE_WIDTH];
     logic isFenceI  [LOAD_ISSUE_WIDTH];
+    logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
 
@@ -153,10 +154,20 @@ module MemoryTagAccessStage(
             ldMSHR_Hit[i] = FALSE;
             ldMSHR_EntryID[i] = 0;
 
+            storeForwardMiss[i] = FALSE;
+
             // Set MSHR id if the load instruction allocated a MSHR entry.
             if (ldIqData[i].hasAllocatedMSHR) begin
                 ldRecordData[i].hasAllocatedMSHR = ldIqData[i].hasAllocatedMSHR;
                 ldRecordData[i].mshrID = ldIqData[i].mshrID;
+
+                // 前回実行時に MSHR を確保したがリプレイ時に SQ からのフォワードミスが発生した場合
+                // MSHR を手放さないと先行するストアがコミットできずデッドロックする
+                // storeForwardMiss を後段に伝えて RW ステージで MSHR を解放し，MSHR を確保したフラグをここで落とす
+                if (loadStoreUnit.storeLoadForwarded[i] && loadStoreUnit.forwardMiss[i]) begin
+                    storeForwardMiss[i] = TRUE;
+                    ldRecordData[i].hasAllocatedMSHR = FALSE;
+                end
             end
             else begin
                 if (i < LOAD_ISSUE_WIDTH) begin
@@ -253,6 +264,7 @@ module MemoryTagAccessStage(
 
             ldNextStage[i].hasAllocatedMSHR = ldRecordData[i].hasAllocatedMSHR;
             ldNextStage[i].mshrID = ldRecordData[i].mshrID;
+            ldNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
 
             // ExecState
@@ -421,6 +433,7 @@ module MemoryTagAccessStage(
 
             stNextStage[i].hasAllocatedMSHR = FALSE;
             stNextStage[i].mshrID = 0;
+            stNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する

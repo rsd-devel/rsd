@@ -69,19 +69,16 @@ module MemoryRegisterWriteStage(
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
-        // for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-        //     // MSHRをAllocateした命令からのメモリリクエストかどうか
-        //     // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
-        //     // To notify MSHR that the requester is its allocator load.
-        //     loadStoreUnit.makeMSHRCanBeInvalid[i] = pipeReg[i].hasAllocatedMSHR && pipeReg[i].valid;
-        // end
+        // 以下のいずれかの場合，握っている MSHR を解放する
+        // 1. MSHR を確保した命令がライトバックまで達した場合
+        // 2. MSHR を確保した命令が後から SQ からのフォワードミスが発生した場合
+        //      フォワード元のストアがミスしていた場合，MSHR をてばなさいとデッドロックする
         for (int j = 0; j < MSHR_NUM; j++) begin
             loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
             for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
                 if (j == pipeReg[i].mshrID && 
-                    pipeReg[i].hasAllocatedMSHR && 
+                    ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) &&
                     pipeReg[i].valid && 
-                    pipeReg[i].dataOut.valid && 
                     pipeReg[i].isLoad
                 ) begin
                     loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;

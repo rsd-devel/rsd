@@ -191,6 +191,7 @@ module MemoryAccessStage(
             nextStage[i].isLoad = pipeReg[i].isLoad;
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
+            nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

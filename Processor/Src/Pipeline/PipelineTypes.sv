@@ -359,6 +359,7 @@ typedef struct packed // MemoryAccessStageRegPath
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
     MSHR_IndexPath mshrID;
+    logic storeForwardMiss;      // Store-load forwarding miss occurs
 } MemoryAccessStageRegPath;
 
 
@@ -387,6 +388,7 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
     MSHR_IndexPath mshrID;
+    logic storeForwardMiss;      // Store-load forwarding miss occurs
 } MemoryRegisterWriteStageRegPath;
 
 
