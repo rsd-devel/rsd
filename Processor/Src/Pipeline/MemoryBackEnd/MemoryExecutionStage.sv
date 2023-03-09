@@ -336,10 +336,6 @@ module MemoryExecutionStage(
 `endif
         end
 
-        for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
-            nextStage[i+STORE_ISSUE_LANE_BEGIN].memQueueData.hasAllocatedMSHR = FALSE;
-        end
-
 
         // Output
         port.nextStage = nextStage;
