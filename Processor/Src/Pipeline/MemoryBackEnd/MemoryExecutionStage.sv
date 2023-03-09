@@ -316,6 +316,8 @@ module MemoryExecutionStage(
     always_comb begin
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             nextStage[i].memQueueData = pipeReg[i].memQueueData;
+            // if (pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD)
+            //     nextStage[i].memQueueData.hasAllocatedMSHR = FALSE;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =
@@ -369,5 +371,18 @@ module MemoryExecutionStage(
         end
 `endif
     end
+
+    generate 
+        for (genvar i = 0; i < MEM_ISSUE_WIDTH; i++) begin
+            `RSD_ASSERT_CLK(
+                port.clk, 
+                !(pipeReg[i].valid && 
+                pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD && 
+                pipeReg[i].memQueueData.hasAllocatedMSHR),
+                "hasAllocatedMSHR is asserted other than a load pipe"
+            );
+        end
+    endgenerate
+
 
 endmodule : MemoryExecutionStage
