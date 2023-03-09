@@ -274,8 +274,7 @@ module MemoryExecutionStage(
             if (clear) begin
                 divReset[i] = TRUE;
             end
-            if (isDiv[i] && flush[i]) begin
-                // Div is flushed at register read stage, so release the divider
+            if (isDiv[i] && pipeReg[i].valid && flush[i]) begin
                 divReset[i] = TRUE;
             end
             mulDivUnit.divReset[i] = divReset[i];
