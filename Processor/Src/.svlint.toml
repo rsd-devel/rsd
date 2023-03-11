@@ -26,4 +26,5 @@ interface_port_with_modport = false
 output_with_var = false
 input_with_var = false
 if_with_begin = false
-
+blocking_assignment_in_always_ff = true
+non_blocking_assignment_in_always_comb = true

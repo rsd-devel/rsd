@@ -69,7 +69,7 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port, RecoveryManagerIF.MulDivUnit rec
         if (port.rst) begin
             for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
                 regPhase[i] <= DIVIDER_PHASE_FREE;
-                regActiveListPtr[i] = 0;
+                regActiveListPtr[i] <= 0;
             end
         end
         else begin
