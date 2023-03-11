@@ -46,8 +46,7 @@ module ReplayQueue(
         // Mem op data
         logic [MEM_ISSUE_WIDTH-1 : 0] memValid;
         MemIssueQueueEntry [MEM_ISSUE_WIDTH-1 : 0] memData;
-        logic [MEM_ISSUE_WIDTH-1 : 0] memAddrHit;
-        DCacheIndexSubsetPath [MEM_ISSUE_WIDTH-1 : 0] memAddrSubset;
+
         // How many cycles to replay after waiting
         ReplayQueueIntervalPath replayInterval;
     } ReplayQueueEntry;
@@ -139,13 +138,11 @@ module ReplayQueue(
 
     // State of MSHR
     logic [MEM_ISSUE_WIDTH-1 : 0] mshrNotReady;
-    logic [MEM_ISSUE_WIDTH-1 : 0] mshrAddrSubsetMatch;
     logic [MEM_ISSUE_WIDTH-1 : 0] targetMSHRValid;
     MSHR_IndexPath mshrID[MEM_ISSUE_WIDTH];
 
     logic mshrValid[MSHR_NUM];
     MSHR_Phase mshrPhase[MSHR_NUM]; // MSHR phase.
-    DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
 `ifndef RSD_SYNTHESIS
     `ifndef RSD_VIVADO_SIMULATION
@@ -203,7 +200,6 @@ module ReplayQueue(
         for (int i = 0; i < MSHR_NUM; i++) begin
             mshrValid[i] = mshr.mshrValid[i];
             mshrPhase[i] = mshr.mshrPhase[i];
-            mshrAddrSubset[i] = mshr.mshrAddrSubset[i];
         end
 
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
@@ -230,18 +226,6 @@ module ReplayQueue(
             end
             else begin
                 targetMSHRValid[i] = (mshrValid[mshrID[i]]) ? TRUE : FALSE;
-            end
-        end
-    end
-
-    always_comb begin
-        for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-            if (port.rst) begin
-                mshrAddrSubsetMatch[i] = FALSE;
-            end
-            else begin
-                mshrAddrSubsetMatch[i] = 
-                    (mshrAddrSubset[mshrID[i]] == replayEntryOut.memAddrSubset[i]) ? TRUE : FALSE;
             end
         end
     end
@@ -282,8 +266,6 @@ module ReplayQueue(
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
             recordData.memValid[i] = port.memRecordEntry[i];
             recordData.memData[i] = port.memRecordData[i];
-            recordData.memAddrHit[i] = port.memRecordAddrHit[i];
-            recordData.memAddrSubset[i] = port.memRecordAddrSubset[i];
         end
         recordData.replayInterval = intervalIn;
 
@@ -483,27 +465,17 @@ module ReplayQueue(
                 popEntry = FALSE;
             end
 
-            for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-                if (replayEntryOut.memValid[i] && !flushMem[i] &&
-                    (replayEntryOut.memData[i].memOpInfo.opType
-                        inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
-                    replayEntryOut.memAddrHit[i] && // has hit a MSHR entry,
-                    targetMSHRValid[i] && // the MSHR entry is valid
-                    mshrAddrSubsetMatch[i] && // the MSHR entry still has corresponding request,
-                    mshrNotReady[i] // the corresponding MSHR entry has not receive data yet.
-                ) begin
-                    popEntry = FALSE;
-                end
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-                else if (
+            for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
+                if (
                     replayEntryOut.memValid[i] && !flushMem[i] &&
                     replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV &&
                     mulDivUnit.divBusy[i]
                 ) begin
                     popEntry = FALSE;
                 end
-`endif
             end
+`endif
             
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin 
@@ -542,8 +514,6 @@ module ReplayQueue(
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
             nextReplayEntry.memValid[i] = popEntry && replayEntryOut.memValid[i] && !flushMem[i];;
             nextReplayEntry.memData[i] = replayEntryOut.memData[i];
-            nextReplayEntry.memAddrHit[i] = replayEntryOut.memAddrHit[i];
-            nextReplayEntry.memAddrSubset[i] = replayEntryOut.memAddrSubset[i];
         end
 
         nextReplayEntry.replayInterval = replayEntryOut.replayInterval;

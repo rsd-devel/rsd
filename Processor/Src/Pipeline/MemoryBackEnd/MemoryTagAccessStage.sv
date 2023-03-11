@@ -23,11 +23,6 @@ import MemoryMapTypes::*;
 // Otherwise, instructions are refetched.
 `define RSD_ENABLE_REISSUE_ON_CACHE_MISS
 
-// To a part of a line index from a full address.
-function automatic DCacheIndexSubsetPath ToIndexSubsetPartFromFullAddrInMTStage(input AddrPath addr);
-    return addr[DCACHE_LINE_BYTE_NUM_BIT_WIDTH+DCACHE_INDEX_SUBSET_BIT_WIDTH-1 : DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
-endfunction
-
 module MemoryTagAccessStage(
     MemoryTagAccessStageIF.ThisStage port,
     MemoryExecutionStageIF.NextStage prev,
@@ -485,16 +480,12 @@ module MemoryTagAccessStage(
                 if (isStore[i]) begin
                     scheduler.memRecordEntry[i] = stUpdate[i] && !stRegValid[i];
                     scheduler.memRecordData[i] = stRecordData[i];
-                    scheduler.memRecordAddrHit[i] = FALSE;
-                    scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(stPipeReg[i].addrOut);
                     nextStage[i] = stNextStage[i];
                     flush[i] = stFlush[i];
                 end
                 else begin
                     scheduler.memRecordEntry[i] = ldUpdate[i] && !ldRegValid[i];
                     scheduler.memRecordData[i] = ldRecordData[i];
-                    scheduler.memRecordAddrHit[i] = loadStoreUnit.mshrAddrHit[i];
-                    scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(ldPipeReg[i].addrOut);
                     nextStage[i] = ldNextStage[i];
                     flush[i] = ldFlush[i];
                 end
@@ -504,8 +495,6 @@ module MemoryTagAccessStage(
                 // Record instructions to the replay queue.
                 scheduler.memRecordEntry[i] = ldUpdate[i] && !ldRegValid[i];
                 scheduler.memRecordData[i] = ldRecordData[i];
-                scheduler.memRecordAddrHit[i] = loadStoreUnit.mshrAddrHit[i];
-                scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(ldPipeReg[i].addrOut);
                 nextStage[i] = ldNextStage[i];
                 flush[i] = ldFlush[i];
             end
@@ -513,8 +502,6 @@ module MemoryTagAccessStage(
                 // Record instructions to the replay queue.
                 scheduler.memRecordEntry[i+STORE_ISSUE_LANE_BEGIN] = stUpdate[i] && !stRegValid[i];
                 scheduler.memRecordData[i+STORE_ISSUE_LANE_BEGIN] = stRecordData[i];
-                scheduler.memRecordAddrHit[i+STORE_ISSUE_LANE_BEGIN] = FALSE;
-                scheduler.memRecordAddrSubset[i+STORE_ISSUE_LANE_BEGIN] = ToIndexSubsetPartFromFullAddrInMTStage(stPipeReg[i].addrOut);
                 nextStage[i+STORE_ISSUE_LANE_BEGIN] = stNextStage[i];
                 flush[i+STORE_ISSUE_LANE_BEGIN] = stFlush[i];
             end

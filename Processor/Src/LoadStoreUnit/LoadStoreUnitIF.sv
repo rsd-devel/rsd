@@ -124,7 +124,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     // MSHR
     logic mshrValid[MSHR_NUM];
     MSHR_Phase mshrPhase[MSHR_NUM]; // MSHR phase.
-    DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
     // Memory dependent prediction
     logic conflict [ STORE_ISSUE_WIDTH ];
@@ -155,7 +154,6 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
         dcWriteReqAck,
         mshrAddrHit,
         mshrAddrHitMSHRID,
-        mshrAddrSubset,
         mshrReadHit,
         mshrReadData,
         mshrValid,
@@ -350,8 +348,7 @@ interface LoadStoreUnitIF( input logic clk, rst, rstStart );
     modport ReplayQueue(
     input
         mshrValid,
-        mshrPhase,
-        mshrAddrSubset
+        mshrPhase
     );
 
     modport CommitStage(

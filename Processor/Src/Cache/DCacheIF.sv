@@ -106,7 +106,6 @@ input
 
     MSHR_Phase mshrPhase[MSHR_NUM]; // MSHR phase.
     DCacheLinePath mshrData[MSHR_NUM]; // Data in MSHR.
-    DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
     logic mshrCanBeInvalidDirect[MSHR_NUM];
     logic isAllocatedByStore[MSHR_NUM];
@@ -249,7 +248,6 @@ input
         mshrAddr,
         mshrPhase,
         mshrData,
-        mshrAddrSubset,
         mshrFlushComplete
     );
 
@@ -298,7 +296,6 @@ input
         mshrValid,
         mshrAddr,
         mshrPhase,
-        mshrAddrSubset,
         dcFlushReqAck,
         dcFlushComplete,
     output

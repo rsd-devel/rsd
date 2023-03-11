@@ -1277,7 +1277,6 @@ module DCache(
         // To notice mshr phases and addr subset to ReplayQueue.
         for (int i = 0; i < MSHR_NUM; i++) begin
             lsu.mshrPhase[i] = port.mshrPhase[i];
-            lsu.mshrAddrSubset[i] = port.mshrAddrSubset[i];
             lsu.mshrValid[i] = port.mshrValid[i];
         end
         port.memReqAck = cacheSystem.dcMemAccessReqAck.ack;
@@ -1346,9 +1345,6 @@ module DCacheMissHandler(
         for (int i = 0; i < MSHR_NUM; i++) begin
             // To notice mshr phases to ReplayQueue.
             port.mshrPhase[i] = mshr[i].phase;
-
-            // To notice mshr newAddr subset to ReplayQueue.
-            port.mshrAddrSubset[i] = ToIndexSubsetPartFromFullAddr(mshr[i].newAddr);
 
             // To bypass mshr data to load instructions.
             port.mshrData[i] = mshr[i].line;
