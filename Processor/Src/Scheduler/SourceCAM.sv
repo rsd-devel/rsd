@@ -28,7 +28,7 @@ module SourceCAM #(
     parameter REG_NUM_BIT_WIDTH = 1
 )(
     // input
-    input   logic clk, rst, stall,
+    input   logic clk, rst,
     input   logic dispatch [ DISPATCH_WIDTH ],
     input   IssueQueueIndexPath dispatchPtr [ DISPATCH_WIDTH ],
     input   logic [REG_NUM_BIT_WIDTH-1:0] dispatchedSrcRegNum [ DISPATCH_WIDTH ][ SRC_OP_NUM ],
@@ -104,12 +104,7 @@ module SourceCAM #(
         // Set nextSrcReady
         for( int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++ ) begin
             for( int j = 0; j < SRC_OP_NUM; j++ ) begin
-                if (stall) begin
-                    nextSrcReady[i][j] = srcReady[i][j];
-                end
-                else begin
-                    nextSrcReady[i][j] = srcReady[i][j] || match[i][j];
-                end
+                nextSrcReady[i][j] = srcReady[i][j] || match[i][j];
             end
         end
         for( int i = 0; i < DISPATCH_WIDTH; i++ ) begin
