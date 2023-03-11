@@ -122,11 +122,13 @@ module ReplayQueue(
     ActiveListIndexPath flushRangeHeadPtr;  //フラッシュされた命令の範囲のhead
     ActiveListIndexPath flushRangeTailPtr;  //フラッシュされた命令の範囲のtail
     logic flushAllInsns;
+
     logic flushInt[ INT_ISSUE_WIDTH ];
     logic flushMem[ MEM_ISSUE_WIDTH ];
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     logic flushComplex[ COMPLEX_ISSUE_WIDTH ];
 `endif
+
 
     // Outputs are pipelined for timing optimization.
     // "replay" signal is in a critical path.
@@ -350,6 +352,61 @@ module ReplayQueue(
             end
         end
 
+        // flush detection
+        // There is a one-cycle delay for a flash range to be recorded in the registers, 
+        // so it is necessary to detect flushed ops using both the range just received and 
+        // the range recorded in the registers.
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            flushInt[i] = SelectiveFlushDetector(
+                                canBeFlushedEntryCount != 0,
+                                flushRangeHeadPtr,
+                                flushRangeTailPtr,
+                                flushAllInsns,
+                                replayEntryOut.intData[i].activeListPtr
+                            ) || 
+                            SelectiveFlushDetector(
+                                recovery.toRecoveryPhase,
+                                recovery.flushRangeHeadPtr,
+                                recovery.flushRangeTailPtr,
+                                recovery.flushAllInsns,
+                                replayEntryOut.intData[i].activeListPtr
+                            );
+        end
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+            flushComplex[i] = SelectiveFlushDetector(
+                                canBeFlushedEntryCount != 0,
+                                flushRangeHeadPtr,
+                                flushRangeTailPtr,
+                                flushAllInsns,
+                                replayEntryOut.complexData[i].activeListPtr
+                            ) || 
+                            SelectiveFlushDetector(
+                                recovery.toRecoveryPhase,
+                                recovery.flushRangeHeadPtr,
+                                recovery.flushRangeTailPtr,
+                                recovery.flushAllInsns,
+                                replayEntryOut.complexData[i].activeListPtr
+                            );
+        end
+`endif
+        for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
+            flushMem[i] = SelectiveFlushDetector(
+                                canBeFlushedEntryCount != 0,
+                                flushRangeHeadPtr,
+                                flushRangeTailPtr,
+                                flushAllInsns,
+                                replayEntryOut.memData[i].activeListPtr
+                            ) || 
+                            SelectiveFlushDetector(
+                                recovery.toRecoveryPhase,
+                                recovery.flushRangeHeadPtr,
+                                recovery.flushRangeTailPtr,
+                                recovery.flushAllInsns,
+                                replayEntryOut.memData[i].activeListPtr
+                            );
+        end
+
 
         // To an input of ReplayQueue.
         if (port.rst) begin
@@ -469,17 +526,17 @@ module ReplayQueue(
 
         // To an output register.
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            nextReplayEntry.intValid[i] = popEntry && replayEntryOut.intValid[i];
+            nextReplayEntry.intValid[i] = popEntry && replayEntryOut.intValid[i] && !flushInt[i];
             nextReplayEntry.intData[i] = replayEntryOut.intData[i];
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-            nextReplayEntry.complexValid[i] = popEntry && replayEntryOut.complexValid[i];
+            nextReplayEntry.complexValid[i] = popEntry && replayEntryOut.complexValid[i] && !flushComplex[i];;
             nextReplayEntry.complexData[i] = replayEntryOut.complexData[i];
         end
 `endif
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-            nextReplayEntry.memValid[i] = popEntry && replayEntryOut.memValid[i];
+            nextReplayEntry.memValid[i] = popEntry && replayEntryOut.memValid[i] && !flushMem[i];;
             nextReplayEntry.memData[i] = replayEntryOut.memData[i];
             nextReplayEntry.memAddrHit[i] = replayEntryOut.memAddrHit[i];
             nextReplayEntry.memAddrSubset[i] = replayEntryOut.memAddrSubset[i];
@@ -489,40 +546,19 @@ module ReplayQueue(
         nextReplay = (popEntry && replayEntryValidOut) ? TRUE : FALSE;
 
         // To an issue queue.
-        // Flushed op is detected here.
+        // These ops are flushed in the issue stage modules
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            flushInt[i] = SelectiveFlushDetector(
-                            canBeFlushedEntryCount != 0,
-                            flushRangeHeadPtr,
-                            flushRangeTailPtr,
-                            flushAllInsns,
-                            replayEntryReg.intData[i].activeListPtr
-                            );
-            port.intReplayEntry[i] = replayEntryReg.intValid[i] && !flushInt[i];
+            port.intReplayEntry[i] = replayEntryReg.intValid[i];
             port.intReplayData[i] = replayEntryReg.intData[i];
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-            flushComplex[i] = SelectiveFlushDetector(
-                                canBeFlushedEntryCount != 0,
-                                flushRangeHeadPtr,
-                                flushRangeTailPtr,
-                                flushAllInsns,
-                                replayEntryReg.complexData[i].activeListPtr
-                                );
-            port.complexReplayEntry[i] = replayEntryReg.complexValid[i] && !flushComplex[i];
+            port.complexReplayEntry[i] = replayEntryReg.complexValid[i];
             port.complexReplayData[i] = replayEntryReg.complexData[i];
         end
 `endif
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-            flushMem[i] = SelectiveFlushDetector(
-                            canBeFlushedEntryCount != 0,
-                            flushRangeHeadPtr,
-                            flushRangeTailPtr,
-                            flushAllInsns,
-                            replayEntryReg.memData[i].activeListPtr
-                            );
-            port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];
+            port.memReplayEntry[i] = replayEntryReg.memValid[i];
             port.memReplayData[i] = replayEntryReg.memData[i];
         end
 
@@ -544,7 +580,7 @@ module ReplayQueue(
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
             flushAllInsns <= recovery.flushAllInsns;
         end
-        else if (canBeFlushedEntryCount > 0 && port.replay) begin
+        else if (canBeFlushedEntryCount > 0 && replayReg) begin
             canBeFlushedEntryCount <= canBeFlushedEntryCount - 1;
         end
     end
