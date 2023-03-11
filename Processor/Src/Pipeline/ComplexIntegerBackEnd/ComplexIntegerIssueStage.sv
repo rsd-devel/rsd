@@ -106,9 +106,7 @@ module ComplexIntegerIssueStage(
                 mulDivUnit.divAcquire[i] = 
                     !clear && valid[i] &&
                     !flush[i] && issuedData[i].opType == COMPLEX_MOP_TYPE_DIV;
-                mulDivUnit.divResetFromCI_Stage[i] = 
-                    valid[i] && (flush[i] || clear) &&
-                    issuedData[i].opType == COMPLEX_MOP_TYPE_DIV;
+                mulDivUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
             `endif        
 
             // --- Pipeline ラッチ書き込み

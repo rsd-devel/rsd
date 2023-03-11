@@ -239,8 +239,6 @@ module MemoryTagAccessStage(
                     /*ldPipeReg[i].replay && */
                     ldRegValid[i] = mulDivUnit.divFinished[i];
                 end
-                mulDivUnit.divResetFromMT_Stage[i] = 
-                    ldRegValid[i] && (ldFlush[i] || clear) && isDiv[i];
             `endif
 
             // Pipeline レジスタ書き込み

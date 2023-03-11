@@ -261,6 +261,14 @@ interface RecoveryManagerIF( input logic clk, rst );
         flushAllInsns
     );
 
+    modport MulDivUnit(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
+
     modport IntegerIssueStage(
     input
         toRecoveryPhase,

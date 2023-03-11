@@ -39,7 +39,6 @@ endfunction
 module MemoryRegisterReadStage(
     MemoryRegisterReadStageIF.ThisStage port,
     MemoryIssueStageIF.NextStage prev,
-    MulDivUnitIF.MemoryRegisterReadStage mulDivUnit,
     RegisterFileIF.MemoryRegisterReadStage registerFile,
     BypassNetworkIF.MemoryRegisterReadStage bypass,
     RecoveryManagerIF.MemoryRegisterReadStage recovery,
@@ -171,15 +170,6 @@ module MemoryRegisterReadStage(
             nextStage[i].replay = pipeReg[i].replay && pipeReg[i].valid;
             nextStage[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
         end
-
-        `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-            // divがこのステージ内でフラッシュされた場合，演算器を解放する
-            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-                mulDivUnit.divResetFromMR_Stage[i] = 
-                    (memOpInfo[i].opType == MEM_MOP_TYPE_DIV) &&
-                    pipeReg[i].valid && flush[i];
-            end
-        `endif
 
         // Vector Operand
 `ifdef RSD_ENABLE_VECTOR_PATH

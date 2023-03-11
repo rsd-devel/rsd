@@ -61,7 +61,7 @@ module MemoryExecutionStage(
     end
 
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ MEM_ISSUE_WIDTH ];
 
@@ -119,7 +119,7 @@ module MemoryExecutionStage(
             bypass.memCtrlIn[i] = pipeReg[i].bCtrl;
 
             // Register valid bits.
-            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             `ifdef RSD_ENABLE_VECTOR_PATH
                 if ( memOpInfo[i].memAccessMode.size == MEM_ACCESS_SIZE_VEC ) begin
                     regValid[i] = vecRegValid[i];
@@ -162,7 +162,7 @@ module MemoryExecutionStage(
         if (pipeReg[0].valid && (memOpInfo[0].opType == MEM_MOP_TYPE_FENCE) && memOpInfo[0].isFenceI) begin
             cacheFlushReq = TRUE;
             if (!cacheFlush.cacheFlushComplete) begin
-                // FENCEI must be replayed after cache flush is completed.
+                // FENCE.I must be replayed after cache flush is completed.
                 regValid[0] = FALSE;
             end
         end
@@ -223,22 +223,6 @@ module MemoryExecutionStage(
     logic isDiv         [ MULDIV_ISSUE_WIDTH ]; 
     logic finished      [ MULDIV_ISSUE_WIDTH ];
 
-    // For selective flush
-    ActiveListIndexPath regActiveListIndex  [ MULDIV_ISSUE_WIDTH ];
-    ActiveListIndexPath nextActiveListIndex [ MULDIV_ISSUE_WIDTH ];
-    logic divReset[ MULDIV_ISSUE_WIDTH ];
-
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-                regActiveListIndex[i] <= '0;
-            end
-        end
-        else begin
-            regActiveListIndex <= nextActiveListIndex;
-        end
-    end
-
     MulOpSubInfo mulSubInfo[MULDIV_ISSUE_WIDTH];
     DivOpSubInfo divSubInfo[MULDIV_ISSUE_WIDTH];
     always_comb begin
@@ -259,26 +243,6 @@ module MemoryExecutionStage(
             isDiv[i] =  
                 memOpInfo[i].opType inside {MEM_MOP_TYPE_DIV};
 
-            // Dividerで処理中のdivがフラッシュされたら，Dividerの状態をFREEに変更して
-            // IQからdivを発行できるようにする
-            divReset[i] = FALSE;
-            if (recovery.toRecoveryPhase) begin
-                divReset[i] = SelectiveFlushDetector( 
-                    recovery.toRecoveryPhase, 
-                    recovery.flushRangeHeadPtr, 
-                    recovery.flushRangeTailPtr, 
-                    recovery.flushAllInsns,
-                    regActiveListIndex[i]
-                );
-            end
-            if (clear) begin
-                divReset[i] = TRUE;
-            end
-            if (isDiv[i] && pipeReg[i].valid && flush[i]) begin
-                divReset[i] = TRUE;
-            end
-            mulDivUnit.divReset[i] = divReset[i];
-
             // Request to the divider
             // NOT make a request when below situation
             // 1) When any operands of inst. are invalid
@@ -288,16 +252,6 @@ module MemoryExecutionStage(
                 mulDivUnit.divReserved[i] && 
                 pipeReg[i].valid && isDiv[i] && 
                 fuOpA[i].valid && fuOpB[i].valid;
-
-
-            if (pipeReg[i].valid && isDiv[i] && mulDivUnit.divReserved[i]) begin
-                nextActiveListIndex[i] = 
-                    iqData[i].activeListPtr;
-            end
-            else begin
-                nextActiveListIndex[i] = regActiveListIndex[i];
-            end
-
         end
 
     end

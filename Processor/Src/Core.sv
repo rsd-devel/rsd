@@ -169,10 +169,10 @@ output
     ComplexIntegerExecutionStage complexExStage( complexExStageIF, complexRrStageIF, mulDivUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 `endif
-        MulDivUnit mulDivUnit(mulDivUnitIF);
+        MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF);
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
-    MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, mulDivUnitIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
+    MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
     MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, perfCounterIF );
     MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
