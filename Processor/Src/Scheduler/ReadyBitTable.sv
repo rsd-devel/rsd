@@ -23,7 +23,7 @@ module ReadyBitTable #(
     parameter ENTRY_NUM = 32
 )(
     // input
-    input   logic clk, rst, rstStart, stall,
+    input   logic clk, rst, rstStart,
     input   logic wakeup[ WAKEUP_WIDTH ],
     input   logic wakeupDstValid [ WAKEUP_WIDTH ],
     input   logic [REG_NUM_BIT_WIDTH-1:0] wakeupDstRegNum [ WAKEUP_WIDTH ],
@@ -69,7 +69,7 @@ module ReadyBitTable #(
         for (int i = 0; i < WAKEUP_WIDTH; i++) begin
             readyWA[i] = wakeupDstRegNum[i];
             readyWV[i] = TRUE;
-            readyWE[i] = !stall && (wakeup[i] && wakeupDstValid[i]);
+            readyWE[i] = wakeup[i] && wakeupDstValid[i];
             //if(wakeup[i] && wakeupDstValid[i]) begin
             //    ready[ wakeupDstRegNum[i] ] <= TRUE;
         end
