@@ -457,8 +457,12 @@ module ReplayQueue(
         end
         else begin
             popEntry = TRUE;
+
+            // MSHR/DIV は自律的にフラッシュされるため，リプレイキューの中に取り残された命令が
+            // MSHR/DIV のフラッシュされた処理を待ち続ける可能性がある
+            // これを避けるために，flush をここで見る必要がある
             for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-                if (replayEntryOut.memValid[i] &&
+                if (replayEntryOut.memValid[i] && !flushMem[i] &&
                     (replayEntryOut.memData[i].memOpInfo.opType
                         inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
                     replayEntryOut.memData[i].hasAllocatedMSHR && // has allocated MSHR entries,
@@ -470,7 +474,7 @@ module ReplayQueue(
             end
 
             // FENCE.I
-            if (replayEntryOut.memValid[0] && 
+            if (replayEntryOut.memValid[0] && !flushMem[0] &&
                 (replayEntryOut.memData[0].memOpInfo.opType
                         inside { MEM_MOP_TYPE_FENCE }) && 
                 replayEntryOut.memData[0].memOpInfo.isFenceI && // the FENCE.I is valid,
@@ -480,7 +484,7 @@ module ReplayQueue(
             end
 
             for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-                if (replayEntryOut.memValid[i] &&
+                if (replayEntryOut.memValid[i] && !flushMem[i] &&
                     (replayEntryOut.memData[i].memOpInfo.opType
                         inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
                     replayEntryOut.memAddrHit[i] && // has hit a MSHR entry,
@@ -492,7 +496,7 @@ module ReplayQueue(
                 end
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
                 else if (
-                    replayEntryOut.memValid[i] &&
+                    replayEntryOut.memValid[i] && !flushMem[i] &&
                     replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV &&
                     mulDivUnit.divBusy[i]
                 ) begin
@@ -503,7 +507,7 @@ module ReplayQueue(
             
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin 
-                if (replayEntryOut.complexValid[i] && 
+                if (replayEntryOut.complexValid[i] && !flushComplex[i] &&
                     replayEntryOut.complexData[i].opType == COMPLEX_MOP_TYPE_DIV && 
                     mulDivUnit.divBusy[i]   // Div unit is busy and wait it
                 ) begin 
