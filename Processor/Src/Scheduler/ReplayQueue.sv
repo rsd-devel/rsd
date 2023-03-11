@@ -104,10 +104,6 @@ module ReplayQueue(
         .rv(replayEntryOut)
     );
 
-    // Recovery format
-    logic recoveryFromCmStage;
-    logic recoveryFromRwStage;
-
     // Valid information in replay queue
     logic replayEntryValidIn;
     logic replayEntryValidOut;
@@ -131,7 +127,6 @@ module ReplayQueue(
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     logic flushComplex[ COMPLEX_ISSUE_WIDTH ];
 `endif
-    logic flush[ MEM_ISSUE_WIDTH ]; // only used to make MSHR invalid
 
     // Outputs are pipelined for timing optimization.
     // "replay" signal is in a critical path.
@@ -158,11 +153,6 @@ module ReplayQueue(
         end
     `endif
 `endif
-
-    always_comb begin
-        recoveryFromRwStage = recovery.toRecoveryPhase && recovery.recoveryFromRwStage;
-        recoveryFromCmStage = recovery.toRecoveryPhase && !recovery.recoveryFromRwStage;
-    end
 
     always_ff @ (posedge port.clk) begin
         if (port.rst) begin
@@ -532,13 +522,6 @@ module ReplayQueue(
                             flushAllInsns,
                             replayEntryReg.memData[i].activeListPtr
                             );
-            flush[i] = SelectiveFlushDetector(
-                            recoveryFromRwStage || recoveryFromCmStage,
-                            recovery.flushRangeHeadPtr,
-                            recovery.flushRangeTailPtr,
-                            flushAllInsns,
-                            replayEntryReg.memData[i].activeListPtr
-                            );
             port.memReplayEntry[i] = replayEntryReg.memValid[i] && !flushMem[i];
             port.memReplayData[i] = replayEntryReg.memData[i];
         end
@@ -555,7 +538,7 @@ module ReplayQueue(
         if (port.rst) begin
             canBeFlushedEntryCount <= 0;
         end
-        else if (recoveryFromRwStage || recoveryFromCmStage) begin
+        else if (recovery.toRecoveryPhase) begin
             canBeFlushedEntryCount <= count;
             flushRangeHeadPtr <= recovery.flushRangeHeadPtr;
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
