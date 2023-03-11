@@ -104,7 +104,7 @@ interface MulDivUnitIF(input logic clk, rst);
         ,
     output
         divAcquire,
-        acquireActiveListPtr,
+        acquireActiveListPtr
 `endif
     );
 

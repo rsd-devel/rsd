@@ -61,7 +61,7 @@ module ComplexIntegerIssueStage(
     end
 
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ COMPLEX_ISSUE_WIDTH ];
     logic valid [ COMPLEX_ISSUE_WIDTH ];
