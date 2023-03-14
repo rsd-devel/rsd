@@ -140,6 +140,7 @@ module WakeupPipelineRegister(
                         intPipeReg[i][j-1] <= intPipeReg[i][j];
                     end
                     intPipeReg[i][ ISSUE_QUEUE_INT_LATENCY-2 ].valid <= FALSE;
+                    intPipeReg[i][ ISSUE_QUEUE_INT_LATENCY-2 ].depVector <= '0;
                 end
             end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -148,6 +149,7 @@ module WakeupPipelineRegister(
                     complexPipeReg[i][j-1] <= complexPipeReg[i][j];
                 end
                 complexPipeReg[i][ ISSUE_QUEUE_COMPLEX_LATENCY-2 ].valid <= FALSE;
+                complexPipeReg[i][ ISSUE_QUEUE_COMPLEX_LATENCY-2 ].depVector <= '0;
             end
 `endif
 
@@ -156,6 +158,7 @@ module WakeupPipelineRegister(
                     memPipeReg[i][j-1] <= memPipeReg[i][j];
                 end
                 memPipeReg[i][ ISSUE_QUEUE_MEM_LATENCY-2 ].valid <= FALSE;
+                memPipeReg[i][ ISSUE_QUEUE_MEM_LATENCY-2 ].depVector <= '0;
             end
         end
     end
@@ -329,15 +332,30 @@ module WakeupPipelineRegister(
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
         end
         else begin
-            if(canBeFlushedRegCountInt>0 && !port.stall) begin
+            if(canBeFlushedRegCountInt == ISSUE_QUEUE_INT_LATENCY) begin
+                if(!port.stall) begin
+                    canBeFlushedRegCountInt <= canBeFlushedRegCountInt-1;
+                end
+            end
+            else if (canBeFlushedRegCountInt > 0) begin
                 canBeFlushedRegCountInt <= canBeFlushedRegCountInt-1;
             end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-            if(canBeFlushedRegCountComplex>0 && !port.stall) begin
+            if(canBeFlushedRegCountComplex == ISSUE_QUEUE_COMPLEX_LATENCY) begin
+                if(!port.stall) begin
+                    canBeFlushedRegCountComplex <= canBeFlushedRegCountComplex-1;
+                end
+            end
+            else if (canBeFlushedRegCountComplex > 0) begin
                 canBeFlushedRegCountComplex <= canBeFlushedRegCountComplex-1;
             end
 `endif
-            if(canBeFlushedRegCountMem>0 && !port.stall) begin
+            if(canBeFlushedRegCountMem == ISSUE_QUEUE_MEM_LATENCY) begin
+                if(!port.stall) begin
+                    canBeFlushedRegCountMem <= canBeFlushedRegCountMem-1;
+                end
+            end
+            else if (canBeFlushedRegCountMem > 0) begin
                 canBeFlushedRegCountMem <= canBeFlushedRegCountMem-1;
             end
         end
