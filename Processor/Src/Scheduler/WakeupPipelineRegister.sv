@@ -47,6 +47,7 @@ module WakeupPipelineRegister(
     logic [$clog2(ISSUE_QUEUE_MEM_LATENCY):0] canBeFlushedRegCountMem;    //FlushedOpが存在している可能性があるMemパイプラインレジスタの段数
     ActiveListIndexPath flushRangeHeadPtr;  //フラッシュされた命令の範囲のhead
     ActiveListIndexPath flushRangeTailPtr;  //フラッシュされた命令の範囲のtail
+    logic flushAllInsns;
     logic flushInt[ INT_ISSUE_WIDTH ];
     logic flushMem[ LOAD_ISSUE_WIDTH ];
     IssueQueueIndexPath intSelectedPtr[ INT_ISSUE_WIDTH ];
@@ -207,7 +208,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountInt != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             intPipeReg[i][0].activeListPtr
                             );
             if (ISSUE_QUEUE_INT_LATENCY == 1 ) begin
@@ -231,7 +232,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountComplex != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             complexPipeReg[i][0].activeListPtr
                             );
             port.wakeup[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].valid && !flushComplex[i];
@@ -247,7 +248,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountMem != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             memPipeReg[i][0].activeListPtr
                           );
             port.wakeup[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].valid && !flushMem[i];
@@ -268,7 +269,7 @@ module WakeupPipelineRegister(
                             canBeFlushedRegCountMem != 0,
                             flushRangeHeadPtr,
                             flushRangeTailPtr,
-                            recovery.flushAllInsns,
+                            flushAllInsns,
                             memPipeReg[i][0].activeListPtr
                             );
             port.wakeup[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].valid && !flushMem[i];
@@ -321,6 +322,7 @@ module WakeupPipelineRegister(
             canBeFlushedRegCountMem <= 0;
             flushRangeHeadPtr <= 0;
             flushRangeTailPtr <= 0;
+            flushAllInsns <= FALSE;
         end
         else if(recovery.toRecoveryPhase && recovery.recoveryFromRwStage) begin
             canBeFlushedRegCountInt <= ISSUE_QUEUE_INT_LATENCY;
@@ -330,6 +332,7 @@ module WakeupPipelineRegister(
             canBeFlushedRegCountMem <= ISSUE_QUEUE_MEM_LATENCY;
             flushRangeHeadPtr <= recovery.flushRangeHeadPtr;
             flushRangeTailPtr <= recovery.flushRangeTailPtr;
+            flushAllInsns <= recovery.flushAllInsns;
         end
         else begin
             if(canBeFlushedRegCountInt == ISSUE_QUEUE_INT_LATENCY) begin
