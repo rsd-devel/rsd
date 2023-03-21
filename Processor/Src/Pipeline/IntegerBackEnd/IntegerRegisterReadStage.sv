@@ -99,12 +99,11 @@ module IntegerRegisterReadStage(
     PRegDataPath operandA [ INT_ISSUE_WIDTH ];
     PRegDataPath operandB [ INT_ISSUE_WIDTH ];
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ INT_ISSUE_WIDTH ];
     IntIssueQueueEntry iqData[INT_ISSUE_WIDTH];
     IntOpSubInfo intSubInfo[INT_ISSUE_WIDTH];
-    BrOpSubInfo brSubInfo[INT_ISSUE_WIDTH];
     OpSrc opSrc[INT_ISSUE_WIDTH];
     OpDst opDst[INT_ISSUE_WIDTH];
     IntegerExecutionStageRegPath nextStage[INT_ISSUE_WIDTH];
@@ -116,7 +115,6 @@ module IntegerRegisterReadStage(
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             iqData[i] = pipeReg[i].intQueueData;
             intSubInfo[i] = iqData[i].intOpInfo.intSubInfo;
-            brSubInfo[i] = iqData[i].intOpInfo.brSubInfo;
             opSrc[i] = iqData[i].opSrc;
             opDst[i] = iqData[i].opDst;
             pc[i] = ToAddrFromPC(iqData[i].pc);
@@ -137,8 +135,8 @@ module IntegerRegisterReadStage(
 
             bypass.intWriteReg[i]  = opDst[i].writeReg & pipeReg[i].valid;
             bypass.intPhyDstRegNum[i] = opDst[i].phyDstRegNum;
-            bypass.intReadRegA[i] = ( intSubInfo[i].operandTypeA == OOT_REG ) || ( brSubInfo[i].operandTypeA == OOT_REG );
-            bypass.intReadRegB[i] = ( intSubInfo[i].operandTypeB == OOT_REG ) || ( brSubInfo[i].operandTypeA == OOT_REG );
+            bypass.intReadRegA[i] = ( intSubInfo[i].operandTypeA == OOT_REG );
+            bypass.intReadRegB[i] = ( intSubInfo[i].operandTypeB == OOT_REG );
 
             //
             // --- オペランド選択
@@ -201,4 +199,17 @@ module IntegerRegisterReadStage(
             end
         `endif
     end
+
+    generate
+        for (genvar i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            `RSD_ASSERT_CLK(
+                port.clk,
+                intSubInfo[i].operandTypeA == iqData[i].intOpInfo.brSubInfo.operandTypeA && 
+                intSubInfo[i].operandTypeB == iqData[i].intOpInfo.brSubInfo.operandTypeB,
+                "Int sub info and Br sub info are inconsistent"
+            );
+        end
+    endgenerate
+            
+
 endmodule : IntegerRegisterReadStage
