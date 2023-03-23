@@ -19,6 +19,15 @@ module WakeupPipelineRegister(
     WakeupSelectIF.WakeupPipelineRegister port,
     RecoveryManagerIF.WakeupPipelineRegister recovery
 );
+    `RSD_STATIC_ASSERT(
+        ISSUE_QUEUE_INT_LATENCY == 1, 
+        "Int latency must be 1."
+    );
+    // Normally, the latency of INT is 1, so when ISSUE_QUEUE_INT_LATENCY is other than 1, it is not supported.
+    // To make ISSUE_QUEUE_INT_LATENCY larger than 1, the following part must be changed. (Refer to the implementation of COMPLEX or MEM)
+    // - update of intPipeReg.
+    // - port.wakeup, port.wakeupVector 
+    // - port.releaseEntry
 
     // Pipeline registers
     typedef struct packed
@@ -135,15 +144,10 @@ module WakeupPipelineRegister(
             end
         end
         else begin
-            if( ISSUE_QUEUE_INT_LATENCY > 1 ) begin
-                for( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
-                    for( int j = 1; j < ISSUE_QUEUE_INT_LATENCY-1; j++ ) begin
-                        intPipeReg[i][j-1] <= intPipeReg[i][j];
-                    end
-                    intPipeReg[i][ ISSUE_QUEUE_INT_LATENCY-2 ].valid <= FALSE;
-                    intPipeReg[i][ ISSUE_QUEUE_INT_LATENCY-2 ].depVector <= '0;
-                end
-            end
+            // When the scheduler is stalled, only 1st stage of PipeReg needs to be stalled so that the select result of that cycle is not reflected.
+            // 2nd and subsequent stages continue to flow regardless of stall.
+            // Therefore the 2nd stage must be filled with bubbles when the 1st stage is stalled.
+            // IntPipe has only one stage by default, so such bubbles are unnecessary for IntPipe.
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
                 for( int j = 1; j < ISSUE_QUEUE_COMPLEX_LATENCY-1; j++ ) begin
@@ -211,19 +215,9 @@ module WakeupPipelineRegister(
                             flushAllInsns,
                             intPipeReg[i][0].activeListPtr
                             );
-            if (ISSUE_QUEUE_INT_LATENCY == 1 ) begin
-                port.wakeup[i] = intPipeReg[i][0].valid && !flushInt[i] && !port.stall;
-            end
-            else begin
-                port.wakeup[i] = intPipeReg[i][0].valid && !flushInt[i];
-            end
+            port.wakeup[i] = intPipeReg[i][0].valid && !flushInt[i] && !port.stall;
             port.wakeupPtr[i] = intPipeReg[i][0].ptr;
-            if (ISSUE_QUEUE_INT_LATENCY == 1) begin
-                port.wakeupVector[i] = !port.stall ? intPipeReg[i][0].depVector : '0;
-            end
-            else begin
-                port.wakeupVector[i] = intPipeReg[i][0].depVector;
-            end
+            port.wakeupVector[i] = !port.stall ? intPipeReg[i][0].depVector : '0;
         end
 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -293,12 +287,7 @@ module WakeupPipelineRegister(
         // Entries can be released after they wake up consumers.
         //
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if(ISSUE_QUEUE_INT_LATENCY == 1) begin
-                port.releaseEntry[i] = intPipeReg[i][0].valid && !port.stall;
-            end
-            else begin
-                port.releaseEntry[i] = intPipeReg[i][0].valid;
-            end
+            port.releaseEntry[i] = intPipeReg[i][0].valid && !port.stall;
             port.releasePtr[i] = intPipeReg[i][0].ptr;
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
