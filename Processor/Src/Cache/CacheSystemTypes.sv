@@ -159,6 +159,8 @@ package CacheSystemTypes;
         // An MSHR entry can be invalid when
         // its allocator is load and has bypassed data.
         logic canBeInvalid;
+        // An MSHR entry is flushed.
+        logic isFlushed;
 
         // An MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
         logic isAllocatedByStore;

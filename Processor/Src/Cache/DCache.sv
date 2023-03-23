@@ -1333,6 +1333,7 @@ module DCacheMissHandler(
                 mshr[i].valid <= FALSE;
                 mshr[i].phase <= MSHR_PHASE_INVALID;
                 mshr[i].canBeInvalid <= FALSE;
+                mshr[i].isFlushed <= FALSE;
                 mshr[i].isAllocatedByStore <= FALSE;
             end
         end
@@ -1402,6 +1403,7 @@ module DCacheMissHandler(
                         );
             if (flushMSHR_Entry[i] && !mshr[i].isAllocatedByStore) begin
                 // its allocator load is flushed
+                nextMSHR[i].isFlushed = TRUE;
                 nextMSHR[i].canBeInvalid = TRUE;
             end
 
@@ -1460,6 +1462,7 @@ module DCacheMissHandler(
                         nextMSHR[i].memWSerial = '0;
 
                         nextMSHR[i].canBeInvalid = FALSE;
+                        nextMSHR[i].isFlushed = FALSE;
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
                         nextMSHR[i].isUncachable = port.isUncachable[i];
 
@@ -1494,6 +1497,7 @@ module DCacheMissHandler(
                         nextMSHR[i].memWSerial = '0;
 
                         nextMSHR[i].canBeInvalid = FALSE;
+                        nextMSHR[i].isFlushed = FALSE;
                         nextMSHR[i].isAllocatedByStore = FALSE;
                         nextMSHR[i].isUncachable = FALSE;
 
@@ -1645,9 +1649,16 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
                     port.mshrCacheMuxIn[i].isVictimEviction = TRUE;
 
-                    nextMSHR[i].phase =
-                        port.mshrCacheGrt[i] ?
-                        MSHR_PHASE_VICTIM_RECEIVE_TAG : MSHR_PHASE_VICTIM_REQUEST;
+                    if (port.mshrCacheGrt[i]) begin
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_TAG;
+                    end
+                    else if (mshr[i].isFlushed) begin
+                            // If its allocator is flushed, miss handling finishes.
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    end
+                    else begin
+                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQUEST;
+                    end
                 end
 
                 MSHR_PHASE_VICTIM_RECEIVE_TAG: begin
@@ -1850,6 +1861,10 @@ module DCacheMissHandler(
 
                     if (port.mshrCacheGrt[i]) begin
                         // If my request is granted, miss handling finishes.
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    end
+                    else if (mshr[i].isFlushed) begin
+                        // If its allocator is flushed, miss handling finishes.
                         nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
                     else begin
