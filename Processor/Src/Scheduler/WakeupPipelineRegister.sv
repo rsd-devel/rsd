@@ -144,9 +144,10 @@ module WakeupPipelineRegister(
             end
         end
         else begin
-            // When the scheduler is stalled, only 1st stage of PipeReg needs to be stalled so that the select result of that cycle is not reflected.
-            // 2nd and subsequent stages continue to flow regardless of stall.
-            // Therefore the 2nd stage must be filled with bubbles when the 1st stage is stalled.
+            // When the scheduler is stalled, only the 1st stage ([LATENCY-1]) of PipeReg needs to
+            // be stalled so that the select result of that cycle is not reflected.
+            // The 2nd and subsequent stages continue to flow regardless of stall.
+            // Therefore the 2nd stage ([LATENCY-2]) must be filled with bubbles when the 1st stage is stalled.
             // IntPipe has only one stage by default, so such bubbles are unnecessary for IntPipe.
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             for( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
