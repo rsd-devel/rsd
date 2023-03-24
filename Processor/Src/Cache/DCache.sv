@@ -1333,7 +1333,7 @@ module DCacheMissHandler(
                 mshr[i].valid <= FALSE;
                 mshr[i].phase <= MSHR_PHASE_INVALID;
                 mshr[i].canBeInvalid <= FALSE;
-                mshr[i].isFlushed <= FALSE;
+                mshr[i].isAllocatorLoadFlushed <= FALSE;
                 mshr[i].isAllocatedByStore <= FALSE;
             end
         end
@@ -1402,8 +1402,11 @@ module DCacheMissHandler(
                             mshr[i].activeListPtr
                         );
             if (flushMSHR_Entry[i] && !mshr[i].isAllocatedByStore) begin
-                // its allocator load is flushed
-                nextMSHR[i].isFlushed = TRUE;
+                // Its allocator load is flushed.
+                // When an allocator load is flushed, the allocated entry must be
+                // flushed without filling a fetched line to avoid a live lock to
+                // acquire cache ports between active loads and a dead MSHR entry.
+                nextMSHR[i].isAllocatorLoadFlushed = TRUE;
                 nextMSHR[i].canBeInvalid = TRUE;
             end
 
@@ -1462,7 +1465,7 @@ module DCacheMissHandler(
                         nextMSHR[i].memWSerial = '0;
 
                         nextMSHR[i].canBeInvalid = FALSE;
-                        nextMSHR[i].isFlushed = FALSE;
+                        nextMSHR[i].isAllocatorLoadFlushed = FALSE;
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
                         nextMSHR[i].isUncachable = port.isUncachable[i];
 
@@ -1497,7 +1500,7 @@ module DCacheMissHandler(
                         nextMSHR[i].memWSerial = '0;
 
                         nextMSHR[i].canBeInvalid = FALSE;
-                        nextMSHR[i].isFlushed = FALSE;
+                        nextMSHR[i].isAllocatorLoadFlushed = FALSE;
                         nextMSHR[i].isAllocatedByStore = FALSE;
                         nextMSHR[i].isUncachable = FALSE;
 
@@ -1652,7 +1655,7 @@ module DCacheMissHandler(
                     if (port.mshrCacheGrt[i]) begin
                         nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_TAG;
                     end
-                    else if (mshr[i].isFlushed) begin
+                    else if (mshr[i].isAllocatorLoadFlushed) begin
                             // If its allocator is flushed, miss handling finishes.
                             nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
@@ -1863,7 +1866,7 @@ module DCacheMissHandler(
                         // If my request is granted, miss handling finishes.
                         nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
-                    else if (mshr[i].isFlushed) begin
+                    else if (mshr[i].isAllocatorLoadFlushed) begin
                         // If its allocator is flushed, miss handling finishes.
                         nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
                     end
@@ -1874,9 +1877,9 @@ module DCacheMissHandler(
 
                 // 7.
                 // * (Cachable) データアレイへの書き込みと解放可能条件を待って MSHR 解放
-                // 現在の開放可能条件は
-                // ・割り当て者がLoadでそのLoadへのデータの受け渡しが完了した場合
-                // ・割り当て者がStoreの場合 (該当Storeのデータはこの時点でキャッシュ or Memoryに書き込まれている)
+                // 現在の解放可能条件は
+                // ・割り当て者が Load でその Load へのデータの受け渡しが完了 or その Load がフラッシュされた場合
+                // ・割り当て者が Store の場合 (該当 Store のデータはこの時点でキャッシュ or Memory に書き込まれている)
                 MSHR_PHASE_MISS_HANDLING_COMPLETE: begin
                     if (mshr[i].canBeInvalid || mshr[i].isAllocatedByStore) begin
                         nextMSHR[i].phase = MSHR_PHASE_INVALID;
