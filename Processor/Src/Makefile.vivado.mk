@@ -64,7 +64,7 @@ all: Makefiles/CoreSources.inc.mk
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
 	# elaboration
-	# cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
+	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
 
 run:

@@ -11,6 +11,7 @@ import MemoryTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import MicroOpTypes::*;
 import LoadStoreUnitTypes::*;
 import MemoryMapTypes::*;

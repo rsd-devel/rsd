@@ -15,8 +15,10 @@ import BypassTypes::*;
 import RenameLogicTypes::*;
 import LoadStoreUnitTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import FetchUnitTypes::*;
 import MemoryMapTypes::*;
+import CacheSystemTypes::*;
 
 // Controll of a pipeline
 // See comments in Controller
@@ -355,6 +357,9 @@ typedef struct packed // MemoryAccessStageRegPath
     // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
     DataPath csrDataOut; 
 
+    logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
+    MSHR_IndexPath mshrID;
+    logic storeForwardMiss;      // Store-load forwarding miss occurs
 } MemoryAccessStageRegPath;
 
 
@@ -374,53 +379,18 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     OpDst    opDst;
     ExecutionState execState; // Execution status. See RenameLogicTypes.sv
     logic isStore;
+    logic isLoad;
 
     PRegDataPath dataOut;    // Result of Load
 `ifdef RSD_ENABLE_VECTOR_PATH
     PVecDataPath vecDataOut; // Result of Vector Load
 `endif
 
+    logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
+    MSHR_IndexPath mshrID;
+    logic storeForwardMiss;      // Store-load forwarding miss occurs
 } MemoryRegisterWriteStageRegPath;
 
-function automatic logic SelectiveFlushDetector(
-    input logic detectRange,
-    input ActiveListIndexPath headPtr,
-    input ActiveListIndexPath tailPtr,
-    input logic flushAllInsns,
-    input ActiveListIndexPath opPtr
-);
-    if(!detectRange) begin
-        return FALSE;
-    end
-    else if (flushAllInsns) begin
-        return TRUE;
-    end
-    else if(detectRange && tailPtr >= headPtr) begin
-        //  |---h***i***t-------|
-        if(opPtr >= headPtr && opPtr < tailPtr) begin
-            return TRUE;
-        end
-        else begin
-            return FALSE;
-        end
-    end
-    else if(detectRange && tailPtr < headPtr) begin
-        //  |*****t----h***i****|
-        if(opPtr >= headPtr && opPtr > tailPtr) begin
-            return TRUE;
-        end
-        //  |**i***t----h*******|
-        else if(opPtr < headPtr && opPtr < tailPtr) begin
-            return TRUE;
-        end
-        else begin
-            return FALSE;
-        end
-    end
-    else begin
-        return FALSE;
-    end
-endfunction
 
 endpackage
 

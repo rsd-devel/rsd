@@ -18,6 +18,7 @@ import BypassTypes::*;
 import RenameLogicTypes::*;
 import LoadStoreUnitTypes::*;
 import FetchUnitTypes::*;
+import ActiveListIndexTypes::*;
 
 // Issue queue
 localparam ISSUE_QUEUE_ENTRY_NUM = CONF_ISSUE_QUEUE_ENTRY_NUM;
@@ -53,14 +54,6 @@ localparam ISSUE_QUEUE_RESET_CYCLE
 localparam ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE
     = $clog2( ISSUE_QUEUE_RESET_CYCLE );
 
-
-//
-// --- Active list 
-//
-localparam ACTIVE_LIST_ENTRY_NUM = CONF_ACTIVE_LIST_ENTRY_NUM;
-localparam ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH = $clog2( ACTIVE_LIST_ENTRY_NUM );
-typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] ActiveListIndexPath;
-typedef logic [ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH:0] ActiveListCountPath;
 
 // Information about the execution of an op.
 typedef enum logic [3:0] // ExecutionState
@@ -197,6 +190,7 @@ typedef struct packed // IntIssueQueueEntry
     OpId      opId;
 `endif
 
+    // Decoded op information
     IntOpInfo intOpInfo;
 
     IntMicroOpSubType opType;
@@ -240,6 +234,7 @@ typedef struct packed // ComplexIssueQueueEntry
     OpId      opId;
 `endif
 
+    // Decoded op information
     ComplexOpInfo complexOpInfo;
     ComplexMicroOpSubType opType;
 
@@ -281,14 +276,6 @@ typedef struct packed // MemOpInfo
     DivOpSubInfo divSubInfo;
 `endif
 
-    // Pointer of LSQ
-    LoadQueueIndexPath loadQueuePtr;
-    StoreQueueIndexPath storeQueuePtr;
-
-    // MSHRをAllocateした命令かどうか
-    logic hasAllocatedMSHR;
-    MSHR_IndexPath mshrID;
-
 } MemOpInfo;
 
 typedef struct packed // MemIssueQueueEntry
@@ -297,7 +284,17 @@ typedef struct packed // MemIssueQueueEntry
     OpId      opId;
 `endif
 
-    MemOpInfo memOpInfo;
+    // Decoded op information
+    MemOpInfo memOpInfo;    
+
+    // Pointer of LSQ
+    LoadQueueIndexPath loadQueuePtr;
+    StoreQueueIndexPath storeQueuePtr;
+
+    // Whether this load has allocated MSHR or not
+    logic hasAllocatedMSHR;
+    MSHR_IndexPath mshrID;
+
     ActiveListIndexPath activeListPtr;
     LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery
     StoreQueueIndexPath storeQueueRecoveryPtr;    //for recovery

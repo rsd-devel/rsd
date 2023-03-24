@@ -19,6 +19,7 @@ import MemoryMapTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 
 module RecoveryManager(
     RecoveryManagerIF.RecoveryManager port,

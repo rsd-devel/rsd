@@ -11,6 +11,7 @@ import CacheSystemTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 
 interface SchedulerIF( input logic clk, rst, rstStart );
@@ -69,8 +70,6 @@ interface SchedulerIF( input logic clk, rst, rstStart );
     logic               memReplayEntry[MEM_ISSUE_WIDTH];
     MemIssueQueueEntry  memRecordData[MEM_ISSUE_WIDTH];
     MemIssueQueueEntry  memReplayData[MEM_ISSUE_WIDTH];
-    logic               memRecordAddrHit[MEM_ISSUE_WIDTH];
-    DCacheIndexSubsetPath   memRecordAddrSubset[MEM_ISSUE_WIDTH];
     logic replay;
 
     // Stall scheduling
@@ -141,8 +140,6 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexRecordEntry,
         complexRecordData,
 `endif
-        memRecordAddrHit,
-        memRecordAddrSubset,
         memRecordEntry,
         memRecordData,
     output
@@ -241,8 +238,6 @@ interface SchedulerIF( input logic clk, rst, rstStart );
 
     modport MemoryTagAccessStage(
     output
-        memRecordAddrHit,
-        memRecordAddrSubset,
         memRecordEntry,
         memRecordData
     );

@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 
 interface RecoveryManagerIF( input logic clk, rst );
@@ -252,6 +253,21 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase
     );
 
+    modport DCacheMissHandler(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
+
+    modport MulDivUnit(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
 
     modport IntegerIssueStage(
     input

@@ -11,6 +11,7 @@ import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 module MemoryIssueStage(
@@ -119,9 +120,7 @@ module MemoryIssueStage(
             mulDivUnit.divAcquire[i] = 
                 !clear && valid[i] && !flush[i] && 
                 issuedData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV;
-            mulDivUnit.divResetFromMI_Stage[i] = 
-                valid[i] && (flush[i] || clear) &&
-                issuedData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV;
+            mulDivUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
         end
 `endif
         port.nextStage = nextStage;

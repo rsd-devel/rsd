@@ -12,6 +12,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 import MicroOpTypes::*;
@@ -21,11 +22,6 @@ import MemoryMapTypes::*;
 // When this switch is enabled, instructions are re-issued from the issue queue.
 // Otherwise, instructions are refetched.
 `define RSD_ENABLE_REISSUE_ON_CACHE_MISS
-
-// To a part of a line index from a full address.
-function automatic DCacheIndexSubsetPath ToIndexSubsetPartFromFullAddrInMTStage(input AddrPath addr);
-    return addr[DCACHE_LINE_BYTE_NUM_BIT_WIDTH+DCACHE_INDEX_SUBSET_BIT_WIDTH-1 : DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
-endfunction
 
 module MemoryTagAccessStage(
     MemoryTagAccessStageIF.ThisStage port,
@@ -68,9 +64,6 @@ module MemoryTagAccessStage(
     // Pipeline control
     logic stall, clear;
 
-    logic lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
-    MSHR_IndexPath mshrID;
-
     MemIssueQueueEntry ldIqData[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry stIqData[STORE_ISSUE_WIDTH];
 
@@ -101,6 +94,7 @@ module MemoryTagAccessStage(
     logic isDiv     [LOAD_ISSUE_WIDTH];
     logic isMul     [LOAD_ISSUE_WIDTH];
     logic isFenceI  [LOAD_ISSUE_WIDTH];
+    logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
 
@@ -109,10 +103,6 @@ module MemoryTagAccessStage(
     DataPath ldMSHR_EntryID[LOAD_ISSUE_WIDTH];
 
     always_comb begin
-        for ( int i = 0; i < MSHR_NUM; i++ ) begin
-            lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-        end
-
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
 
             ldFlush[i] = SelectiveFlushDetector(
@@ -133,78 +123,85 @@ module MemoryTagAccessStage(
             // Load store unit
             loadStoreUnit.executeLoad[i] = ldUpdate[i] && isLoad[i];
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
+            loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
             loadStoreUnit.executedLoadMemAccessMode[i] = ldIqData[i].memOpInfo.memAccessMode;
-            loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].memOpInfo.storeQueuePtr;
-            loadStoreUnit.executedLoadQueuePtrByLoad[i] = ldIqData[i].memOpInfo.loadQueuePtr;
+            loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].storeQueuePtr;
+            loadStoreUnit.executedLoadQueuePtrByLoad[i] = ldIqData[i].loadQueuePtr;
 
             // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
             // whether missed loads have allocated MSHRs or not.
 `ifndef RSD_DISABLE_DEBUG_REGISTER // Debug info
-            ldRecordData[i].opId = ldPipeReg[i].memQueueData.opId;
+            ldRecordData[i].opId = ldIqData[i].opId;
 `endif
-            ldRecordData[i].activeListPtr = ldPipeReg[i].memQueueData.activeListPtr;
-            ldRecordData[i].opSrc         = ldPipeReg[i].memQueueData.opSrc;
-            ldRecordData[i].opDst         = ldPipeReg[i].memQueueData.opDst;
-            ldRecordData[i].pc            = ldPipeReg[i].memQueueData.pc;
-            ldRecordData[i].memOpInfo     = ldPipeReg[i].memQueueData.memOpInfo;
+            ldRecordData[i].activeListPtr = ldIqData[i].activeListPtr;
+            ldRecordData[i].opSrc         = ldIqData[i].opSrc;
+            ldRecordData[i].opDst         = ldIqData[i].opDst;
+            ldRecordData[i].pc            = ldIqData[i].pc;
+            ldRecordData[i].memOpInfo     = ldIqData[i].memOpInfo;
             ldRecordData[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldRecordData[i].loadQueueRecoveryPtr  = ldIqData[i].loadQueueRecoveryPtr;
+            ldRecordData[i].loadQueuePtr  = ldIqData[i].loadQueuePtr;
+            ldRecordData[i].storeQueuePtr  = ldIqData[i].storeQueuePtr;
 
             // For performance counters
             ldMSHR_Allocated[i] = FALSE;
             ldMSHR_Hit[i] = FALSE;
             ldMSHR_EntryID[i] = 0;
 
+            storeForwardMiss[i] = FALSE;
+
             // Set MSHR id if the load instruction allocated a MSHR entry.
-            if (ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR) begin
-                ldRecordData[i].memOpInfo.hasAllocatedMSHR = ldPipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
-                ldRecordData[i].memOpInfo.mshrID = ldPipeReg[i].memQueueData.memOpInfo.mshrID;
-                // TODO: バグで Ex ステージで hasAllocatedMSHR が落とされているので，
-                // ここに来ることは絶対無い
+            if (ldIqData[i].hasAllocatedMSHR) begin
+                ldRecordData[i].hasAllocatedMSHR = ldIqData[i].hasAllocatedMSHR;
+                ldRecordData[i].mshrID = ldIqData[i].mshrID;
+
+                // 前回実行時に MSHR を確保したがリプレイ時に SQ からのフォワードミスが発生した場合
+                // MSHR を手放さないと先行するストアがコミットできずデッドロックする
+                // storeForwardMiss を後段に伝えて RW ステージで MSHR を解放し，MSHR を確保したフラグをここで落とす
+                if (loadStoreUnit.storeLoadForwarded[i] && loadStoreUnit.forwardMiss[i]) begin
+                    storeForwardMiss[i] = TRUE;
+                    ldRecordData[i].hasAllocatedMSHR = FALSE;
+                end
             end
             else begin
                 if (i < LOAD_ISSUE_WIDTH) begin
-                    ldRecordData[i].memOpInfo.hasAllocatedMSHR = loadStoreUnit.loadHasAllocatedMSHR[i];
+                    ldRecordData[i].hasAllocatedMSHR = loadStoreUnit.loadHasAllocatedMSHR[i];
 
                     // There are two sources of MSHR ID to memorize,
                     // 1. when a load hits a MSHR entry, the hit MSHR ID,
                     // 2. when a load allocates a MSHR entry, the allocated MSHR ID.
                     // 3. when otherwise (no hit and no allocate), don't ldUpdate.
                     if (loadStoreUnit.loadHasAllocatedMSHR[i]) begin
-                        ldRecordData[i].memOpInfo.mshrID = loadStoreUnit.loadMSHRID[i];
+                        ldRecordData[i].mshrID = loadStoreUnit.loadMSHRID[i];
                         // MSHR allocation is performed 
                         ldMSHR_Allocated[i] = TRUE;
                         ldMSHR_EntryID[i] = loadStoreUnit.loadMSHRID[i];
                     end
                     else if (loadStoreUnit.mshrAddrHit[i]) begin
-                        // TODO: バグで Ex ステージで hasAllocatedMSHR が落とされているので，
-                        // MSHR 確保後はここのパスを通ってしまう．意図してはいないがたまたま動いている．
-                        ldRecordData[i].memOpInfo.mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
+                        ldRecordData[i].mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
                         // MSHR Hit?
                         ldMSHR_Hit[i] = loadStoreUnit.mshrReadHit[i];
                         ldMSHR_EntryID[i] = loadStoreUnit.mshrAddrHitMSHRID[i];
                     end
                     else begin
-                        ldRecordData[i].memOpInfo.mshrID = ldPipeReg[i].memQueueData.memOpInfo.mshrID;
+                        ldRecordData[i].mshrID = ldIqData[i].mshrID;
                     end
                 end
                 else begin
-                    ldRecordData[i].memOpInfo.hasAllocatedMSHR = FALSE;
-                    ldRecordData[i].memOpInfo.mshrID = '0;
+                    ldRecordData[i].hasAllocatedMSHR = FALSE;
+                    ldRecordData[i].mshrID = '0;
                 end
             end
 
-            loadStoreUnit.dcReadCancelFromMT_Stage[i] = FALSE;
-            
+           
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i]) begin
                 if (loadStoreUnit.storeLoadForwarded[i]) begin
-                    loadStoreUnit.dcReadCancelFromMT_Stage[i] = TRUE;   // キャンセルしてMSHR の確保を行わせない
                     ldRegValid[i] = loadStoreUnit.forwardMiss[i] ? FALSE : ldPipeReg[i].regValid;
                 end
-                else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+                else if (ldRecordData[i].hasAllocatedMSHR) begin
                     // When the load has allocated an MSHR entry,
                     // The data will come from MSHR.
                     ldRegValid[i] = loadStoreUnit.mshrReadHit[i] ? ldPipeReg[i].regValid : FALSE;
@@ -217,7 +214,7 @@ module MemoryTagAccessStage(
                     ldRegValid[i] = loadStoreUnit.dcReadHit[i] ? ldPipeReg[i].regValid : FALSE;
                 end
             end
-            else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+            else if (ldRecordData[i].hasAllocatedMSHR) begin
                 // When the prefetch load has allocated an MSHR entry,
                 // The data will come from MSHR.
                 ldRegValid[i] = loadStoreUnit.mshrReadHit[i] ? ldPipeReg[i].regValid : FALSE;
@@ -237,8 +234,6 @@ module MemoryTagAccessStage(
                     /*ldPipeReg[i].replay && */
                     ldRegValid[i] = mulDivUnit.divFinished[i];
                 end
-                mulDivUnit.divResetFromMT_Stage[i] = 
-                    ldRegValid[i] && (ldFlush[i] || clear) && isDiv[i];
             `endif
 
             // Pipeline レジスタ書き込み
@@ -260,6 +255,10 @@ module MemoryTagAccessStage(
             ldNextStage[i].storeQueueRecoveryPtr = ldIqData[i].storeQueueRecoveryPtr;
             ldNextStage[i].pc = ldIqData[i].pc;
 
+            ldNextStage[i].hasAllocatedMSHR = ldRecordData[i].hasAllocatedMSHR;
+            ldNextStage[i].mshrID = ldRecordData[i].mshrID;
+            ldNextStage[i].storeForwardMiss = storeForwardMiss[i];
+
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -274,11 +273,8 @@ module MemoryTagAccessStage(
                     // フォワードされた場合
                     ldNextStage[i].execState =
                         loadStoreUnit.forwardMiss[i] ? EXEC_STATE_REFETCH_THIS : EXEC_STATE_SUCCESS;
-                    if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
-                        lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[ldRecordData[i].memOpInfo.mshrID] = TRUE;
-                    end
                 end
-                else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+                else if (ldRecordData[i].hasAllocatedMSHR) begin
                     ldNextStage[i].execState =
                             loadStoreUnit.mshrReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
@@ -291,7 +287,7 @@ module MemoryTagAccessStage(
                         loadStoreUnit.dcReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
             end
-            else if (ldRecordData[i].memOpInfo.hasAllocatedMSHR) begin
+            else if (ldRecordData[i].hasAllocatedMSHR) begin
                 ldNextStage[i].execState =
                         loadStoreUnit.mshrReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
             end
@@ -342,25 +338,6 @@ module MemoryTagAccessStage(
 `endif
         end // for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
 
-        //フラッシュによってMSHRをアロケートしたロード命令がフラッシュされる場合のMSHRの解放処理
-        for ( int i = 0; i < MSHR_NUM; i++ ) begin
-            loadStoreUnit.makeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-        end
-        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            if (ldPipeReg[i].valid && isLoad[i]) begin
-                if (ldFlush[i]) begin
-                    lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = ldRecordData[i].memOpInfo.hasAllocatedMSHR;
-                end
-            end
-            else begin
-                lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] = FALSE;
-            end
-
-            mshrID = ldRecordData[i].memOpInfo.mshrID;
-            if (lsuMakeMSHRCanBeInvalidByMemoryTagAccessStage[i] && isLoad[i]) begin
-                loadStoreUnit.makeMSHRCanBeInvalidByMemoryTagAccessStage[mshrID] = TRUE;
-            end
-        end
 
     end // always_comb
 
@@ -401,23 +378,25 @@ module MemoryTagAccessStage(
             loadStoreUnit.executedStoreCondEnabled[i]   = stPipeReg[i].condEnabled;
             loadStoreUnit.executedStoreRegValid[i] = stPipeReg[i].regValid;
             loadStoreUnit.executedStoreMemAccessMode[i] = stIqData[i].memOpInfo.memAccessMode;
-            loadStoreUnit.executedLoadQueuePtrByStore[i] = stIqData[i].memOpInfo.loadQueuePtr;
-            loadStoreUnit.executedStoreQueuePtrByStore[i] = stIqData[i].memOpInfo.storeQueuePtr;
+            loadStoreUnit.executedLoadQueuePtrByStore[i] = stIqData[i].loadQueuePtr;
+            loadStoreUnit.executedStoreQueuePtrByStore[i] = stIqData[i].storeQueuePtr;
 
             // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
             // whether missed loads have allocated MSHRs or not.
 `ifndef RSD_DISABLE_DEBUG_REGISTER // Debug info
-            stRecordData[i].opId = stPipeReg[i].memQueueData.opId;
+            stRecordData[i].opId = stIqData[i].opId;
 `endif
-            stRecordData[i].activeListPtr = stPipeReg[i].memQueueData.activeListPtr;
-            stRecordData[i].opSrc         = stPipeReg[i].memQueueData.opSrc;
-            stRecordData[i].opDst         = stPipeReg[i].memQueueData.opDst;
-            stRecordData[i].pc = stPipeReg[i].memQueueData.pc;
+            stRecordData[i].activeListPtr = stIqData[i].activeListPtr;
+            stRecordData[i].opSrc         = stIqData[i].opSrc;
+            stRecordData[i].opDst         = stIqData[i].opDst;
+            stRecordData[i].pc = stIqData[i].pc;
             stRecordData[i].storeQueueRecoveryPtr = stIqData[i].storeQueueRecoveryPtr;
             stRecordData[i].loadQueueRecoveryPtr  = stIqData[i].loadQueueRecoveryPtr;
-            stRecordData[i].memOpInfo = stPipeReg[i].memQueueData.memOpInfo;
-            stRecordData[i].memOpInfo.hasAllocatedMSHR = FALSE;
-            stRecordData[i].memOpInfo.mshrID = '0;
+            stRecordData[i].memOpInfo = stIqData[i].memOpInfo;
+            stRecordData[i].loadQueuePtr  = stIqData[i].loadQueuePtr;
+            stRecordData[i].storeQueuePtr  = stIqData[i].storeQueuePtr;
+            stRecordData[i].hasAllocatedMSHR = FALSE;
+            stRecordData[i].mshrID = '0;
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             stRegValid[i] = stPipeReg[i].regValid;
@@ -444,6 +423,10 @@ module MemoryTagAccessStage(
             stNextStage[i].loadQueueRecoveryPtr = stIqData[i].loadQueueRecoveryPtr;
             stNextStage[i].storeQueueRecoveryPtr = stIqData[i].storeQueueRecoveryPtr;
             stNextStage[i].pc  = stIqData[i].pc;
+
+            stNextStage[i].hasAllocatedMSHR = FALSE;
+            stNextStage[i].mshrID = 0;
+            stNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -497,16 +480,12 @@ module MemoryTagAccessStage(
                 if (isStore[i]) begin
                     scheduler.memRecordEntry[i] = stUpdate[i] && !stRegValid[i];
                     scheduler.memRecordData[i] = stRecordData[i];
-                    scheduler.memRecordAddrHit[i] = FALSE;
-                    scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(stPipeReg[i].addrOut);
                     nextStage[i] = stNextStage[i];
                     flush[i] = stFlush[i];
                 end
                 else begin
                     scheduler.memRecordEntry[i] = ldUpdate[i] && !ldRegValid[i];
                     scheduler.memRecordData[i] = ldRecordData[i];
-                    scheduler.memRecordAddrHit[i] = loadStoreUnit.mshrAddrHit[i];
-                    scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(ldPipeReg[i].addrOut);
                     nextStage[i] = ldNextStage[i];
                     flush[i] = ldFlush[i];
                 end
@@ -516,8 +495,6 @@ module MemoryTagAccessStage(
                 // Record instructions to the replay queue.
                 scheduler.memRecordEntry[i] = ldUpdate[i] && !ldRegValid[i];
                 scheduler.memRecordData[i] = ldRecordData[i];
-                scheduler.memRecordAddrHit[i] = loadStoreUnit.mshrAddrHit[i];
-                scheduler.memRecordAddrSubset[i] = ToIndexSubsetPartFromFullAddrInMTStage(ldPipeReg[i].addrOut);
                 nextStage[i] = ldNextStage[i];
                 flush[i] = ldFlush[i];
             end
@@ -525,8 +502,6 @@ module MemoryTagAccessStage(
                 // Record instructions to the replay queue.
                 scheduler.memRecordEntry[i+STORE_ISSUE_LANE_BEGIN] = stUpdate[i] && !stRegValid[i];
                 scheduler.memRecordData[i+STORE_ISSUE_LANE_BEGIN] = stRecordData[i];
-                scheduler.memRecordAddrHit[i+STORE_ISSUE_LANE_BEGIN] = FALSE;
-                scheduler.memRecordAddrSubset[i+STORE_ISSUE_LANE_BEGIN] = ToIndexSubsetPartFromFullAddrInMTStage(stPipeReg[i].addrOut);
                 nextStage[i+STORE_ISSUE_LANE_BEGIN] = stNextStage[i];
                 flush[i+STORE_ISSUE_LANE_BEGIN] = stFlush[i];
             end

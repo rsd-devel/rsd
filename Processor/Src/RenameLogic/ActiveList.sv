@@ -13,6 +13,7 @@ import MemoryMapTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;

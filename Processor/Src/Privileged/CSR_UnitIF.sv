@@ -12,6 +12,7 @@ import MemoryMapTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(

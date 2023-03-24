@@ -5,6 +5,7 @@
 
 import BasicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 
 //`define ALWAYS_SPECULATIVE
 //`define ALWAYS_NOT_SPECULATIVE

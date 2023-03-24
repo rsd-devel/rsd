@@ -12,6 +12,7 @@
 `include "BasicMacros.sv"
 import BasicTypes::*;
 import OpFormatTypes::*;
+import ActiveListIndexTypes::*;
 
 
 interface MulDivUnitIF(input logic clk, rst);
@@ -29,7 +30,6 @@ interface MulDivUnitIF(input logic clk, rst);
 
     DataPath    divDataOut  [MULDIV_ISSUE_WIDTH];
     IntDIV_Code divCode     [MULDIV_ISSUE_WIDTH];
-    logic       divReset    [MULDIV_ISSUE_WIDTH];
     logic       divReq      [MULDIV_ISSUE_WIDTH];
     logic       divReserved [MULDIV_ISSUE_WIDTH];
     logic       divFinished [MULDIV_ISSUE_WIDTH];
@@ -39,11 +39,7 @@ interface MulDivUnitIF(input logic clk, rst);
     logic divAcquire[MULDIV_ISSUE_WIDTH];
     logic divRelease[MULDIV_ISSUE_WIDTH];
 
-    logic divResetFromMI_Stage[MULDIV_ISSUE_WIDTH];
-    logic divResetFromMR_Stage[MULDIV_ISSUE_WIDTH];
-    logic divResetFromMT_Stage[MULDIV_ISSUE_WIDTH];
-
-    logic divResetFromCI_Stage[MULDIV_ISSUE_WIDTH];
+    ActiveListIndexPath acquireActiveListPtr[MULDIV_ISSUE_WIDTH];
 
     modport MulDivUnit(
     input
@@ -55,14 +51,10 @@ interface MulDivUnitIF(input logic clk, rst);
         mulGetUpper,
         mulCode,
         divCode,
-        divReset,
-        divResetFromCI_Stage,
-        divResetFromMI_Stage,
-        divResetFromMR_Stage,
-        divResetFromMT_Stage,
         divReq,
         divAcquire,
         divRelease,
+        acquireActiveListPtr,
     output
         mulDataOut,
         divDataOut,
@@ -79,7 +71,7 @@ interface MulDivUnitIF(input logic clk, rst);
         ,
     output
         divAcquire,
-        divResetFromCI_Stage
+        acquireActiveListPtr
 `endif
     );
 
@@ -100,7 +92,6 @@ interface MulDivUnitIF(input logic clk, rst);
         mulGetUpper,
         mulCode,
         divCode,
-        divReset,
         divReq,
         divRelease
 `endif
@@ -113,13 +104,8 @@ interface MulDivUnitIF(input logic clk, rst);
         ,
     output
         divAcquire,
-        divResetFromMI_Stage
+        acquireActiveListPtr
 `endif
-    );
-
-    modport MemoryRegisterReadStage(
-    output
-        divResetFromMR_Stage
     );
 
     modport MemoryExecutionStage(
@@ -136,16 +122,13 @@ interface MulDivUnitIF(input logic clk, rst);
         mulGetUpper,
         mulCode,
         divCode,
-        divReset,
         divReq
 `endif
     );
 
     modport MemoryTagAccessStage(
     input
-        divFinished,
-    output
-        divResetFromMT_Stage
+        divFinished
     );
 
     modport MemoryAccessStage(

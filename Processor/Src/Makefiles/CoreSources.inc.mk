@@ -19,6 +19,7 @@ TYPES = \
 	MicroArchConf.sv \
 	BasicTypes.sv \
 	Memory/MemoryMapTypes.sv \
+	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	Memory/MemoryTypes.sv \
 	Decoder/OpFormat.sv \

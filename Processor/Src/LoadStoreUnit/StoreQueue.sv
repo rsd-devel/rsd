@@ -297,6 +297,7 @@ module StoreQueue(
             for (int j = 0; j < STORE_QUEUE_ENTRY_NUM; j++) begin
                 addrMatch[i][j] =
                     storeQueue[j].finished &&
+                    port.executedLoadMemMapType[i] != MMT_ILLEGAL && 
                     storeQueue[j].address == LSQ_ToBlockAddr(port.executedLoadAddr[i]) &&
                     ((storeQueue[j].wordWE & executedLoadWordRE[i]) != '0) &&
                     ((storeQueue[j].byteWE & executedLoadByteRE[i]) != '0);

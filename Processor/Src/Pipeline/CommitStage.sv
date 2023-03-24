@@ -15,9 +15,9 @@ import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 import FetchUnitTypes::*;
-
 
 // 実行が終わってInsnの範囲を調べ、
 // それがアクティブリストの先頭からop何個分に相当するかを返す

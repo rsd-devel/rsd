@@ -11,6 +11,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import CacheSystemTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
@@ -38,8 +39,6 @@ endfunction
 module MemoryRegisterReadStage(
     MemoryRegisterReadStageIF.ThisStage port,
     MemoryIssueStageIF.NextStage prev,
-    LoadStoreUnitIF.MemoryRegisterReadStage loadStoreUnit,
-    MulDivUnitIF.MemoryRegisterReadStage mulDivUnit,
     RegisterFileIF.MemoryRegisterReadStage registerFile,
     BypassNetworkIF.MemoryRegisterReadStage bypass,
     RecoveryManagerIF.MemoryRegisterReadStage recovery,
@@ -87,9 +86,6 @@ module MemoryRegisterReadStage(
     OpDst opDst[MEM_ISSUE_WIDTH];
     MemoryExecutionStageRegPath nextStage [MEM_ISSUE_WIDTH];
     MSHR_IndexPath mshrID;
-
-    logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
-    logic isLoad[LOAD_ISSUE_WIDTH];
 
     always_comb begin
         stall = ctrl.backEnd.stall;
@@ -175,15 +171,6 @@ module MemoryRegisterReadStage(
             nextStage[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
         end
 
-        `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-            // divがこのステージ内でフラッシュされた場合，演算器を解放する
-            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-                mulDivUnit.divResetFromMR_Stage[i] = 
-                    (memOpInfo[i].opType == MEM_MOP_TYPE_DIV) &&
-                    pipeReg[i].valid && flush[i];
-            end
-        `endif
-
         // Vector Operand
 `ifdef RSD_ENABLE_VECTOR_PATH
         `RSD_STATIC_ASSERT(FALSE, "TODO: ls/st unified pipeline");
@@ -195,27 +182,6 @@ module MemoryRegisterReadStage(
         end
 `endif
         port.nextStage = nextStage;
-
-        //フラッシュによってMSHRをアロケートしたロード命令がフラッシュされる場合のMSHRの解放処理
-        for (int i = 0; i < MSHR_NUM; i++) begin
-            loadStoreUnit.makeMSHRCanBeInvalidByMemoryRegisterReadStage[i] = FALSE;
-        end
-
-
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            isLoad[i] = pipeReg[i].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_LOAD;
-            if (pipeReg[i].valid && isLoad[i] && flush[i]) begin
-                makeMSHRCanBeInvalid[i] = pipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
-            end
-            else begin
-                makeMSHRCanBeInvalid[i] = FALSE;
-            end
-
-            mshrID = pipeReg[i].memQueueData.memOpInfo.mshrID;
-            if (makeMSHRCanBeInvalid[i]) begin
-                loadStoreUnit.makeMSHRCanBeInvalidByMemoryRegisterReadStage[mshrID] = TRUE;
-            end
-        end
 
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER
