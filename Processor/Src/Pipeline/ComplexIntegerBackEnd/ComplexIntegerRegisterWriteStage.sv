@@ -12,6 +12,7 @@ import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -70,6 +71,7 @@ module ComplexIntegerRegisterWriteStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             update[i] = !stall && !clear && valid[i] && !flush[i];

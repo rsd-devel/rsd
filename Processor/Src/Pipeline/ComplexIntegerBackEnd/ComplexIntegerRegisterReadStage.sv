@@ -11,6 +11,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 
@@ -107,6 +108,7 @@ module ComplexIntegerRegisterReadStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             nextStage[i].valid =

@@ -14,6 +14,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 
@@ -29,7 +30,7 @@ module ComplexIntegerExecutionStage(
     ControllerIF.ComplexIntegerExecutionStage ctrl,
     DebugIF.ComplexIntegerExecutionStage debug
 );
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ COMPLEX_ISSUE_WIDTH ][ COMPLEX_EXEC_STAGE_DEPTH ];
 
@@ -131,26 +132,6 @@ module ComplexIntegerExecutionStage(
     logic isDiv         [ COMPLEX_ISSUE_WIDTH ]; 
     logic finished      [ COMPLEX_ISSUE_WIDTH ];
 
-    // For selective flush
-    ActiveListIndexPath regActiveListIndex  [ COMPLEX_ISSUE_WIDTH ];
-    ActiveListIndexPath nextActiveListIndex [ COMPLEX_ISSUE_WIDTH ];
-    logic divReset[ COMPLEX_ISSUE_WIDTH ];
-
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
-                regActiveListIndex[i] <= '0;
-            end
-        end
-        else begin
-            regActiveListIndex <= nextActiveListIndex;
-        end
-    end
-
-    for ( genvar i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
-        //`RSD_ASSERT_CLK(port.clk, !(!mulDivUnit.divFree[i] && scheduler.divIsIssued[i]), "");
-    end
-
     always_comb begin
 
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
@@ -175,26 +156,6 @@ module ComplexIntegerExecutionStage(
             mulDivUnit.dataInA[i] = fuOpA[i].data;
             mulDivUnit.dataInB[i] = fuOpB[i].data;
 
-            // Reset 条件
-            divReset[i] = FALSE;
-            // Dividerで処理中のdivがフラッシュされたら，Dividerの状態をFREEに変更して
-            // IQからdivを発行できるようにする
-            if (recovery.toRecoveryPhase) begin
-                divReset[i] = SelectiveFlushDetector( 
-                    recovery.toRecoveryPhase, 
-                    recovery.flushRangeHeadPtr, 
-                    recovery.flushRangeTailPtr, 
-                    regActiveListIndex[i]
-                );
-            end
-            if (clear) begin
-                divReset[i] = TRUE;
-            end
-            if (isDiv[i] && (pipeReg[i].isFlushed || (pipeReg[i].valid && flush[i][0]))) begin
-                // Div is flushed at register read stage, so release the divider
-                divReset[i] = TRUE;
-            end
-            mulDivUnit.divReset[i] = divReset[i];
 
             // Request to the divider
             // NOT make a request when below situation
@@ -219,14 +180,6 @@ module ComplexIntegerExecutionStage(
                 mulDivUnit.divRelease[i] = FALSE;
             end
 `endif
-
-            if (pipeReg[i].valid && isDiv[i] && mulDivUnit.divReserved[i]) begin
-                nextActiveListIndex[i] = 
-                    pipeReg[i].complexQueueData.activeListPtr;
-            end
-            else begin
-                nextActiveListIndex[i] = regActiveListIndex[i];
-            end
         end
     end
 
@@ -245,6 +198,7 @@ module ComplexIntegerExecutionStage(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
                 recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
                 pipeReg[i].complexQueueData.activeListPtr
             );
 
@@ -255,6 +209,7 @@ module ComplexIntegerExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns,
                     localPipeReg[i][j-1].complexQueueData.activeListPtr 
                 );
             end
@@ -269,7 +224,7 @@ module ComplexIntegerExecutionStage(
             // --- regValid
             //
 
-            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             // ベクタ以外の演算
             regValid[i] =
                 fuOpA[i].valid &&
@@ -398,7 +353,7 @@ module ComplexIntegerExecutionStage(
             nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
             nextLocalPipeReg[i][0].complexQueueData = pipeReg[i].complexQueueData;
 
-            // Regvalid of local pipeline 
+            // Reg valid of local pipeline 
             if (isDiv[i]) begin
                 nextLocalPipeReg[i][0].regValid = 
                     pipeReg[i].replay && (mulDivUnit.divFinished[i]);

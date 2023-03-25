@@ -3,7 +3,7 @@ MAX_TEST_CYCLES = 100000
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
 TEST_CODE = Verification/TestCode/Asm/FP
-#TEST_CODE = Verification/TestCode/C/FP
+TEST_CODE = Verification/TestCode/C/FP
 #TEST_CODE = Verification/TestCode/C/HelloWorld
 
 ifndef RSD_VERILATOR_BIN
@@ -22,7 +22,7 @@ TOP_MODULE = Main_Zynq_Wrapper
 VERILATED_TOP_MODULE_NAME = V$(TOP_MODULE)
 
 # Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python2 ../Tools/KanataConverter/KanataConverter.py
+KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
@@ -68,7 +68,7 @@ VERILATOR_OPTION = \
 	--Mdir $(LIBRARY_WORK_RTL) \
 	+incdir+. \
 	--trace \
-	-CFLAGS -Os \
+	-CFLAGS "-Os -include limits" \
 	-output-split 15000 \
 	#-CFLAGS "-O0 -g" \
 	#--MMD \
@@ -125,9 +125,9 @@ clean:
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = @python2 ../Tools/TestDriver/RunTest.py --simulator=verilator
+RUN_TEST = @python3 ../Tools/TestDriver/RunTest.py --simulator=verilator
 RUN_TEST_OMIT_MSG = \
-	@python2 ../Tools/TestDriver/RunTest.py -o --simulator=verilator 
+	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=verilator 
 include Makefiles/TestCommands.inc.mk
 
 

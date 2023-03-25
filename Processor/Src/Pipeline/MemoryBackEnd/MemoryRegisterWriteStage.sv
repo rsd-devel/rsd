@@ -11,14 +11,17 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
+import CacheSystemTypes::*;
 
 
 
 module MemoryRegisterWriteStage(
     //MemoryRegisterWriteStageIF.ThisStage port,
     MemoryAccessStageIF.NextStage prev,
+    LoadStoreUnitIF.MemoryRegisterWriteStage loadStoreUnit,
     RegisterFileIF.MemoryRegisterWriteStage registerFile,
     ActiveListIF.MemoryRegisterWriteStage activeList,
     RecoveryManagerIF.MemoryRegisterWriteStage recovery,
@@ -57,6 +60,8 @@ module MemoryRegisterWriteStage(
     ActiveListWriteData alWriteData[MEM_ISSUE_WIDTH];
 
     ExecutionState execState[MEM_ISSUE_WIDTH];
+    MSHR_IndexPath mshrID;
+    logic makeMSHRCanBeInvalid[MSHR_NUM];
 
     always_comb begin
 
@@ -64,12 +69,30 @@ module MemoryRegisterWriteStage(
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
+        // 以下のいずれかの場合，握っている MSHR を解放する
+        // 1. MSHR を確保した命令がライトバックまで達した場合
+        // 2. MSHR を確保した命令が後から SQ からのフォワードミスが発生した場合
+        //      フォワード元のストアがミスしていた場合，MSHR をてばなさいとデッドロックする
+        for (int j = 0; j < MSHR_NUM; j++) begin
+            loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
+            for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
+                if (j == pipeReg[i].mshrID && 
+                    ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) &&
+                    pipeReg[i].valid && 
+                    pipeReg[i].isLoad
+                ) begin
+                    loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;
+                end
+            end
+        end
+
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             valid[i] = pipeReg[i].valid;
             flush[i] = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
                 recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
                 pipeReg[i].activeListPtr
             );
             update[i] = !stall && !clear && valid[i] && !flush[i];

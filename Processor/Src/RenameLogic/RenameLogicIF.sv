@@ -9,6 +9,7 @@
 import BasicTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 
 
 interface RenameLogicIF( input logic clk, rst, rstStart );

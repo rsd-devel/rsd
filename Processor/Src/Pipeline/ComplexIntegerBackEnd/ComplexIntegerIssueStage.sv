@@ -10,6 +10,7 @@
 import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
+import ActiveListIndexTypes::*;
 import SchedulerTypes::*;
 import DebugTypes::*;
 
@@ -48,6 +49,7 @@ module ComplexIntegerIssueStage(
                                         recovery.toRecoveryPhase,
                                         recovery.flushRangeHeadPtr,
                                         recovery.flushRangeTailPtr,
+                                        recovery.flushAllInsns,
                                         scheduler.complexIssuedData[i].activeListPtr
                                         );
             end
@@ -59,7 +61,7 @@ module ComplexIntegerIssueStage(
     end
 
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ COMPLEX_ISSUE_WIDTH ];
     logic valid [ COMPLEX_ISSUE_WIDTH ];
@@ -91,6 +93,7 @@ module ComplexIntegerIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         issuedData[i].activeListPtr
                         );
 
@@ -103,9 +106,7 @@ module ComplexIntegerIssueStage(
                 mulDivUnit.divAcquire[i] = 
                     !clear && valid[i] &&
                     !flush[i] && issuedData[i].opType == COMPLEX_MOP_TYPE_DIV;
-                mulDivUnit.divResetFromCI_Stage[i] = 
-                    valid[i] && (flush[i] || clear) &&
-                    issuedData[i].opType == COMPLEX_MOP_TYPE_DIV;
+                mulDivUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
             `endif        
 
             // --- Pipeline ラッチ書き込み

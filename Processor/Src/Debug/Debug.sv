@@ -10,6 +10,7 @@ import BasicTypes::*;
 import MemoryMapTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;

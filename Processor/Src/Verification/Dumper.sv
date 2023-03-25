@@ -8,6 +8,7 @@ package DumperTypes;
     import PipelineTypes::*;
     import RenameLogicTypes::*;
     import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
     import MicroOpTypes::*;
     import LoadStoreUnitTypes::*;
     import IO_UnitTypes::*;
@@ -242,6 +243,11 @@ package DumperTypes;
                     );
                 end
 
+                // Active list allocation
+                $sformat( str, "%s\\nAL alloc: %0d ",
+                    str,
+                    debugRegister.dsReg[i].activeListPtr
+                );
                 // Issue queue allocation
                 $sformat( str, "%s\\nIQ alloc: %0d ",
                     str,

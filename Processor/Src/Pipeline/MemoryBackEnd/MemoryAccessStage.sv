@@ -15,6 +15,7 @@ import PipelineTypes::*;
 import DebugTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
+import ActiveListIndexTypes::*;
 
 module MemoryAccessStage(
     MemoryAccessStageIF.ThisStage port,
@@ -88,6 +89,7 @@ module MemoryAccessStage(
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             pipeReg[i].activeListPtr
                         );
             isStore[i] = pipeReg[i].isStore;
@@ -186,6 +188,10 @@ module MemoryAccessStage(
             nextStage[i].pc = pipeReg[i].pc;
             nextStage[i].addrOut = pipeReg[i].addrOut;
             nextStage[i].isStore = pipeReg[i].isStore;
+            nextStage[i].isLoad = pipeReg[i].isLoad;
+            nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
+            nextStage[i].mshrID = pipeReg[i].mshrID;
+            nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

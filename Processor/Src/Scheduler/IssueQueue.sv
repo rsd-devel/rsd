@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import RenameLogicTypes::*;
 
 module IssueQueue (
@@ -252,6 +253,7 @@ module IssueQueue (
                         recovery.toRecoveryPhase && recovery.notIssued[i],
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         alPtrReg[i]
                         );
         end
@@ -262,6 +264,7 @@ module IssueQueue (
                             recovery.toRecoveryPhase,
                             recovery.flushRangeHeadPtr,
                             recovery.flushRangeTailPtr,
+                            recovery.flushAllInsns,
                             port.writeAL_Ptr[i]
                             );
             end

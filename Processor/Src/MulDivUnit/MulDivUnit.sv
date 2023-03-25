@@ -12,8 +12,9 @@
 `include "BasicMacros.sv"
 import BasicTypes::*;
 import OpFormatTypes::*;
+import ActiveListIndexTypes::*;
 
-module MulDivUnit(MulDivUnitIF.MulDivUnit port);
+module MulDivUnit(MulDivUnitIF.MulDivUnit port, RecoveryManagerIF.MulDivUnit recovery);
 
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockMulUnit
         // MultiplierUnit
@@ -41,11 +42,15 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port);
         DIVIDER_PHASE_FREE       = 0,  // Divider is free
         DIVIDER_PHASE_RESERVED   = 1,  // Divider is not processing but reserved
         DIVIDER_PHASE_PROCESSING = 2,  // In processing
-        DIVIDER_PHASE_WAITING    = 3   // Wait for issuing div from replayqueue
+        DIVIDER_PHASE_WAITING    = 3   // Wait for issuing div from the replay queue
     } DividerPhase;
     DividerPhase regPhase  [MULDIV_ISSUE_WIDTH];
     DividerPhase nextPhase [MULDIV_ISSUE_WIDTH];
     logic finished[MULDIV_ISSUE_WIDTH];
+
+    logic flush[MULDIV_ISSUE_WIDTH];
+    ActiveListIndexPath regActiveListPtr[MULDIV_ISSUE_WIDTH];
+    ActiveListIndexPath nextActiveListPtr[MULDIV_ISSUE_WIDTH];
 
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockDivUnit
         DividerUnit divUnit(
@@ -64,16 +69,18 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port);
         if (port.rst) begin
             for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
                 regPhase[i] <= DIVIDER_PHASE_FREE;
+                regActiveListPtr[i] <= 0;
             end
         end
         else begin
             regPhase <= nextPhase;
+            regActiveListPtr <= nextActiveListPtr;
         end
     end
 
     always_comb begin
         nextPhase = regPhase;
-
+        nextActiveListPtr = regActiveListPtr;
 
         for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
 
@@ -83,9 +90,10 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port);
             end
 
             DIVIDER_PHASE_FREE: begin
-                // Reserve divider and do not issue divs after that.
+                // Reserve divider and do not issue any div after that.
                 if (port.divAcquire[i]) begin
                     nextPhase[i] = DIVIDER_PHASE_RESERVED;
+                    nextActiveListPtr[i] = port.acquireActiveListPtr[i];
                 end
             end
 
@@ -119,23 +127,19 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port);
             endcase // regPhase[i]
 
 
+            // Cancel divider allocation on pipeline flush
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                regActiveListPtr[i]
+            );
+
             // 除算器に要求をしたdivがフラッシュされたので，除算器を解放する
-            if (port.divReset[i]) begin
+            if (flush[i]) begin
                 nextPhase[i] = DIVIDER_PHASE_FREE;
             end
-
-            `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-                if (port.divResetFromMI_Stage[i] || 
-                    port.divResetFromMR_Stage[i] || 
-                    port.divResetFromMT_Stage[i]
-                ) begin
-                    nextPhase[i] = DIVIDER_PHASE_FREE;
-                end
-            `else
-                if (port.divResetFromCI_Stage[i]) begin
-                    nextPhase[i] = DIVIDER_PHASE_FREE;
-                end
-            `endif
 
             // 現状 acquire が issue ステージからくるので，次のサイクルの状態でフリーか
             // どうかを判定する必要がある

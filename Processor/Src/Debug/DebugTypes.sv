@@ -15,6 +15,7 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 
@@ -109,6 +110,7 @@ typedef struct packed { // DispatchStageDebugRegister
     PRegNumPath phyDstReg;
     PRegNumPath phyPrevDstReg;
 
+    ActiveListIndexPath activeListPtr;
     IssueQueueIndexPath issueQueuePtr;
 `endif
 } DispatchStageDebugRegister;

@@ -11,6 +11,7 @@ import OpFormatTypes::*;
 import CacheSystemTypes::*;
 import OpFormatTypes::*;
 import MemoryMapTypes::*;
+import ActiveListIndexTypes::*;
 
 interface DCacheIF(
 input
@@ -98,27 +99,18 @@ input
     // Miss handler
     logic initMSHR[MSHR_NUM];
     PhyAddrPath initMSHR_Addr[MSHR_NUM];
+    ActiveListIndexPath initMSHR_ActiveListPtr[MSHR_NUM];
 
     logic mshrValid[MSHR_NUM];
     PhyAddrPath mshrAddr[MSHR_NUM];
 
     MSHR_Phase mshrPhase[MSHR_NUM]; // MSHR phase.
     DCacheLinePath mshrData[MSHR_NUM]; // Data in MSHR.
-    DCacheIndexSubsetPath mshrAddrSubset[MSHR_NUM];
 
-    logic mshrCanBeInvalid[MSHR_NUM];
+    logic mshrCanBeInvalidDirect[MSHR_NUM];
     logic isAllocatedByStore[MSHR_NUM];
 
     logic isUncachable[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がMemoryRegisterReadStageでflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryRegisterReadStage[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がStoreForwardingによって完了した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByMemoryTagAccessStage[MSHR_NUM];
-
-    // MSHRをAllocateしたLoad命令がReplayQueueの先頭でflushされた場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalidByReplayQueue[MSHR_NUM];
 
     VectorPath storedLineData;
     logic [DCACHE_LINE_BYTE_NUM-1:0] storedLineByteWE;
@@ -200,8 +192,7 @@ input
         dataArrayDoesReadEvictedWay,
         replArrayWE,
         replArrayIndexIn,
-        replArrayDataIn,
-        mshrCanBeInvalid
+        replArrayDataIn
     );
 
 
@@ -234,6 +225,7 @@ input
         rst,
         initMSHR,
         initMSHR_Addr,
+        initMSHR_ActiveListPtr,
         mshrCacheGrt,
         mshrCacheMuxTagOut,
         mshrCacheMuxDataOut,
@@ -241,12 +233,9 @@ input
         mshrMemMuxOut,
         memAccessResult,
         memAccessResponse,
-        mshrCanBeInvalid,
+        mshrCanBeInvalidDirect,
         isAllocatedByStore,
         isUncachable,
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
-        makeMSHRCanBeInvalidByReplayQueue,
         storedLineData,
         storedLineByteWE,
         dcFlushing,
@@ -259,7 +248,6 @@ input
         mshrAddr,
         mshrPhase,
         mshrData,
-        mshrAddrSubset,
         mshrFlushComplete
     );
 
@@ -308,7 +296,6 @@ input
         mshrValid,
         mshrAddr,
         mshrPhase,
-        mshrAddrSubset,
         dcFlushReqAck,
         dcFlushComplete,
     output
@@ -320,11 +307,10 @@ input
         memAccessResponse,
         initMSHR,
         initMSHR_Addr,
+        initMSHR_ActiveListPtr,
         isAllocatedByStore,
         isUncachable,
-        makeMSHRCanBeInvalidByMemoryRegisterReadStage,
-        makeMSHRCanBeInvalidByMemoryTagAccessStage,
-        makeMSHRCanBeInvalidByReplayQueue,
+        mshrCanBeInvalidDirect,
         storedLineData,
         storedLineByteWE,
         dcFlushReq,

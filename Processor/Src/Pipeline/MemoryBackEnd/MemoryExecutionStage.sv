@@ -12,6 +12,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import DebugTypes::*;
@@ -60,7 +61,7 @@ module MemoryExecutionStage(
     end
 
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ MEM_ISSUE_WIDTH ];
 
@@ -83,9 +84,6 @@ module MemoryExecutionStage(
     PhyAddrPath phyAddrOut[MEM_ISSUE_WIDTH];
     logic isUncachable[MEM_ISSUE_WIDTH];
 
-    // MSHRをAllocateした命令からのメモリリクエストかどうか
-    // そのリクエストがアクセスに成功した場合，AllocateされたMSHRは解放可能になる
-    logic makeMSHRCanBeInvalid[LOAD_ISSUE_WIDTH];
 
     // FENCE.I
     logic cacheFlushReq;
@@ -94,17 +92,13 @@ module MemoryExecutionStage(
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            makeMSHRCanBeInvalid[i] = 
-                pipeReg[i].memQueueData.memOpInfo.hasAllocatedMSHR;
-        end
-
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             iqData[i] = pipeReg[i].memQueueData;
             flush[i] = SelectiveFlushDetector(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             memOpInfo[i]  = iqData[i].memOpInfo;
@@ -125,7 +119,7 @@ module MemoryExecutionStage(
             bypass.memCtrlIn[i] = pipeReg[i].bCtrl;
 
             // Register valid bits.
-            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             `ifdef RSD_ENABLE_VECTOR_PATH
                 if ( memOpInfo[i].memAccessMode.size == MEM_ACCESS_SIZE_VEC ) begin
                     regValid[i] = vecRegValid[i];
@@ -157,8 +151,9 @@ module MemoryExecutionStage(
 
             loadStoreUnit.dcReadUncachable[i] = isUncachable[i];
 
-            // To notify MSHR that the requester is its allocator load.
-            loadStoreUnit.makeMSHRCanBeInvalid[i] = makeMSHRCanBeInvalid[i];
+            // AL Ptr to release MSHR entry when allocator load is flushed.
+            loadStoreUnit.dcReadActiveListPtr[i] = pipeReg[i].memQueueData.activeListPtr;
+
         end
 
         // FENCE.I (with ICache and DCache flush)
@@ -167,7 +162,7 @@ module MemoryExecutionStage(
         if (pipeReg[0].valid && (memOpInfo[0].opType == MEM_MOP_TYPE_FENCE) && memOpInfo[0].isFenceI) begin
             cacheFlushReq = TRUE;
             if (!cacheFlush.cacheFlushComplete) begin
-                // FENCEI must be replayed after cache flush is completed.
+                // FENCE.I must be replayed after cache flush is completed.
                 regValid[0] = FALSE;
             end
         end
@@ -228,22 +223,6 @@ module MemoryExecutionStage(
     logic isDiv         [ MULDIV_ISSUE_WIDTH ]; 
     logic finished      [ MULDIV_ISSUE_WIDTH ];
 
-    // For selective flush
-    ActiveListIndexPath regActiveListIndex  [ MULDIV_ISSUE_WIDTH ];
-    ActiveListIndexPath nextActiveListIndex [ MULDIV_ISSUE_WIDTH ];
-    logic divReset[ MULDIV_ISSUE_WIDTH ];
-
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-                regActiveListIndex[i] <= '0;
-            end
-        end
-        else begin
-            regActiveListIndex <= nextActiveListIndex;
-        end
-    end
-
     MulOpSubInfo mulSubInfo[MULDIV_ISSUE_WIDTH];
     DivOpSubInfo divSubInfo[MULDIV_ISSUE_WIDTH];
     always_comb begin
@@ -264,26 +243,6 @@ module MemoryExecutionStage(
             isDiv[i] =  
                 memOpInfo[i].opType inside {MEM_MOP_TYPE_DIV};
 
-            // Dividerで処理中のdivがフラッシュされたら，Dividerの状態をFREEに変更して
-            // IQからdivを発行できるようにする
-            divReset[i] = FALSE;
-            if (recovery.toRecoveryPhase) begin
-                divReset[i] = SelectiveFlushDetector( 
-                    recovery.toRecoveryPhase, 
-                    recovery.flushRangeHeadPtr, 
-                    recovery.flushRangeTailPtr, 
-                    regActiveListIndex[i]
-                );
-            end
-            if (clear) begin
-                divReset[i] = TRUE;
-            end
-            if (isDiv[i] && flush[i]) begin
-                // Div is flushed at register read stage, so release the divider
-                divReset[i] = TRUE;
-            end
-            mulDivUnit.divReset[i] = divReset[i];
-
             // Request to the divider
             // NOT make a request when below situation
             // 1) When any operands of inst. are invalid
@@ -293,16 +252,6 @@ module MemoryExecutionStage(
                 mulDivUnit.divReserved[i] && 
                 pipeReg[i].valid && isDiv[i] && 
                 fuOpA[i].valid && fuOpB[i].valid;
-
-
-            if (pipeReg[i].valid && isDiv[i] && mulDivUnit.divReserved[i]) begin
-                nextActiveListIndex[i] = 
-                    iqData[i].activeListPtr;
-            end
-            else begin
-                nextActiveListIndex[i] = regActiveListIndex[i];
-            end
-
         end
 
     end
@@ -320,6 +269,8 @@ module MemoryExecutionStage(
     always_comb begin
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             nextStage[i].memQueueData = pipeReg[i].memQueueData;
+            // if (pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD)
+            //     nextStage[i].memQueueData.hasAllocatedMSHR = FALSE;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =
@@ -336,15 +287,6 @@ module MemoryExecutionStage(
 `ifndef RSD_DISABLE_DEBUG_REGISTER
             nextStage[i].opId = pipeReg[i].opId;
 `endif
-        end
-
-        for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-            if (makeMSHRCanBeInvalid[i]) begin
-                nextStage[i].memQueueData.memOpInfo.hasAllocatedMSHR = FALSE;
-            end
-        end
-        for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
-            nextStage[i+STORE_ISSUE_LANE_BEGIN].memQueueData.memOpInfo.hasAllocatedMSHR = FALSE;
         end
 
 
@@ -378,5 +320,18 @@ module MemoryExecutionStage(
         end
 `endif
     end
+
+    generate 
+        for (genvar i = 0; i < MEM_ISSUE_WIDTH; i++) begin
+            `RSD_ASSERT_CLK(
+                port.clk, 
+                !(pipeReg[i].valid && 
+                pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD && 
+                pipeReg[i].memQueueData.hasAllocatedMSHR),
+                "hasAllocatedMSHR is asserted other than a load pipe"
+            );
+        end
+    endgenerate
+
 
 endmodule : MemoryExecutionStage

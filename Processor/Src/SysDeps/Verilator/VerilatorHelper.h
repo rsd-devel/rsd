@@ -68,6 +68,7 @@ typedef uint32_t IntMicroOpSubType;
 typedef uint32_t LRegNumPath;
 typedef uint32_t PRegNumPath;
 
+typedef uint32_t ActiveListIndexPath;
 typedef uint32_t IssueQueueIndexPath;
 typedef uint32_t LSQ_BlockDataPath;
 typedef uint32_t VectorPath;
@@ -165,6 +166,7 @@ struct DispatchStageDebugRegister{
     PRegNumPath phyDstReg;
     PRegNumPath phyPrevDstReg;
 
+    ActiveListIndexPath activeListPtr;
     IssueQueueIndexPath issueQueuePtr;
 #endif
 };
@@ -525,6 +527,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logDstReg);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phyDstReg);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phyPrevDstReg);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, ActiveListIndexPath, activeListPtr);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, IssueQueueIndexPath, issueQueuePtr);
 #endif
 

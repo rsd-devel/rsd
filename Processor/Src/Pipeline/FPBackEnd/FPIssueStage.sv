@@ -48,6 +48,7 @@ module FPIssueStage(
                                         recovery.toRecoveryPhase,
                                         recovery.flushRangeHeadPtr,
                                         recovery.flushRangeTailPtr,
+                                        recovery.flushAllInsns,
                                         scheduler.fpIssuedData[i].activeListPtr
                                         );
             end
@@ -91,6 +92,7 @@ module FPIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         issuedData[i].activeListPtr
                         );
 

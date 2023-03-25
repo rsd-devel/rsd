@@ -13,6 +13,7 @@ import MemoryMapTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 module DispatchStage(
@@ -194,11 +195,11 @@ module DispatchStage(
             memEntry[i].memOpInfo.divSubInfo = divSubInfo[i];
 `endif
 
-            memEntry[i].memOpInfo.loadQueuePtr  = pipeReg[i].loadQueuePtr;
-            memEntry[i].memOpInfo.storeQueuePtr = pipeReg[i].storeQueuePtr;
+            memEntry[i].loadQueuePtr  = pipeReg[i].loadQueuePtr;
+            memEntry[i].storeQueuePtr = pipeReg[i].storeQueuePtr;
 
-            memEntry[i].memOpInfo.hasAllocatedMSHR = 0;
-            memEntry[i].memOpInfo.mshrID = '0;
+            memEntry[i].hasAllocatedMSHR = 0;
+            memEntry[i].mshrID = '0;
 
             // OpSrc
             memEntry[i].opSrc = opSrc[i];
@@ -304,6 +305,7 @@ module DispatchStage(
             debug.dsReg[i].phyDstReg = pipeReg[i].phyDstRegNum;
             debug.dsReg[i].phyPrevDstReg = pipeReg[i].phyPrevDstRegNum;
 
+            debug.dsReg[i].activeListPtr = pipeReg[i].activeListPtr;
             debug.dsReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
 `endif
         end

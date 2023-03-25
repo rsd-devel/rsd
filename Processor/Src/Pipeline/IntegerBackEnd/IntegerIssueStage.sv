@@ -11,6 +11,7 @@ import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 module IntegerIssueStage(
@@ -45,6 +46,7 @@ module IntegerIssueStage(
                                         recovery.toRecoveryPhase,
                                         recovery.flushRangeHeadPtr,
                                         recovery.flushRangeTailPtr,
+                                        recovery.flushAllInsns,
                                         scheduler.intIssuedData[i].activeListPtr
                                         );
             end
@@ -87,6 +89,7 @@ module IntegerIssueStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         issuedData[i].activeListPtr
                         );
 

@@ -231,6 +231,7 @@ module FPExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns, 
                     regActiveListIndex[i]
                 );
             end
@@ -299,6 +300,7 @@ module FPExecutionStage(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
                 recovery.flushRangeTailPtr,
+                recovery.flushAllInsns, 
                 pipeReg[i].fpQueueData.activeListPtr
             );
 
@@ -309,6 +311,7 @@ module FPExecutionStage(
                     recovery.toRecoveryPhase, 
                     recovery.flushRangeHeadPtr, 
                     recovery.flushRangeTailPtr, 
+                    recovery.flushAllInsns, 
                     localPipeReg[i][j-1].fpQueueData.activeListPtr 
                 );
             end

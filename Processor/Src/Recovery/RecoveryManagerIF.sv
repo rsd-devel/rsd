@@ -10,6 +10,7 @@ import BasicTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 
 interface RecoveryManagerIF( input logic clk, rst );
@@ -51,6 +52,9 @@ interface RecoveryManagerIF( input logic clk, rst );
     // Flush range to broadcast
     ActiveListIndexPath flushRangeHeadPtr;
     ActiveListIndexPath flushRangeTailPtr;
+    // Whether flush all instructions in ActiveList
+    // This is necessary to distinguish when ActiveList is full or empty, 
+    logic flushAllInsns;
 
     // ActiveList/LSQ TailPtr for recovery
     LoadQueueIndexPath loadQueueRecoveryTailPtr;
@@ -173,6 +177,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
+        flushAllInsns,
         notIssued,
         selected,
         selectedPtr,
@@ -208,6 +213,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
+        flushAllInsns,
         recoveryFromRwStage,
     output
         replayQueueFlushedOpExist
@@ -218,6 +224,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
+        flushAllInsns,
         selectedActiveListPtr,
         flushIQ_Entry,
         recoveryFromRwStage,
@@ -246,103 +253,132 @@ interface RecoveryManagerIF( input logic clk, rst );
         toRecoveryPhase
     );
 
+    modport DCacheMissHandler(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
+
+    modport MulDivUnit(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
 
     modport IntegerIssueStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport IntegerRegisterReadStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport IntegerExecutionStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport IntegerRegisterWriteStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport ComplexIntegerIssueStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport ComplexIntegerRegisterReadStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport ComplexIntegerExecutionStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport ComplexIntegerRegisterWriteStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryIssueStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryRegisterReadStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryExecutionStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryTagAccessStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryAccessStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport MemoryRegisterWriteStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
 `ifdef RSD_ENABLE_FP_PATH 
@@ -350,28 +386,32 @@ interface RecoveryManagerIF( input logic clk, rst );
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport FPRegisterReadStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport FPExecutionStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 
     modport FPRegisterWriteStage(
     input
         toRecoveryPhase,
         flushRangeHeadPtr,
-        flushRangeTailPtr
+        flushRangeTailPtr,
+        flushAllInsns
     );
 `endif
 
@@ -387,7 +427,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         refetchTypeFromRwStage,
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
-        faultingDataAddr
+        faultingDataAddr,
+        flushAllInsns
     );
 
     modport InterruptController(

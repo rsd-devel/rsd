@@ -33,6 +33,7 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import LoadStoreUnitTypes::*;
 import PipelineTypes::*;
 import MemoryMapTypes::*;
@@ -155,6 +156,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logDstReg);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phyDstReg);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phyPrevDstReg);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, ActiveListIndexPath, activeListPtr);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, IssueQueueIndexPath, issueQueuePtr);
 `endif
 

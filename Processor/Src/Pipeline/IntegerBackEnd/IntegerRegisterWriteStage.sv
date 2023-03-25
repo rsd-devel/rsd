@@ -12,6 +12,7 @@ import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import FetchUnitTypes::*;
 import DebugTypes::*;
 
@@ -77,6 +78,7 @@ module IntegerRegisterWriteStage(
                         recovery.toRecoveryPhase,
                         recovery.flushRangeHeadPtr,
                         recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
             update[i] = !stall && !clear && valid[i] && !flush[i];

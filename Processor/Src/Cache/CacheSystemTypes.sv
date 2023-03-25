@@ -8,6 +8,7 @@ package CacheSystemTypes;
     import MicroArchConf::*;
     import BasicTypes::*;
     import MemoryMapTypes::*;
+    import ActiveListIndexTypes::*;
 
     //
     // --- DCache
@@ -159,6 +160,9 @@ package CacheSystemTypes;
         // its allocator is load and has bypassed data.
         logic canBeInvalid;
 
+        // A load that allocates n MSHR entry is flushed.
+        logic isAllocatorLoadFlushed;
+
         // An MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
         logic isAllocatedByStore;
 
@@ -170,6 +174,9 @@ package CacheSystemTypes;
 
         // For flush
         DCacheIndexPath flushIndex;
+
+        // AL Ptr info to release MSHR entry when allocator load is flushed
+         ActiveListIndexPath activeListPtr;
     } MissStatusHandlingRegister;
 
     typedef struct packed   // DCachePortMultiplexerIn
@@ -185,9 +192,6 @@ package CacheSystemTypes;
         DCacheLinePath          dataDataIn;
         DCacheByteEnablePath    dataByteWE;
         logic                   dataDirtyIn;
-
-        // To notify MSHR that this request is by allocator load.
-        logic           makeMSHRCanBeInvalid;
 
         // To notify DCache which way will be evicted.
         DCacheWayPath   evictWay;

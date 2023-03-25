@@ -5,7 +5,7 @@ exclude_paths = []
 function_same_as_system_function = true
 case_default = true
 enum_with_type = true
-tab_charactor = true
+tab_character = true
 parameter_in_package = true
 function_with_automatic = true
 legacy_always = true
@@ -26,4 +26,5 @@ interface_port_with_modport = false
 output_with_var = false
 input_with_var = false
 if_with_begin = false
-
+blocking_assignment_in_always_ff = true
+non_blocking_assignment_in_always_comb = true

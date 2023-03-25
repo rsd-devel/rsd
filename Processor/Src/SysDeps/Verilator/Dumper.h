@@ -317,7 +317,12 @@ public:
                 );
             }
 
-            // Issue queue allcation
+            // Active List allocation
+            str += FormatString(
+                "\\nAL alloc: %0d ",
+                debugRegister.dsReg[i].activeListPtr
+            );
+            // Issue queue allocation
             str += FormatString(
                 "\\nIQ alloc: %0d ",
                 debugRegister.dsReg[i].issueQueuePtr

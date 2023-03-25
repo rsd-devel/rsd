@@ -13,6 +13,7 @@ import MemoryMapTypes::*;
 import CSR_UnitTypes::*;
 import OpFormatTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 
 module CSR_Unit(
     CSR_UnitIF.CSR_Unit port,
