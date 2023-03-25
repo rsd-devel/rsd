@@ -3,7 +3,7 @@
 # Supported Zynq boards: Zedboard
 TARGET_BOARD = Zedboard
 
-
+ARM_BUILD_CPUS = $(shell nproc)
 
 # -------------------------------
 
@@ -52,7 +52,7 @@ KERNEL_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/linux-xlnx
 UBOOT_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/u-boot-xlnx
 BIF_FILE = $(ARM_LINUX_SRC_ROOT)/boot.bif
 UINITRD_FILE = $(ARM_LINUX_BOOT)/uramdisk.image.gz
-BIT_FILE = $(ARM_LINUX_BOOT)/boot.bin
+BIT_FILE = $(ARM_LINUX_BOOT)/boot.bit
 DEVICETREE_FILE = $(ARM_LINUX_BOOT)/devicetree.dtb
 FSBL_FILE = $(ARM_LINUX_BOOT)/fsbl.elf
 UBOOT_FILE = $(ARM_LINUX_BOOT)/u-boot.elf
@@ -82,13 +82,14 @@ vivado-clean:
 
 # Vivado を使った合成
 vivado-synthesis: $(VIVADO_BIT_FILE)
+	@echo "==== Build Successful ===="
 
 # ビットストリームの生成
-$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
+# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
+$(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 	
-# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
-$(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
+# $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
 #	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
 #	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
 #	@echo "(Re-)build hdf using Vivado!"
@@ -105,6 +106,7 @@ xilinx-arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
 	$(MAKE) xilinx-arm-linux-device-tree
 	$(MAKE) xilinx-arm-linux-bootbin
 	$(MAKE) xilinx-arm-linux-download-rootfs
+	@echo "==== Build Successful ===="
 
 xilinx-arm-linux-clean:
 	$(MAKE) xilinx-arm-linux-kernel-clean
@@ -181,6 +183,7 @@ xilinx-arm-linux-all:
 
 # First Stage Boot Loader
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
+	rm -f -r $(VIVADO_BOARD_PROJECT_ROOT)/rsd.sdk
 	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 
 $(FSBL_FILE): $(VIVADO_FSBL_FILE)
@@ -192,8 +195,8 @@ $(UBOOT_FILE): $(UBOOT_ROOT)
 # Do NOT use this command.
 xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
 	cd $(UBOOT_ROOT); \
-	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
-	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
+	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
@@ -214,8 +217,8 @@ $(UKERNEL_FILE):
 # Do NOT use this command.
 xilinx-arm-linux-kernel: $(KERNEL_ROOT)
 	cd $(KERNEL_ROOT); \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j$(ARM_BUILD_CPUS); \
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j$(ARM_BUILD_CPUS)
 	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
@@ -229,7 +232,7 @@ xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 	cp $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dtb $(ARM_LINUX_BOOT)/devicetree.dtb
 
 $(BIT_FILE): $(VIVADO_BIT_FILE)
-	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
+	cp -p $(VIVADO_BIT_FILE) $(BIT_FILE)
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:
