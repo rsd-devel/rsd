@@ -52,7 +52,7 @@ KERNEL_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/linux-xlnx
 UBOOT_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/u-boot-xlnx
 BIF_FILE = $(ARM_LINUX_SRC_ROOT)/boot.bif
 UINITRD_FILE = $(ARM_LINUX_BOOT)/uramdisk.image.gz
-BIT_FILE = $(ARM_LINUX_BOOT)/boot.bin
+BIT_FILE = $(ARM_LINUX_BOOT)/boot.bit
 DEVICETREE_FILE = $(ARM_LINUX_BOOT)/devicetree.dtb
 FSBL_FILE = $(ARM_LINUX_BOOT)/fsbl.elf
 UBOOT_FILE = $(ARM_LINUX_BOOT)/u-boot.elf
@@ -106,6 +106,7 @@ xilinx-arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
 	$(MAKE) xilinx-arm-linux-device-tree
 	$(MAKE) xilinx-arm-linux-bootbin
 	$(MAKE) xilinx-arm-linux-download-rootfs
+	@echo "==== Build Successful ===="
 
 xilinx-arm-linux-clean:
 	$(MAKE) xilinx-arm-linux-kernel-clean
@@ -182,6 +183,7 @@ xilinx-arm-linux-all:
 
 # First Stage Boot Loader
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
+	rm -f -r $(VIVADO_BOARD_PROJECT_ROOT)/rsd.sdk
 	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 
 $(FSBL_FILE): $(VIVADO_FSBL_FILE)
@@ -230,7 +232,7 @@ xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
 	cp $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dtb $(ARM_LINUX_BOOT)/devicetree.dtb
 
 $(BIT_FILE): $(VIVADO_BIT_FILE)
-	cp $(VIVADO_BIT_FILE) $(ARM_LINUX_BOOT)/boot.bit
+	cp -p $(VIVADO_BIT_FILE) $(BIT_FILE)
 
 # Do NOT use this command.
 xilinx-arm-linux-bootbin:
