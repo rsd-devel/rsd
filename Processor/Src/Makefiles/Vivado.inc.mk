@@ -3,7 +3,7 @@
 # Supported Zynq boards: Zedboard
 TARGET_BOARD = Zedboard
 
-
+ARM_BUILD_CPUS = $(shell nproc)
 
 # -------------------------------
 
@@ -193,8 +193,8 @@ $(UBOOT_FILE): $(UBOOT_ROOT)
 # Do NOT use this command.
 xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
 	cd $(UBOOT_ROOT); \
-	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
-	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j4; \
+	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
+	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
@@ -215,8 +215,8 @@ $(UKERNEL_FILE):
 # Do NOT use this command.
 xilinx-arm-linux-kernel: $(KERNEL_ROOT)
 	cd $(KERNEL_ROOT); \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j4; \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j4
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j$(ARM_BUILD_CPUS); \
+	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j$(ARM_BUILD_CPUS)
 	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
