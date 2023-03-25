@@ -11,6 +11,7 @@ import BasicTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 `ifdef RSD_ENABLE_FP_PATH
@@ -60,7 +61,7 @@ module FPIssueStage(
     end
 
 
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ FP_ISSUE_WIDTH ];
     logic valid [ FP_ISSUE_WIDTH ];
@@ -104,9 +105,7 @@ module FPIssueStage(
             fpDivSqrtUnit.Acquire[i] = 
                 !clear && valid[i] &&
                 !flush[i] && (issuedData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT});
-            fpDivSqrtUnit.ResetFromFPIssue_Stage[i] = 
-                valid[i] && (flush[i] || clear) &&
-                (issuedData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT});
+            fpDivSqrtUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
 
             // --- Pipeline ラッチ書き込み
             // リセットorフラッシュ時はNOP

@@ -9,7 +9,7 @@
 `include "BasicMacros.sv"
 import BasicTypes::*;
 import OpFormatTypes::*;
-
+import ActiveListIndexTypes::*;
 
 interface FPDivSqrtUnitIF(input logic clk, rst);
     // dummy signal to prevent that some modports become empty
@@ -23,7 +23,6 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
     FFlags_Path FFlagsOut[FP_ISSUE_WIDTH];
     logic is_divide      [FP_ISSUE_WIDTH];
     Rounding_Mode rm     [FP_ISSUE_WIDTH];
-    logic       Reset    [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Req      [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Reserved [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Finished [FP_DIVSQRT_ISSUE_WIDTH];
@@ -32,8 +31,7 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
 
     logic Acquire[FP_DIVSQRT_ISSUE_WIDTH];
     logic Release[FP_DIVSQRT_ISSUE_WIDTH];
-
-    logic ResetFromFPIssue_Stage[FP_DIVSQRT_ISSUE_WIDTH];
+    ActiveListIndexPath acquireActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
 
     modport FPDivSqrtUnit(
     input
@@ -44,11 +42,10 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         dataInB,
         is_divide,
         rm,
-        Reset,
-        ResetFromFPIssue_Stage,
         Req,
         Acquire,
         Release,
+        acquireActiveListPtr,
     output
         DataOut,
         FFlagsOut,
@@ -63,7 +60,7 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         dummy,
     output
         Acquire,
-        ResetFromFPIssue_Stage
+        acquireActiveListPtr
     );
 
     modport FPExecutionStage(
@@ -80,7 +77,6 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         dataInB,
         is_divide,
         rm,
-        Reset,
         Req,
         Release
     );

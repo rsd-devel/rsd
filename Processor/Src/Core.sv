@@ -193,7 +193,7 @@ output
     FPRegisterReadStage fpRrStage( fpRrStageIF, fpIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     FPExecutionStage fpExStage( fpExStageIF, fpRrStageIF, fpDivSqrtUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF, csrUnitIF);
     FPRegisterWriteStage fpRwStage( fpExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
-    FPDivSqrtUnit fpDivSqrtUnit(fpDivSqrtUnitIF);
+    FPDivSqrtUnit fpDivSqrtUnit(fpDivSqrtUnitIF, recoveryManagerIF);
 `endif
 
     RegisterFile registerFile( registerFileIF );

@@ -14,6 +14,7 @@ import BasicTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 
@@ -30,7 +31,7 @@ module FPExecutionStage(
     DebugIF.FPExecutionStage debug,
     CSR_UnitIF.FPExecutionStage csrUnit
 );
-    // Pipeline controll
+    // Pipeline control
     logic stall, clear;
     logic flush[ FP_ISSUE_WIDTH ][ FP_EXEC_STAGE_DEPTH ];
 
@@ -145,22 +146,6 @@ module FPExecutionStage(
     //
     logic isDivSqrt         [ FP_ISSUE_WIDTH ]; 
 
-    // For selective flush
-    ActiveListIndexPath regActiveListIndex  [ FP_ISSUE_WIDTH ];
-    ActiveListIndexPath nextActiveListIndex [ FP_ISSUE_WIDTH ];
-    logic divSqrtReset[ FP_ISSUE_WIDTH ];
-
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
-                regActiveListIndex[i] <= '0;
-            end
-        end
-        else begin
-            regActiveListIndex <= nextActiveListIndex;
-        end
-    end
-
     for ( genvar i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
         FP32PipelinedAdder #(
             .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
@@ -221,28 +206,6 @@ module FPExecutionStage(
             isDivSqrt[i] =  
                 pipeReg[i].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};
 
-            // Reset 条件
-            divSqrtReset[i] = FALSE;
-            // DivSqrt Unitで処理中のdiv/sqrtがフラッシュされたら，状態をFREEに変更して
-            // IQからdiv/sqrtを発行できるようにする
-            if (recovery.toRecoveryPhase) begin
-                divSqrtReset[i] = SelectiveFlushDetector( 
-                    recovery.toRecoveryPhase, 
-                    recovery.flushRangeHeadPtr, 
-                    recovery.flushRangeTailPtr, 
-                    recovery.flushAllInsns, 
-                    regActiveListIndex[i]
-                );
-            end
-            if (clear) begin
-                divSqrtReset[i] = TRUE;
-            end
-            if (isDivSqrt[i] && (pipeReg[i].isFlushed || (pipeReg[i].valid && flush[i][0]))) begin
-                // Div/Sqrt is flushed at register read stage, so release the divider
-                divSqrtReset[i] = TRUE;
-            end
-            fpDivSqrtUnit.Reset[i] = divSqrtReset[i];
-
             // Request to the divider/sqrter
             // NOT make a request when below situation
             // 1) When any operands of inst. are invalid
@@ -264,14 +227,6 @@ module FPExecutionStage(
             end
             else begin
                 fpDivSqrtUnit.Release[i] = FALSE;
-            end
-
-            if (pipeReg[i].valid && isDivSqrt[i] && fpDivSqrtUnit.Reserved[i]) begin
-                nextActiveListIndex[i] = 
-                    pipeReg[i].fpQueueData.activeListPtr;
-            end
-            else begin
-                nextActiveListIndex[i] = regActiveListIndex[i];
             end
         end
     end
@@ -326,7 +281,7 @@ module FPExecutionStage(
             // --- regValid
             //
 
-            // If invalid regisers are read, regValid is negated and this op must be replayed.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValid[i] =
                 (fpOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
                 (fpOpInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid ) &&
@@ -408,7 +363,7 @@ module FPExecutionStage(
             nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
             nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
 
-            // Regvalid of local pipeline 
+            // Reg valid of local pipeline 
             if (isDivSqrt[i]) begin
                 nextLocalPipeReg[i][0].regValid = 
                     pipeReg[i].replay && (fpDivSqrtUnit.Finished[i]);

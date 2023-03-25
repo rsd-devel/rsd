@@ -413,6 +413,14 @@ interface RecoveryManagerIF( input logic clk, rst );
         flushRangeTailPtr,
         flushAllInsns
     );
+
+    modport FPDivSqrtUnit(
+    input
+        toRecoveryPhase,
+        flushRangeHeadPtr,
+        flushRangeTailPtr,
+        flushAllInsns
+    );
 `endif
 
     modport ActiveList(

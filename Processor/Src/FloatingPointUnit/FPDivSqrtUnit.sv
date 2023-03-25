@@ -4,19 +4,24 @@
 `include "BasicMacros.sv"
 import BasicTypes::*;
 import OpFormatTypes::*;
+import ActiveListIndexTypes::*;
 
-module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port);
+module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDivSqrtUnit recovery);
 
     typedef enum logic[1:0]
     {
         DIVIDER_PHASE_FREE       = 0,  // Divider is free
         DIVIDER_PHASE_RESERVED   = 1,  // Divider is not processing but reserved
         DIVIDER_PHASE_PROCESSING = 2,  // In processing
-        DIVIDER_PHASE_WAITING    = 3   // Wait for issuing div from replayqueue
+        DIVIDER_PHASE_WAITING    = 3   // Wait for issuing div from replay queue
     } DividerPhase;
     DividerPhase regPhase  [FP_DIVSQRT_ISSUE_WIDTH];
     DividerPhase nextPhase [FP_DIVSQRT_ISSUE_WIDTH];
     logic finished[FP_DIVSQRT_ISSUE_WIDTH];
+
+    logic flush[FP_DIVSQRT_ISSUE_WIDTH];
+    ActiveListIndexPath regActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
+    ActiveListIndexPath nextActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
 
     for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : BlockDivUnit
         FP32DivSqrter fpDivSqrter(
@@ -35,16 +40,18 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port);
         if (port.rst) begin
             for (int i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin
                 regPhase[i] <= DIVIDER_PHASE_FREE;
+                regActiveListPtr[i] <= 0;
             end
         end
         else begin
             regPhase <= nextPhase;
+            regActiveListPtr <= nextActiveListPtr;
         end
     end
 
     always_comb begin
         nextPhase = regPhase;
-
+        nextActiveListPtr = regActiveListPtr;
 
         for (int i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin
 
@@ -54,9 +61,10 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port);
             end
 
             DIVIDER_PHASE_FREE: begin
-                // Reserve divider and do not issue divs after that.
+                // Reserve divider and do not issue any div after that.
                 if (port.Acquire[i]) begin
                     nextPhase[i] = DIVIDER_PHASE_RESERVED;
+                    nextActiveListPtr[i] = port.acquireActiveListPtr[i];
                 end
             end
 
@@ -89,13 +97,17 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port);
             end
             endcase // regPhase[i]
 
+            // Cancel divider allocation on pipeline flush
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                regActiveListPtr[i]
+            );
 
             // 除算器に要求をしたdivがフラッシュされたので，除算器を解放する
-            if (port.Reset[i]) begin
-                nextPhase[i] = DIVIDER_PHASE_FREE;
-            end
-
-            if (port.ResetFromFPIssue_Stage[i]) begin
+            if (flush[i]) begin
                 nextPhase[i] = DIVIDER_PHASE_FREE;
             end
 

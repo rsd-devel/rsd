@@ -12,6 +12,7 @@ import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import PipelineTypes::*;
 import SchedulerTypes::*;
+import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
 `ifdef RSD_ENABLE_FP_PATH
