@@ -34,8 +34,7 @@ module FPExecutionStage(
     logic stall, clear;
     logic flush[ FP_ISSUE_WIDTH ][ FP_EXEC_STAGE_DEPTH ];
 
-    //`RSD_STATIC_ASSERT(FP_ISSUE_WIDTH == FPDIVSQRT_ISSUE_WIDTH, "These muse be same");
-    //`RSD_STATIC_ASSERT(FP_EXEC_STAGE_DEPTH == FPDIVSQRT_STAGE_DEPTH, "These muse be same");
+    `RSD_STATIC_ASSERT(FP_ISSUE_WIDTH == FP_DIVSQRT_ISSUE_WIDTH, "These muse be same");
 
     //
     // --- Local Pipeline Register
