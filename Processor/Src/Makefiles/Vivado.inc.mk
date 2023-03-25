@@ -82,13 +82,14 @@ vivado-clean:
 
 # Vivado を使った合成
 vivado-synthesis: $(VIVADO_BIT_FILE)
+	@echo "==== Build Successful ===="
 
 # ビットストリームの生成
-$(VIVADO_BIT_FILE): $(VIVADO_PROJECT_FILE)
+# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
+$(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 	
-# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
-$(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
+# $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
 #	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
 #	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
 #	@echo "(Re-)build hdf using Vivado!"
