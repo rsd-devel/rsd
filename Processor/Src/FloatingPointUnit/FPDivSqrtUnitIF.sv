@@ -12,17 +12,15 @@ import OpFormatTypes::*;
 import ActiveListIndexTypes::*;
 
 interface FPDivSqrtUnitIF(input logic clk, rst);
-    // dummy signal to prevent that some modports become empty
-    logic dummy;
     logic stall;
 
-    DataPath dataInA[FP_ISSUE_WIDTH];
-    DataPath dataInB[FP_ISSUE_WIDTH];
+    DataPath dataInA[FP_DIVSQRT_ISSUE_WIDTH];
+    DataPath dataInB[FP_DIVSQRT_ISSUE_WIDTH];
 
-    DataPath    DataOut  [FP_ISSUE_WIDTH];
-    FFlags_Path FFlagsOut[FP_ISSUE_WIDTH];
-    logic is_divide      [FP_ISSUE_WIDTH];
-    Rounding_Mode rm     [FP_ISSUE_WIDTH];
+    DataPath    DataOut  [FP_DIVSQRT_ISSUE_WIDTH];
+    FFlags_Path FFlagsOut[FP_DIVSQRT_ISSUE_WIDTH];
+    logic is_divide      [FP_DIVSQRT_ISSUE_WIDTH];
+    Rounding_Mode rm     [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Req      [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Reserved [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Finished [FP_DIVSQRT_ISSUE_WIDTH];
@@ -56,8 +54,6 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
     );
 
     modport FPIssueStage(
-    input
-        dummy,
     output
         Acquire,
         acquireActiveListPtr
