@@ -5,6 +5,7 @@
 //
 // Scheduler
 //
+`include "BasicMacros.sv"
 
 import BasicTypes::*;
 import PipelineTypes::*;
