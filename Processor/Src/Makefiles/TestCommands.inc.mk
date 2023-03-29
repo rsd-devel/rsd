@@ -180,6 +180,11 @@ test-RV32M-IntDivZynq:
 test-RV32M-DividerTest:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DividerTest
 
+test-RV32F-Asm:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/FP
+test-RV32F-C:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/FP
+
 test-HelloWorld:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HelloWorld
 test-Fibonacci:

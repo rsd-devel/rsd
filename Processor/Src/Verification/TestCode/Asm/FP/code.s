@@ -8,20 +8,19 @@ main:
 
     li  a0, -0x10000
     add a0, sp, a0
-/*  fp arithmetic 
-*/
-#   a1 = pi, a2 = -e
+/*  fp arithmetic  */
+#   fa1 = pi, fa2 = -e
     li a1, 0x40490FDA
     li a2, 0xC02DF854
     sw a1, 0(a0)
     sw a2, 4(a0)
     flw fa1, 0(a0)
     flw fa2, 4(a0)
-#   a3 = a1 + a2
-#   a4 = a1 - a2
-#   a5 = a1 * a2
-#   a6 = a1 / a2
-#   a7 = sqrt(a1)
+#   fa3 = fa1 + fa2
+#   fa4 = fa1 - fa2
+#   fa5 = fa1 * fa2
+#   fa6 = fa1 / fa2
+#   fa7 = sqrt(fa1)
     fadd.s fa3, fa1, fa2
     fsub.s fa4, fa1, fa2
     fmul.s fa5, fa1, fa2
@@ -31,15 +30,14 @@ main:
     fmsub.s fs3, fa1, fa2, fa4
     fnmsub.s fs4, fa1, fa2, fa4
     fnmadd.s fs5, fa1, fa2, fa4
-/*  fcvt int -> fp
+/*  fcvt int -> fp  */
     li a5, 2
     li a6, -2
     fcvt.s.w fs6, a5
     fcvt.s.wu fs7, a5
     fcvt.s.w fs8, a6
     fcvt.s.wu fs9, a6
-*/
-/*  fcvt fp -> int 
+/*  fcvt fp -> int  */
     li a0, 0xBF8CCCCC # -1.1
     li a1, 0xBF800000 # -1.0
     li a2, 0xBF666666 # -0.9
@@ -83,29 +81,6 @@ main:
     fcvt.wu.s t5, f1, rtz
     fmv.s.x f1, a7
     fcvt.wu.s t6, f1, rtz
-*/
-/*  # nan, inf
-    li a0, 0xffffffff # -nan
-    li a1, 0x7fffffff # nan
-    li a2, 0xff800000 # -inf
-    li a3, 0x7f800000 #  inf
-    fmv.s.x f1, a0
-    fcvt.w.s s0, f1
-    fmv.s.x f1, a1
-    fcvt.w.s s1, f1
-    fmv.s.x f1, a2
-    fcvt.w.s s2, f1
-    fmv.s.x f1, a3
-    fcvt.w.s s3, f1
-    fmv.s.x f1, a0
-    fcvt.wu.s s4, f1
-    fmv.s.x f1, a1
-    fcvt.wu.s s5, f1
-    fmv.s.x f1, a2
-    fcvt.wu.s s6, f1
-    fmv.s.x f1, a3
-    fcvt.wu.s s7, f1
-*/
 
 end:
     ret
