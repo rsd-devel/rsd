@@ -72,11 +72,7 @@ function automatic void RISCV_EmitOpImm(
 
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -201,11 +197,7 @@ function automatic void RISCV_EmitOp(
     isShift = ( ( opFunct3 == OP_FUNCT3_SLL ) || ( opFunct3 == OP_FUNCT3_SRL_SRA ) );
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -321,11 +313,7 @@ function automatic void RISCV_EmitUTypeInst(
     isfU = isf;
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -427,11 +415,7 @@ function automatic void RISCV_EmitJAL(
     isfU = isf;
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -520,11 +504,7 @@ function automatic void RISCV_EmitJALR(
     isfI = isf;
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -617,11 +597,7 @@ function automatic void RISCV_EmitBranch(
     brFunct3 = BrFunct3'(isfR.funct3);
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -719,11 +695,7 @@ function automatic void RISCV_EmitMemOp(
     isLoad = ( isfI.opCode == RISCV_LD );
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.memOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.memOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.memOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
@@ -832,11 +804,7 @@ function automatic void RISCV_EmitComplexOp(
     isMul = ( rv32mFunct3 < RV32M_FUNCT3_DIV );
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    opInfo.operand.complexOp.dstRegNum.isVector  = FALSE;
-    opInfo.operand.complexOp.srcRegNumA.isVector = FALSE;
-    opInfo.operand.complexOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     opInfo.operand.complexOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.complexOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.complexOp.srcRegNumB.isFP = FALSE;
@@ -943,11 +911,7 @@ function automatic void RISCV_EmitMiscMemOp(
     opFunct3 = MiscMemFunct3'(isfMiscMem.funct3);
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    miscMemOp.dstRegNum.isVector  = FALSE;
-    miscMemOp.srcRegNumA.isVector = FALSE;
-    miscMemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     miscMemOp.dstRegNum.isFP  = FALSE;
     miscMemOp.srcRegNumA.isFP = FALSE;
     miscMemOp.srcRegNumB.isFP = FALSE;
@@ -1056,11 +1020,7 @@ function automatic void RISCV_EmitCSR_Op(
     opFunct3 = SystemFunct3'(isfSystem.funct3);
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    memOp.dstRegNum.isVector  = FALSE;
-    memOp.srcRegNumA.isVector = FALSE;
-    memOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     memOp.dstRegNum.isFP  = FALSE;
     memOp.srcRegNumA.isFP = FALSE;
     memOp.srcRegNumB.isFP = FALSE;
@@ -1152,11 +1112,7 @@ function automatic void RISCV_EmitSystemOp(
     opFunct12 = SystemFunct12'(isfSystem.funct12);
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    systemOp.dstRegNum.isVector  = FALSE;
-    systemOp.srcRegNumA.isVector = FALSE;
-    systemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     systemOp.dstRegNum.isFP  = FALSE;
     systemOp.srcRegNumA.isFP = FALSE;
     systemOp.srcRegNumB.isFP = FALSE;
@@ -1564,11 +1520,7 @@ function automatic void RISCV_EmitIllegalOp(
     logic undefined;
 
     // 論理レジスタ番号
-`ifdef RSD_ENABLE_VECTOR_PATH
-    systemOp.dstRegNum.isVector  = FALSE;
-    systemOp.srcRegNumA.isVector = FALSE;
-    systemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     systemOp.dstRegNum.isFP  = FALSE;
     systemOp.srcRegNumA.isFP = FALSE;
     systemOp.srcRegNumB.isFP = FALSE;

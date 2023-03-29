@@ -62,10 +62,6 @@ typedef enum logic [2:0]
 {
     COMPLEX_MOP_TYPE_MUL       = 3'b000,
     COMPLEX_MOP_TYPE_DIV       = 3'b001   // DIV演算器を使うもの(DIVとREM)
-`ifdef RSD_ENABLE_VECTOR_PATH
-    COMPLEX_MOP_TYPE_VEC_ADD   = 3'b011,
-    COMPLEX_MOP_TYPE_VEC_MUL   = 3'b100
-`endif
 } ComplexMicroOpSubType;
 
 typedef enum logic [2:0]

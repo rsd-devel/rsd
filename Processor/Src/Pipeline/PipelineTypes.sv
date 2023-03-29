@@ -238,10 +238,6 @@ typedef struct packed // ComplexIntegerExecutionStageRegPath
     // register read out
     PRegDataPath operandA;
     PRegDataPath operandB;
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath vecOperandA;
-    PVecDataPath vecOperandB;
-`endif
 
     // Bypass control
     BypassControll bCtrl;
@@ -259,9 +255,6 @@ typedef struct packed // ComplexIntegerRegisterWriteStageRegPath
     ComplexIssueQueueEntry complexQueueData;
 
     PRegDataPath dataOut;   // Result of Execution
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath vecDataOut;
-`endif
 } ComplexIntegerRegisterWriteStageRegPath;
 
 
@@ -295,9 +288,6 @@ typedef struct packed // MemoryExecutionStageRegPath
     // register read out
     PRegDataPath operandA;
     PRegDataPath operandB;
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath vecOperandB;
-`endif
 
     // Bypass control
     BypassControll bCtrl;
@@ -323,9 +313,6 @@ typedef struct packed // MemoryTagAccessStageRegPath
 
     DataPath addrOut;       // The result of address calculation.
     DataPath dataIn;        // The input data for store or CSR data out
-`ifdef RSD_ENABLE_VECTOR_PATH
-    VectorPath vecDataIn;   // The input data for store
-`endif
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;
 
@@ -388,9 +375,6 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     logic isLoad;
 
     PRegDataPath dataOut;    // Result of Load
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath vecDataOut; // Result of Vector Load
-`endif
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
     MSHR_IndexPath mshrID;

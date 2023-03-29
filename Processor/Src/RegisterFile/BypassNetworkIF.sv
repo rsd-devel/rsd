@@ -62,11 +62,8 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     
     PRegDataPath  complexSrcRegDataOutA [ COMPLEX_ISSUE_WIDTH ];
     PRegDataPath  complexSrcRegDataOutB [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataOutA [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataOutB [ COMPLEX_ISSUE_WIDTH ];
 
     PRegDataPath  complexDstRegDataOut  [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexDstVecDataOut  [ COMPLEX_ISSUE_WIDTH ];
 `endif
 
     //
@@ -92,11 +89,6 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     PRegDataPath memSrcRegDataOutB  [ MEM_ISSUE_WIDTH ];
     PRegDataPath  memDstRegDataOut  [ MEM_ISSUE_WIDTH ];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  memSrcVecDataOutB [ STORE_ISSUE_WIDTH ];
-    PVecDataPath  memDstVecDataOut  [ LOAD_ISSUE_WIDTH ];
-`endif
-    
     //
     // --- FP Pipeline
     //
@@ -209,21 +201,6 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
 `endif
     );
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    modport VectorBypassNetwork(
-    input
-        clk,
-        rst,
-        complexCtrlIn,
-        complexDstVecDataOut,
-        memCtrlIn,
-        memDstVecDataOut,
-    output
-        complexSrcVecDataOutA,
-        complexSrcVecDataOutB,
-        memSrcVecDataOutB
-    );
-`endif
     modport IntegerRegisterReadStage(
     input
         clk,
@@ -266,12 +243,9 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     input
         complexSrcRegDataOutA,
         complexSrcRegDataOutB,
-        complexSrcVecDataOutA,
-        complexSrcVecDataOutB,
     output 
         complexCtrlIn,
-        complexDstRegDataOut,
-        complexDstVecDataOut
+        complexDstRegDataOut
     );
 `endif
     
@@ -293,18 +267,12 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     input
         memSrcRegDataOutA,
         memSrcRegDataOutB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memSrcVecDataOutB,
-`endif
     output 
         memCtrlIn
     );
 
     modport MemoryAccessStage(
     output 
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memDstVecDataOut,
-`endif
         memDstRegDataOut
     );
 

@@ -129,10 +129,7 @@ module ComplexIntegerRegisterReadStage(
             // レジスタ値&フラグ
             nextStage[i].operandA = registerFile.complexSrcRegDataA[i];
             nextStage[i].operandB = registerFile.complexSrcRegDataB[i];
-`ifdef RSD_ENABLE_VECTOR_PATH
-            nextStage[i].vecOperandA = registerFile.complexSrcVecDataA[i];
-            nextStage[i].vecOperandB = registerFile.complexSrcVecDataB[i];
-`endif
+            
             // Issue queue data
             nextStage[i].complexQueueData = pipeReg[i].complexQueueData;
 

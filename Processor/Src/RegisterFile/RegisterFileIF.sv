@@ -54,14 +54,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     PRegDataPath memDstRegData  [ LOAD_ISSUE_WIDTH ];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  complexSrcVecDataA [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataB [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexDstVecData  [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  memSrcVecDataB [ STORE_ISSUE_WIDTH ];
-    PVecDataPath memDstVecData [ LOAD_ISSUE_WIDTH ];
-`endif    
-
 `ifdef RSD_MARCH_FP_PIPE
     /* FP Register Read */
     PRegNumPath  fpSrcRegNumA [ FP_ISSUE_WIDTH ];
@@ -111,16 +103,7 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
         fpDstRegNum,
         fpDstRegData,
 `endif
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexDstVecData,
-        memDstVecData,
-`endif
     output
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexSrcVecDataA,
-        complexSrcVecDataB,
-        memSrcVecDataB,
-`endif
         intSrcRegDataA,
         intSrcRegDataB,
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -158,10 +141,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     input
         complexSrcRegDataA,
         complexSrcRegDataB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexSrcVecDataA,
-        complexSrcVecDataB,
-`endif
     output
         complexSrcRegNumA,
         complexSrcRegNumB
@@ -169,9 +148,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     modport ComplexIntegerRegisterWriteStage(
     output
- `ifdef RSD_ENABLE_VECTOR_PATH
-        complexDstVecData,
- `endif
         complexDstRegWE,
         complexDstRegNum,
         complexDstRegData
@@ -202,9 +178,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     input
         memSrcRegDataA,
         memSrcRegDataB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-         memSrcVecDataB,
-`endif
     output
         memSrcRegNumA,
         memSrcRegNumB
@@ -212,9 +185,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     modport MemoryRegisterWriteStage(
     output
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memDstVecData,
-`endif
         memDstRegWE,
         memDstRegNum,
         memDstRegData

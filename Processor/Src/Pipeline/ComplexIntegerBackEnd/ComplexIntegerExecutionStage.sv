@@ -268,76 +268,6 @@ module ComplexIntegerExecutionStage(
         end
     end
 
-
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  fuVecOpA    [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  fuVecOpB    [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  vecDataOut  [ COMPLEX_ISSUE_WIDTH ];
-
-    //
-    // VectorAdder
-    //
-    VectorPath vecAddDataOut [ COMPLEX_ISSUE_WIDTH ];
-    for ( genvar i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin : BlockVecAdd
-        PipelinedVectorAdder #(
-            .PIPELINE_DEPTH( COMPLEX_EXEC_STAGE_DEPTH )
-        ) vecAdder (
-            .clk( port.clk ),
-            .stall( stall ),
-            .fuOpA_In( fuVecOpA[i].data ),
-            .fuOpB_In( fuVecOpB[i].data ),
-            .dataOut( vecAddDataOut[i] )
-        );
-    end
-
-    //
-    // VectorMultiplier
-    //
-    VectorPath vecMulDataOut [ COMPLEX_ISSUE_WIDTH ];
-    for ( genvar i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin : BlockVecMul
-        PipelinedVectorMultiplier #(
-            .PIPELINE_DEPTH( COMPLEX_EXEC_STAGE_DEPTH )
-        ) vecMul (
-            .clk( port.clk ),
-            .stall( stall ),
-            .getUpper( FALSE ),
-            .mulCode( AC_MUL ),
-            .fuOpA_In( fuVecOpA[i].data ),
-            .fuOpB_In( fuVecOpB[i].data ),
-            .dataOut( vecMulDataOut[i] )
-        );
-    end
-
-    always_comb begin
-        for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
-            fuVecOpA[i] = ( pipeReg[i].bCtrl.rA.valid ? bypass.complexSrcVecDataOutA[i] : pipeReg[i].vecOperandA );
-            fuVecOpB[i] = ( pipeReg[i].bCtrl.rB.valid ? bypass.complexSrcVecDataOutB[i] : pipeReg[i].vecOperandB );
-
-            if ( iqData[i][0].opDst.phyDstRegNum.isVector ) begin
-                // ベクタ演算
-                regValid[i] =
-                    fuVecOpA[i].valid &&
-                    fuVecOpB[i].valid;
-            end
-            else begin
-                // ベクタ以外の演算
-                regValid[i] =
-                    fuOpA[i].valid &&
-                    fuOpB[i].valid;
-            end
-            vecDataOut[i].valid
-                = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].regValid;
-
-            unique case ( localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].complexQueueData.opType )
-            COMPLEX_MOP_TYPE_VEC_ADD: vecDataOut[i].data = vecAddDataOut[i];
-            default: /* vec mul */    vecDataOut[i].data = vecMulDataOut[i];
-            endcase
-            bypass.complexDstVecDataOut[i] = vecDataOut[i];
-        end
-    end
-`endif
-
-
     //
     // --- Pipeline レジスタ書き込み
     //
@@ -388,9 +318,6 @@ module ComplexIntegerExecutionStage(
                 (stall || clear || port.rst || flush[i][COMPLEX_EXEC_STAGE_DEPTH-1]) ? FALSE : localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].valid;
 
             nextStage[i].dataOut = dataOut[i];
-`ifdef RSD_ENABLE_VECTOR_PATH
-            nextStage[i].vecDataOut = vecDataOut[i];
-`endif
         end
 
         port.nextStage = nextStage;
@@ -410,12 +337,6 @@ module ComplexIntegerExecutionStage(
             debug.complexExReg[i].dataOut = dataOut[i];
             debug.complexExReg[i].fuOpA   = fuOpA[i];
             debug.complexExReg[i].fuOpB   = fuOpB[i];
-
-`ifdef RSD_ENABLE_VECTOR_PATH
-            debug.complexExReg[i].vecDataOut = vecDataOut[i];
-            debug.complexExReg[i].fuVecOpA = fuVecOpA[i];
-            debug.complexExReg[i].fuVecOpB = fuVecOpB[i];
-`endif
 
 `endif  // `ifdef RSD_FUNCTIONAL_SIMULATION
         end //for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin

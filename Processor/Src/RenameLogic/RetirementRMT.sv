@@ -66,10 +66,7 @@ module RetirementRMT(RenameLogicIF.RetirementRMT port);
         for (int i = 0; i < RENAME_WIDTH; i++) begin
             readLogRegNum[i] = port.retRMT_ReadReg_LogRegNum[i];
             port.retRMT_ReadReg_PhyRegNum[i].regNum = readPhyRegNum[i];
-`ifdef RSD_ENABLE_VECTOR_PATH
-            port.retRMT_ReadReg_PhyRegNum[i].isVector
-                = port.retRMT_ReadReg_LogRegNum[i].isVector;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             port.retRMT_ReadReg_PhyRegNum[i].isFP
                 = port.retRMT_ReadReg_LogRegNum[i].isFP;
 `endif
@@ -92,14 +89,7 @@ module RetirementRMT(RenameLogicIF.RetirementRMT port);
     // RMTの初期値はREG_FREE_LIST_ENTRY_NUM以上の値を使う
     always_comb begin
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
-`ifdef RSD_ENABLE_VECTOR_PATH
-            if ( !rstWriteLogRegNum[i].isVector )
-                rstWritePhyRegNum[i] =
-                    rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;
-            else
-                rstWritePhyRegNum[i] =
-                    rstWriteLogRegNum[i].regNum + VECTOR_FREE_LIST_ENTRY_NUM;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             if ( !rstWriteLogRegNum[i].isFP )
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;

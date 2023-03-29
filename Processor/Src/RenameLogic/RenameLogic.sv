@@ -27,13 +27,7 @@ module RenameLogic (
     PScalarRegNumPath releasedPhyScalarRegNum [ COMMIT_WIDTH ];
     ScalarFreeListCountPath scalarFreeListCount;
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    logic allocatePhyVectorReg [ RENAME_WIDTH ];
-    PVectorRegNumPath allocatedPhyVectorRegNum [ RENAME_WIDTH ];
-    logic releasePhyVectorReg [ COMMIT_WIDTH ];
-    PVectorRegNumPath releasedPhyVectorRegNum [ COMMIT_WIDTH ];
-    VectorFreeListCountPath vectorFreeListCount;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     logic allocatePhyScalarFPReg [ RENAME_WIDTH ];
     PScalarFPRegNumPath allocatedPhyScalarFPRegNum [ RENAME_WIDTH ];
     logic releasePhyScalarFPReg [ COMMIT_WIDTH ];
@@ -65,26 +59,7 @@ module RenameLogic (
         .pushedData( releasedPhyScalarRegNum )
     );
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    MultiWidthFreeList #(
-        .SIZE( VECTOR_FREE_LIST_ENTRY_NUM ),
-        .ENTRY_BIT_SIZE( PVECTOR_NUM_BIT_WIDTH ),
-        .PUSH_WIDTH( COMMIT_WIDTH ),
-        .POP_WIDTH( RENAME_WIDTH ),
-        .INITIAL_LENGTH( VECTOR_FREE_LIST_ENTRY_NUM )
-    ) vectorFreeList (
-        .clk( port.clk ),
-        .rst( port.rst ),
-        .rstStart( port.rstStart ),
-        .count( vectorFreeListCount ),
-
-        .pop( allocatePhyVectorReg ),
-        .poppedData( allocatedPhyVectorRegNum ),
-
-        .push( releasePhyVectorReg ),
-        .pushedData( releasedPhyVectorRegNum )
-    );
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     MultiWidthFreeList #(
         .SIZE( SCALAR_FP_FREE_LIST_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( PSCALAR_FP_NUM_BIT_WIDTH ),
@@ -161,11 +136,7 @@ module RenameLogic (
 
         // Destinations.
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
-`ifdef RSD_ENABLE_VECTOR_PATH
-            allocatedPhyRegNum[i].isVector = port.logDstReg[i].isVector;
-            allocatedPhyRegNum[i].regNum =
-                (port.logDstReg[i].isVector ? allocatedPhyVectorRegNum[i] : allocatedPhyScalarRegNum[i]);
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             allocatedPhyRegNum[i].isFP = port.logDstReg[i].isFP;
             allocatedPhyRegNum[i].regNum =
                 (port.logDstReg[i].isFP ? allocatedPhyScalarFPRegNum[i] : allocatedPhyScalarRegNum[i]);
@@ -182,12 +153,7 @@ module RenameLogic (
         alReadData = activeList.readData;   //for RECOVERY_FROM_ACTIVE_LIST mode
 
         // Empty flag.
-`ifdef RSD_ENABLE_VECTOR_PATH
-        port.allocatable =
-            !inRecoveryRMT &&   // In a recovery mode, the front-end is stalled.
-            (scalarFreeListCount >= RENAME_WIDTH) &&
-            (vectorFreeListCount >= RENAME_WIDTH);
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
         port.allocatable =
             !inRecoveryRMT &&   // In a recovery mode, the front-end is stalled.
             (scalarFreeListCount >= RENAME_WIDTH) &&
@@ -202,10 +168,7 @@ module RenameLogic (
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
             allocatePhyReg[i] = port.updateRMT[i] && port.writeReg[i];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-            allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isVector;
-            allocatePhyVectorReg[i] = allocatePhyReg[i] && port.logDstReg[i].isVector;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isFP;
             allocatePhyScalarFPReg[i] = allocatePhyReg[i] && port.logDstReg[i].isFP;
 `else
@@ -215,13 +178,7 @@ module RenameLogic (
 
         // Release to the free lists.
         for ( int i = 0; i < COMMIT_WIDTH; i++ ) begin
-`ifdef RSD_ENABLE_VECTOR_PATH
-            releasePhyScalarReg[i] =
-                port.releaseReg[i] && !port.phyReleasedReg[i].isVector;
-            releasePhyVectorReg[i] =
-                port.releaseReg[i] && port.phyReleasedReg[i].isVector;
-            releasedPhyVectorRegNum[i] = port.phyReleasedReg[i].regNum;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             releasePhyScalarReg[i] =
                 port.releaseReg[i] && !port.phyReleasedReg[i].isFP;
             releasePhyScalarFPReg[i] =

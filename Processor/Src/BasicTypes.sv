@@ -61,16 +61,6 @@ localparam PSCALAR_NUM = CONF_PSCALAR_NUM;
 localparam PSCALAR_NUM_BIT_WIDTH = $clog2( PSCALAR_NUM );
 typedef logic [PSCALAR_NUM_BIT_WIDTH-1:0] PScalarRegNumPath;
 
-// Logical vector register number width ( for SIMD )
-localparam LVECTOR_NUM = 16;
-localparam LVECTOR_NUM_BIT_WIDTH = $clog2( LVECTOR_NUM );
-typedef logic [LVECTOR_NUM_BIT_WIDTH-1:0] LVectorRegNumPath;
-
-// Physical vector register number width ( for SIMD )
-localparam PVECTOR_NUM = 32;
-localparam PVECTOR_NUM_BIT_WIDTH = $clog2( PVECTOR_NUM );
-typedef logic [PVECTOR_NUM_BIT_WIDTH-1:0] PVectorRegNumPath;
-
 // Logical fp register number width
 localparam LSCALAR_FP_NUM = 32;
 localparam LSCALAR_FP_NUM_BIT_WIDTH = $clog2( LSCALAR_FP_NUM );
@@ -81,14 +71,11 @@ localparam PSCALAR_FP_NUM = CONF_PSCALAR_FP_NUM;
 localparam PSCALAR_FP_NUM_BIT_WIDTH = $clog2( PSCALAR_FP_NUM );
 typedef logic [PSCALAR_FP_NUM_BIT_WIDTH-1:0] PScalarFPRegNumPath;
 
-// Logical general register ( scalar int register + vector/fp register) number width
+// Logical general register ( scalar int register + fp register) number width
 localparam LREG_NUM = LSCALAR_NUM + LSCALAR_FP_NUM;
 localparam LREG_NUM_BIT_WIDTH = $clog2( LREG_NUM );
 typedef struct packed { // LRegNumPath
-`ifdef RSD_ENABLE_VECTOR_PATH
-    logic isVector; // If TRUE, the register is for SIMD.
-    logic [ LREG_NUM_BIT_WIDTH-2:0 ] regNum;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
     logic isFP; // If TRUE, the register is for FP.
     logic [ LREG_NUM_BIT_WIDTH-2:0 ] regNum;
 `else
@@ -96,15 +83,8 @@ typedef struct packed { // LRegNumPath
 `endif
 } LRegNumPath;
 
-// Physical general register ( scalar register + vector/fp register ) number width
-`ifdef RSD_ENABLE_VECTOR_PATH
-localparam PREG_NUM = 128; //PSCALAR_NUM + PVECTOR_NUM;
-localparam PREG_NUM_BIT_WIDTH = $clog2( PREG_NUM );
-typedef struct packed { // PRegNumPath
-    logic isVector; // If TRUE, the register is for SIMD.
-    logic [ PREG_NUM_BIT_WIDTH-1:0 ] regNum;
-} PRegNumPath;
-`elsif RSD_MARCH_FP_PIPE
+// Physical general register ( scalar int register + fp register ) number width
+`ifdef RSD_MARCH_FP_PIPE
 localparam PREG_NUM = PSCALAR_NUM + PSCALAR_FP_NUM;
 localparam PREG_NUM_BIT_WIDTH = $clog2( PREG_NUM );
 typedef struct packed { // PRegNumPath
@@ -223,13 +203,6 @@ typedef struct packed
     logic valid;
     DataPath data;
 } PRegDataPath;
-
-localparam PVEC_DATA_WIDTH = VEC_WIDTH + 1; // +1 is for a valid flag.
-typedef struct packed
-{
-    logic valid;
-    VectorPath data;
-} PVecDataPath;
 
 //
 // --- Shifter

@@ -16,7 +16,7 @@ import LoadStoreUnitTypes::*;
 // --- RMT
 //
 
-// RMTはscalar/vectorで共通
+// RMTはint/fpで共通
 localparam RMT_ENTRY_NUM = LREG_NUM;
 localparam RMT_INDEX_BIT_SIZE = LREG_NUM_BIT_WIDTH;
 
@@ -26,11 +26,9 @@ localparam RMT_REG_OPERAND_NUM = 4;
 localparam RMT_REG_OPERAND_NUM = 3;
 `endif
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    // PRegNumPathの最上位ビットはscalar/vectorを表すが、
+`ifdef RSD_MARCH_FP_PIPE
+    // PRegNumPathの最上位ビットはint/fpを表すが、
     // そのビットはRMTに保存しない
-    localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH - 1;
-`elsif RSD_MARCH_FP_PIPE
     localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH - 1;
 `else
     localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH;
@@ -55,13 +53,6 @@ localparam SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH =
     $clog2( SCALAR_FREE_LIST_ENTRY_NUM );
 typedef logic [SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] ScalarFreeListIndexPath;
 typedef logic [SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH:0] ScalarFreeListCountPath;
-
-// Free list for general (vector) registers
-localparam VECTOR_FREE_LIST_ENTRY_NUM = PVECTOR_NUM - LVECTOR_NUM;
-localparam VECTOR_FREE_LIST_ENTRY_NUM_BIT_WIDTH =
-    $clog2( VECTOR_FREE_LIST_ENTRY_NUM );
-typedef logic [VECTOR_FREE_LIST_ENTRY_NUM_BIT_WIDTH-1:0] VectorFreeListIndexPath;
-typedef logic [VECTOR_FREE_LIST_ENTRY_NUM_BIT_WIDTH:0] VectorFreeListCountPath;
 
 // Free list for fp registers
 localparam SCALAR_FP_FREE_LIST_ENTRY_NUM = PSCALAR_FP_NUM - LSCALAR_FP_NUM;

@@ -99,11 +99,7 @@ module RMT( RenameLogicIF.RMT port );
             rmtRA[ RMT_REG_OPERAND_NUM*i+3 ] = port.logSrcRegC[i];
 `endif
             
-`ifdef RSD_ENABLE_VECTOR_PATH
-            phySrcRegA[i].isVector    = port.logSrcRegA[i].isVector;
-            phySrcRegB[i].isVector    = port.logSrcRegB[i].isVector;
-            phyPrevDstReg[i].isVector = port.logDstReg[i].isVector;
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             phySrcRegA[i].isFP        = port.logSrcRegA[i].isFP;
             phySrcRegB[i].isFP        = port.logSrcRegB[i].isFP;
             phySrcRegC[i].isFP        = port.logSrcRegC[i].isFP;
@@ -182,16 +178,7 @@ module RMT( RenameLogicIF.RMT port );
     // RMTの初期値はFREE_LIST_ENTRY_NUM以上の値を使う
     always_comb begin
         for ( int i = 0; i < COMMIT_WIDTH; i++ ) begin
-`ifdef RSD_ENABLE_VECTOR_PATH
-            if ( !rstWriteLogRegNum[i].isVector ) begin
-                rstWritePhyRegNum[i] =
-                    rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;
-            end
-            else begin
-                rstWritePhyRegNum[i] =
-                    rstWriteLogRegNum[i].regNum + VECTOR_FREE_LIST_ENTRY_NUM;
-            end
-`elsif RSD_MARCH_FP_PIPE
+`ifdef RSD_MARCH_FP_PIPE
             if ( !rstWriteLogRegNum[i].isFP ) begin
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;

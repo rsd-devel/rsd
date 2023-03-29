@@ -96,12 +96,10 @@ CORE_MODULES = \
 	RegisterFile/BypassController.sv \
 	RegisterFile/BypassNetwork.sv \
 	RegisterFile/BypassNetworkIF.sv \
-	RegisterFile/VectorBypassNetwork.sv \
 	ExecUnit/BitCounter.sv \
 	ExecUnit/IntALU.sv \
 	ExecUnit/Shifter.sv \
 	ExecUnit/MultiplierUnit.sv \
-	ExecUnit/VectorUnit.sv \
 	ExecUnit/PipelinedRefDivider.sv \
 	ExecUnit/DividerUnit.sv \
 	MulDivUnit/MulDivUnitIF.sv \

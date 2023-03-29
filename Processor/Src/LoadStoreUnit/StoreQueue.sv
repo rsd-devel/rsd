@@ -30,19 +30,8 @@ module StoreQueue(
         input PhyAddrPath addr,
         input MemAccessMode mode
     );
-`ifdef RSD_ENABLE_VECTOR_PATH
-        // Disable vector data path
-        if (mode.size == MEM_ACCESS_SIZE_VEC) begin
-            dataOut = blockDataIn;  // Vector
-        end
-        else begin
-            dataOut = dataIn;
-            dataOut = dataOut << ( addr[ LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE-1:0 ] * BYTE_WIDTH );
-        end
-`else
         dataOut = dataIn;
         dataOut = dataOut << ( addr[ LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE-1:0 ] * BYTE_WIDTH );
-`endif
     endfunction
 
     //

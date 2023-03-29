@@ -369,11 +369,7 @@ module MemoryTagAccessStage(
             // Load store unit
             loadStoreUnit.executeStore[i] = stUpdate[i] && isStore[i];
             loadStoreUnit.executedStoreData[i] = stPipeReg[i].dataIn;
-`ifdef RSD_ENABLE_VECTOR_PATH
-            loadStoreUnit.executedStoreVectorData[i] = stPipeReg[i].vecDataIn;
-`else
             loadStoreUnit.executedStoreVectorData[i] = '0;
-`endif
             loadStoreUnit.executedStoreAddr[i] = stPipeReg[i].phyAddrOut;
             loadStoreUnit.executedStoreCondEnabled[i]   = stPipeReg[i].condEnabled;
             loadStoreUnit.executedStoreRegValid[i] = stPipeReg[i].regValid;

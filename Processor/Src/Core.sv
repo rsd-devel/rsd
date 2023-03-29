@@ -199,9 +199,7 @@ output
     RegisterFile registerFile( registerFileIF );
         BypassController bypassController( bypassNetworkIF, ctrlIF );
         BypassNetwork  bypassNetwork( bypassNetworkIF, ctrlIF );
-`ifdef RSD_ENABLE_VECTOR_PATH
-        VectorBypassNetwork  vectorBypassNetwork( bypassNetworkIF, ctrlIF );
-`endif
+    
     // A commitment stage generates a flush signal and this is send to scheduler.
     CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
         RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF, perfCounterIF );

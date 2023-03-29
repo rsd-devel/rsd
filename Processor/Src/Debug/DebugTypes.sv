@@ -174,10 +174,6 @@ typedef struct packed { // ComplexIntegerExecutionStageDebugRegister
     DataPath dataOut;
     DataPath fuOpA;
     DataPath fuOpB;
-
-    VectorPath vecDataOut;
-    VectorPath fuVecOpA;
-    VectorPath fuVecOpB;
 `endif
 
 } ComplexIntegerExecutionStageDebugRegister;
@@ -211,7 +207,6 @@ typedef struct packed { // MemoryExecutionStageDebugRegister
     AddrPath addrOut;
     DataPath fuOpA;
     DataPath fuOpB;
-    VectorPath fuVecOpB;
     MemMicroOpSubType opType;
     MemAccessSizeType size;
     logic isSigned;

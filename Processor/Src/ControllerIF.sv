@@ -264,11 +264,6 @@ input
         backEnd
     );
 
-    modport VectorBypassNetwork(
-    input
-        backEnd
-    );
-
     modport DCache(
     input
         backEnd
