@@ -101,7 +101,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     // --- FP Pipeline
     //
     
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     // Register read stage
     PRegNumPath fpPhySrcRegNumA [ FP_ISSUE_WIDTH ];
     PRegNumPath fpPhySrcRegNumB [ FP_ISSUE_WIDTH ];
@@ -154,7 +154,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
         memReadRegA,
         memReadRegB,
         memWriteReg,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpPhySrcRegNumA,
         fpPhySrcRegNumB,
         fpPhySrcRegNumC,
@@ -170,7 +170,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
         complexCtrlOut,
 `endif
         memCtrlOut
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fpCtrlOut
 `endif
@@ -188,7 +188,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
 `endif
         memCtrlIn,
         memDstRegDataOut,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpCtrlIn,
         fpDstRegDataOut,
 `endif
@@ -201,7 +201,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
 `endif
         memSrcRegDataOutA,
         memSrcRegDataOutB
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fpSrcRegDataOutA,
         fpSrcRegDataOutB,
@@ -308,7 +308,7 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
         memDstRegDataOut
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPRegisterReadStage(
     input
         clk,

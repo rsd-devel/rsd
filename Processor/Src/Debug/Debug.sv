@@ -64,7 +64,7 @@ module Debug (
             next.mtReg[i] = port.mtReg[i];
             next.memRwReg[i] = port.memRwReg[i];
         end
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             next.fpIsReg[i] = port.fpIsReg[i];
             next.fpRrReg[i] = port.fpRrReg[i];

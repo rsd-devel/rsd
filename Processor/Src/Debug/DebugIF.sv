@@ -49,7 +49,7 @@ interface DebugIF( input logic clk, rst );
     MemoryAccessStageDebugRegister         maReg    [ MEM_ISSUE_WIDTH ];
     MemoryRegisterWriteStageDebugRegister  memRwReg [ MEM_ISSUE_WIDTH ];
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPIssueStageDebugRegister         fpIsReg [ FP_ISSUE_WIDTH ];
     FPRegisterReadStageDebugRegister  fpRrReg [ FP_ISSUE_WIDTH ];
     FPExecutionStageDebugRegister     fpExReg [ FP_ISSUE_WIDTH ];
@@ -112,7 +112,7 @@ interface DebugIF( input logic clk, rst );
         maReg,
         mtReg,
         memRwReg,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpIsReg,
         fpRrReg,
         fpExReg,
@@ -285,7 +285,7 @@ interface DebugIF( input logic clk, rst );
         memRwReg
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPIssueStage (
     output
         fpIsReg
@@ -408,7 +408,7 @@ interface DebugIF( input logic clk, rst );
         input clk
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPIssueStage (
         input clk
     );

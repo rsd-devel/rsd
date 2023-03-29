@@ -343,7 +343,7 @@ typedef struct packed // SchedulerEntry
 
     logic srcRegValidA;
     logic srcRegValidB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic srcRegValidC;
 `endif
     OpSrc opSrc;
@@ -352,7 +352,7 @@ typedef struct packed // SchedulerEntry
     // Pointer to producers in an issue queue.
     IssueQueueIndexPath srcPtrRegA;
     IssueQueueIndexPath srcPtrRegB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueQueueIndexPath srcPtrRegC;
 `endif
 } SchedulerEntry;

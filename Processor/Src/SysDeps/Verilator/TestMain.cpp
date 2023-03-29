@@ -36,7 +36,7 @@ int GetCommittedRegisterValue(
     for (int i = 0; i < LSCALAR_NUM; i++) {
         phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
     }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
     for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
         phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
     }
@@ -58,7 +58,7 @@ int GetCommittedRegisterValue(
     for(int i = 0; i < LSCALAR_NUM; i++) {
         regData[i] = core->registerFile->phyReg->debugValue[phyRegNum[i]];
     }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
     for(int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
         regData[i] = core->registerFile->phyFPReg->debugValue[phyRegNum[i]];
     }

@@ -18,7 +18,7 @@ interface ScheduleStageIF( input logic clk, rst );
     IssueStageRegPath complexNextStage [ COMPLEX_ISSUE_WIDTH ];
 `endif
     IssueStageRegPath memNextStage     [ MEM_ISSUE_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueStageRegPath fpNextStage     [ FP_ISSUE_WIDTH ];
 `endif
     
@@ -32,7 +32,7 @@ interface ScheduleStageIF( input logic clk, rst );
         complexNextStage,
 `endif
         memNextStage
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fpNextStage
 `endif
@@ -55,7 +55,7 @@ interface ScheduleStageIF( input logic clk, rst );
         memNextStage
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPNextStage(
     input
         fpNextStage

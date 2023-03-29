@@ -244,7 +244,7 @@ module RenameStage(
             // Logical register numbers
             renameLogic.logSrcRegA[i] = isBranch[i] ? opInfo[i].operand.brOp.srcRegNumA : opInfo[i].operand.intOp.srcRegNumA;
             renameLogic.logSrcRegB[i] = isBranch[i] ? opInfo[i].operand.brOp.srcRegNumB : opInfo[i].operand.intOp.srcRegNumB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             renameLogic.logSrcRegC[i] = opInfo[i].operand.fpOp.srcRegNumC;
 `endif
             renameLogic.logDstReg[i] = isBranch[i] ? opInfo[i].operand.brOp.dstRegNum : opInfo[i].operand.intOp.dstRegNum;
@@ -252,7 +252,7 @@ module RenameStage(
             // Read/Write control
             renameLogic.readRegA[i] = opInfo[i].opTypeA == OOT_REG;
             renameLogic.readRegB[i] = opInfo[i].opTypeB == OOT_REG;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             renameLogic.readRegC[i] = opInfo[i].opTypeC == OOT_REG;
 `endif
 
@@ -271,7 +271,7 @@ module RenameStage(
             // Renamed physical register numbers.
             nextStage[i].phySrcRegNumA = renameLogic.phySrcRegA[i];
             nextStage[i].phySrcRegNumB = renameLogic.phySrcRegB[i];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             nextStage[i].phySrcRegNumC = renameLogic.phySrcRegC[i];
 `endif
             nextStage[i].phyDstRegNum = renameLogic.phyDstReg[i];
@@ -284,7 +284,7 @@ module RenameStage(
             // Renamed physical register numbers.
             nextStage[i].srcIssueQueuePtrRegA = renameLogic.srcIssueQueuePtrRegA[i];
             nextStage[i].srcIssueQueuePtrRegB = renameLogic.srcIssueQueuePtrRegB[i];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             nextStage[i].srcIssueQueuePtrRegC = renameLogic.srcIssueQueuePtrRegC[i];
 `endif
         end

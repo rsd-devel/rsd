@@ -70,7 +70,7 @@ localparam CONF_STORE_ISSUE_WIDTH = 1;      // must be 1
 `endif
 
 // The issue width of fp pipelines.
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     localparam CONF_FP_ISSUE_WIDTH = 1;
 `else
     localparam CONF_FP_ISSUE_WIDTH = 0;

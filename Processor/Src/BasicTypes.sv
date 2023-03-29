@@ -88,7 +88,7 @@ typedef struct packed { // LRegNumPath
 `ifdef RSD_ENABLE_VECTOR_PATH
     logic isVector; // If TRUE, the register is for SIMD.
     logic [ LREG_NUM_BIT_WIDTH-2:0 ] regNum;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     logic isFP; // If TRUE, the register is for FP.
     logic [ LREG_NUM_BIT_WIDTH-2:0 ] regNum;
 `else
@@ -104,7 +104,7 @@ typedef struct packed { // PRegNumPath
     logic isVector; // If TRUE, the register is for SIMD.
     logic [ PREG_NUM_BIT_WIDTH-1:0 ] regNum;
 } PRegNumPath;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
 localparam PREG_NUM = PSCALAR_NUM + PSCALAR_FP_NUM;
 localparam PREG_NUM_BIT_WIDTH = $clog2( PREG_NUM );
 typedef struct packed { // PRegNumPath
@@ -172,7 +172,7 @@ typedef logic unsigned [ $clog2(MEM_ISSUE_WIDTH):0 ] MemIssueLaneCountPath;
 localparam FP_DIVSQRT_ISSUE_WIDTH = 1;
 localparam FP_ISSUE_WIDTH = CONF_FP_ISSUE_WIDTH;
 localparam FP_ISSUE_WIDTH_BIT_SIZE = (FP_ISSUE_WIDTH == 1) ? 1 : $clog2(FP_ISSUE_WIDTH);
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 typedef logic [ FP_ISSUE_WIDTH_BIT_SIZE-1:0 ] FPIssueLaneIndexPath;
 typedef logic unsigned [ $clog2(FP_ISSUE_WIDTH):0 ] FPIssueLaneCountPath;
 `endif
@@ -202,7 +202,7 @@ typedef struct packed // OpSrc
 {
     PRegNumPath phySrcRegNumA;
     PRegNumPath phySrcRegNumB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     PRegNumPath phySrcRegNumC;
 `endif
 } OpSrc;

@@ -150,7 +150,7 @@ typedef struct packed {
 
     DataPath mcycle;
     DataPath minstret;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     CSR_FCSR_Path fcsr;
 `endif
 } CSR_BodyPath;

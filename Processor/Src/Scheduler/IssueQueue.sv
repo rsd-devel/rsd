@@ -122,7 +122,7 @@ module IssueQueue (
     IssueQueueIndexPath    complexIssuePtr   [ COMPLEX_ISSUE_WIDTH ];
     ComplexIssueQueueEntry complexIssuedData [ COMPLEX_ISSUE_WIDTH ];
 `endif
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueQueueIndexPath    fpIssuePtr   [ FP_ISSUE_WIDTH ];
     FPIssueQueueEntry      fpIssuedData [ FP_ISSUE_WIDTH ];
 `endif
@@ -172,7 +172,7 @@ module IssueQueue (
         .rv( memIssuedData )
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     DistributedMultiPortRAM #(
         .ENTRY_NUM( ISSUE_QUEUE_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( $bits( FPIssueQueueEntry ) ),
@@ -204,7 +204,7 @@ module IssueQueue (
             memIssuePtr[i] = port.memIssuePtr[i];
             port.memIssuedData[i] = memIssuedData[i];
         end
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             fpIssuePtr[i] = port.fpIssuePtr[i];
             port.fpIssuedData[i] = fpIssuedData[i];

@@ -20,7 +20,7 @@ import LoadStoreUnitTypes::*;
 localparam RMT_ENTRY_NUM = LREG_NUM;
 localparam RMT_INDEX_BIT_SIZE = LREG_NUM_BIT_WIDTH;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 localparam RMT_REG_OPERAND_NUM = 4;
 `else
 localparam RMT_REG_OPERAND_NUM = 3;
@@ -30,7 +30,7 @@ localparam RMT_REG_OPERAND_NUM = 3;
     // PRegNumPathの最上位ビットはscalar/vectorを表すが、
     // そのビットはRMTに保存しない
     localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH - 1;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH - 1;
 `else
     localparam RMT_ENTRY_BIT_SIZE = PREG_NUM_BIT_WIDTH;

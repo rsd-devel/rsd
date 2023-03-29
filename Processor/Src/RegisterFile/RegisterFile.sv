@@ -23,7 +23,7 @@ module RegisterFile(
     PScalarRegNumPath srcRegNum  [ REG_READ_NUM ];
     PRegDataPath srcRegData [ REG_READ_NUM ];
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     //
     // FP Register
     //
@@ -64,7 +64,7 @@ module RegisterFile(
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
 `ifdef RSD_ENABLE_VECTOR_PATH
             regWE     [i] = port.intDstRegWE[i] && !port.intDstRegNum[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             regWE     [i] = port.intDstRegWE[i] && !port.intDstRegNum[i].isFP;
 `else
             regWE     [i] = port.intDstRegWE[i];
@@ -81,7 +81,7 @@ module RegisterFile(
         for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
 `ifdef RSD_ENABLE_VECTOR_PATH
             regWE     [i+INT_ISSUE_WIDTH] = port.complexDstRegWE[i] && !port.complexDstRegNum[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             regWE     [i+INT_ISSUE_WIDTH] = port.complexDstRegWE[i] && !port.complexDstRegNum[i].isFP;
 `else
             regWE     [i+INT_ISSUE_WIDTH] = port.complexDstRegWE[i];
@@ -99,7 +99,7 @@ module RegisterFile(
             srcRegNum[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)*2  ] = port.memSrcRegNumA[i].regNum;
             srcRegNum[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)*2+1] = port.memSrcRegNumB[i].regNum;
             port.memSrcRegDataA[i] = srcRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)*2  ];
-`ifndef RSD_ENABLE_FP_PATH
+`ifndef RSD_MARCH_FP_PIPE
             port.memSrcRegDataB[i] = srcRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)*2+1];
 `else
             port.memSrcRegDataB[i] = port.memSrcRegNumB[i].isFP ? srcFPRegData[i+FP_ISSUE_WIDTH*3] : srcRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)*2+1];
@@ -109,7 +109,7 @@ module RegisterFile(
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
 `ifdef RSD_ENABLE_VECTOR_PATH
             regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memDstRegWE[i] && !port.memDstRegNum[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memDstRegWE[i] && !port.memDstRegNum[i].isFP;
 `else
             regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memDstRegWE[i];
@@ -119,7 +119,7 @@ module RegisterFile(
             dstRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memDstRegData[i];
         end
 
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             srcRegNum[i+(INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)*2  ] = port.fpSrcRegNumA[i].regNum;
             //port.fpSrcRegDataA[i] = srcRegData[i+(INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)*2  ];
@@ -215,7 +215,7 @@ module RegisterFile(
     //
     // FP
     //
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     DistributedMultiPortRAM #(
         .ENTRY_NUM( PSCALAR_FP_NUM ),
         .ENTRY_BIT_SIZE( $bits(PRegDataPath) ),

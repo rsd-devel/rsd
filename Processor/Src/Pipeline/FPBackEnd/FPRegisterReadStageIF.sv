@@ -8,7 +8,7 @@ import PipelineTypes::*;
 
 interface FPRegisterReadStageIF( input logic clk, rst );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     // Pipeline register
     FPExecutionStageRegPath nextStage [ FP_ISSUE_WIDTH ];
 

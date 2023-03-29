@@ -56,7 +56,7 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
     logic loadIssueReq[ISSUE_QUEUE_ENTRY_NUM];
     logic storeIssueReq[ISSUE_QUEUE_ENTRY_NUM];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic fpIssueReq[ISSUE_QUEUE_ENTRY_NUM];
 `endif
 
@@ -79,7 +79,7 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
         loadIssueReq,
         storeIssueReq,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpIssueReq,
 `endif
         notIssued,
@@ -131,7 +131,7 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 `endif
         loadIssueReq,
         storeIssueReq,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpIssueReq,
 `endif
     output

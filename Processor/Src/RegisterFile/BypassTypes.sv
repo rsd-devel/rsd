@@ -24,7 +24,7 @@ typedef struct packed {
     IntIssueLaneIndexPath intLane;
     ComplexIssueLaneIndexPath complexLane;
     MemIssueLaneIndexPath memLane;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPIssueLaneIndexPath fpLane;
 `endif
 } BypassLane;
@@ -38,7 +38,7 @@ typedef struct packed {
 typedef struct packed {
     BypassSelect rA;
     BypassSelect rB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     BypassSelect rC;
 `endif
 } BypassControll;

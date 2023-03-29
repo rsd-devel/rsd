@@ -99,7 +99,7 @@ typedef struct packed { // DispatchStageDebugRegister
     LRegNumPath logSrcRegB;
     PRegNumPath phySrcRegB;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic readRegC;
     LRegNumPath logSrcRegC;
     PRegNumPath phySrcRegC;
@@ -253,7 +253,7 @@ typedef struct packed { // MemoryRegisterWriteStageDebugRegister
     OpId opId;
 } MemoryRegisterWriteStageDebugRegister;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 typedef struct packed { // FPIssueStageDebugRegister
     logic valid;
     logic flush;
@@ -347,7 +347,7 @@ typedef struct packed { // DebugRegister
     MemoryAccessStageDebugRegister         [ MEM_ISSUE_WIDTH-1:0 ] maReg;
     MemoryRegisterWriteStageDebugRegister  [ MEM_ISSUE_WIDTH-1:0 ] memRwReg;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPIssueStageDebugRegister         [ FP_ISSUE_WIDTH-1:0 ] fpIsReg;
     FPRegisterReadStageDebugRegister  [ FP_ISSUE_WIDTH-1:0 ] fpRrReg;
     FPExecutionStageDebugRegister     [ FP_ISSUE_WIDTH-1:0 ] fpExReg;

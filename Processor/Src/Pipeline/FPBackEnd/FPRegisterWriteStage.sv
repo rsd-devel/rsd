@@ -15,7 +15,7 @@ import SchedulerTypes::*;
 import ActiveListIndexTypes::*;
 import DebugTypes::*;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 
 module FPRegisterWriteStage(
     FPExecutionStageIF.NextStage prev,

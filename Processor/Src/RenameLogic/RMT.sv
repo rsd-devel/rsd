@@ -17,7 +17,7 @@ module RMT( RenameLogicIF.RMT port );
     // RMT read value
     PRegNumPath phySrcRegA [ RENAME_WIDTH ];
     PRegNumPath phySrcRegB [ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     PRegNumPath phySrcRegC [ RENAME_WIDTH ];
 `endif
     PRegNumPath phyPrevDstReg [ RENAME_WIDTH ];  // For releasing a register.
@@ -25,7 +25,7 @@ module RMT( RenameLogicIF.RMT port );
     // WAT read value
     IssueQueueIndexPath srcIssueQueuePtrRegA[ RENAME_WIDTH ];
     IssueQueueIndexPath srcIssueQueuePtrRegB[ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueQueueIndexPath srcIssueQueuePtrRegC[ RENAME_WIDTH ];
 `endif
 
@@ -95,7 +95,7 @@ module RMT( RenameLogicIF.RMT port );
             rmtRA[ RMT_REG_OPERAND_NUM*i   ] = port.logSrcRegA[i];
             rmtRA[ RMT_REG_OPERAND_NUM*i+1 ] = port.logSrcRegB[i];
             rmtRA[ RMT_REG_OPERAND_NUM*i+2 ] = port.logDstReg[i];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             rmtRA[ RMT_REG_OPERAND_NUM*i+3 ] = port.logSrcRegC[i];
 `endif
             
@@ -103,7 +103,7 @@ module RMT( RenameLogicIF.RMT port );
             phySrcRegA[i].isVector    = port.logSrcRegA[i].isVector;
             phySrcRegB[i].isVector    = port.logSrcRegB[i].isVector;
             phyPrevDstReg[i].isVector = port.logDstReg[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             phySrcRegA[i].isFP        = port.logSrcRegA[i].isFP;
             phySrcRegB[i].isFP        = port.logSrcRegB[i].isFP;
             phySrcRegC[i].isFP        = port.logSrcRegC[i].isFP;
@@ -114,7 +114,7 @@ module RMT( RenameLogicIF.RMT port );
             phySrcRegA[i].regNum    = rmtRV[ RMT_REG_OPERAND_NUM*i   ].phyRegNum;
             phySrcRegB[i].regNum    = rmtRV[ RMT_REG_OPERAND_NUM*i+1 ].phyRegNum;
             phyPrevDstReg[i].regNum = rmtRV[ RMT_REG_OPERAND_NUM*i+2 ].phyRegNum;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             phySrcRegC[i].regNum    = rmtRV[ RMT_REG_OPERAND_NUM*i+3 ].phyRegNum;
 `endif
 
@@ -122,7 +122,7 @@ module RMT( RenameLogicIF.RMT port );
             srcIssueQueuePtrRegA[i] = rmtRV[RMT_REG_OPERAND_NUM*i].regIssueQueuePtr;
             srcIssueQueuePtrRegB[i] = rmtRV[RMT_REG_OPERAND_NUM*i + 1].regIssueQueuePtr;
             port.prevDependIssueQueuePtr[i] = rmtRV[RMT_REG_OPERAND_NUM*i + 2].regIssueQueuePtr;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             srcIssueQueuePtrRegC[i] = rmtRV[RMT_REG_OPERAND_NUM*i + 3].regIssueQueuePtr;
 `endif
             
@@ -137,7 +137,7 @@ module RMT( RenameLogicIF.RMT port );
                         phySrcRegB[i].regNum = port.rmtWriteReg_PhyRegNum[j].regNum;
                         srcIssueQueuePtrRegB[i] = port.watWriteIssueQueuePtr[j];
                     end
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
                     if ( port.logSrcRegC[i] == port.logDstReg[j] ) begin
                         phySrcRegC[i].regNum = port.rmtWriteReg_PhyRegNum[j].regNum;
                         srcIssueQueuePtrRegC[i] = port.watWriteIssueQueuePtr[j];
@@ -154,14 +154,14 @@ module RMT( RenameLogicIF.RMT port );
         // To interface
         port.phySrcRegA = phySrcRegA;
         port.phySrcRegB = phySrcRegB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         port.phySrcRegC = phySrcRegC;
 `endif
         port.phyPrevDstReg = phyPrevDstReg;
 
         port.srcIssueQueuePtrRegA = srcIssueQueuePtrRegA;
         port.srcIssueQueuePtrRegB = srcIssueQueuePtrRegB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         port.srcIssueQueuePtrRegC = srcIssueQueuePtrRegC;
 `endif
     end
@@ -191,7 +191,7 @@ module RMT( RenameLogicIF.RMT port );
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + VECTOR_FREE_LIST_ENTRY_NUM;
             end
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             if ( !rstWriteLogRegNum[i].isFP ) begin
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;

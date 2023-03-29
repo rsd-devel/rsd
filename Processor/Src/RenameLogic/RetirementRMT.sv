@@ -69,7 +69,7 @@ module RetirementRMT(RenameLogicIF.RetirementRMT port);
 `ifdef RSD_ENABLE_VECTOR_PATH
             port.retRMT_ReadReg_PhyRegNum[i].isVector
                 = port.retRMT_ReadReg_LogRegNum[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             port.retRMT_ReadReg_PhyRegNum[i].isFP
                 = port.retRMT_ReadReg_LogRegNum[i].isFP;
 `endif
@@ -99,7 +99,7 @@ module RetirementRMT(RenameLogicIF.RetirementRMT port);
             else
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + VECTOR_FREE_LIST_ENTRY_NUM;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             if ( !rstWriteLogRegNum[i].isFP )
                 rstWritePhyRegNum[i] =
                     rstWriteLogRegNum[i].regNum + SCALAR_FREE_LIST_ENTRY_NUM;

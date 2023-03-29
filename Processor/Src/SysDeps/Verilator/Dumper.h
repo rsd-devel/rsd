@@ -296,7 +296,7 @@ public:
                     debugRegister.dsReg[i].phySrcRegB
                 );
             }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
             if( debugRegister.dsReg[i].readRegC ) {
                 str += FormatString(
                     "r%0d(p%0d), ",
@@ -395,7 +395,7 @@ public:
                 str // comment
             );
         }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
             str = "";
             DumpStage(
@@ -447,7 +447,7 @@ public:
                 "" // comment
             );
         }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
             DumpStage(
                 KS_RR, // stage id
@@ -553,7 +553,7 @@ public:
             );
         }
 
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
             for(int j = 0; j < FP_EXEC_STAGE_DEPTH; j++ ) {
                 // Issue queue allcation
@@ -688,7 +688,7 @@ public:
                 ""
             );
         }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         for(int i = 0; i < FP_ISSUE_WIDTH; i++) {
             DumpStage(
                 KS_RW, // stage id
@@ -833,7 +833,7 @@ public:
         // Dump PC
         fprintf(m_file, "0x%08x\n", pc);
 
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         // Dump fp logical register R0-R31
         for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
             fprintf(m_file, "0x%08x\n", regData[i]);
@@ -891,7 +891,7 @@ public:
         for(int i = 0; i < LSCALAR_NUM; i++) {
             fprintf(m_file, ",0x%08x", regData[i]);
         }
-#ifdef RSD_ENABLE_FP_PATH
+#ifdef RSD_MARCH_FP_PIPE
         // Dump fp logical register R0-R15.
         for(int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
             fprintf(m_file, ",0x%08x", regData[i]);

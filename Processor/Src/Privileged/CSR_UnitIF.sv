@@ -49,7 +49,7 @@ interface CSR_UnitIF(
     // Used in updating minstret
     CommitLaneCountPath commitNum;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     Rounding_Mode frm;
     logic fflagsWE;
     FFlags_Path fflagsData;
@@ -66,7 +66,7 @@ interface CSR_UnitIF(
         csrWriteIn
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPExecutionStage(
     input
         frm
@@ -87,7 +87,7 @@ interface CSR_UnitIF(
     modport CommitStage (
     output
         commitNum
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fflagsWE,
         fflagsData
@@ -123,12 +123,12 @@ interface CSR_UnitIF(
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fflagsWE,
         fflagsData,
 `endif
     output 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         frm,
 `endif
         csrWholeOut,

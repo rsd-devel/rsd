@@ -57,7 +57,7 @@ interface ActiveListIF( input logic clk, rst );
     logic               memWrite[MEM_ISSUE_WIDTH];
     ActiveListWriteData memWriteData[MEM_ISSUE_WIDTH];
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic               fpWrite[FP_ISSUE_WIDTH];
     ActiveListWriteData fpWriteData[FP_ISSUE_WIDTH];
     FFlags_Path     fpFFlagsData[FP_ISSUE_WIDTH];
@@ -93,13 +93,13 @@ interface ActiveListIF( input logic clk, rst );
 `endif
         memWrite,
         memWriteData,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpWrite,
         fpWriteData,
         fpFFlagsData,
 `endif
     output
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fflagsData,
 `endif
         pushedTailPtr,
@@ -147,7 +147,7 @@ interface ActiveListIF( input logic clk, rst );
         memWriteData
     );
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPRegisterWriteStage(
     output
         fpWrite,
@@ -158,7 +158,7 @@ interface ActiveListIF( input logic clk, rst );
 
     modport CommitStage(
     input
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fflagsData,
 `endif
         readData,

@@ -15,7 +15,7 @@ import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import DebugTypes::*;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 
 module FPRegisterReadStage(
     FPRegisterReadStageIF.ThisStage port,

@@ -112,7 +112,7 @@ module BypassNetwork(
             port.memSrcRegDataOutB[i] = SelectData( port.memCtrlIn[i].rB,   intEX, intWB, memMA, memWB );
         end
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             port.fpSrcRegDataOutA[i] = SelectData( port.fpCtrlIn[i].rA,   intEX, intWB, memMA, memWB );
             port.fpSrcRegDataOutB[i] = SelectData( port.fpCtrlIn[i].rB,   intEX, intWB, memMA, memWB );

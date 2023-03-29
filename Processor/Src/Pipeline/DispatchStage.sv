@@ -53,7 +53,7 @@ module DispatchStage(
     IntIssueQueueEntry     intEntry     [ DISPATCH_WIDTH ];
     ComplexIssueQueueEntry complexEntry [ DISPATCH_WIDTH ];
     MemIssueQueueEntry     memEntry     [ DISPATCH_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPIssueQueueEntry      fpEntry      [ DISPATCH_WIDTH ];
 `endif
     SchedulerEntry schedulerEntry [ DISPATCH_WIDTH ];
@@ -84,14 +84,14 @@ module DispatchStage(
             intEntry[i].opId     = pipeReg[i].opId;
             complexEntry[i].opId = pipeReg[i].opId;
             memEntry[i].opId     = pipeReg[i].opId;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             fpEntry[i].opId      = pipeReg[i].opId;
 `endif
 `endif
             // OpSrc
             opSrc[i].phySrcRegNumA = pipeReg[i].phySrcRegNumA;
             opSrc[i].phySrcRegNumB = pipeReg[i].phySrcRegNumB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             opSrc[i].phySrcRegNumC = pipeReg[i].phySrcRegNumC;
 `endif
 
@@ -215,7 +215,7 @@ module DispatchStage(
             // PC
             memEntry[i].pc = pipeReg[i].pc;
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             //
             // --- To a FP queue.
             //
@@ -249,7 +249,7 @@ module DispatchStage(
 
             schedulerEntry[i].srcRegValidA = ( opInfo[i].opTypeA == OOT_REG );
             schedulerEntry[i].srcRegValidB = ( opInfo[i].opTypeB == OOT_REG );
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             schedulerEntry[i].srcRegValidC = ( opInfo[i].opTypeC == OOT_REG );
 `endif
             schedulerEntry[i].opSrc = opSrc[i];
@@ -257,7 +257,7 @@ module DispatchStage(
 
             schedulerEntry[i].srcPtrRegA = pipeReg[i].srcIssueQueuePtrRegA;
             schedulerEntry[i].srcPtrRegB = pipeReg[i].srcIssueQueuePtrRegB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             schedulerEntry[i].srcPtrRegC = pipeReg[i].srcIssueQueuePtrRegC;
 `endif
 
@@ -272,7 +272,7 @@ module DispatchStage(
             scheduler.complexWriteData[i] = complexEntry[i];
 `endif
             scheduler.memWriteData[i] = memEntry[i];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             scheduler.fpWriteData[i] = fpEntry[i];
 `endif
             scheduler.writeSchedulerData[i] = schedulerEntry[i];
@@ -294,7 +294,7 @@ module DispatchStage(
             debug.dsReg[i].readRegB = opInfo[i].opTypeB == OOT_REG;
             debug.dsReg[i].logSrcRegB = opInfo[i].operand.intOp.srcRegNumB;
             debug.dsReg[i].phySrcRegB = pipeReg[i].phySrcRegNumB;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
             debug.dsReg[i].readRegC = opInfo[i].opTypeC == OOT_REG;
             debug.dsReg[i].logSrcRegC = opInfo[i].operand.fpOp.srcRegNumC;
             debug.dsReg[i].phySrcRegC = pipeReg[i].phySrcRegNumC;

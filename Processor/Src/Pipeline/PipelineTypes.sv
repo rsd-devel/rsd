@@ -134,7 +134,7 @@ typedef struct packed // DispatchStageRegPath
     // Renamed physical register numbers.
     PRegNumPath phySrcRegNumA;
     PRegNumPath phySrcRegNumB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     PRegNumPath phySrcRegNumC;
 `endif
     PRegNumPath phyDstRegNum;
@@ -143,7 +143,7 @@ typedef struct packed // DispatchStageRegPath
     // Source pointer for a matrix scheduler.
     IssueQueueIndexPath srcIssueQueuePtrRegA;
     IssueQueueIndexPath srcIssueQueuePtrRegB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueQueueIndexPath srcIssueQueuePtrRegC;
 `endif
 

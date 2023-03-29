@@ -76,7 +76,7 @@ function automatic void RISCV_EmitOpImm(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -111,7 +111,7 @@ function automatic void RISCV_EmitOpImm(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -205,7 +205,7 @@ function automatic void RISCV_EmitOp(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -241,7 +241,7 @@ function automatic void RISCV_EmitOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -325,7 +325,7 @@ function automatic void RISCV_EmitUTypeInst(
     opInfo.operand.intOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.intOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
@@ -356,7 +356,7 @@ function automatic void RISCV_EmitUTypeInst(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = isf.opCode == RISCV_AUIPC ? OOT_PC : OOT_REG;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -431,7 +431,7 @@ function automatic void RISCV_EmitJAL(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -448,7 +448,7 @@ function automatic void RISCV_EmitJAL(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_PC;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -524,7 +524,7 @@ function automatic void RISCV_EmitJALR(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -541,7 +541,7 @@ function automatic void RISCV_EmitJALR(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -621,7 +621,7 @@ function automatic void RISCV_EmitBranch(
     opInfo.operand.brOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.brOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
@@ -638,7 +638,7 @@ function automatic void RISCV_EmitBranch(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -723,7 +723,7 @@ function automatic void RISCV_EmitMemOp(
     opInfo.operand.memOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.memOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.memOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
@@ -742,7 +742,7 @@ function automatic void RISCV_EmitMemOp(
     // ストア時はBを読む
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = isLoad ? OOT_IMM : OOT_REG;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -836,7 +836,7 @@ function automatic void RISCV_EmitComplexOp(
     opInfo.operand.complexOp.dstRegNum.isVector  = FALSE;
     opInfo.operand.complexOp.srcRegNumA.isVector = FALSE;
     opInfo.operand.complexOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     opInfo.operand.complexOp.dstRegNum.isFP  = FALSE;
     opInfo.operand.complexOp.srcRegNumA.isFP = FALSE;
     opInfo.operand.complexOp.srcRegNumB.isFP = FALSE;
@@ -862,7 +862,7 @@ function automatic void RISCV_EmitComplexOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_REG;
     opInfo.opTypeB = OOT_REG;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -947,7 +947,7 @@ function automatic void RISCV_EmitMiscMemOp(
     miscMemOp.dstRegNum.isVector  = FALSE;
     miscMemOp.srcRegNumA.isVector = FALSE;
     miscMemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     miscMemOp.dstRegNum.isFP  = FALSE;
     miscMemOp.srcRegNumA.isFP = FALSE;
     miscMemOp.srcRegNumB.isFP = FALSE;
@@ -980,7 +980,7 @@ function automatic void RISCV_EmitMiscMemOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -1060,7 +1060,7 @@ function automatic void RISCV_EmitCSR_Op(
     memOp.dstRegNum.isVector  = FALSE;
     memOp.srcRegNumA.isVector = FALSE;
     memOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     memOp.dstRegNum.isFP  = FALSE;
     memOp.srcRegNumA.isFP = FALSE;
     memOp.srcRegNumB.isFP = FALSE;
@@ -1115,7 +1115,7 @@ function automatic void RISCV_EmitCSR_Op(
     // CSR 命令の即値だけは特殊なので REG にしておき，ユニット側で対処する
     opInfo.opTypeA = OOT_REG;  
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -1156,7 +1156,7 @@ function automatic void RISCV_EmitSystemOp(
     systemOp.dstRegNum.isVector  = FALSE;
     systemOp.srcRegNumA.isVector = FALSE;
     systemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     systemOp.dstRegNum.isFP  = FALSE;
     systemOp.srcRegNumA.isFP = FALSE;
     systemOp.srcRegNumB.isFP = FALSE;
@@ -1201,7 +1201,7 @@ function automatic void RISCV_EmitSystemOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -1254,7 +1254,7 @@ function automatic void RISCV_DecodeSystem(
 
 endfunction
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 //
 // --- FP ld/st
 //
@@ -1568,7 +1568,7 @@ function automatic void RISCV_EmitIllegalOp(
     systemOp.dstRegNum.isVector  = FALSE;
     systemOp.srcRegNumA.isVector = FALSE;
     systemOp.srcRegNumB.isVector = FALSE;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     systemOp.dstRegNum.isFP  = FALSE;
     systemOp.srcRegNumA.isFP = FALSE;
     systemOp.srcRegNumB.isFP = FALSE;
@@ -1597,7 +1597,7 @@ function automatic void RISCV_EmitIllegalOp(
     // 論理レジスタを読むかどうか
     opInfo.opTypeA = OOT_IMM;
     opInfo.opTypeB = OOT_IMM;
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     opInfo.opTypeC = OOT_IMM;
 `endif
 
@@ -1713,7 +1713,7 @@ output
             RISCV_SYSTEM : begin
                 RISCV_DecodeSystem(microOps, insnInfo, insn);
             end
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             RISCV_F_LD, RISCV_F_ST : begin
                 RISCV_DecodeFPMemOp(microOps, insnInfo, insn);
             end

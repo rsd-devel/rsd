@@ -381,7 +381,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         flushAllInsns
     );
 
-`ifdef RSD_ENABLE_FP_PATH 
+`ifdef RSD_MARCH_FP_PIPE 
     modport FPIssueStage(
     input
         toRecoveryPhase,

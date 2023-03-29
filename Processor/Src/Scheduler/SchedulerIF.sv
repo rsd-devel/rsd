@@ -64,7 +64,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
     // Reserve to use divider
     logic divIsIssued [ COMPLEX_ISSUE_WIDTH ];
 `endif
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPIssueQueueEntry  fpWriteData [ DISPATCH_WIDTH ];
 
     logic               fpIssue [ FP_ISSUE_WIDTH ];
@@ -112,7 +112,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexIssue,
         complexIssuePtr,
 `endif
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpWriteData,
         fpIssue,
         fpIssuePtr,
@@ -131,7 +131,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexIssuedData,
 `endif  
         memIssuedData
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fpIssuedData
 `endif
@@ -166,7 +166,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
 `endif
         memRecordEntry,
         memRecordData,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpRecordEntry,
         fpRecordData,
 `endif
@@ -179,7 +179,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
 `endif
         memReplayEntry,
         memReplayData,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpReplayEntry,
         fpReplayData,
 `endif
@@ -206,7 +206,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexWriteData,
 `endif
         memWriteData,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpWriteData,
 `endif
         writeSchedulerData,
@@ -261,7 +261,7 @@ interface SchedulerIF( input logic clk, rst, rstStart );
     );
 `endif
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPIssueStage(
     input
         fpIssuedData,

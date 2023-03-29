@@ -243,7 +243,7 @@ module CommitStage(
     CommitLaneCountPath commitNum;
     CommitLaneCountPath commitLoadNum;
     CommitLaneCountPath commitStoreNum;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic fflagsWE;
     FFlags_Path fflagsData;
 `endif
@@ -347,7 +347,7 @@ module CommitStage(
         // CSR Update
         csrUnit.commitNum = commitNum;
     
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         // CSR FFLAGS Update
         fflagsWE = FALSE;
         fflagsData = '0;

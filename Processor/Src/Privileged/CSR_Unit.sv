@@ -66,7 +66,7 @@ module CSR_Unit(
             CSR_NUM_MHPMCOUNTER5: rv = perfCounter.perfCounter.numIC_Miss;
             CSR_NUM_MHPMCOUNTER6: rv = perfCounter.perfCounter.numBranchPredMiss;
 `endif
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
             CSR_NUM_FFLAGS: rv = csrReg.fcsr.fflags;
             CSR_NUM_FRM:    rv = csrReg.fcsr.frm;
             CSR_NUM_FCSR:   rv = csrReg.fcsr;
@@ -151,7 +151,7 @@ module CSR_Unit(
 
                 CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
                 CSR_NUM_MINSTRET:   csrNext.minstret = wv;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
                 CSR_NUM_FCSR:       csrNext.fcsr = FFlags_Path'(wv);
@@ -159,7 +159,7 @@ module CSR_Unit(
                 default:            wv = '0;    // dummy
             endcase 
         end
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         // write to fflags from FP-CM and Mem-EX(CSR) shouldn't occur at the same time.
         else if(port.fflagsWE) begin
             csrNext.fcsr.fflags = port.fflagsData;

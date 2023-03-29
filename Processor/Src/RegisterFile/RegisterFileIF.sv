@@ -62,7 +62,7 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     PVecDataPath memDstVecData [ LOAD_ISSUE_WIDTH ];
 `endif    
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     /* FP Register Read */
     PRegNumPath  fpSrcRegNumA [ FP_ISSUE_WIDTH ];
     PRegNumPath  fpSrcRegNumB [ FP_ISSUE_WIDTH ];
@@ -103,7 +103,7 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
         memDstRegWE,
         memDstRegNum,
         memDstRegData,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         fpSrcRegNumA,
         fpSrcRegNumB,
         fpSrcRegNumC,
@@ -129,7 +129,7 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
 `endif
         memSrcRegDataA,
         memSrcRegDataB
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         ,
         fpSrcRegDataA,
         fpSrcRegDataB,
@@ -178,7 +178,7 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     );
 `endif
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     modport FPRegisterReadStage(
     input
         fpSrcRegDataA,

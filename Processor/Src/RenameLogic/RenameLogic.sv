@@ -33,7 +33,7 @@ module RenameLogic (
     logic releasePhyVectorReg [ COMMIT_WIDTH ];
     PVectorRegNumPath releasedPhyVectorRegNum [ COMMIT_WIDTH ];
     VectorFreeListCountPath vectorFreeListCount;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     logic allocatePhyScalarFPReg [ RENAME_WIDTH ];
     PScalarFPRegNumPath allocatedPhyScalarFPRegNum [ RENAME_WIDTH ];
     logic releasePhyScalarFPReg [ COMMIT_WIDTH ];
@@ -84,7 +84,7 @@ module RenameLogic (
         .push( releasePhyVectorReg ),
         .pushedData( releasedPhyVectorRegNum )
     );
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
     MultiWidthFreeList #(
         .SIZE( SCALAR_FP_FREE_LIST_ENTRY_NUM ),
         .ENTRY_BIT_SIZE( PSCALAR_FP_NUM_BIT_WIDTH ),
@@ -165,7 +165,7 @@ module RenameLogic (
             allocatedPhyRegNum[i].isVector = port.logDstReg[i].isVector;
             allocatedPhyRegNum[i].regNum =
                 (port.logDstReg[i].isVector ? allocatedPhyVectorRegNum[i] : allocatedPhyScalarRegNum[i]);
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             allocatedPhyRegNum[i].isFP = port.logDstReg[i].isFP;
             allocatedPhyRegNum[i].regNum =
                 (port.logDstReg[i].isFP ? allocatedPhyScalarFPRegNum[i] : allocatedPhyScalarRegNum[i]);
@@ -187,7 +187,7 @@ module RenameLogic (
             !inRecoveryRMT &&   // In a recovery mode, the front-end is stalled.
             (scalarFreeListCount >= RENAME_WIDTH) &&
             (vectorFreeListCount >= RENAME_WIDTH);
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
         port.allocatable =
             !inRecoveryRMT &&   // In a recovery mode, the front-end is stalled.
             (scalarFreeListCount >= RENAME_WIDTH) &&
@@ -205,7 +205,7 @@ module RenameLogic (
 `ifdef RSD_ENABLE_VECTOR_PATH
             allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isVector;
             allocatePhyVectorReg[i] = allocatePhyReg[i] && port.logDstReg[i].isVector;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isFP;
             allocatePhyScalarFPReg[i] = allocatePhyReg[i] && port.logDstReg[i].isFP;
 `else
@@ -221,7 +221,7 @@ module RenameLogic (
             releasePhyVectorReg[i] =
                 port.releaseReg[i] && port.phyReleasedReg[i].isVector;
             releasedPhyVectorRegNum[i] = port.phyReleasedReg[i].regNum;
-`elsif RSD_ENABLE_FP_PATH
+`elsif RSD_MARCH_FP_PIPE
             releasePhyScalarReg[i] =
                 port.releaseReg[i] && !port.phyReleasedReg[i].isFP;
             releasePhyScalarFPReg[i] =

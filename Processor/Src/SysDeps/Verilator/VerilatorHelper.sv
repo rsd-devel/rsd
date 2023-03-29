@@ -146,7 +146,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegB);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegB);
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, readRegC);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegC);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegC);
@@ -280,7 +280,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, logic, flush);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, OpId, opId);
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, valid);
     `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, flush);
     `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, OpId, opId);

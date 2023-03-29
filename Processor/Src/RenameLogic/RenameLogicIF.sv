@@ -17,7 +17,7 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     // Logical register numbers.
     LRegNumPath logSrcRegA [ RENAME_WIDTH ];
     LRegNumPath logSrcRegB [ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     LRegNumPath logSrcRegC [ RENAME_WIDTH ];
 `endif
     LRegNumPath logDstReg [ RENAME_WIDTH ];
@@ -25,7 +25,7 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     // Renamed physical register numbers.
     PRegNumPath phySrcRegA [ RENAME_WIDTH ];
     PRegNumPath phySrcRegB [ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     PRegNumPath phySrcRegC [ RENAME_WIDTH ];
 `endif
     PRegNumPath phyDstReg [ RENAME_WIDTH ];
@@ -35,7 +35,7 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     logic [ RENAME_WIDTH-1:0 ] updateRMT;
     logic readRegA [ RENAME_WIDTH ];
     logic readRegB [ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     logic readRegC [ RENAME_WIDTH ];
 `endif
     logic writeReg [ RENAME_WIDTH ];
@@ -65,7 +65,7 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     IssueQueueIndexPath  watWriteIssueQueuePtrFromPipeReg[ RENAME_WIDTH ];
     IssueQueueIndexPath srcIssueQueuePtrRegA[ RENAME_WIDTH ];
     IssueQueueIndexPath srcIssueQueuePtrRegB[ RENAME_WIDTH ];
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     IssueQueueIndexPath srcIssueQueuePtrRegC[ RENAME_WIDTH ];
 `endif
 
@@ -112,14 +112,14 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     input
         phySrcRegA,
         phySrcRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         phySrcRegC,
 `endif
         phyDstReg,
         phyPrevDstReg,
         srcIssueQueuePtrRegA,
         srcIssueQueuePtrRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         srcIssueQueuePtrRegC,
 `endif
         allocatable,
@@ -127,14 +127,14 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
     output
         logSrcRegA,
         logSrcRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         logSrcRegC,
 `endif
         logDstReg,
         updateRMT,
         readRegA,
         readRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         readRegC,
 `endif
         writeReg,
@@ -193,20 +193,20 @@ interface RenameLogicIF( input logic clk, rst, rstStart );
         watWriteIssueQueuePtr,
         logSrcRegA,
         logSrcRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         logSrcRegC,
 `endif
         logDstReg,
     output
         phySrcRegA,
         phySrcRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         phySrcRegC,
 `endif
         phyPrevDstReg,
         srcIssueQueuePtrRegA,
         srcIssueQueuePtrRegB,
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
         srcIssueQueuePtrRegC,
 `endif
         prevDependIssueQueuePtr

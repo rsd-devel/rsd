@@ -31,7 +31,7 @@ typedef logic [ALL_DECODED_MICRO_OP_WIDTH-DECODE_WIDTH-1:0] RemainingDecodedMicr
 typedef logic [ALL_DECODED_MICRO_OP_WIDTH_BIT_SIZE-1:0] AllDecodedMicroOpIndex;
 
 
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
 localparam MICRO_OP_SOURCE_REG_NUM = 3;
 `else
 localparam MICRO_OP_SOURCE_REG_NUM = 2;
@@ -42,7 +42,7 @@ typedef enum logic [1:0]
     MOP_TYPE_INT     = 2'b00,
     MOP_TYPE_COMPLEX = 2'b01,
     MOP_TYPE_MEM     = 2'b10
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     ,
     MOP_TYPE_FP      = 2'b11
 `endif
@@ -98,7 +98,7 @@ typedef union packed    // OpSubType
     IntMicroOpSubType     intType;
     ComplexMicroOpSubType complexType;
     MemMicroOpSubType     memType;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPMicroOpSubType     fpType;
 `endif
 } MicroOpSubType;
@@ -240,7 +240,7 @@ typedef union packed    // MicroOpOperand
     ComplexMicroOpOperand complexOp;
     MiscMemMicroOpOperand miscMemOp;
     SystemMicroOpOperand  systemOp;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     FPMicroOpOperand fpOp;
 `endif
 } MicroOpOperand;
@@ -260,7 +260,7 @@ typedef struct packed // OpInfo
 
     OpOperandType opTypeA;
     OpOperandType opTypeB;
-`ifdef RSD_ENABLE_FP_PATH
+`ifdef RSD_MARCH_FP_PIPE
     OpOperandType opTypeC;
 `endif
 
