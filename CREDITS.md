@@ -2,20 +2,21 @@
 
 ## Developers
 
-* Ryota Shioya
+* Ryota Shioya - @shioyadan
 * Akifumi Fujita
-* Susumu Mashimo
-* Reoma Matsuo
+* Susumu Mashimo - @msmssm
+* Reoma Matsuo - @reo-pon
 * Seiya Akaki
-* Akifumi Fukuda
+* Akifumi Fukuda - @clkbug
 * Toru Koizumi
-* Junichiro Kadomoto
-
+* Tomohiro Yoshita
+ 
 
 ## Advisers
 
-* Hidetsugu Irie
 * Masahiro Goshima
+* Hidetsugu Irie
+* Junichiro Kadomoto
 
 
 ## Contributors
@@ -24,3 +25,4 @@
 * Tim Ansell - @mithro
 * Felix Yan - @felixonmars
 * @odxa20
+* @dalance
