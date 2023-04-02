@@ -26,6 +26,7 @@ RSD_MAKE_PARAMETER(PHY_ADDR_SECTION_0_BASE);
 RSD_MAKE_PARAMETER(PHY_ADDR_SECTION_1_BASE);
 
 RSD_MAKE_PARAMETER(LSCALAR_NUM);
+RSD_MAKE_PARAMETER(LSCALAR_FP_NUM);
 RSD_MAKE_PARAMETER(FETCH_WIDTH);
 RSD_MAKE_PARAMETER(DECODE_WIDTH);
 RSD_MAKE_PARAMETER(RENAME_WIDTH);
@@ -35,9 +36,11 @@ RSD_MAKE_PARAMETER(COMMIT_WIDTH);
 RSD_MAKE_PARAMETER(INT_ISSUE_WIDTH);
 RSD_MAKE_PARAMETER(COMPLEX_ISSUE_WIDTH);
 RSD_MAKE_PARAMETER(MEM_ISSUE_WIDTH);
+RSD_MAKE_PARAMETER(FP_ISSUE_WIDTH);
 
 RSD_MAKE_PARAMETER(ISSUE_QUEUE_ENTRY_NUM);
 RSD_MAKE_PARAMETER(COMPLEX_EXEC_STAGE_DEPTH);
+RSD_MAKE_PARAMETER(FP_EXEC_STAGE_DEPTH);
 
 RSD_MAKE_PARAMETER(MEM_MOP_TYPE_CSR);
 
@@ -151,6 +154,12 @@ struct DispatchStageDebugRegister{
     bool readRegB;
     LRegNumPath logSrcRegB;
     PRegNumPath phySrcRegB;
+
+#ifdef RSD_MARCH_FP_PIPE
+    bool readRegC;
+    LRegNumPath logSrcRegC;
+    PRegNumPath phySrcRegC;
+#endif
 
     bool writeReg;
     LRegNumPath logDstReg;
@@ -300,6 +309,40 @@ struct MemoryRegisterWriteStageDebugRegister{
     OpId opId;
 };
 
+struct FPIntegerIssueStageDebugRegister{
+    bool valid;
+    bool flush;
+    OpId opId;
+};
+
+struct FPIntegerRegisterReadStageDebugRegister{
+    bool valid;
+    bool flush;
+    OpId opId;
+};
+
+struct FPIntegerExecutionStageDebugRegister{
+    bool valid[FP_EXEC_STAGE_DEPTH];
+    bool flush;
+    OpId opId[FP_EXEC_STAGE_DEPTH];
+
+#ifdef RSD_FUNCTIONAL_SIMULATION
+    // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+    // 合成時は、IOポートが足りなくて不可能であるため
+    DataPath dataOut;
+    DataPath fuOpA;
+    DataPath fuOpB;
+    DataPath fuOpC;
+#endif
+
+};
+
+struct FPIntegerRegisterWriteStageDebugRegister{
+    bool valid;
+    bool flush;
+    OpId opId;
+};
+
 struct CommitStageDebugRegister{
     bool commit;
     bool flush;
@@ -361,6 +404,11 @@ struct DebugRegister{
     MemoryTagAccessStageDebugRegister       mtReg[MEM_ISSUE_WIDTH];
     MemoryAccessStageDebugRegister          maReg[MEM_ISSUE_WIDTH];
     MemoryRegisterWriteStageDebugRegister   memRwReg[MEM_ISSUE_WIDTH];
+    
+    FPIntegerIssueStageDebugRegister          fpIsReg[FP_ISSUE_WIDTH];
+    FPIntegerRegisterReadStageDebugRegister   fpRrReg[FP_ISSUE_WIDTH];
+    FPIntegerExecutionStageDebugRegister      fpExReg[FP_ISSUE_WIDTH];
+    FPIntegerRegisterWriteStageDebugRegister  fpRwReg[FP_ISSUE_WIDTH];
 
     CommitStageDebugRegister cmReg[COMMIT_WIDTH];
 
@@ -468,6 +516,12 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, readRegB);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegB);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegB);
+
+#ifdef RSD_MARCH_FP_PIPE
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, readRegC);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegC);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegC);
+#endif
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, writeReg);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logDstReg);
@@ -593,6 +647,46 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, logic, flush);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, memRwReg, OpId, opId);
 
+#ifdef RSD_MARCH_FP_PIPE
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, valid);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, fpIsReg, OpId, opId);
+
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRrReg, logic, valid);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRrReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, fpRrReg, OpId, opId);
+
+    // Output only the first execution stage of a fp pipeline
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic, flush);
+    //RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic, valid[0]);
+    //RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic, opId[0]);
+    {
+        int index = 0;
+        for (auto& i : d->fpExReg) {
+            i.valid[0] = h->DebugRegister_fpExReg_valid(r, index);
+            index++;
+        }
+    }
+    {
+        int index = 0;
+        for (auto& i : d->fpExReg) {
+            auto opId = h->DebugRegister_fpExReg_opId(r, index);
+            i.opId[0].sid = h->OpId_sid(opId);
+            i.opId[0].mid = h->OpId_mid(opId);
+        }
+    }
+
+#ifdef RSD_FUNCTIONAL_SIMULATION
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, dataOut);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpA);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpB);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpC);
+#endif
+
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRwReg, logic, valid);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRwReg, logic, flush);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, fpRwReg, OpId, opId);
+#endif
 
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, commit);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, flush);

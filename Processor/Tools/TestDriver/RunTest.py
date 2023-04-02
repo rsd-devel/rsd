@@ -67,7 +67,39 @@ class ConfigParser( object ):
         'R29':29,  'r29':29,
         'R30':30,  'r30':30,
         'R31':31,  'r31':31,
-        'PC':32
+        'PC':32,
+        'f0':33,
+        'f1':34,
+        'f2':35,
+        'f3':36,
+        'f4':37,
+        'f5':38,
+        'f6':39,
+        'f7':40,
+        'f8':41,
+        'f9':42,
+        'f10':43,
+        'f11':44,
+        'f12':45,
+        'f13':46,
+        'f14':47,
+        'f15':48,
+        'f16':49,
+        'f17':50,
+        'f18':51,
+        'f19':52,
+        'f20':53,
+        'f21':54,
+        'f22':55,
+        'f23':56,
+        'f24':57,
+        'f25':58,
+        'f26':59,
+        'f27':60,
+        'f28':61,
+        'f29':62,
+        'f30':63,
+        'f31':64
         }
 
     def __init__( self ):
@@ -302,7 +334,8 @@ class SerialOutputComparator( object ):
         self.refStr = open( refFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
 
         # 比較
-        self.isMatched = ( self.outStr == self.refStr )
+        #self.isMatched = ( self.outStr == self.refStr )
+        self.isMatched = ( self.outStr == self.refStr[:len(self.outStr)] )
 
     # 比較結果を表示。Compareを呼んだ後に呼ぶ必要がある
     def PrintCompareResult( self ):

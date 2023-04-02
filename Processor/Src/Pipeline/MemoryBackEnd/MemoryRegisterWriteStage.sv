@@ -134,9 +134,6 @@ module MemoryRegisterWriteStage(
 
             registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
             registerFile.memDstRegData[i] = pipeReg[i].dataOut;
-`ifdef RSD_ENABLE_VECTOR_PATH
-            registerFile.memDstVecData[i] = pipeReg[i].vecDataOut;
-`endif
         end
 
 

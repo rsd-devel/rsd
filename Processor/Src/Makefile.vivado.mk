@@ -92,8 +92,14 @@ clean:
 # Vivado synthesis related items are defined in this file
 include Makefiles/Vivado.inc.mk
 
+VIVADO_PROJECT_FILE_DEPS = \
+	Makefiles/CoreSources.inc.mk \
+	$(TOOLS_ROOT)/XilinxTools/IP_Generator.py \
+	$(TOOLS_ROOT)/XilinxTools/ip_template.xml \
+	$(VIVADO_PROJECT_ROOT)/scripts/synthesis/create_project.tcl
+
 # Create Vivado project file for synthesis
-$(VIVADO_PROJECT_FILE): Makefiles/CoreSources.inc.mk
+$(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_FILE_DEPS)
 	python3 $(TOOLS_ROOT)/XilinxTools/IP_Generator.py $(TARGET_BOARD) # Generate Xilinx IP of RSD
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl

@@ -35,8 +35,9 @@ localparam ISSUE_QUEUE_INT_LATENCY     = 1;
 //localparam ISSUE_QUEUE_COMPLEX_LATENCY = COMPLEX_EXEC_STAGE_DEPTH;
 localparam ISSUE_QUEUE_COMPLEX_LATENCY = COMPLEX_EXEC_STAGE_DEPTH + 2;
 localparam ISSUE_QUEUE_MEM_LATENCY     = 3;
+localparam ISSUE_QUEUE_FP_LATENCY      = FP_EXEC_STAGE_DEPTH + 2;
 
-localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH;    // Stores do not wakeup consumers.
+localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH + FP_ISSUE_WIDTH;    // Stores do not wakeup consumers.
 
 // --- Issue queue flush count
 // - 例外発生時に、発行キューは例外命令より後方の命令が選択的にフラッシュされる。
@@ -303,6 +304,34 @@ typedef struct packed // MemIssueQueueEntry
     PC_Path pc;
 } MemIssueQueueEntry;
 
+typedef struct packed // FPOpInfo
+{
+    FPMicroOpSubType opType;
+    FPU_Code fpuCode;
+    Rounding_Mode rm;
+
+    // 論理レジスタを読むかどうか
+    OpOperandType operandTypeA;
+    OpOperandType operandTypeB;
+    OpOperandType operandTypeC;
+} FPOpInfo;
+
+typedef struct packed // FPIssueQueueEntry
+{
+`ifndef RSD_DISABLE_DEBUG_REGISTER // Debug info
+    OpId      opId;
+`endif
+
+    FPOpInfo fpOpInfo;
+
+    ActiveListIndexPath activeListPtr;
+    LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery
+    StoreQueueIndexPath storeQueueRecoveryPtr;    //for recovery
+    OpSrc opSrc;
+    OpDst opDst;
+    PC_Path pc;
+} FPIssueQueueEntry;
+
 //
 // Entry of Scheduler
 //
@@ -314,12 +343,18 @@ typedef struct packed // SchedulerEntry
 
     logic srcRegValidA;
     logic srcRegValidB;
+`ifdef RSD_MARCH_FP_PIPE
+    logic srcRegValidC;
+`endif
     OpSrc opSrc;
     OpDst opDst;
 
     // Pointer to producers in an issue queue.
     IssueQueueIndexPath srcPtrRegA;
     IssueQueueIndexPath srcPtrRegB;
+`ifdef RSD_MARCH_FP_PIPE
+    IssueQueueIndexPath srcPtrRegC;
+`endif
 } SchedulerEntry;
 
 

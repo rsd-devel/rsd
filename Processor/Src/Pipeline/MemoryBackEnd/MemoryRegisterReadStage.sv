@@ -171,16 +171,6 @@ module MemoryRegisterReadStage(
             nextStage[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
         end
 
-        // Vector Operand
-`ifdef RSD_ENABLE_VECTOR_PATH
-        `RSD_STATIC_ASSERT(FALSE, "TODO: ls/st unified pipeline");
-        for ( int i = 0; i < STORE_ISSUE_LANE_BEGIN; i++ ) begin
-            nextStage[i].vecOperandB = '0;
-        end
-        for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
-            nextStage[i+STORE_ISSUE_LANE_BEGIN].vecOperandB = registerFile.memSrcVecDataB[i];
-        end
-`endif
         port.nextStage = nextStage;
 
         // Debug Register

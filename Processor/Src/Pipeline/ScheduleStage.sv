@@ -59,8 +59,12 @@ module ScheduleStage(
             else if ( i < INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH )
                 port.complexNextStage[ i-INT_ISSUE_WIDTH ] = nextStage[i];
 `endif
-            else
+            else if ( i < INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH)
                 port.memNextStage[ i-INT_ISSUE_WIDTH-COMPLEX_ISSUE_WIDTH ] = nextStage[i];
+`ifdef RSD_MARCH_FP_PIPE
+            else
+                port.fpNextStage[ i-INT_ISSUE_WIDTH-COMPLEX_ISSUE_WIDTH-MEM_ISSUE_WIDTH] = nextStage[i];
+`endif
         end
     end
 

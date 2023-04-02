@@ -13,6 +13,7 @@ import SchedulerTypes::*;
 import ActiveListIndexTypes::*;
 import PipelineTypes::*;
 import LoadStoreUnitTypes::*;
+import OpFormatTypes::*;
 
 interface ActiveListIF( input logic clk, rst );
 
@@ -56,6 +57,12 @@ interface ActiveListIF( input logic clk, rst );
     logic               memWrite[MEM_ISSUE_WIDTH];
     ActiveListWriteData memWriteData[MEM_ISSUE_WIDTH];
 
+`ifdef RSD_MARCH_FP_PIPE
+    logic               fpWrite[FP_ISSUE_WIDTH];
+    ActiveListWriteData fpWriteData[FP_ISSUE_WIDTH];
+    FFlags_Path     fpFFlagsData[FP_ISSUE_WIDTH];
+    FFlags_Path     fflagsData[COMMIT_WIDTH];
+`endif
     // Status of an active list.
     logic allocatable;
 
@@ -86,7 +93,15 @@ interface ActiveListIF( input logic clk, rst );
 `endif
         memWrite,
         memWriteData,
+`ifdef RSD_MARCH_FP_PIPE
+        fpWrite,
+        fpWriteData,
+        fpFFlagsData,
+`endif
     output
+`ifdef RSD_MARCH_FP_PIPE
+        fflagsData,
+`endif
         pushedTailPtr,
         readData,
         headExecState,
@@ -132,8 +147,20 @@ interface ActiveListIF( input logic clk, rst );
         memWriteData
     );
 
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPRegisterWriteStage(
+    output
+        fpWrite,
+        fpWriteData,
+        fpFFlagsData
+    );
+`endif
+
     modport CommitStage(
     input
+`ifdef RSD_MARCH_FP_PIPE
+        fflagsData,
+`endif
         readData,
         headExecState,
         validEntryNum

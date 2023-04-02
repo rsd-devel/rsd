@@ -62,11 +62,8 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     
     PRegDataPath  complexSrcRegDataOutA [ COMPLEX_ISSUE_WIDTH ];
     PRegDataPath  complexSrcRegDataOutB [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataOutA [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataOutB [ COMPLEX_ISSUE_WIDTH ];
 
     PRegDataPath  complexDstRegDataOut  [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexDstVecDataOut  [ COMPLEX_ISSUE_WIDTH ];
 `endif
 
     //
@@ -92,11 +89,38 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     PRegDataPath memSrcRegDataOutB  [ MEM_ISSUE_WIDTH ];
     PRegDataPath  memDstRegDataOut  [ MEM_ISSUE_WIDTH ];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  memSrcVecDataOutB [ STORE_ISSUE_WIDTH ];
-    PVecDataPath  memDstVecDataOut  [ LOAD_ISSUE_WIDTH ];
-`endif
+    //
+    // --- FP Pipeline
+    //
     
+`ifdef RSD_MARCH_FP_PIPE
+    // Register read stage
+    PRegNumPath fpPhySrcRegNumA [ FP_ISSUE_WIDTH ];
+    PRegNumPath fpPhySrcRegNumB [ FP_ISSUE_WIDTH ];
+    PRegNumPath fpPhySrcRegNumC [ FP_ISSUE_WIDTH ];
+    PRegNumPath fpPhyDstRegNum  [ FP_ISSUE_WIDTH ];
+
+    logic fpReadRegA [ FP_ISSUE_WIDTH ];
+    logic fpReadRegB [ FP_ISSUE_WIDTH ];
+    logic fpReadRegC [ FP_ISSUE_WIDTH ];
+
+    logic fpWriteReg  [ FP_ISSUE_WIDTH ];
+
+    PRegDataPath fpSrcRegDataA [ FP_ISSUE_WIDTH ];
+    PRegDataPath fpSrcRegDataB [ FP_ISSUE_WIDTH ];
+    PRegDataPath fpSrcRegDataC [ FP_ISSUE_WIDTH ];
+
+    BypassControll fpCtrlOut [ FP_ISSUE_WIDTH ];
+    
+    // Execution stage
+    BypassControll fpCtrlIn [ FP_ISSUE_WIDTH ];
+    
+    PRegDataPath  fpSrcRegDataOutA [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fpSrcRegDataOutB [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fpSrcRegDataOutC [ FP_ISSUE_WIDTH ];
+
+    PRegDataPath  fpDstRegDataOut  [ FP_ISSUE_WIDTH ];
+`endif
 
     modport BypassController(
     input
@@ -122,12 +146,26 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
         memReadRegA,
         memReadRegB,
         memWriteReg,
+`ifdef RSD_MARCH_FP_PIPE
+        fpPhySrcRegNumA,
+        fpPhySrcRegNumB,
+        fpPhySrcRegNumC,
+        fpPhyDstRegNum,
+        fpReadRegA,
+        fpReadRegB,
+        fpReadRegC,
+        fpWriteReg,
+`endif
     output
         intCtrlOut,
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
         complexCtrlOut,
 `endif
         memCtrlOut
+`ifdef RSD_MARCH_FP_PIPE
+        ,
+        fpCtrlOut
+`endif
     );
 
     modport BypassNetwork(
@@ -142,6 +180,10 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
 `endif
         memCtrlIn,
         memDstRegDataOut,
+`ifdef RSD_MARCH_FP_PIPE
+        fpCtrlIn,
+        fpDstRegDataOut,
+`endif
     output
         intSrcRegDataOutA,
         intSrcRegDataOutB,
@@ -151,23 +193,14 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
 `endif
         memSrcRegDataOutA,
         memSrcRegDataOutB
+`ifdef RSD_MARCH_FP_PIPE
+        ,
+        fpSrcRegDataOutA,
+        fpSrcRegDataOutB,
+        fpSrcRegDataOutC
+`endif
     );
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    modport VectorBypassNetwork(
-    input
-        clk,
-        rst,
-        complexCtrlIn,
-        complexDstVecDataOut,
-        memCtrlIn,
-        memDstVecDataOut,
-    output
-        complexSrcVecDataOutA,
-        complexSrcVecDataOutB,
-        memSrcVecDataOutB
-    );
-`endif
     modport IntegerRegisterReadStage(
     input
         clk,
@@ -210,12 +243,9 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     input
         complexSrcRegDataOutA,
         complexSrcRegDataOutB,
-        complexSrcVecDataOutA,
-        complexSrcVecDataOutB,
     output 
         complexCtrlIn,
-        complexDstRegDataOut,
-        complexDstVecDataOut
+        complexDstRegDataOut
     );
 `endif
     
@@ -237,20 +267,42 @@ interface BypassNetworkIF(input logic clk, rst, rstStart);
     input
         memSrcRegDataOutA,
         memSrcRegDataOutB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memSrcVecDataOutB,
-`endif
     output 
         memCtrlIn
     );
 
     modport MemoryAccessStage(
     output 
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memDstVecDataOut,
-`endif
         memDstRegDataOut
     );
+
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPRegisterReadStage(
+    input
+        clk,
+        rst,
+        fpCtrlOut,
+    output
+        fpPhySrcRegNumA,
+        fpPhySrcRegNumB,
+        fpPhySrcRegNumC,
+        fpPhyDstRegNum,
+        fpReadRegA,
+        fpReadRegB,
+        fpReadRegC,
+        fpWriteReg
+    );
+    
+    modport FPExecutionStage(
+    input
+        fpSrcRegDataOutA,
+        fpSrcRegDataOutB,
+        fpSrcRegDataOutC,
+    output 
+        fpCtrlIn,
+        fpDstRegDataOut
+    );
+`endif
 
 endinterface : BypassNetworkIF
 

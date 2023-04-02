@@ -15,6 +15,7 @@ module Scheduler(
     WakeupSelectIF.Scheduler wakeupSelect,
     RecoveryManagerIF.Scheduler recovery,
     MulDivUnitIF.Scheduler mulDivUnit,
+    FPDivSqrtUnitIF.Scheduler fpDivSqrtUnit,
     DebugIF.Scheduler debug
 );
 
@@ -28,6 +29,10 @@ module Scheduler(
     logic [ISSUE_QUEUE_ENTRY_NUM-1:0] isDiv;
     logic [ISSUE_QUEUE_ENTRY_NUM-1:0] isLoad;
     logic [ISSUE_QUEUE_ENTRY_NUM-1:0] isStore;
+`ifdef RSD_MARCH_FP_PIPE
+    logic [ISSUE_QUEUE_ENTRY_NUM-1:0] isFP;
+    logic [ISSUE_QUEUE_ENTRY_NUM-1:0] isFPDivSqrt;
+`endif
 
     IssueQueueOneHotPath flushIQ_Entry;
 
@@ -36,6 +41,9 @@ module Scheduler(
     logic dispatchStore[DISPATCH_WIDTH];
     logic dispatchLoad[DISPATCH_WIDTH];
     logic canIssueDiv;
+`ifdef RSD_MARCH_FP_PIPE
+    logic canIssueFPDivSqrt;
+`endif
 
 `ifndef RSD_SYNTHESIS
     `ifndef RSD_VIVADO_SIMULATION
@@ -46,6 +54,10 @@ module Scheduler(
             isDiv = '0;
             isLoad = '0;
             isStore = '0;
+`ifdef RSD_MARCH_FP_PIPE
+            isFP = '0;
+            isFPDivSqrt = '0;
+`endif
         end
     `endif
 `endif
@@ -72,6 +84,10 @@ module Scheduler(
                             isComplex[ port.writePtr[i] ] <= FALSE;
                             isInt[ port.writePtr[i] ] <= FALSE;
                             isDiv[ port.writePtr[i] ] <= FALSE;
+`ifdef RSD_MARCH_FP_PIPE
+                            isFP[ port.writePtr[i] ] <= FALSE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+`endif
                         end
                         else begin
                             `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -94,6 +110,10 @@ module Scheduler(
                             `endif
                             isStore[ port.writePtr[i] ] <= FALSE;
                             isInt[ port.writePtr[i] ] <= FALSE;
+`ifdef RSD_MARCH_FP_PIPE
+                            isFP[ port.writePtr[i] ] <= FALSE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+`endif
                         end
                     end
                     else if (port.writeSchedulerData[i].opType == MOP_TYPE_COMPLEX) begin
@@ -104,6 +124,10 @@ module Scheduler(
                             isComplex[ port.writePtr[i] ] <= TRUE;
                             isInt[ port.writePtr[i] ] <= FALSE;
                             isDiv[ port.writePtr[i] ] <= TRUE;
+`ifdef RSD_MARCH_FP_PIPE
+                            isFP[ port.writePtr[i] ] <= FALSE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+`endif
                         end
                         else begin
                             isLoad[ port.writePtr[i] ] <= FALSE;
@@ -111,14 +135,44 @@ module Scheduler(
                             isComplex[ port.writePtr[i] ] <= TRUE;
                             isInt[ port.writePtr[i] ] <= FALSE;
                             isDiv[ port.writePtr[i] ] <= FALSE;
+`ifdef RSD_MARCH_FP_PIPE
+                            isFP[ port.writePtr[i] ] <= FALSE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+`endif
                         end
                     end
+`ifdef RSD_MARCH_FP_PIPE
+                    else if (port.writeSchedulerData[i].opType == MOP_TYPE_FP) begin
+                        if (port.writeSchedulerData[i].opSubType.complexType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT}) begin
+                            isLoad[ port.writePtr[i] ] <= FALSE;
+                            isStore[ port.writePtr[i] ] <= FALSE;
+                            isComplex[ port.writePtr[i] ] <= FALSE;
+                            isInt[ port.writePtr[i] ] <= FALSE;
+                            isDiv[ port.writePtr[i] ] <= FALSE;
+                            isFP[ port.writePtr[i] ] <= TRUE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= TRUE;
+                        end
+                        else begin
+                            isLoad[ port.writePtr[i] ] <= FALSE;
+                            isStore[ port.writePtr[i] ] <= FALSE;
+                            isComplex[ port.writePtr[i] ] <= FALSE;
+                            isInt[ port.writePtr[i] ] <= FALSE;
+                            isDiv[ port.writePtr[i] ] <= FALSE;
+                            isFP[ port.writePtr[i] ] <= TRUE;
+                            isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+                        end
+                    end
+`endif
                     else begin
                         isLoad[ port.writePtr[i] ] <= FALSE;
                         isStore[ port.writePtr[i] ] <= FALSE;
                         isComplex[ port.writePtr[i] ] <= FALSE;
                         isInt[ port.writePtr[i] ] <= TRUE;
                         isDiv[ port.writePtr[i] ] <= FALSE;
+`ifdef RSD_MARCH_FP_PIPE
+                        isFP[ port.writePtr[i] ] <= FALSE;
+                        isFPDivSqrt[ port.writePtr[i] ] <= FALSE;
+`endif
                     end
                 end
             end
@@ -185,8 +239,14 @@ module Scheduler(
             // wakeupSelect.writeSrcTag
             wakeupSelect.writeSrcTag[i].regTag[0].valid = port.writeSchedulerData[i].srcRegValidA;
             wakeupSelect.writeSrcTag[i].regTag[1].valid = port.writeSchedulerData[i].srcRegValidB;
+`ifdef RSD_MARCH_FP_PIPE
+            wakeupSelect.writeSrcTag[i].regTag[2].valid = port.writeSchedulerData[i].srcRegValidC;
+`endif
             wakeupSelect.writeSrcTag[i].regTag[0].num = port.writeSchedulerData[i].opSrc.phySrcRegNumA;
             wakeupSelect.writeSrcTag[i].regTag[1].num = port.writeSchedulerData[i].opSrc.phySrcRegNumB;
+`ifdef RSD_MARCH_FP_PIPE
+            wakeupSelect.writeSrcTag[i].regTag[2].num = port.writeSchedulerData[i].opSrc.phySrcRegNumC;
+`endif
 
             // wakeupSelect.writeSrcTag
             wakeupSelect.writeDstTag[i].regTag.valid = port.writeSchedulerData[i].opDst.writeReg;
@@ -195,9 +255,15 @@ module Scheduler(
             // Source pointers to a matrix.
             wakeupSelect.writeSrcTag[i].regPtr[0].valid = port.writeSchedulerData[i].srcRegValidA;
             wakeupSelect.writeSrcTag[i].regPtr[1].valid = port.writeSchedulerData[i].srcRegValidB;
+`ifdef RSD_MARCH_FP_PIPE
+            wakeupSelect.writeSrcTag[i].regPtr[2].valid = port.writeSchedulerData[i].srcRegValidC;
+`endif
 
             wakeupSelect.writeSrcTag[i].regPtr[0].ptr = port.writeSchedulerData[i].srcPtrRegA;
             wakeupSelect.writeSrcTag[i].regPtr[1].ptr = port.writeSchedulerData[i].srcPtrRegB;
+`ifdef RSD_MARCH_FP_PIPE
+            wakeupSelect.writeSrcTag[i].regPtr[2].ptr = port.writeSchedulerData[i].srcPtrRegC;
+`endif
 
         end
 
@@ -209,6 +275,14 @@ module Scheduler(
                 canIssueDiv = FALSE;    // Currently, only a single div can be issued 
             end
         end
+`ifdef RSD_MARCH_FP_PIPE
+        canIssueFPDivSqrt = TRUE;
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            if (!fpDivSqrtUnit.Free[i]) begin
+                canIssueFPDivSqrt = FALSE;    // Currently, only a single div/sqrt can be issued 
+            end
+        end
+`endif
 
         // Select
         for(int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
@@ -225,6 +299,10 @@ module Scheduler(
                 notIssued[i] && isComplex[i] && (!isDiv[i] || (isDiv[i] && canIssueDiv));
 `endif
             wakeupSelect.storeIssueReq[i] = notIssued[i] && isStore[i];
+`ifdef RSD_MARCH_FP_PIPE
+            wakeupSelect.fpIssueReq[i] = 
+                notIssued[i] && isFP[i] && (!isFPDivSqrt[i] || (isFPDivSqrt[i] && canIssueFPDivSqrt));
+`endif
         end
 
         for ( int i = 0; i < ISSUE_WIDTH; i++ ) begin
@@ -243,7 +321,11 @@ module Scheduler(
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         for ( int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++ ) begin
+`ifndef RSD_MARCH_FP_PIPE
             debug.scheduler[i].valid = notIssued[i] && (isInt[i] || isComplex[i] || isLoad[i] || isStore[i]);
+`else
+            debug.scheduler[i].valid = notIssued[i] && (isInt[i] || isComplex[i] || isLoad[i] || isStore[i] || isFP[i]);
+`endif
         end
 `endif
     end

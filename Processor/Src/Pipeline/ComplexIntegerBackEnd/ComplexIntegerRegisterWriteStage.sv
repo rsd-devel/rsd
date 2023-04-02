@@ -86,9 +86,7 @@ module ComplexIntegerRegisterWriteStage(
 
             registerFile.complexDstRegNum[i] = iqData[i].opDst.phyDstRegNum;
             registerFile.complexDstRegData[i] = pipeReg[i].dataOut;
-`ifdef RSD_ENABLE_VECTOR_PATH
-            registerFile.complexDstVecData[i] = pipeReg[i].vecDataOut;
-`endif
+            
             //
             // Active list
             //

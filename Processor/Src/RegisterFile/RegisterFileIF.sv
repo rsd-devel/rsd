@@ -54,13 +54,24 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     PRegDataPath memDstRegData  [ LOAD_ISSUE_WIDTH ];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  complexSrcVecDataA [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexSrcVecDataB [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  complexDstVecData  [ COMPLEX_ISSUE_WIDTH ];
-    PVecDataPath  memSrcVecDataB [ STORE_ISSUE_WIDTH ];
-    PVecDataPath memDstVecData [ LOAD_ISSUE_WIDTH ];
-`endif    
+`ifdef RSD_MARCH_FP_PIPE
+    /* FP Register Read */
+    PRegNumPath  fpSrcRegNumA [ FP_ISSUE_WIDTH ];
+    PRegNumPath  fpSrcRegNumB [ FP_ISSUE_WIDTH ];
+    PRegNumPath  fpSrcRegNumC [ FP_ISSUE_WIDTH ];
+    
+    PRegDataPath  fpSrcRegDataA [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fpSrcRegDataB [ FP_ISSUE_WIDTH ];
+    PRegDataPath  fpSrcRegDataC [ FP_ISSUE_WIDTH ];
+
+
+    /* FP Integer Register Write */
+    logic fpDstRegWE  [ FP_ISSUE_WIDTH ];
+
+    PRegNumPath  fpDstRegNum  [ FP_ISSUE_WIDTH ];
+    
+    PRegDataPath  fpDstRegData  [ FP_ISSUE_WIDTH ];
+`endif
 
     modport RegisterFile(
     input 
@@ -84,16 +95,15 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
         memDstRegWE,
         memDstRegNum,
         memDstRegData,
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexDstVecData,
-        memDstVecData,
+`ifdef RSD_MARCH_FP_PIPE
+        fpSrcRegNumA,
+        fpSrcRegNumB,
+        fpSrcRegNumC,
+        fpDstRegWE,
+        fpDstRegNum,
+        fpDstRegData,
 `endif
     output
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexSrcVecDataA,
-        complexSrcVecDataB,
-        memSrcVecDataB,
-`endif
         intSrcRegDataA,
         intSrcRegDataB,
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
@@ -102,6 +112,12 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
 `endif
         memSrcRegDataA,
         memSrcRegDataB
+`ifdef RSD_MARCH_FP_PIPE
+        ,
+        fpSrcRegDataA,
+        fpSrcRegDataB,
+        fpSrcRegDataC
+`endif
     );
     
     modport IntegerRegisterReadStage(
@@ -125,10 +141,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     input
         complexSrcRegDataA,
         complexSrcRegDataB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-        complexSrcVecDataA,
-        complexSrcVecDataB,
-`endif
     output
         complexSrcRegNumA,
         complexSrcRegNumB
@@ -136,12 +148,29 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     modport ComplexIntegerRegisterWriteStage(
     output
- `ifdef RSD_ENABLE_VECTOR_PATH
-        complexDstVecData,
- `endif
         complexDstRegWE,
         complexDstRegNum,
         complexDstRegData
+    );
+`endif
+
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPRegisterReadStage(
+    input
+        fpSrcRegDataA,
+        fpSrcRegDataB,
+        fpSrcRegDataC,
+    output
+        fpSrcRegNumA,
+        fpSrcRegNumB,
+        fpSrcRegNumC
+    );
+    
+    modport FPRegisterWriteStage(
+    output
+        fpDstRegWE,
+        fpDstRegNum,
+        fpDstRegData
     );
 `endif
 
@@ -149,9 +178,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     input
         memSrcRegDataA,
         memSrcRegDataB,
-`ifdef RSD_ENABLE_VECTOR_PATH
-         memSrcVecDataB,
-`endif
     output
         memSrcRegNumA,
         memSrcRegNumB
@@ -159,9 +185,6 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     
     modport MemoryRegisterWriteStage(
     output
-`ifdef RSD_ENABLE_VECTOR_PATH
-        memDstVecData,
-`endif
         memDstRegWE,
         memDstRegNum,
         memDstRegData

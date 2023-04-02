@@ -64,6 +64,21 @@ interface SchedulerIF( input logic clk, rst, rstStart );
     // Reserve to use divider
     logic divIsIssued [ COMPLEX_ISSUE_WIDTH ];
 `endif
+`ifdef RSD_MARCH_FP_PIPE
+    FPIssueQueueEntry  fpWriteData [ DISPATCH_WIDTH ];
+
+    logic               fpIssue [ FP_ISSUE_WIDTH ];
+    IssueQueueIndexPath fpIssuePtr [ FP_ISSUE_WIDTH ];
+    FPIssueQueueEntry  fpIssuedData [ FP_ISSUE_WIDTH ];
+
+    logic               fpRecordEntry[ FP_ISSUE_WIDTH];
+    logic               fpReplayEntry[ FP_ISSUE_WIDTH];
+    FPIssueQueueEntry  fpRecordData[ FP_ISSUE_WIDTH];
+    FPIssueQueueEntry  fpReplayData[ FP_ISSUE_WIDTH];
+
+    // Reserve to use divider/sqrter
+    logic fpDivSqrtIsIssued [ FP_ISSUE_WIDTH ];
+`endif
 
     logic               memReleaseEntry[MEM_ISSUE_WIDTH];
     logic               memRecordEntry[MEM_ISSUE_WIDTH];
@@ -97,6 +112,11 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexIssue,
         complexIssuePtr,
 `endif
+`ifdef RSD_MARCH_FP_PIPE
+        fpWriteData,
+        fpIssue,
+        fpIssuePtr,
+`endif
         memWriteData,
         intIssue,
         intIssuePtr,
@@ -111,6 +131,10 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexIssuedData,
 `endif  
         memIssuedData
+`ifdef RSD_MARCH_FP_PIPE
+        ,
+        fpIssuedData
+`endif
     );
 
     // To a scheduler (wakeup/select logic)
@@ -142,6 +166,10 @@ interface SchedulerIF( input logic clk, rst, rstStart );
 `endif
         memRecordEntry,
         memRecordData,
+`ifdef RSD_MARCH_FP_PIPE
+        fpRecordEntry,
+        fpRecordData,
+`endif
     output
         intReplayEntry,
         intReplayData,
@@ -151,6 +179,10 @@ interface SchedulerIF( input logic clk, rst, rstStart );
 `endif
         memReplayEntry,
         memReplayData,
+`ifdef RSD_MARCH_FP_PIPE
+        fpReplayEntry,
+        fpReplayData,
+`endif
         replay
     );
 
@@ -174,6 +206,9 @@ interface SchedulerIF( input logic clk, rst, rstStart );
         complexWriteData,
 `endif
         memWriteData,
+`ifdef RSD_MARCH_FP_PIPE
+        fpWriteData,
+`endif
         writeSchedulerData,
         allocated,
         memDependencyPred
@@ -223,6 +258,28 @@ interface SchedulerIF( input logic clk, rst, rstStart );
     output
         complexRecordEntry,
         complexRecordData
+    );
+`endif
+
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPIssueStage(
+    input
+        fpIssuedData,
+        fpReplayEntry,
+        fpReplayData,
+        replay,
+    output
+        fpIssuePtr,
+        fpIssue,
+        fpDivSqrtIsIssued
+    );
+
+    modport FPExecutionStage(
+    input
+        fpDivSqrtIsIssued,
+    output
+        fpRecordEntry,
+        fpRecordData
     );
 `endif
     modport MemoryIssueStage(

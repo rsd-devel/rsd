@@ -990,13 +990,6 @@ module DCache(
         end
     end
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    `RSD_STATIC_ASSERT(
-        $bits(VectorPath) == $bits(DCacheLinePath), 
-        "The width of a DCache line must be same as the width of a vector register."
-    );
-`endif
-
     `RSD_STATIC_ASSERT(
         $bits(LSQ_BlockDataPath) <= $bits(DCacheLinePath), 
         "The width of a DCache line must be same or greater than that of an LSQ block."

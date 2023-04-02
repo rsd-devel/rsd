@@ -144,7 +144,7 @@ set_property -name "is_global_include" -value "1" -objects $file_obj
 set obj [get_filesets sources_1]
 set_property -name "top" -value "RSD" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
-set_property -name "verilog_define" -value "RSD_SYNTHESIS RSD_SYNTHESIS_VIVADO RSD_SYNTHESIS_ZEDBOARD RSD_USE_EXTERNAL_MEMORY RSD_DISABLE_DEBUG_REGISTER" -objects $obj
+set_property -name "verilog_define" -value "RSD_SYNTHESIS RSD_SYNTHESIS_VIVADO RSD_SYNTHESIS_ZEDBOARD RSD_USE_EXTERNAL_MEMORY RSD_DISABLE_DEBUG_REGISTER RSD_MARCH_FP_PIPE" -objects $obj
 
 # Create 'constrs_1' fileset (if not found)
 if {[string equal [get_filesets -quiet constrs_1] ""]} {

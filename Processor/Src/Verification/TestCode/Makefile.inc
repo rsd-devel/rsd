@@ -63,7 +63,7 @@ CFLAGS = \
 	-nodefaultlibs \
 	-nostartfiles \
 	-mstrict-align \
-	-march=rv32im \
+	-march=rv32imf \
 
 LDFLAGS= \
 	-static \

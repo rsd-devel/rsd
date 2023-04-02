@@ -49,6 +49,13 @@ interface DebugIF( input logic clk, rst );
     MemoryAccessStageDebugRegister         maReg    [ MEM_ISSUE_WIDTH ];
     MemoryRegisterWriteStageDebugRegister  memRwReg [ MEM_ISSUE_WIDTH ];
 
+`ifdef RSD_MARCH_FP_PIPE
+    FPIssueStageDebugRegister         fpIsReg [ FP_ISSUE_WIDTH ];
+    FPRegisterReadStageDebugRegister  fpRrReg [ FP_ISSUE_WIDTH ];
+    FPExecutionStageDebugRegister     fpExReg [ FP_ISSUE_WIDTH ];
+    FPRegisterWriteStageDebugRegister fpRwReg [ FP_ISSUE_WIDTH ];
+`endif
+
     CommitStageDebugRegister cmReg [ COMMIT_WIDTH ];
 
     SchedulerDebugRegister  scheduler [ ISSUE_QUEUE_ENTRY_NUM ];
@@ -105,6 +112,12 @@ interface DebugIF( input logic clk, rst );
         maReg,
         mtReg,
         memRwReg,
+`ifdef RSD_MARCH_FP_PIPE
+        fpIsReg,
+        fpRrReg,
+        fpExReg,
+        fpRwReg,
+`endif
         cmReg,
         scheduler,
         issueQueue,
@@ -272,6 +285,28 @@ interface DebugIF( input logic clk, rst );
         memRwReg
     );
 
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPIssueStage (
+    output
+        fpIsReg
+    );
+    
+    modport FPRegisterReadStage (
+    output
+        fpRrReg
+    );
+    
+    modport FPExecutionStage (
+    output
+        fpExReg
+    );
+    
+    modport FPRegisterWriteStage (
+    output
+        fpRwReg
+    );
+`endif
+
     modport CommitStage (
     output
         lastCommittedPC,
@@ -372,6 +407,24 @@ interface DebugIF( input logic clk, rst );
     modport ComplexIntegerRegisterWriteStage (
         input clk
     );
+
+`ifdef RSD_MARCH_FP_PIPE
+    modport FPIssueStage (
+        input clk
+    );
+    
+    modport FPRegisterReadStage (
+        input clk
+    );
+    
+    modport FPExecutionStage (
+        input clk
+    );
+    
+    modport FPRegisterWriteStage (
+        input clk
+    );
+`endif
     
     modport MemoryIssueStage (
         input clk

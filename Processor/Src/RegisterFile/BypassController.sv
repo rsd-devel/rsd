@@ -68,6 +68,9 @@ module BypassController(
         ret.lane.memLane = 0;
         // Not implemented 
         ret.lane.complexLane = 0; 
+`ifdef RSD_MARCH_FP_PIPE
+        ret.lane.fpLane = 0; 
+`endif
 
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             if ( read && intEX[i].writeReg && regNum == intEX[i].dstRegNum ) begin
@@ -139,6 +142,9 @@ module BypassController(
     BypassControll complexBypassCtrl [ COMPLEX_ISSUE_WIDTH ];
 `endif
     BypassControll memBypassCtrl [ MEM_ISSUE_WIDTH ];
+`ifdef  RSD_MARCH_FP_PIPE
+    BypassControll fpBypassCtrl [ FP_ISSUE_WIDTH ];
+`endif
 
     always_comb begin
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
@@ -168,6 +174,15 @@ module BypassController(
             memBypassCtrl[i].rB   = SelectReg ( port.memPhySrcRegNumB[i], port.memReadRegB[i], intEX, intWB, memMA, memWB );
         end
         port.memCtrlOut = memBypassCtrl;
+
+`ifdef RSD_MARCH_FP_PIPE
+        for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
+            fpBypassCtrl[i].rA   = SelectReg ( port.fpPhySrcRegNumA[i], port.fpReadRegA[i], intEX, intWB, memMA, memWB );
+            fpBypassCtrl[i].rB   = SelectReg ( port.fpPhySrcRegNumB[i], port.fpReadRegB[i], intEX, intWB, memMA, memWB );
+            fpBypassCtrl[i].rC   = SelectReg ( port.fpPhySrcRegNumC[i], port.fpReadRegC[i], intEX, intWB, memMA, memWB );
+        end
+        port.fpCtrlOut = fpBypassCtrl;
+`endif
     end
 
 endmodule : BypassController

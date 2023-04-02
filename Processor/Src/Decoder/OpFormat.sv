@@ -24,7 +24,7 @@ typedef enum logic [2:0]    // enum CondCode
 } CondCode;
 
 //
-// 命令タイプ
+// 命令タイプ obsolete
 //
 typedef enum logic [2:0]    // enum OpCode
 {
@@ -154,6 +154,61 @@ typedef enum logic [11:0]    // enum SystemFunct12
     SYSTEM_FUNCT12_WFI    = 12'b0001_0000_0101  // WFI
 } SystemFunct12;
 
+typedef enum logic [6:0]    // enum RV32FFunct7
+{
+    RV32F_FUNCT7_FADD           = 7'b0000000,
+    RV32F_FUNCT7_FSUB           = 7'b0000100,
+    RV32F_FUNCT7_FMUL           = 7'b0001000,
+    RV32F_FUNCT7_FDIV           = 7'b0001100,
+    RV32F_FUNCT7_FSQRT          = 7'b0101100,
+    RV32F_FUNCT7_FSGNJ          = 7'b0010000,
+    RV32F_FUNCT7_FMIN_FMAX      = 7'b0010100,
+    RV32F_FUNCT7_FCVT_WS        = 7'b1100000,
+    RV32F_FUNCT7_FCLASS_FMV_XW  = 7'b1110000,
+    RV32F_FUNCT7_FEQ_FLT_FLE    = 7'b1010000,
+    RV32F_FUNCT7_FCVT_SW        = 7'b1101000,
+    RV32F_FUNCT7_FMV_WX         = 7'b1111000
+} RV32FFunct7;
+
+typedef enum logic [2:0]  // enum FSGNJFunct3
+{
+    FSGNJ_FUNCT3_FSGNJ  = 3'b000,
+    FSGNJ_FUNCT3_FSGNJN = 3'b001,
+    FSGNJ_FUNCT3_FSGNJX = 3'b010
+} FSGNJFunct3;
+
+typedef enum logic [2:0] // enum FMINFMAXFunct3
+{
+    FMIN_FMAX_FUNCT3_FMIN = 3'b000,
+    FMIN_FMAX_FUNCT3_FMAX = 3'b001
+} FMINFMAXFunct3;
+
+typedef enum logic [4:0] // enum FCVTFunct5
+{
+    FCVT_FUNCT5_SIGNED   = 5'b00000,
+    FCVT_FUNCT5_UNSIGNED = 5'b00001
+} FCVTFunct5;
+
+typedef enum logic [2:0] // enum FCLASSFMVFunct3
+{
+    FCLASS_FMV_FUNCT3_FMV_XW = 3'b000,
+    FCLASS_FMV_FUNCT3_FCLASS = 3'b001
+} FCLASSFMVFunct3;
+
+typedef enum logic [2:0] // enum FCMPFunct3
+{
+    FCMP_FEQ = 3'b010,
+    FCMP_FLT = 3'b001,
+    FCMP_FLE = 3'b000
+} FCMPFunct3;
+
+typedef union packed // RV32FFunct3
+{
+    FSGNJFunct3     fsgnjFunct3;
+    FMINFMAXFunct3  fminfmaxFunct3;
+    FCLASSFMVFunct3 fclassfmvFunct3;
+    FCMPFunct3      fcmpFunct3;
+} RV32FFunct3;
 
 //
 // --- shifter_operand の定義
@@ -313,7 +368,53 @@ typedef enum logic [2:0]      // enum ENV_Code
     ENV_UNKNOWN         = 3'b101     //
 } ENV_Code;
 
+// FPU code
+typedef enum logic [4:0]    // enum FPU_Code
+{
+    FC_ADD      = 5'b00000,
+    FC_SUB      = 5'b00001,
+    FC_MUL      = 5'b00010,
+    FC_DIV      = 5'b00011,
+    FC_SQRT     = 5'b00100,
+    FC_SGNJ     = 5'b00101,
+    FC_SGNJN    = 5'b00110,
+    FC_SGNJX    = 5'b00111,
+    FC_FMIN     = 5'b01000,
+    FC_FMAX     = 5'b01001,
+    FC_FCVT_WS  = 5'b01010,
+    FC_FCVT_WUS = 5'b01011,
+    FC_FMV_XW   = 5'b01100,
+    FC_FEQ      = 5'b01101,
+    FC_FLT      = 5'b01110,
+    FC_FLE      = 5'b01111,
+    FC_FCLASS   = 5'b10000,
+    FC_FCVT_SW  = 5'b10001,
+    FC_FCVT_SWU = 5'b10010,
+    FC_FMV_WX   = 5'b10011,
+    FC_FMADD    = 5'b10100,
+    FC_FMSUB    = 5'b10101,
+    FC_FNMSUB   = 5'b10110,
+    FC_FNMADD   = 5'b10111
+} FPU_Code;
 
+// Rounding mode
+typedef enum logic [2:0]    // enum Rounding_Mode
+{
+    RM_RNE = 3'b000,    // Round to Nearest, ties to Even
+    RM_RTZ = 3'b001,    // Round towards Zero
+    RM_RDN = 3'b010,    // Round Down (towards -infnity)
+    RM_RUP = 3'b011,    // Round Up (towards +infnity)
+    RM_RMM = 3'b100,    // Round to Nearest, ties to Max Magnitude
+    RM_DYN = 3'b111     // Dynamic Rounding Mode held in frm
+} Rounding_Mode;
+
+typedef struct packed {
+    logic NV;
+    logic DZ;
+    logic OF;
+    logic UF;
+    logic NX;
+} FFlags_Path;
 
 
 //RISCV Instruction Format
@@ -333,7 +434,14 @@ typedef enum logic [6:0]    // enum OpCode
     RISCV_LD        = 7'b0000011,
     RISCV_ST        = 7'b0100011,
     RISCV_MISC_MEM  = 7'b0001111,
-    RISCV_SYSTEM    = 7'b1110011
+    RISCV_SYSTEM    = 7'b1110011,
+    RISCV_F_OP      = 7'b1010011,
+    RISCV_F_FMADD   = 7'b1000011,
+    RISCV_F_FMSUB   = 7'b1000111,
+    RISCV_F_FNMSUB  = 7'b1001011,
+    RISCV_F_FNMADD  = 7'b1001111,
+    RISCV_F_LD      = 7'b0000111,
+    RISCV_F_ST      = 7'b0100111
 } RISCV_OpCode;
 
 
@@ -439,6 +547,17 @@ typedef struct packed
     logic [4:0]     rd;         // [11: 7] Rd 
     RISCV_OpCode    opCode;     // [ 6: 0] 命令タイプ 
 } RISCV_ISF_SYSTEM;
+
+typedef struct packed 
+{
+    logic [4:0]     rs3;        // [31:27] Rs3
+    logic [1:0]     funct2;     // [26:25] funct2
+    logic [4:0]     rs2;        // [24:20] Rs2
+    logic [4:0]     rs1;        // [19:15] Rs1
+    logic [2:0]     funct3;     // [14:12] funct3
+    logic [4:0]     rd;         // [11: 7] Rd
+    RISCV_OpCode    opCode;     // [ 6: 0] 命令タイプ
+} RISCV_ISF_R4;
 
 
 //
@@ -715,6 +834,124 @@ function automatic AddrPath AddJALR_TargetOffset(
     return target;
 endfunction
 
+function automatic void RISCV_DecodeFPOpFunct3(
+    output FPU_Code fpuCode,
+    input RV32FFunct3 rv32ffunct3,
+    input RV32FFunct7 rv32ffunct7,
+    input FCVTFunct5  fcvtfunct5
+);
+    case(rv32ffunct7)
+        RV32F_FUNCT7_FADD : begin
+            fpuCode = FC_ADD;
+        end
+        RV32F_FUNCT7_FSUB : begin
+            fpuCode = FC_SUB;
+        end
+        RV32F_FUNCT7_FMUL : begin
+            fpuCode = FC_MUL;
+        end
+        RV32F_FUNCT7_FDIV : begin
+            fpuCode = FC_DIV;
+        end
+        RV32F_FUNCT7_FSQRT : begin
+            fpuCode = FC_SQRT;
+        end
+        RV32F_FUNCT7_FSGNJ : begin
+            //Todo: ここにfpTypeの代入かけるのか
+            case (rv32ffunct3.fsgnjFunct3)
+                FSGNJ_FUNCT3_FSGNJ : begin
+                    fpuCode = FC_SGNJ;
+                end
+                FSGNJ_FUNCT3_FSGNJN : begin
+                    fpuCode = FC_SGNJN;
+                end
+                FSGNJ_FUNCT3_FSGNJX : begin
+                    fpuCode = FC_SGNJX;
+                end
+                default: begin
+                    fpuCode = FC_SGNJX;
+                end
+            endcase
+        end
+        RV32F_FUNCT7_FMIN_FMAX : begin
+            if (rv32ffunct3.fminfmaxFunct3 == FMIN_FMAX_FUNCT3_FMIN) begin
+                fpuCode = FC_FMIN;
+            end
+            else begin
+                fpuCode = FC_FMAX;
+            end
+        end
+        RV32F_FUNCT7_FCVT_WS : begin
+            if (fcvtfunct5 == FCVT_FUNCT5_SIGNED) begin
+                fpuCode = FC_FCVT_WS;
+            end
+            else begin
+                fpuCode = FC_FCVT_WUS;
+            end
+        end
+        RV32F_FUNCT7_FCLASS_FMV_XW : begin
+            if (rv32ffunct3.fclassfmvFunct3 == FCLASS_FMV_FUNCT3_FCLASS) begin
+                fpuCode = FC_FCLASS;
+            end
+            else begin
+                fpuCode = FC_FMV_XW;
+            end
+        end
+        RV32F_FUNCT7_FEQ_FLT_FLE : begin
+            case(rv32ffunct3.fcmpFunct3)
+                FCMP_FEQ : begin
+                    fpuCode = FC_FEQ;
+                end
+                FCMP_FLT : begin
+                    fpuCode = FC_FLT;
+                end
+                FCMP_FLE : begin
+                    fpuCode = FC_FLE;
+                end
+                default: begin
+                    fpuCode = FC_FLE;
+                end
+            endcase
+        end
+        RV32F_FUNCT7_FCVT_SW : begin
+            if (fcvtfunct5 == FCVT_FUNCT5_SIGNED) begin
+                fpuCode = FC_FCVT_SW;
+            end
+            else begin
+                fpuCode = FC_FCVT_SWU;
+            end
+        end
+        RV32F_FUNCT7_FMV_WX : begin
+            fpuCode = FC_FMV_WX;
+        end
+        default: begin
+            fpuCode = FC_FMV_WX;
+        end
+    endcase
+endfunction
+
+function automatic void RISCV_DecodeFPFMAOpFunct3(
+    output FPU_Code fpuCode,
+    input RISCV_OpCode opCode
+);
+    case (opCode)
+        RISCV_F_FMADD : begin
+            fpuCode = FC_FMADD;
+        end
+        RISCV_F_FMSUB : begin
+            fpuCode = FC_FMSUB;
+        end
+        RISCV_F_FNMSUB : begin
+            fpuCode = FC_FNMSUB;
+        end
+        RISCV_F_FNMADD : begin
+            fpuCode = FC_FNMADD;
+        end
+        default: begin
+            fpuCode = FC_FMADD;
+        end
+    endcase
+endfunction
 
 endpackage
 

@@ -74,11 +74,6 @@ module MemoryExecutionStage(
     // Valid bits of registers
     logic regValid[MEM_ISSUE_WIDTH];
 
-`ifdef RSD_ENABLE_VECTOR_PATH
-    PVecDataPath  fuVecOpB [ MEM_ISSUE_WIDTH ];
-    logic vecRegValid[MEM_ISSUE_WIDTH];
-`endif
-
     AddrPath addrOut[ MEM_ISSUE_WIDTH ];
     MemoryMapType memMapType[MEM_ISSUE_WIDTH];
     PhyAddrPath phyAddrOut[MEM_ISSUE_WIDTH];
@@ -120,20 +115,9 @@ module MemoryExecutionStage(
 
             // Register valid bits.
             // If invalid registers are read, regValid is negated and this op must be replayed.
-            `ifdef RSD_ENABLE_VECTOR_PATH
-                if ( memOpInfo[i].memAccessMode.size == MEM_ACCESS_SIZE_VEC ) begin
-                    regValid[i] = vecRegValid[i];
-                end
-                else begin
-                    regValid[i] =
-                        (memOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
-                        (memOpInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid );
-                end
-            `else
-                regValid[i] =
-                    (memOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
-                    (memOpInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid );
-            `endif
+            regValid[i] =
+                (memOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid ) &&
+                (memOpInfo[i].operandTypeB != OOT_REG || fuOpB[i].valid );
 
         end // for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
 
@@ -168,25 +152,6 @@ module MemoryExecutionStage(
         end
         cacheFlush.cacheFlushReq = cacheFlushReq;
     end
-
-    //
-    // --- Vector Operand
-    //
-`ifdef RSD_ENABLE_VECTOR_PATH
-    always_comb begin
-        for ( int i = 0; i < STORE_ISSUE_LANE_BEGIN; i++ ) begin
-            fuVecOpB[i] = '0;
-            vecRegValid[i] =
-                (memOpInfo[i].operandTypeA != OOT_REG || fuOpA[i].valid );
-        end
-        for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
-            fuVecOpB[i+STORE_ISSUE_LANE_BEGIN] = ( pipeReg[i+STORE_ISSUE_LANE_BEGIN].bCtrl.rB.valid ? bypass.memSrcVecDataOutB[i] : pipeReg[i+STORE_ISSUE_LANE_BEGIN].vecOperandB );
-            vecRegValid[i+STORE_ISSUE_LANE_BEGIN] =
-                (memOpInfo[i+STORE_ISSUE_LANE_BEGIN].operandTypeA != OOT_REG || fuOpA[i+STORE_ISSUE_LANE_BEGIN].valid ) &&
-                fuVecOpB[i+STORE_ISSUE_LANE_BEGIN].valid;
-        end
-    end
-`endif
 
     //
     // CSR access
@@ -277,9 +242,6 @@ module MemoryExecutionStage(
                 (stall || clear || port.rst || flush[i]) ? FALSE : pipeReg[i].valid;
             nextStage[i].condEnabled = TRUE;
             nextStage[i].dataIn = (i == 0 && isCSR) ? csrUnit.csrReadOut : fuOpB[i].data;   // CSR must be issued to the lane 0
-            `ifdef RSD_ENABLE_VECTOR_PATH
-                nextStage[i].vecDataIn = fuVecOpB[i].data;
-            `endif
             nextStage[i].addrOut = addrOut[i];
             nextStage[i].regValid = regValid[i];
             nextStage[i].memMapType = memMapType[i];
@@ -310,9 +272,6 @@ module MemoryExecutionStage(
                 debug.memExReg[i].fuOpA   = fuOpA[i].data;
                 debug.memExReg[i].fuOpB   = fuOpB[i].data;
             end
-            `ifdef RSD_ENABLE_VECTOR_PATH
-                debug.memExReg[i].fuVecOpB = fuVecOpB[i].data;
-            `endif
             debug.memExReg[i].opType = memOpInfo[i].opType;
             debug.memExReg[i].size = memOpInfo[i].memAccessMode.size;
             debug.memExReg[i].isSigned = memOpInfo[i].memAccessMode.isSigned;

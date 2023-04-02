@@ -5,10 +5,10 @@ RSD is very fast due to aggressive OoO features, while it is very compact and ca
 The key features of RSD are as follows:
 
 * ISA
-    * Support RV32IM 
+    * Support RV32IMF
     * Support Zephyr applications
 * Microarchitecture
-    * 2-fetch front-end and 5-issue back-end pipelines
+    * 2-fetch front-end and 6-issue back-end pipelines
     * Up to 64 instructions are in-flight.
         * These parameters can be configurable.
     * A high-speed speculative instruction scheduler with a replay mechanism
@@ -17,10 +17,9 @@ The key features of RSD are as follows:
     * Support AXI4 bus
 * Implementation
     * Written in SystemVerilog
-    * Can be simulated with Mentor Modelsim/QuestaSim, Verilator, and Vivado
-    * Can be synthesized with Synopsys Synplify and Design Compiler 
+    * Can be simulated with Modelsim/QuestaSim, Verilator, and Vivado
+    * Can be synthesized with Synplify, Vivado and Design Compiler 
         * Design Compiler support is experimental
-        * We are preparing the support for Xilinx Vivado.
     * Can run on a Xilinx Zynq board  
         * Avnet Zedboard  
     * FPGA optimized RAM structures
@@ -35,8 +34,7 @@ The key features of RSD are as follows:
 1.  Install the following software for running simulation.    
     * GNU Make, Python3, and GCC (x86-64) 6 or later
     * GCC (RISC-V) 7 or later
-    * Cygwin (if you use Windows)
-    * Verilator or Mentor Modelsim/QuestaSim or Xilinx Vitis 2019.2
+    * Verilator or Modelsim/QuestaSim or Xilinx Vitis 2019.2
 
     Tested environment:
 
@@ -48,16 +46,15 @@ The key features of RSD are as follows:
     * QuestaSim 2019.4.2
     * Vitis 2019.2
 
-2. Refer to scripts in Processor/Tools/SetEnv and set environment variables.
-    * Use SetEnv.bat on Windows or SetEnv.sh on Linux
+2. Refer to scripts in Processor/Tools/SetEnv.sh and set environment variables.
     * RSD_ROOT must be set for running simulation.
-    * For Windows, RSD_CYGWIN_PATH should also be set
-    * Set RSD_QUESTASIM_PATH when using Modelsim/QuestaSim
+    * RSD_VERILATOR_BIN, RSD_QUESTASIM_PATH or RSD_VIVADO_BIN must be set.
+        * See [this page](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
 
 3. Go to Processor/Src and make as follows.
     * For Modelsim/QuestaSim
         ```
-        make
+        makehttps://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
@@ -82,7 +79,7 @@ The key features of RSD are as follows:
 
 ## License
 
-Copyright 2019 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors, 
+Copyright 2019-2023 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors, 
 see also CREDITS.md. This implementation is released under the Apache License,
 Version 2.0, see LICENSE for details. This implementation integrates third-party 
 packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.

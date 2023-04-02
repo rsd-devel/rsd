@@ -46,6 +46,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_PARAMETER(MemoryMapTypes, PHY_ADDR_SECTION_1_BASE);
 
 `RSD_MAKE_PARAMETER(BasicTypes, LSCALAR_NUM);
+`RSD_MAKE_PARAMETER(BasicTypes, LSCALAR_FP_NUM);
 `RSD_MAKE_PARAMETER(BasicTypes, FETCH_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, DECODE_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, RENAME_WIDTH);
@@ -55,9 +56,11 @@ import MemoryMapTypes::*;
 `RSD_MAKE_PARAMETER(BasicTypes, INT_ISSUE_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, COMPLEX_ISSUE_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, MEM_ISSUE_WIDTH);
+`RSD_MAKE_PARAMETER(BasicTypes, FP_ISSUE_WIDTH);
 
 `RSD_MAKE_PARAMETER(SchedulerTypes, ISSUE_QUEUE_ENTRY_NUM);
 `RSD_MAKE_PARAMETER(SchedulerTypes, COMPLEX_EXEC_STAGE_DEPTH);
+`RSD_MAKE_PARAMETER(SchedulerTypes, FP_EXEC_STAGE_DEPTH);
 
 
 `define RSD_MAKE_ENUM(packageName, name) \
@@ -142,6 +145,12 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, readRegB);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegB);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegB);
+
+`ifdef RSD_MARCH_FP_PIPE
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, readRegC);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logSrcRegC);
+`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, PRegNumPath, phySrcRegC);
+`endif
 
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, logic, writeReg);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, dsReg, LRegNumPath, logDstReg);
@@ -270,6 +279,41 @@ import MemoryMapTypes::*;
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, logic, valid);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, logic, flush);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, memRwReg, OpId, opId);
+
+`ifdef RSD_MARCH_FP_PIPE
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, valid);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, logic, flush);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpIsReg, OpId, opId);
+
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRrReg, logic, valid);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRrReg, logic, flush);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRrReg, OpId, opId);
+
+    // Output only the first execution stage of a fp pipeline
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic, flush);
+    //`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic [ FP_EXEC_STAGE_DEPTH-1:0 ], valid);
+    //`RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, logic [ FP_EXEC_STAGE_DEPTH-1:0 ], opId);
+    function automatic logic DebugRegister_fpExReg_valid(DebugRegister e, int i);
+        /*verilator public*/
+        return e.fpExReg[i].valid[0];
+    endfunction
+    function automatic OpId DebugRegister_fpExReg_opId(DebugRegister e, int i);
+        /*verilator public*/
+        return e.fpExReg[i].opId[0];
+    endfunction
+
+    `ifdef RSD_FUNCTIONAL_SIMULATION
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, dataOut);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpA);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpB);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpExReg, DataPath, fuOpC);
+    `endif
+
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRwReg, logic, valid);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRwReg, logic, flush);
+    `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, fpRwReg, OpId, opId);
+`endif
+
 
 
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, commit);

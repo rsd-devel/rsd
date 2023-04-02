@@ -7,6 +7,7 @@
 # * RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE: Integrate mul/div to a memory pipe
 RSD_SRC_CFG = \
 	+define+RSD_MARCH_INT_ISSUE_WIDTH=2 \
+	+define+RSD_MARCH_FP_PIPE \
 
 #	+define+RSD_MARCH_UNIFIED_LDST_MEM_PIPE \
 #	+define+RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
@@ -26,6 +27,7 @@ TYPES = \
 	Decoder/MicroOp.sv \
 	RegisterFile/BypassTypes.sv \
 	FetchUnit/FetchUnitTypes.sv \
+	FloatingPointUnit/FPUTypes.sv \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
 	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \
@@ -80,6 +82,13 @@ CORE_MODULES = \
 	Pipeline/MemoryBackEnd/MemoryTagAccessStage.sv \
 	Pipeline/MemoryBackEnd/MemoryRegisterWriteStageIF.sv \
 	Pipeline/MemoryBackEnd/MemoryRegisterWriteStage.sv \
+	Pipeline/FPBackEnd/FPIssueStage.sv \
+	Pipeline/FPBackEnd/FPIssueStageIF.sv \
+	Pipeline/FPBackEnd/FPRegisterReadStage.sv \
+	Pipeline/FPBackEnd/FPRegisterReadStageIF.sv \
+	Pipeline/FPBackEnd/FPExecutionStageIF.sv \
+	Pipeline/FPBackEnd/FPExecutionStage.sv \
+	Pipeline/FPBackEnd/FPRegisterWriteStage.sv \
 	Pipeline/CommitStageIF.sv \
 	Pipeline/CommitStage.sv \
 	RegisterFile/RegisterFile.sv \
@@ -87,12 +96,10 @@ CORE_MODULES = \
 	RegisterFile/BypassController.sv \
 	RegisterFile/BypassNetwork.sv \
 	RegisterFile/BypassNetworkIF.sv \
-	RegisterFile/VectorBypassNetwork.sv \
 	ExecUnit/BitCounter.sv \
 	ExecUnit/IntALU.sv \
 	ExecUnit/Shifter.sv \
 	ExecUnit/MultiplierUnit.sv \
-	ExecUnit/VectorUnit.sv \
 	ExecUnit/PipelinedRefDivider.sv \
 	ExecUnit/DividerUnit.sv \
 	MulDivUnit/MulDivUnitIF.sv \
@@ -102,6 +109,13 @@ CORE_MODULES = \
 	LoadStoreUnit/LoadQueue.sv \
 	LoadStoreUnit/StoreQueue.sv \
 	LoadStoreUnit/StoreCommitter.sv \
+	FloatingPointUnit/FP32PipelinedAdder.sv \
+	FloatingPointUnit/FP32PipelinedMultiplier.sv \
+	FloatingPointUnit/FP32PipelinedFMA.sv \
+	FloatingPointUnit/FP32PipelinedOther.sv \
+	FloatingPointUnit/FP32DivSqrter.sv \
+	FloatingPointUnit/FPDivSqrtUnit.sv \
+	FloatingPointUnit/FPDivSqrtUnitIF.sv \
 	RenameLogic/RenameLogic.sv \
 	RenameLogic/RenameLogicIF.sv \
 	RenameLogic/ActiveListIF.sv \

@@ -227,6 +227,28 @@ input
         backEnd
     );
 
+    modport FPIssueStage(
+    input
+        isStage
+    );
+
+    modport FPRegisterReadStage(
+    input
+        backEnd
+    );
+
+    modport FPExecutionStage(
+    input
+        backEnd
+    );
+
+    modport FPRegisterWriteStage(
+    input
+        clk,
+        rst,
+        backEnd
+    );
+
     modport CommitStage(
     input
         cmStage
@@ -238,11 +260,6 @@ input
     );
 
     modport BypassNetwork(
-    input
-        backEnd
-    );
-
-    modport VectorBypassNetwork(
     input
         backEnd
     );
