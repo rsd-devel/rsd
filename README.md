@@ -87,4 +87,4 @@ packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.
 ## References
 
 Susumu Mashimo et al., "An Open Source FPGA-Optimized Out-of-Order RISC-V Soft 
-Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019. A pre-print version is [here](http://rsg.ci.i.u-tokyo.ac.jp/pdfs/Mashimo-FPT'19.pdf).
+Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019. A pre-print version is [here](https://www.rsg.ci.i.u-tokyo.ac.jp/members/shioya/pdfs/Mashimo-FPT'19.pdf).
