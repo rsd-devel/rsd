@@ -54,7 +54,7 @@ The key features of RSD are as follows:
 3. Go to Processor/Src and make as follows.
     * For Modelsim/QuestaSim
         ```
-        makehttps://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables
+        make            # compile
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
