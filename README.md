@@ -71,7 +71,7 @@ The key features of RSD are as follows:
 
 ### Run on a Xilinx Zynq board
 
-* See [this RSD wiki page](https://github.com/rsd-devel/rsd/wiki/en-fpga-zynq-build-linux-simple).
+* See [this RSD wiki page](https://github.com/rsd-devel/rsd/wiki/en-fpga-zynq-synth-for-linux).
 
 ## Documents
 
@@ -87,4 +87,4 @@ packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.
 ## References
 
 Susumu Mashimo et al., "An Open Source FPGA-Optimized Out-of-Order RISC-V Soft 
-Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019. A pre-print version is [here](http://sv.rsg.ci.i.u-tokyo.ac.jp/pdfs/Mashimo-FPT'19.pdf).
+Processor", IEEE International Conference on Field-Programmable Technology (FPT), 2019. A pre-print version is [here](http://rsg.ci.i.u-tokyo.ac.jp/pdfs/Mashimo-FPT'19.pdf).
