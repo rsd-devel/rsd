@@ -199,7 +199,7 @@ module MemoryTagAccessStage(
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i]) begin
                 if (loadStoreUnit.storeLoadForwarded[i]) begin
-                    ldRegValid[i] = loadStoreUnit.forwardMiss[i] ? FALSE : ldPipeReg[i].regValid;
+                    ldRegValid[i] = ldPipeReg[i].regValid;
                 end
                 else if (ldRecordData[i].hasAllocatedMSHR) begin
                     // When the load has allocated an MSHR entry,
@@ -272,7 +272,7 @@ module MemoryTagAccessStage(
                 if ( loadStoreUnit.storeLoadForwarded[i] ) begin
                     // フォワードされた場合
                     ldNextStage[i].execState =
-                        loadStoreUnit.forwardMiss[i] ? EXEC_STATE_REFETCH_THIS : EXEC_STATE_SUCCESS;
+                        loadStoreUnit.forwardMiss[i] ? EXEC_STATE_STORE_LOAD_FORWARDING_MISS : EXEC_STATE_SUCCESS;
                 end
                 else if (ldRecordData[i].hasAllocatedMSHR) begin
                     ldNextStage[i].execState =
