@@ -271,6 +271,8 @@ module MemoryTagAccessStage(
                 // そのロード命令からやり直す
                 if ( loadStoreUnit.storeLoadForwarded[i] ) begin
                     // フォワードされた場合
+                    // A load instruction that caused a store-load forwarding miss is not replayed but flushed to prevent a deadlock due to replay.
+                    // To wait for the commit of the dependent store instruction, The flush is performed in commit stage.
                     ldNextStage[i].execState =
                         loadStoreUnit.forwardMiss[i] ? EXEC_STATE_STORE_LOAD_FORWARDING_MISS : EXEC_STATE_SUCCESS;
                 end
