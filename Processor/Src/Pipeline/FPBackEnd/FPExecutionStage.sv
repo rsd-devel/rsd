@@ -129,8 +129,6 @@ module FPExecutionStage(
     PRegDataPath  dataOut  [ FP_ISSUE_WIDTH ];
     FFlags_Path   fflagsOut[ FP_ISSUE_WIDTH ];
 
-    DataPath  addDataOut     [ FP_ISSUE_WIDTH ];
-    DataPath  mulDataOut     [ FP_ISSUE_WIDTH ];
     DataPath  fmaDataOut     [ FP_ISSUE_WIDTH ];
     DataPath  otherDataOut   [ FP_ISSUE_WIDTH ];
     DataPath  fmaMulLHS      [ FP_ISSUE_WIDTH ];
@@ -150,28 +148,6 @@ module FPExecutionStage(
     logic isDivSqrt         [ FP_ISSUE_WIDTH ]; 
 
     for ( genvar i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
-        FP32PipelinedAdder #(
-            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
-        ) fpAdder (
-            .clk (port.clk),
-            .lhs ( fuOpA[i].data ),
-            .rhs ( fpuCode[i] == FC_SUB ? {~fuOpB[i].data[31], fuOpB[i].data[30:0]} : fuOpB[i].data ),
-            //.rm (rm[i]),
-            .result ( addDataOut[i] )
-            //.fflags ( addFFlagsOut[i])
-        );
-        
-        FP32PipelinedMultiplier #(
-            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
-        ) fpMultiplier (
-            .clk (port.clk),
-            .lhs ( fuOpA[i].data ),
-            .rhs ( fuOpB[i].data ),
-            //.rm (rm[i]),
-            .result ( mulDataOut[i] )
-            //.fflags ( mulFFlagsOut[i])
-        );
-
         FP32PipelinedFMA fpFMA (
             .clk (port.clk),
             .mullhs (fmaMulLHS[i]),
