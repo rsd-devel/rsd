@@ -74,6 +74,7 @@ typedef enum logic [3:0] // ExecutionState
     EXEC_STATE_FAULT_LOAD_VIOLATION   = 4'b1001,  // Load access violation
     EXEC_STATE_FAULT_STORE_MISALIGNED = 4'b1010,  // Misaligned store is executed
     EXEC_STATE_FAULT_STORE_VIOLATION  = 4'b1011,  // Store access violation
+    EXEC_STATE_STORE_LOAD_FORWARDING_MISS  = 4'b1111,  // Store load forwarding miss
 
     EXEC_STATE_FAULT_INSN_ILLEGAL     = 4'b1100,  // Illegal instruction
     EXEC_STATE_FAULT_INSN_VIOLATION   = 4'b1101,  // Illegal instruction
