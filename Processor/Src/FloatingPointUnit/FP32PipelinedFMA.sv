@@ -135,7 +135,7 @@ module FMAStage3(
 );
     function automatic [6:0] leading_zeros_count;
         input[75:0] x;
-        for(leading_zeros_count = 0; leading_zeros_count <= 76; leading_zeros_count = leading_zeros_count + 1)
+        for(leading_zeros_count = 0; leading_zeros_count <= 75; leading_zeros_count = leading_zeros_count + 1)
             if(x[75-leading_zeros_count]) break;
     endfunction
     

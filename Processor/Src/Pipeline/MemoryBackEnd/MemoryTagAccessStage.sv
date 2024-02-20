@@ -199,7 +199,7 @@ module MemoryTagAccessStage(
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i]) begin
                 if (loadStoreUnit.storeLoadForwarded[i]) begin
-                    ldRegValid[i] = loadStoreUnit.forwardMiss[i] ? FALSE : ldPipeReg[i].regValid;
+                    ldRegValid[i] = ldPipeReg[i].regValid;
                 end
                 else if (ldRecordData[i].hasAllocatedMSHR) begin
                     // When the load has allocated an MSHR entry,
@@ -271,8 +271,10 @@ module MemoryTagAccessStage(
                 // そのロード命令からやり直す
                 if ( loadStoreUnit.storeLoadForwarded[i] ) begin
                     // フォワードされた場合
+                    // A load instruction that caused a store-load forwarding miss is not replayed but flushed to prevent a deadlock due to replay.
+                    // To wait for the commit of the dependent store instruction, The flush is performed in commit stage.
                     ldNextStage[i].execState =
-                        loadStoreUnit.forwardMiss[i] ? EXEC_STATE_REFETCH_THIS : EXEC_STATE_SUCCESS;
+                        loadStoreUnit.forwardMiss[i] ? EXEC_STATE_STORE_LOAD_FORWARDING_MISS : EXEC_STATE_SUCCESS;
                 end
                 else if (ldRecordData[i].hasAllocatedMSHR) begin
                     ldNextStage[i].execState =
