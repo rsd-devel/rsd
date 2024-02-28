@@ -305,13 +305,16 @@ localparam BR_DISP_SIGN_EXTENTION_WIDTH = ADDR_WIDTH - BR_DISP_WIDTH;
 // ALU code
 typedef enum logic [3:0]    // enum ALU_Code
 {
-    AC_ADD  = 4'b0000,    // ADD    加算
-    AC_SLT  = 4'b0010,    // SLT    比較 Rd = if Rs1 < Rs2 then 1 else 0
-    AC_SLTU = 4'b0011,    // SLTU   符号なし比較
-    AC_EOR  = 4'b0100,    // EOR    排他的論理和
-    AC_ORR  = 4'b0110,    // ORR    （包含的）論理和
-    AC_AND  = 4'b0111,    // AND    論理積
-    AC_SUB  = 4'b0001    // SUB    減算
+    AC_ADD     = 4'b0000,    // ADD    加算
+    AC_SLT     = 4'b0010,    // SLT    比較 Rd = if Rs1 < Rs2 then 1 else 0
+    AC_SLTU    = 4'b0011,    // SLTU   符号なし比較
+    AC_EOR     = 4'b0100,    // EOR    排他的論理和
+    AC_ORR     = 4'b0110,    // ORR    （包含的）論理和
+    AC_AND     = 4'b0111,    // AND    論理積
+    AC_SUB     = 4'b0001,    // SUB    減算
+    AC_SH1ADD  = 4'b1010,    // Rs1 << 1 + Rs2
+    AC_SH2ADD  = 4'b1011,    // Rs1 << 2 + Rs2
+    AC_SH3ADD  = 4'b1100    // Rs1 << 3 + Rs2
 } IntALU_Code;
 
 
@@ -416,6 +419,15 @@ typedef struct packed {
     logic NX;
 } FFlags_Path;
 
+typedef enum logic [6:0] {
+    ZBA_FUNCT7_SHADD = 7'b0010000
+} ZbaFunct7;
+
+typedef enum logic [2:0] {
+    ZBA_FUCNT3_SH1ADD = 3'b010,
+    ZBA_FUCNT3_SH2ADD = 3'b100,
+    ZBA_FUCNT3_SH3ADD = 3'b110
+} ZbaFunct3;
 
 //RISCV Instruction Format
 
