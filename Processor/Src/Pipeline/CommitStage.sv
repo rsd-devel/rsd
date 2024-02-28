@@ -354,7 +354,7 @@ module CommitStage(
 `ifdef RSD_MARCH_FP_PIPE
         // CSR FFLAGS Update
         fflagsWE = FALSE;
-        fflagsData = '0;
+        fflagsData = csrUnit.fflags;
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 fflagsWE = TRUE;

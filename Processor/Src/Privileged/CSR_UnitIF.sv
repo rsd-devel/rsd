@@ -50,6 +50,7 @@ interface CSR_UnitIF(
     CommitLaneCountPath commitNum;
 
 `ifdef RSD_MARCH_FP_PIPE
+    FFlags_Path fflags;
     Rounding_Mode frm;
     logic fflagsWE;
     FFlags_Path fflagsData;
@@ -85,6 +86,10 @@ interface CSR_UnitIF(
 
     // For counter update
     modport CommitStage (
+`ifdef RSD_MARCH_FP_PIPE
+    input
+        fflags,
+`endif
     output
         commitNum
 `ifdef RSD_MARCH_FP_PIPE
@@ -129,6 +134,7 @@ interface CSR_UnitIF(
 `endif
     output 
 `ifdef RSD_MARCH_FP_PIPE
+        fflags,
         frm,
 `endif
         csrWholeOut,
