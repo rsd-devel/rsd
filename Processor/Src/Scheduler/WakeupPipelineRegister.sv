@@ -121,6 +121,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_INT_LATENCY; j++ ) begin
                     intPipeReg[i][j].valid <= FALSE;
+                    intPipeReg[i][j].depVector <= '0;
                 end
             end
 
@@ -128,6 +129,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_COMPLEX_LATENCY; j++ ) begin
                     complexPipeReg[i][j].valid <= FALSE;
+                    complexPipeReg[i][j].depVector <= '0;
                 end
             end
 `endif
@@ -135,6 +137,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_MEM_LATENCY; j++ ) begin
                     memPipeReg[i][j].valid <= FALSE;
+                    memPipeReg[i][j].depVector <= '0;
                 end
             end
 
@@ -142,6 +145,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_FP_LATENCY; j++ ) begin
                     fpPipeReg[i][j].valid <= FALSE;
+                    fpPipeReg[i][j].depVector <= '0;
                 end
             end
 `endif
