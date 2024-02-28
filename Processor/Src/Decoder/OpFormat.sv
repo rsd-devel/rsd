@@ -311,7 +311,9 @@ typedef enum logic [3:0]    // enum ALU_Code
     AC_EOR  = 4'b0100,    // EOR    排他的論理和
     AC_ORR  = 4'b0110,    // ORR    （包含的）論理和
     AC_AND  = 4'b0111,    // AND    論理積
-    AC_SUB  = 4'b0001    // SUB    減算
+    AC_SUB  = 4'b0001,    // SUB    減算
+    AC_EQZ  = 4'b1000,    // Rs2 == 0
+    AC_NEZ  = 4'b1001     // Rs2 != 0
 } IntALU_Code;
 
 
@@ -416,6 +418,14 @@ typedef struct packed {
     logic NX;
 } FFlags_Path;
 
+typedef enum logic [6:0] {
+    ZICOND_FUNCT7_CZERO = 7'b0000111
+} ZicondFunct7;
+
+typedef enum logic [2:0] {
+    CZERO_FUCNT3_EQZ = 3'b101,
+    CZERO_FUNCT3_NEZ = 3'b111
+} CZeroFunct3;
 
 //RISCV Instruction Format
 
