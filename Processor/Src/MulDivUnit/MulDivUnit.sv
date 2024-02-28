@@ -55,7 +55,7 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port, RecoveryManagerIF.MulDivUnit rec
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockDivUnit
         DividerUnit divUnit(
             .clk(port.clk),
-            .rst(port.rst),
+            .rst(port.rst | flush[i]),
             .req(port.divReq[i]),
             .fuOpA_In(port.dataInA[i]),
             .fuOpB_In(port.dataInB[i]),

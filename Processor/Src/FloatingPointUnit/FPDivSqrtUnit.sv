@@ -26,7 +26,7 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
     for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : BlockDivUnit
         FP32DivSqrter fpDivSqrter(
             .clk(port.clk),
-            .rst(port.rst),
+            .rst(port.rst | flush[i]),
             .lhs(port.dataInA[i]),
             .rhs(port.dataInB[i]),
             .is_divide(port.is_divide[i]),
