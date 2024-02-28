@@ -60,6 +60,7 @@ module SelectLogic(
     // For Recovery Maneger IF
     logic recoverySelected [ ISSUE_WIDTH ];
     IssueQueueIndexPath recoverySelectedPtr [ ISSUE_WIDTH ];
+    IssueQueueOneHotPath flushIQ_Entry;
 
     // Requests are interleaved.
     // ex. ENTRY_NUM = 4, GRANT_NUM = 2 case:
@@ -141,6 +142,7 @@ module SelectLogic(
 `endif
 
     always_comb begin
+        flushIQ_Entry = recovery.flushIQ_Entry;
 
         for (int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
             intRequest[i] = port.opReady[i] && port.intIssueReq[i];
@@ -163,7 +165,7 @@ module SelectLogic(
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             portSelected[i] = intSelected[i];
             portSelectedPtr[i] = intSelectedPtr[i];
-            portSelectedVector[i] = intGrant;
+            portSelectedVector[i] = intGrant & ~flushIQ_Entry;
             recoverySelected[i] = intSelected[i];
             recoverySelectedPtr[i] = intSelectedPtr[i];
         end
@@ -172,7 +174,7 @@ module SelectLogic(
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
             portSelected[i+INT_ISSUE_WIDTH] = compSelected[i];
             portSelectedPtr[i+INT_ISSUE_WIDTH] = compSelectedPtr[i];
-            portSelectedVector[i+INT_ISSUE_WIDTH] = compGrant;
+            portSelectedVector[i+INT_ISSUE_WIDTH] = compGrant & ~flushIQ_Entry;
             recoverySelected[i+INT_ISSUE_WIDTH] = compSelected[i];
             recoverySelectedPtr[i+INT_ISSUE_WIDTH] = compSelectedPtr[i];
         end
@@ -182,7 +184,7 @@ module SelectLogic(
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
             portSelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memSelected[i];
             portSelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memSelectedPtr[i];
-            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memGrant;
+            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memGrant & ~flushIQ_Entry;
             recoverySelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memSelected[i];
             recoverySelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = memSelectedPtr[i];
         end
@@ -190,14 +192,14 @@ module SelectLogic(
         for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
             portSelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadSelected[i];
             portSelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadSelectedPtr[i];
-            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadGrant;
+            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadGrant & ~flushIQ_Entry;
             recoverySelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadSelected[i];
             recoverySelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH] = loadSelectedPtr[i];
         end
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
             portSelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeSelected[i];
             portSelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeSelectedPtr[i];
-            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeGrant;
+            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeGrant & ~flushIQ_Entry;
             recoverySelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeSelected[i];
             recoverySelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH] = storeSelectedPtr[i];
         end
@@ -207,7 +209,7 @@ module SelectLogic(
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
             portSelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpSelected[i];
             portSelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpSelectedPtr[i];
-            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpGrant;
+            portSelectedVector[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpGrant & ~flushIQ_Entry;
             recoverySelected[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpSelected[i];
             recoverySelectedPtr[i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH] = fpSelectedPtr[i];
         end
