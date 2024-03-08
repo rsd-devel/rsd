@@ -135,6 +135,14 @@ module IntALU(
             // ORR  （包含的）論理和    Rd := Rn OR shifter_operand
             AC_ORR: `Logic( opA | opB )
 
+`ifdef RSD_ENABLE_ZICOND
+            // czero.eqz
+            AC_EQZ: `Logic( { ( opB  == 32'h0) ? 32'h0 : opA} )
+
+            // czero.nez
+            AC_NEZ: `Logic( { ( opB  != 32'h0) ? 32'h0 : opA} )
+`endif
+
         endcase
 
         aluDataOut   = opDst.data;
