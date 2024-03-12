@@ -314,7 +314,7 @@ typedef enum logic [3:0]    // enum ALU_Code
     AC_AND     = 4'b0111,    // AND    論理積
     AC_SH1ADD  = 4'b1010,    // Rs1 << 1 + Rs2
     AC_SH2ADD  = 4'b1011,    // Rs1 << 2 + Rs2
-    AC_SH3ADD  = 4'b1100    // Rs1 << 3 + Rs2
+    AC_SH3ADD  = 4'b1100,    // Rs1 << 3 + Rs2
     AC_EQZ     = 4'b1000,    // Rs2 == 0
     AC_NEZ     = 4'b1001     // Rs2 != 0
 } IntALU_Code;
