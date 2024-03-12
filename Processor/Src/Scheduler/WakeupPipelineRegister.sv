@@ -227,7 +227,7 @@ module WakeupPipelineRegister(
         //
         // Register selected ops.
         //
-        for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             // Input of PipeReg (Selected Data)
             intSelectedPtr[i] = port.selectedPtr[i];
             nextIntPipeReg[i].valid = port.selected[i] && !flushIQ_Entry[intSelectedPtr[i]];
@@ -267,7 +267,7 @@ module WakeupPipelineRegister(
         //
         // Exit from the pipeline registers and now wakeup consumers.
         //
-        for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             // Output of PipeReg (Wakeup Data)
             // Now, WAKEUP_WIDTH == ISSUE_WIDTH
             flushInt[i] = SelectiveFlushDetector(
@@ -369,7 +369,7 @@ module WakeupPipelineRegister(
             port.releasePtr[i] = intPipeReg[i][0].ptr;
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-        for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
             port.releaseEntry[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].valid;
             port.releasePtr[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].ptr;
         end
@@ -379,7 +379,7 @@ module WakeupPipelineRegister(
             port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].ptr;
         end
 `ifdef RSD_MARCH_FP_PIPE
-        for ( int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
             port.releaseEntry[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].valid;
             port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].ptr;
         end
