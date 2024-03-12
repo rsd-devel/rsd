@@ -230,7 +230,7 @@ module WakeupPipelineRegister(
             intSelectedPtr[i] = port.selectedPtr[i];
             nextIntPipeReg[i].valid = port.selected[i] && !flushIQ_Entry[intSelectedPtr[i]];
             nextIntPipeReg[i].ptr = port.selectedPtr[i];
-            nextIntPipeReg[i].depVector = port.selectedVector[i];
+            nextIntPipeReg[i].depVector = port.selectedVector[i] & ~flushIQ_Entry;
             nextIntPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[i];
         end
 
@@ -239,7 +239,7 @@ module WakeupPipelineRegister(
             complexSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH)];
             nextComplexPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH)] && !flushIQ_Entry[complexSelectedPtr[i]];
             nextComplexPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH)];
-            nextComplexPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH)];
+            nextComplexPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextComplexPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH)];
         end
 `endif
@@ -248,7 +248,7 @@ module WakeupPipelineRegister(
             memSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
             nextMemPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] && !flushIQ_Entry[memSelectedPtr[i]];
             nextMemPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
-            nextMemPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
+            nextMemPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextMemPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
         end
 
@@ -257,7 +257,7 @@ module WakeupPipelineRegister(
             fpSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
             nextFPPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] && !flushIQ_Entry[fpSelectedPtr[i]];
             nextFPPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
-            nextFPPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+            nextFPPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextFPPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
         end
 `endif

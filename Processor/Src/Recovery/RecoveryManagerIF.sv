@@ -203,8 +203,6 @@ interface RecoveryManagerIF( input logic clk, rst );
     );
 
     modport SelectLogic(
-    input
-        flushIQ_Entry,
     output
         selected,
         selectedPtr
