@@ -116,8 +116,8 @@ module WakeupPipelineRegister(
 
     always_ff @( posedge port.clk ) begin
         if( port.rst ||(recovery.toRecoveryPhase && !recovery.recoveryFromRwStage) ) begin
-            // パイプラインレジスタの初期化
-            // Don't care except valid bits.
+            // Upon reset or recovery from the commit stage, initialize the wakeup pipeline register.
+            // Set the valid flag to FALSE and the depVector to '0 to prevent incorrect wakeups of unrelated registers/instructions.
             for( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_INT_LATENCY; j++ ) begin
                     intPipeReg[i][j].valid <= FALSE;
@@ -221,6 +221,8 @@ module WakeupPipelineRegister(
 
 
     always_comb begin
+        // A bit vector indicating whether each IQ entry is flushed.
+        // This is used to deassert the wakeup signal of instructions that are selected but flushed at the same time.
         flushIQ_Entry = recovery.flushIQ_Entry;
         //
         // Register selected ops.
