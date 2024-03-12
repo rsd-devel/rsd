@@ -144,6 +144,14 @@ module IntALU(
             AC_SH3ADD: `Add( opA << 3, FALSE, opB, FALSE, 0 )
 `endif
 
+`ifdef RSD_ENABLE_ZICOND
+            // czero.eqz
+            AC_EQZ: `Logic( { ( opB  == 32'h0) ? 32'h0 : opA} )
+
+            // czero.nez
+            AC_NEZ: `Logic( { ( opB  != 32'h0) ? 32'h0 : opA} )
+`endif
+
         endcase
 
         aluDataOut   = opDst.data;

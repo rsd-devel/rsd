@@ -1622,6 +1622,115 @@ function automatic void RISCV_DecodeZba(
 
 endfunction
 
+function automatic void RISCV_EmitZicond(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf,
+    input LScalarRegNumPath srcRegNumA,
+    input LScalarRegNumPath srcRegNumB,
+    input LScalarRegNumPath dstRegNum,
+    input logic unsupported
+);
+    RISCV_ISF_R isfR;
+    CZeroFunct3 czeroFunct3;
+
+    IntALU_Code aluCode;
+    RISCV_IntOperandImmShift intOperandImmShift;
+
+    isfR = isf;
+    czeroFunct3 = CZeroFunct3'(isfR.funct3);
+
+    // 論理レジスタ番号
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+`endif
+    opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+    opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+    opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+
+    // 即値 (not used)
+    opInfo.operand.intOp.shiftType = SOT_REG_SHIFT ;
+
+    intOperandImmShift.shift        = '0;
+    intOperandImmShift.shiftType    = ST_ROR;
+    intOperandImmShift.isRegShift   = TRUE;
+    intOperandImmShift.imm          = '0;
+    intOperandImmShift.immType      = RISCV_IMM_R;
+
+    opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+
+
+    // ALU
+    opInfo.operand.intOp.aluCode = (czeroFunct3 == CZERO_FUCNT3_EQZ) ? AC_EQZ : AC_NEZ;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = ( dstRegNum != ZERO_REGISTER ) ? TRUE : FALSE;
+
+    // 論理レジスタを読むかどうか
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_REG;
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.opTypeC = OOT_IMM;
+`endif
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_INT;
+    opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // 未定義命令
+    opInfo.unsupported = unsupported;
+    opInfo.undefined = FALSE;
+
+    // Serialized
+    opInfo.serialized = FALSE;
+
+    // Control
+    opInfo.valid = TRUE;    // Valid outputs
+endfunction
+
+function automatic void RISCV_DecodeZicond(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo zicondOp;
+    MicroOpIndex mid;
+
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+
+    RISCV_EmitZicond (
+        .opInfo( zicondOp ),
+        .isf( isf ),
+        .srcRegNumA( isf.rs1 ),
+        .srcRegNumB( isf.rs2 ),
+        .dstRegNum( isf.rd ),
+        .unsupported( FALSE )
+    );
+
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(zicondOp, mid, FALSE, TRUE);
+    mid += 1;
+
+    insnInfo.writePC = FALSE;
+    insnInfo.isCall = FALSE;
+    insnInfo.isReturn = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    insnInfo.isSerialized = FALSE;
+
+endfunction
+
+
 function automatic void RISCV_EmitIllegalOp(
     output OpInfo opInfo,
     input logic illegalPC
@@ -1718,12 +1827,14 @@ output
     RISCV_ISF_Common isf;
     RV32MFunct7 rv32mFunct7;
     ZbaFunct7 zbaFunct7;
+    ZicondFunct7 zicondFunct7;
     logic undefined;
     
     always_comb begin
         isf  = insn;
         rv32mFunct7 = RV32MFunct7'(isf.funct7);
         zbaFunct7 = ZbaFunct7'(isf.funct7);
+        zicondFunct7 = ZicondFunct7'(isf.funct7);
         
         insnInfo.writePC = FALSE;
         insnInfo.isCall = FALSE;
@@ -1764,6 +1875,11 @@ output
 `ifdef RSD_ENABLE_ZBA
                 else if (zbaFunct7 == ZBA_FUNCT7_SHADD) begin
                     RISCV_DecodeZba(microOps, insnInfo, insn);
+                end
+`endif
+`ifdef RSD_ENABLE_ZICOND
+                else if (zicondFunct7 == ZICOND_FUNCT7_CZERO) begin
+                    RISCV_DecodeZicond(microOps, insnInfo, insn);
                 end
 `endif
                 else begin

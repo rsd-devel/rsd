@@ -129,10 +129,11 @@ module FPExecutionStage(
     PRegDataPath  dataOut  [ FP_ISSUE_WIDTH ];
     FFlags_Path   fflagsOut[ FP_ISSUE_WIDTH ];
 
-    DataPath  addDataOut     [ FP_ISSUE_WIDTH ];
-    DataPath  mulDataOut     [ FP_ISSUE_WIDTH ];
     DataPath  fmaDataOut     [ FP_ISSUE_WIDTH ];
     DataPath  otherDataOut   [ FP_ISSUE_WIDTH ];
+    DataPath  fmaMulLHS      [ FP_ISSUE_WIDTH ];
+    DataPath  fmaMulRHS      [ FP_ISSUE_WIDTH ];
+    DataPath  fmaAddend      [ FP_ISSUE_WIDTH ];
 
     FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
@@ -147,33 +148,11 @@ module FPExecutionStage(
     logic isDivSqrt         [ FP_ISSUE_WIDTH ]; 
 
     for ( genvar i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
-        FP32PipelinedAdder #(
-            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
-        ) fpAdder (
-            .clk (port.clk),
-            .lhs ( fuOpA[i].data ),
-            .rhs ( fpuCode[i] == FC_SUB ? {~fuOpB[i].data[31], fuOpB[i].data[30:0]} : fuOpB[i].data ),
-            //.rm (rm[i]),
-            .result ( addDataOut[i] )
-            //.fflags ( addFFlagsOut[i])
-        );
-        
-        FP32PipelinedMultiplier #(
-            .PIPELINE_DEPTH(FP_EXEC_STAGE_DEPTH)
-        ) fpMultiplier (
-            .clk (port.clk),
-            .lhs ( fuOpA[i].data ),
-            .rhs ( fuOpB[i].data ),
-            //.rm (rm[i]),
-            .result ( mulDataOut[i] )
-            //.fflags ( mulFFlagsOut[i])
-        );
-
         FP32PipelinedFMA fpFMA (
             .clk (port.clk),
-            .mullhs ( fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data),
-            .mulrhs ( fuOpB[i].data ),
-            .addend ( fpuCode[i] inside {FC_FMSUB, FC_FNMADD} ? {~fuOpC[i].data[31], fuOpC[i].data[30:0]} : fuOpC[i].data ),
+            .mullhs (fmaMulLHS[i]),
+            .mulrhs (fmaMulRHS[i]),
+            .addend (fmaAddend[i]),
             //.rm (rm[i]),
             .result ( fmaDataOut[i] )
             //.fflags ( fmaFFlagsOut[i])
@@ -193,6 +172,24 @@ module FPExecutionStage(
     end
 
     always_comb begin
+        // FMA Unit
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+            fmaMulLHS[i] = fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data;
+            fmaMulRHS[i] = fpuCode[i] inside {FC_ADD, FC_SUB} ? 32'h3f800000 : fuOpB[i].data;
+            if(fpuCode[i] == FC_MUL) begin
+                fmaAddend[i] = 32'h00000000;
+            end
+            else if (fpuCode[i] == FC_ADD) begin
+                fmaAddend[i] = fuOpB[i].data;
+            end
+            else if (fpuCode[i] == FC_SUB) begin
+                fmaAddend[i] = {~fuOpB[i].data[31], fuOpB[i].data[30:0]};
+            end
+            else begin // FMA
+                fmaAddend[i] = fpuCode[i] inside {FC_FMSUB, FC_FNMADD} ? {~fuOpC[i].data[31], fuOpC[i].data[30:0]} : fuOpC[i].data;
+            end
+        end
+
         // FP Div/Sqrt Unit
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
 
@@ -295,14 +292,9 @@ module FPExecutionStage(
                 = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid;
             // TODO fflagsをちゃんと実装
             unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
-                FP_MOP_TYPE_ADD: begin
-                    dataOut[i].data = addDataOut[i];
-                    //fflagsData[i] = addFFlagsOut[i];
-                    fflagsOut[i] = '0;
-                end
-                FP_MOP_TYPE_MUL: begin
-                    dataOut[i].data = mulDataOut[i];
-                    //fflagsData[i] = mulFFlagsOut[i];
+                FP_MOP_TYPE_ADD, FP_MOP_TYPE_MUL, FP_MOP_TYPE_FMA: begin
+                    dataOut[i].data = fmaDataOut[i];
+                    //fflagsData[i] = fmaFFlagsOut[i];
                     fflagsOut[i] = '0;
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
@@ -310,11 +302,6 @@ module FPExecutionStage(
                     //fflagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
                     fflagsOut[i] = '0;
                 end 
-                FP_MOP_TYPE_FMA: begin
-                    dataOut[i].data = fmaDataOut[i];
-                    //fflagsData[i] = fmaFFlagsOut[i];
-                    fflagsOut[i] = '0;
-                end
                 default: begin /* FP_MOP_TYPE_OTHER */
                     dataOut[i].data = otherDataOut[i];
                     fflagsOut[i] = otherFFlagsOut[i];
