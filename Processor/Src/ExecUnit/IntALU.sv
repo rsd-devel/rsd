@@ -135,6 +135,15 @@ module IntALU(
             // ORR  （包含的）論理和    Rd := Rn OR shifter_operand
             AC_ORR: `Logic( opA | opB )
 
+`ifdef RSD_ENABLE_ZBA
+            // sh1add
+            AC_SH1ADD: `Add( opA << 1, FALSE, opB, FALSE, 0 )
+            // sh2add
+            AC_SH2ADD: `Add( opA << 2, FALSE, opB, FALSE, 0 )
+            // sh3add
+            AC_SH3ADD: `Add( opA << 3, FALSE, opB, FALSE, 0 )
+`endif
+
 `ifdef RSD_ENABLE_ZICOND
             // czero.eqz
             AC_EQZ: `Logic( { ( opB  == 32'h0) ? 32'h0 : opA} )
