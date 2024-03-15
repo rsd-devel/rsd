@@ -166,6 +166,7 @@ module CSR_Unit(
         else if(port.fflagsWE) begin
             csrNext.fcsr.fflags = port.fflagsData;
         end
+        port.fflags = csrReg.fcsr.fflags;
         port.frm = csrReg.fcsr.frm;
 `endif
 
