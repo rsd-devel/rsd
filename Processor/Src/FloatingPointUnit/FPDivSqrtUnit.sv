@@ -20,13 +20,14 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
     logic finished[FP_DIVSQRT_ISSUE_WIDTH];
 
     logic flush[FP_DIVSQRT_ISSUE_WIDTH];
+    logic rst_divider[FP_DIVSQRT_ISSUE_WIDTH];
     ActiveListIndexPath regActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
     ActiveListIndexPath nextActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
 
     for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : BlockDivUnit
         FP32DivSqrter fpDivSqrter(
             .clk(port.clk),
-            .rst(port.rst),
+            .rst(rst_divider[i]),
             .lhs(port.dataInA[i]),
             .rhs(port.dataInB[i]),
             .is_divide(port.is_divide[i]),
@@ -110,6 +111,7 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
             if (flush[i]) begin
                 nextPhase[i] = DIVIDER_PHASE_FREE;
             end
+            rst_divider[i] = port.rst | flush[i];
 
             // 現状 acquire が issue ステージからくるので，次のサイクルの状態でフリーか
             // どうかを判定する必要がある

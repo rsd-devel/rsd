@@ -49,13 +49,14 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port, RecoveryManagerIF.MulDivUnit rec
     logic finished[MULDIV_ISSUE_WIDTH];
 
     logic flush[MULDIV_ISSUE_WIDTH];
+    logic rst_divider[MULDIV_ISSUE_WIDTH];
     ActiveListIndexPath regActiveListPtr[MULDIV_ISSUE_WIDTH];
     ActiveListIndexPath nextActiveListPtr[MULDIV_ISSUE_WIDTH];
 
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockDivUnit
         DividerUnit divUnit(
             .clk(port.clk),
-            .rst(port.rst),
+            .rst(rst_divider[i]),
             .req(port.divReq[i]),
             .fuOpA_In(port.dataInA[i]),
             .fuOpB_In(port.dataInB[i]),
@@ -140,6 +141,7 @@ module MulDivUnit(MulDivUnitIF.MulDivUnit port, RecoveryManagerIF.MulDivUnit rec
             if (flush[i]) begin
                 nextPhase[i] = DIVIDER_PHASE_FREE;
             end
+            rst_divider[i] = port.rst | flush[i];
 
             // 現状 acquire が issue ステージからくるので，次のサイクルの状態でフリーか
             // どうかを判定する必要がある
