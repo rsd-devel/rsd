@@ -116,11 +116,12 @@ module WakeupPipelineRegister(
 
     always_ff @( posedge port.clk ) begin
         if( port.rst ||(recovery.toRecoveryPhase && !recovery.recoveryFromRwStage) ) begin
-            // パイプラインレジスタの初期化
-            // Don't care except valid bits.
+            // Upon reset or recovery from the commit stage, initialize the wakeup pipeline register.
+            // Set the valid flag to FALSE and the depVector to '0 to prevent incorrect wakeups of unrelated registers/instructions.
             for( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_INT_LATENCY; j++ ) begin
                     intPipeReg[i][j].valid <= FALSE;
+                    intPipeReg[i][j].depVector <= '0;
                 end
             end
 
@@ -128,6 +129,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_COMPLEX_LATENCY; j++ ) begin
                     complexPipeReg[i][j].valid <= FALSE;
+                    complexPipeReg[i][j].depVector <= '0;
                 end
             end
 `endif
@@ -135,6 +137,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_MEM_LATENCY; j++ ) begin
                     memPipeReg[i][j].valid <= FALSE;
+                    memPipeReg[i][j].depVector <= '0;
                 end
             end
 
@@ -142,6 +145,7 @@ module WakeupPipelineRegister(
             for( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
                 for( int j = 0; j < ISSUE_QUEUE_FP_LATENCY; j++ ) begin
                     fpPipeReg[i][j].valid <= FALSE;
+                    fpPipeReg[i][j].depVector <= '0;
                 end
             end
 `endif
@@ -217,16 +221,18 @@ module WakeupPipelineRegister(
 
 
     always_comb begin
+        // A bit vector indicating whether each IQ entry is flushed.
+        // This is used to deassert the wakeup signal of instructions that are selected but flushed at the same time.
         flushIQ_Entry = recovery.flushIQ_Entry;
         //
         // Register selected ops.
         //
-        for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             // Input of PipeReg (Selected Data)
             intSelectedPtr[i] = port.selectedPtr[i];
             nextIntPipeReg[i].valid = port.selected[i] && !flushIQ_Entry[intSelectedPtr[i]];
             nextIntPipeReg[i].ptr = port.selectedPtr[i];
-            nextIntPipeReg[i].depVector = port.selectedVector[i];
+            nextIntPipeReg[i].depVector = port.selectedVector[i] & ~flushIQ_Entry;
             nextIntPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[i];
         end
 
@@ -235,7 +241,7 @@ module WakeupPipelineRegister(
             complexSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH)];
             nextComplexPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH)] && !flushIQ_Entry[complexSelectedPtr[i]];
             nextComplexPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH)];
-            nextComplexPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH)];
+            nextComplexPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextComplexPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH)];
         end
 `endif
@@ -244,7 +250,7 @@ module WakeupPipelineRegister(
             memSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
             nextMemPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] && !flushIQ_Entry[memSelectedPtr[i]];
             nextMemPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
-            nextMemPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
+            nextMemPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextMemPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)];
         end
 
@@ -253,7 +259,7 @@ module WakeupPipelineRegister(
             fpSelectedPtr[i] = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
             nextFPPipeReg[i].valid = port.selected[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] && !flushIQ_Entry[fpSelectedPtr[i]];
             nextFPPipeReg[i].ptr = port.selectedPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
-            nextFPPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
+            nextFPPipeReg[i].depVector = port.selectedVector[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] & ~flushIQ_Entry;
             nextFPPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)];
         end
 `endif
@@ -261,7 +267,7 @@ module WakeupPipelineRegister(
         //
         // Exit from the pipeline registers and now wakeup consumers.
         //
-        for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
             // Output of PipeReg (Wakeup Data)
             // Now, WAKEUP_WIDTH == ISSUE_WIDTH
             flushInt[i] = SelectiveFlushDetector(
@@ -363,7 +369,7 @@ module WakeupPipelineRegister(
             port.releasePtr[i] = intPipeReg[i][0].ptr;
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-        for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
+        for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
             port.releaseEntry[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].valid;
             port.releasePtr[(i+INT_ISSUE_WIDTH)] = complexPipeReg[i][0].ptr;
         end
@@ -373,7 +379,7 @@ module WakeupPipelineRegister(
             port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = memPipeReg[i][0].ptr;
         end
 `ifdef RSD_MARCH_FP_PIPE
-        for ( int i = 0; i < FP_ISSUE_WIDTH; i++) begin
+        for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
             port.releaseEntry[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].valid;
             port.releasePtr[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = fpPipeReg[i][0].ptr;
         end

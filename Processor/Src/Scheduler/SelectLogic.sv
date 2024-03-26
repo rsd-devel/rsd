@@ -141,7 +141,6 @@ module SelectLogic(
 `endif
 
     always_comb begin
-
         for (int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++) begin
             intRequest[i] = port.opReady[i] && port.intIssueReq[i];
             `ifdef RSD_MARCH_UNIFIED_LDST_MEM_PIPE
