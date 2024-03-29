@@ -55,10 +55,10 @@ module TestMain;
             // RetirementRMTからコミット済の論理レジスタの値を得る
             task GetCommittedRegisterValue(
                 input int commitNumInThisCycle,
-                output DataPath regData[ LSCALAR_NUM + LSCALAR_FP_NUM]
+                output DataPath regData[ LREG_NUM ]
             );
                 int rollbackNum;
-                PScalarRegNumPath phyRegNum[ LSCALAR_NUM + LSCALAR_FP_NUM];
+                PScalarRegNumPath phyRegNum[ LREG_NUM ];
                 ActiveListIndexPath alHeadPtr;
                 ActiveListEntry alHead;
 
@@ -67,12 +67,12 @@ module TestMain;
 
                 // Copy RMT to local variable.
                 for( int i = 0; i < LSCALAR_NUM; i++ ) begin
-                   phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
+                    phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
                 end
 `ifdef RSD_MARCH_FP_PIPE
-                for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+                for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) begin
                     phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
-                }
+                end
 `endif
 
                 // Update RRMT
@@ -90,9 +90,9 @@ module TestMain;
                     regData[i] = main.main.core.registerFile.phyReg.debugValue[ phyRegNum[i] ];
                 end
 `ifdef RSD_MARCH_FP_PIPE
-                for( int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
+                for( int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) begin
                     regData[i] = main.main.core.registerFile.phyFPReg.debugValue[ phyRegNum[i] ];
-                }
+                end
 `endif
             endtask
         `endif
@@ -118,7 +118,7 @@ module TestMain;
     integer count;
     string str;
 
-    DataPath regData[ LSCALAR_NUM + LSCALAR_FP_NUM ];
+    DataPath regData[ LREG_NUM ];
 
     integer commitNumInLastCycle;
     integer numCommittedRISCV_Op;

@@ -72,7 +72,11 @@ localparam PSCALAR_FP_NUM_BIT_WIDTH = $clog2( PSCALAR_FP_NUM );
 typedef logic [PSCALAR_FP_NUM_BIT_WIDTH-1:0] PScalarFPRegNumPath;
 
 // Logical general register ( scalar int register + fp register) number width
+`ifdef RSD_MARCH_FP_PIPE
 localparam LREG_NUM = LSCALAR_NUM + LSCALAR_FP_NUM;
+`else
+localparam LREG_NUM = LSCALAR_NUM;
+`endif
 localparam LREG_NUM_BIT_WIDTH = $clog2( LREG_NUM );
 typedef struct packed { // LRegNumPath
 `ifdef RSD_MARCH_FP_PIPE
