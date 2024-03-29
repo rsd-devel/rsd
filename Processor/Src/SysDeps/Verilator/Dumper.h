@@ -826,7 +826,7 @@ public:
     void Dump(AddrPath pc, DataPath* regData)
     {
         // Dump logical register
-        for (int i = 0; i < LREG_NUM; i++) {
+        for (int i = 0; i < LSCALAR_NUM; i++) {
             fprintf(m_file, "0x%08x\n", regData[i]);
         }
 
@@ -834,7 +834,7 @@ public:
         fprintf(m_file, "0x%08x\n", pc);
 
 #ifdef RSD_MARCH_FP_PIPE
-        // Dump fp logical register R0-R31
+        // Dump fp logical register
         for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
             fprintf(m_file, "0x%08x\n", regData[i]);
         }
