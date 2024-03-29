@@ -49,7 +49,7 @@ int GetCommittedRegisterValue(
         // ActiveListEntry alHead;
         const auto& alHead = core->activeList->activeList->debugValue[alHeadPtr];
         if (helper->ActiveListEntry_writeReg(alHead)) {
-            phyRegNum[helper->ActiveListEntry_logDstRegNum(alHead)] = helper->ActiveListEntry_phyDstRegNum(alHead);
+            phyRegNum[helper->ActiveListEntry_logDstRegNum(alHead)] = helper->ActiveListEntry_phyDstRegNum_regNum(alHead);
         }
         alHeadPtr++;
     }
