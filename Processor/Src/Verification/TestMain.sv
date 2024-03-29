@@ -66,14 +66,9 @@ module TestMain;
                 DataPath tmpRegData  [ ISSUE_WIDTH ];
 
                 // Copy RMT to local variable.
-                for( int i = 0; i < LSCALAR_NUM; i++ ) begin
+                for( int i = 0; i < LREG_NUM; i++ ) begin
                     phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
                 end
-`ifdef RSD_MARCH_FP_PIPE
-                for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) begin
-                    phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
-                end
-`endif
 
                 // Update RRMT
                 alHeadPtr = main.main.core.activeList.headPtr;
