@@ -6,11 +6,19 @@
 // Register file
 //
 
+`include "BasicMacros.sv"
+
 import BasicTypes::*;
 
 module RegisterFile(
     RegisterFileIF.RegisterFile port
 );
+
+    `RSD_STATIC_ASSERT(
+        PSCALAR_NUM == PSCALAR_FP_NUM,
+        "The number of int registers and the number of fp registers must be the same at present."
+    );
+
     //
     // Register
     //
