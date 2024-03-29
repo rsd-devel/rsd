@@ -286,7 +286,7 @@ int main(int argc, char** argv) {
                     for (int i = 0; i < COMMIT_WIDTH; i++) {
                         // 1命令ずつコミットを追ってレジスタ状態をダンプする
                         if (core->cmStage->commit[i]) {
-                            DataPath regData[LSCALAR_NUM+LSCALAR_FP_NUM];
+                            DataPath regData[LREG_NUM];
                             GetCommittedRegisterValue(top, i, regData);
                             registerFileCSV_Dumper.Dump(
                                 helper->ActiveListEntry_pc(core->cmStage->alReadData[i]),
@@ -366,7 +366,7 @@ int main(int argc, char** argv) {
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;
-    DataPath regData[LSCALAR_NUM+LSCALAR_FP_NUM];
+    DataPath regData[LREG_NUM];
     GetCommittedRegisterValue(top, commitNumInLastCycle, regData);
     registerFileHexDumper.Open(regOutFileName);
     registerFileHexDumper.Dump(lastCommittedPC, regData);
