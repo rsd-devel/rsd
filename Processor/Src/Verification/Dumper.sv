@@ -663,10 +663,10 @@ package DumperTypes;
 
         function automatic void Dump(
             input AddrPath pc,
-            input DataPath regData[ LSCALAR_NUM ]
+            input DataPath regData[ LREG_NUM ]
         );
             // Dump logical register R0-R31
-            for( int i = 0; i < LSCALAR_NUM; i++ ) begin
+            for( int i = 0; i < LREG_NUM; i++ ) begin
                 $fdisplay( m_file, "0x%08h", regData[i] );
             end
 
@@ -701,15 +701,15 @@ package DumperTypes;
 
         function automatic void Dump(
             input AddrPath pc,
-            input DataPath regData[ LSCALAR_NUM ]
+            input DataPath regData[ LREG_NUM ]
         );
 
             // dump cycle, PC
             $fwrite( m_file, "%d,", m_cycle );
             $fwrite( m_file, "0x%04h,", pc );
 
-            // Dump logical register R0-R15.
-            for( int i = 0; i < LSCALAR_NUM; i++ ) begin
+            // Dump logical register.
+            for( int i = 0; i < LREG_NUM; i++ ) begin
                 $fwrite( m_file, "0x%-h,", regData[i] );
             end
 

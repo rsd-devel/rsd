@@ -6,6 +6,8 @@
 // Register file
 //
 
+`include "BasicMacros.sv"
+
 import BasicTypes::*;
 
 module RegisterFile(
