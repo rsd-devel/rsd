@@ -47,6 +47,7 @@ import MemoryMapTypes::*;
 
 `RSD_MAKE_PARAMETER(BasicTypes, LSCALAR_NUM);
 `RSD_MAKE_PARAMETER(BasicTypes, LSCALAR_FP_NUM);
+`RSD_MAKE_PARAMETER(BasicTypes, LREG_NUM);
 `RSD_MAKE_PARAMETER(BasicTypes, FETCH_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, DECODE_WIDTH);
 `RSD_MAKE_PARAMETER(BasicTypes, RENAME_WIDTH);
@@ -68,26 +69,11 @@ import MemoryMapTypes::*;
 
 `RSD_MAKE_ENUM(MicroOpTypes, MemMicroOpSubType);
 
-
 `define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
     function automatic memberTypeName typeName``_``memberName(typeName e); \
         /*verilator public*/ \
         return e.memberName; \
     endfunction \
-
-
-`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, logic, writeReg);
-`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, LRegNumPath, logDstRegNum);
-`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, PRegNumPath, phyDstRegNum);
-`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, PC_Path, pc);
-
-`RSD_MAKE_STRUCT_ACCESSOR(OpId, OpSerial, sid);
-`RSD_MAKE_STRUCT_ACCESSOR(OpId, MicroOpIndex, mid);
-
-`RSD_MAKE_STRUCT_ACCESSOR(PipelineControll, logic, stall);
-`RSD_MAKE_STRUCT_ACCESSOR(PipelineControll, logic, clear);
-
-
 
 `define RSD_MAKE_STRUCT_ACCESSOR_LV2(typeName, memberName0, member1TypeName, memberName1) \
     function automatic member1TypeName typeName``_``memberName0``_``memberName1(typeName e); \
@@ -106,6 +92,19 @@ import MemoryMapTypes::*;
         /*verilator public*/ \
         return e.memberName0[i].memberName1; \
     endfunction \
+
+
+`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, logic, writeReg);
+`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, LRegNumPath, logDstRegNum);
+`RSD_MAKE_STRUCT_ACCESSOR_LV2(ActiveListEntry, phyDstRegNum, PScalarRegNumPath, regNum);
+`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, PC_Path, pc);
+
+`RSD_MAKE_STRUCT_ACCESSOR(OpId, OpSerial, sid);
+`RSD_MAKE_STRUCT_ACCESSOR(OpId, MicroOpIndex, mid);
+
+`RSD_MAKE_STRUCT_ACCESSOR(PipelineControll, logic, stall);
+`RSD_MAKE_STRUCT_ACCESSOR(PipelineControll, logic, clear);
+
     
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, npReg, logic, valid);
 `RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, npReg, OpSerial, sid);

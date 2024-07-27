@@ -55,10 +55,10 @@ module TestMain;
             // RetirementRMTからコミット済の論理レジスタの値を得る
             task GetCommittedRegisterValue(
                 input int commitNumInThisCycle,
-                output DataPath regData[ LSCALAR_NUM ]
+                output DataPath regData[ LREG_NUM ]
             );
                 int rollbackNum;
-                PRegNumPath  phyRegNum[ LSCALAR_NUM ];
+                PScalarRegNumPath phyRegNum[ LREG_NUM ];
                 ActiveListIndexPath alHeadPtr;
                 ActiveListEntry alHead;
 
@@ -66,8 +66,8 @@ module TestMain;
                 DataPath tmpRegData  [ ISSUE_WIDTH ];
 
                 // Copy RMT to local variable.
-                for( int i = 0; i < LSCALAR_NUM; i++ ) begin
-                   phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
+                for( int i = 0; i < LREG_NUM; i++ ) begin
+                    phyRegNum[i] = main.main.core.retirementRMT.regRMT.debugValue[i];
                 end
 
                 // Update RRMT
@@ -75,7 +75,7 @@ module TestMain;
                 for( int i = 0; i < commitNumInThisCycle; i++ ) begin
                     alHead = main.main.core.activeList.activeList.debugValue[ alHeadPtr ];
                     if ( alHead.writeReg ) begin
-                        phyRegNum[ alHead.logDstRegNum ] = alHead.phyDstRegNum;
+                        phyRegNum[ alHead.logDstRegNum ] = alHead.phyDstRegNum.regNum;
                     end
                     alHeadPtr++;
                 end
@@ -84,6 +84,11 @@ module TestMain;
                 for( int i = 0; i < LSCALAR_NUM; i++ ) begin
                     regData[i] = main.main.core.registerFile.phyReg.debugValue[ phyRegNum[i] ];
                 end
+`ifdef RSD_MARCH_FP_PIPE
+                for( int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) begin
+                    regData[i] = main.main.core.registerFile.phyFPReg.debugValue[ phyRegNum[i] ];
+                end
+`endif
             endtask
         `endif
     `endif
@@ -108,7 +113,7 @@ module TestMain;
     integer count;
     string str;
 
-    DataPath regData[ LSCALAR_NUM ];
+    DataPath regData[ LREG_NUM ];
 
     integer commitNumInLastCycle;
     integer numCommittedRISCV_Op;

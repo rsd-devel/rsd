@@ -33,14 +33,9 @@ int GetCommittedRegisterValue(
     typeof (core->retirementRMT->regRMT->debugValue) phyRegNum;
 
     // Copy RMT to local variable.
-    for (int i = 0; i < LSCALAR_NUM; i++) {
+    for (int i = 0; i < LREG_NUM; i++) {
         phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
     }
-#ifdef RSD_MARCH_FP_PIPE
-    for (int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
-        phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
-    }
-#endif
 
     // Update RRMT
     //ActiveListIndexPath alHeadPtr;
@@ -49,7 +44,7 @@ int GetCommittedRegisterValue(
         // ActiveListEntry alHead;
         const auto& alHead = core->activeList->activeList->debugValue[alHeadPtr];
         if (helper->ActiveListEntry_writeReg(alHead)) {
-            phyRegNum[helper->ActiveListEntry_logDstRegNum(alHead)] = helper->ActiveListEntry_phyDstRegNum(alHead);
+            phyRegNum[helper->ActiveListEntry_logDstRegNum(alHead)] = helper->ActiveListEntry_phyDstRegNum_regNum(alHead);
         }
         alHeadPtr++;
     }
@@ -286,7 +281,7 @@ int main(int argc, char** argv) {
                     for (int i = 0; i < COMMIT_WIDTH; i++) {
                         // 1命令ずつコミットを追ってレジスタ状態をダンプする
                         if (core->cmStage->commit[i]) {
-                            DataPath regData[LSCALAR_NUM+LSCALAR_FP_NUM];
+                            DataPath regData[LREG_NUM];
                             GetCommittedRegisterValue(top, i, regData);
                             registerFileCSV_Dumper.Dump(
                                 helper->ActiveListEntry_pc(core->cmStage->alReadData[i]),
@@ -366,7 +361,7 @@ int main(int argc, char** argv) {
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;
-    DataPath regData[LSCALAR_NUM+LSCALAR_FP_NUM];
+    DataPath regData[LREG_NUM];
     GetCommittedRegisterValue(top, commitNumInLastCycle, regData);
     registerFileHexDumper.Open(regOutFileName);
     registerFileHexDumper.Dump(lastCommittedPC, regData);
