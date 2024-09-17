@@ -79,7 +79,7 @@ package CacheSystemTypes;
     // D-Cacheからの要求の最大数はMSHR_NUMなので，最大要求数もMSHR_NUMとなる
     // NOTE: if you modify this value, you need to modify 
     // MEMORY_AXI4_WRITE_ID_WIDTH in SysDeps/XilinxMacros.vh
-    localparam MEM_WRITE_SERIAL_BIT_SIZE = $clog2( MSHR_NUM );
+    localparam MEM_WRITE_SERIAL_BIT_SIZE = MSHR_NUM != 1 ? $clog2( MSHR_NUM ) : 1;
     typedef logic [MEM_WRITE_SERIAL_BIT_SIZE-1 : 0] MemWriteSerial;
 
     //
@@ -95,7 +95,7 @@ package CacheSystemTypes;
     //
     // MSHR
     //
-    localparam MSHR_NUM_BIT_WIDTH = $clog2(MSHR_NUM);
+    localparam MSHR_NUM_BIT_WIDTH = MSHR_NUM != 1 ? $clog2(MSHR_NUM) : 1;
     typedef logic [MSHR_NUM_BIT_WIDTH-1:0] MSHR_IndexPath;
     typedef logic [MSHR_NUM_BIT_WIDTH:0] MSHR_CountPath;
 

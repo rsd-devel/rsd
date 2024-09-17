@@ -561,7 +561,7 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
             // If dataArrayDoesReadEvictedWay is valid, instead of a way of dataArrayReadWay, 
             // a way specified by a replacement algorithm is read for eviction.
             port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isVictimEviction;
-            port.dataArrayReadWay[p] = repHitWay[p];
+            port.dataArrayReadWay[p] = muxInReg[p].isFlushReq ? muxInReg[p].evictWay : repHitWay[p];
             
             port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
             port.dataArrayWE[p] =
@@ -1497,6 +1497,7 @@ module DCacheMissHandler(
                         nextMSHR[i].isAllocatedByStore = FALSE;
                         nextMSHR[i].isUncachable = FALSE;
 
+                        nextMSHR[i].evictWay = '0;
                         nextMSHR[i].flushIndex = '0;
 
                         nextMSHR[i].line = '0;
@@ -1523,6 +1524,8 @@ module DCacheMissHandler(
                     port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
                     port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
                     port.mshrCacheMuxIn[i].isFlushReq = TRUE;
+                    port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
+                    port.mshrCacheMuxIn[i].isVictimEviction = FALSE;
 
                     nextMSHR[i].phase =
                         port.mshrCacheGrt[i] ?
@@ -1533,11 +1536,11 @@ module DCacheMissHandler(
                 // Receive a tag of the victime line.
                 MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG: begin
                     // Read a victim line.
-                    if (port.mshrCacheMuxTagOut[i].tagValidOut) begin
+                    if (port.mshrCacheMuxTagOut[i].tagValidOut[mshr[i].evictWay]) begin
                         nextMSHR[i].victimAddr =
                             BuildFullAddr(
                                 mshr[i].flushIndex,
-                                port.mshrCacheMuxTagOut[i].tagDataOut
+                                port.mshrCacheMuxTagOut[i].tagDataOut[mshr[i].evictWay]
                             );
                         nextMSHR[i].victimValid = TRUE;
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA;
@@ -1603,12 +1606,20 @@ module DCacheMissHandler(
                 // FLUSH 6.
                 // Ckeck if all cache lines have been written back.
                 MSHR_PHASE_FLUSH_CHECK: begin
-                    if (&(mshr[i].flushIndex)) begin
+                    if (&(mshr[i].flushIndex) && &(mshr[i].evictWay)) begin
                         nextMSHR[i].flushIndex = '0;
+                        nextMSHR[i].evictWay = '0;
                         mshrFlushComplete[i] = TRUE;
                     end
                     else begin
-                        nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
+                        if (&(mshr[i].evictWay)) begin
+                            nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
+                            nextMSHR[i].evictWay = '0;
+                        end
+                        else begin
+                            nextMSHR[i].flushIndex = mshr[i].flushIndex;
+                            nextMSHR[i].evictWay = mshr[i].evictWay + 1;
+                        end
                     end
 
                     nextMSHR[i].victimValid = FALSE;
@@ -1885,7 +1896,7 @@ module DCacheMissHandler(
     end
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    localparam MSHR_DEADLOCK_DETECT_CYCLES = 500;
+    localparam MSHR_DEADLOCK_DETECT_CYCLES = 5000;
     integer cycles[MSHR_NUM];
     always_ff @(posedge port.clk) begin
         for (int i = 0; i < MSHR_NUM; i++) begin

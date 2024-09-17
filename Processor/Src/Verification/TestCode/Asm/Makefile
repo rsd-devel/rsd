@@ -33,7 +33,8 @@ SRC_DIRS = \
 	Fault \
 	MisalignedMemAccess \
 	UncachableLoadAndStore \
-	CacheFlush \
+	ICacheFlush \
+	DCacheFlush \
     FP \
 
 # 中間ファイルのリスト

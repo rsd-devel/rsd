@@ -393,7 +393,7 @@ module CommitStage(
         end
     endgenerate
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    localparam DEADLOCK_DETECT_CYCLES = 500;
+    localparam DEADLOCK_DETECT_CYCLES = 5000;
     integer cycles;
     always_ff @(posedge port.clk) begin
         if (port.rst || commit[0]) begin
