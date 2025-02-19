@@ -859,25 +859,33 @@ endfunction
 
 function automatic void RISCV_DecodeFPOpFunct3(
     output FPU_Code fpuCode,
+    output logic undefined,
     input RV32FFunct3 rv32ffunct3,
     input RV32FFunct7 rv32ffunct7,
     input FCVTFunct5  fcvtfunct5
 );
+    undefined = FALSE;
     case(rv32ffunct7)
         RV32F_FUNCT7_FADD : begin
             fpuCode = FC_ADD;
+            undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
         end
         RV32F_FUNCT7_FSUB : begin
             fpuCode = FC_SUB;
+            undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
         end
         RV32F_FUNCT7_FMUL : begin
             fpuCode = FC_MUL;
+            undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
         end
         RV32F_FUNCT7_FDIV : begin
             fpuCode = FC_DIV;
+            undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
         end
         RV32F_FUNCT7_FSQRT : begin
             fpuCode = FC_SQRT;
+            undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN})
+                            || (fcvtfunct5 != FCVT_FUNCT5_SIGNED);
         end
         RV32F_FUNCT7_FSGNJ : begin
             //Todo: ここにfpTypeの代入かけるのか
@@ -893,6 +901,7 @@ function automatic void RISCV_DecodeFPOpFunct3(
                 end
                 default: begin
                     fpuCode = FC_SGNJX;
+                    undefined = TRUE;
                 end
             endcase
         end
@@ -900,24 +909,38 @@ function automatic void RISCV_DecodeFPOpFunct3(
             if (rv32ffunct3.fminfmaxFunct3 == FMIN_FMAX_FUNCT3_FMIN) begin
                 fpuCode = FC_FMIN;
             end
+            else if (rv32ffunct3.fminfmaxFunct3 == FMIN_FMAX_FUNCT3_FMAX) begin
+                fpuCode = FC_FMAX;
+            end
             else begin
                 fpuCode = FC_FMAX;
+                undefined = TRUE;
             end
         end
         RV32F_FUNCT7_FCVT_WS : begin
             if (fcvtfunct5 == FCVT_FUNCT5_SIGNED) begin
                 fpuCode = FC_FCVT_WS;
+                undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
+            end
+            else if (fcvtfunct5 == FCVT_FUNCT5_UNSIGNED) begin
+                fpuCode = FC_FCVT_WUS;
+                undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
             end
             else begin
                 fpuCode = FC_FCVT_WUS;
+                undefined = TRUE;
             end
         end
         RV32F_FUNCT7_FCLASS_FMV_XW : begin
             if (rv32ffunct3.fclassfmvFunct3 == FCLASS_FMV_FUNCT3_FCLASS) begin
                 fpuCode = FC_FCLASS;
             end
+            else if (rv32ffunct3.fclassfmvFunct3 == FCLASS_FMV_FUNCT3_FMV_XW) begin
+                fpuCode = FC_FMV_XW;
+            end
             else begin
                 fpuCode = FC_FMV_XW;
+                undefined = TRUE;
             end
         end
         RV32F_FUNCT7_FEQ_FLT_FLE : begin
@@ -933,22 +956,31 @@ function automatic void RISCV_DecodeFPOpFunct3(
                 end
                 default: begin
                     fpuCode = FC_FLE;
+                    undefined = TRUE;
                 end
             endcase
         end
         RV32F_FUNCT7_FCVT_SW : begin
             if (fcvtfunct5 == FCVT_FUNCT5_SIGNED) begin
                 fpuCode = FC_FCVT_SW;
+                undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
+            end
+            else if (fcvtfunct5 == FCVT_FUNCT5_UNSIGNED) begin
+                fpuCode = FC_FCVT_SWU;
+                undefined = !(rv32ffunct3 inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
             end
             else begin
                 fpuCode = FC_FCVT_SWU;
+                undefined = TRUE;
             end
         end
         RV32F_FUNCT7_FMV_WX : begin
             fpuCode = FC_FMV_WX;
+            undefined = rv32ffunct3 != '0;
         end
         default: begin
             fpuCode = FC_FMV_WX;
+            undefined = TRUE;
         end
     endcase
 endfunction
