@@ -298,12 +298,7 @@ module InitializedBlockRAM #(
     function automatic void FillDummyData(string DUMMY_DATA_FILE, integer DUMMY_HEX_ENTRY_NUM);
         integer entry;
         for ( entry = 0; entry < body.ram.HEX_FILE_ARRAY_ENTRY_NUM; entry += DUMMY_HEX_ENTRY_NUM ) begin
-            $readmemh(
-                DUMMY_DATA_FILE,
-                body.ram.array,
-                entry, // Begin address
-                entry + DUMMY_HEX_ENTRY_NUM - 1 // End address
-            );
+            body.ram.array[entry] = 128'hcdcd_cdcd_cdcd_cdcd_cdcd_cdcd_cdcd_cdcd;
         end
     endfunction
     `endif

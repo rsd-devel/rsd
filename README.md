@@ -34,7 +34,7 @@ The key features of RSD are as follows:
 1.  Install the following software for running simulation.    
     * GNU Make, Python3, and GCC (x86-64) 6 or later
     * GCC (RISC-V) 7 or later
-    * Verilator or Modelsim/QuestaSim or Xilinx Vitis 2019.2
+    * Verilator **v5.026 or later** or Modelsim/QuestaSim or Xilinx Vitis 2019.2
 
     Tested environment:
 
@@ -42,7 +42,7 @@ The key features of RSD are as follows:
     * Python 3.4.2
     * GCC 6.5.0 (x86-64)
     * GCC 8.1.0 (RISC-V)
-    * Verilator 4.026 2020-01-11 rev v4.026-2-g0c6c83e
+    * Verilator 5.026 2024-06-15 rev v5.026
     * QuestaSim 2019.4.2
     * Vitis 2019.2
 
@@ -52,13 +52,13 @@ The key features of RSD are as follows:
         * See [this page](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
 
 3. Go to Processor/Src and make as follows.
-    * For Modelsim/QuestaSim
+    * For Verilator
         ```
         make            # compile
         make run        # run simulation
         make kanata     # run simulation & outputs a konata log file
         ```
-    * For Verilator, add ```-f Makefile.verilator.mk``` like ```make -f Makefile.verilator.mk run```
+    * For Modelsim/QuestaSim, add ```-f Makefile.modelsim.mk``` like ```make -f Makefile.modelsim.mk run```
     * For Vivado, add ```-f Makefile.vivado.mk``` like ```make -f Makefile.vivado.mk run```
         
 4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 

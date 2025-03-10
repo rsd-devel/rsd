@@ -18,7 +18,7 @@ QUESTASIM_PROJECT_DIR_PATH = os.path.relpath(
 )
 
 VERILATED_FILE_NAME = os.path.relpath(
-    os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VMain_Zynq_Wrapper' )
+    os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VTestMain' )
 )
 
 VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
@@ -191,11 +191,11 @@ class VerilatorSimulationDriver(object):
         self.verilatorLogPath = os.path.join(testCodeDirPath, self.VERILATOR_LOG_FILE_NAME)
 
         self.additionalOptionList = []
-        self.additionalOptionList.append("TEST_CODE=%s" % (testCodeDirPath))
-        self.additionalOptionList.append("MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
+        self.additionalOptionList.append("+TEST_CODE=%s" % (testCodeDirPath))
+        self.additionalOptionList.append("+MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
+        self.additionalOptionList.append("+ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
         if options.rsdLogFileName is not None:
-            self.additionalOptionList.append("RSD_LOG_FILE=%s" % (options.rsdLogFileName))
+            self.additionalOptionList.append("+RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 

@@ -628,10 +628,11 @@ package DumperTypes;
         // 毎サイクル呼ぶ必要のある関数
         function automatic void CheckSignal( logic we, SerialDataPath data, integer showOutput);
             // 書込データがあったらm_strに追加する
-            if (we) begin
-                $sformat( m_str, "%s%c", m_str, data );
+            BytePath ch = data[BYTE_WIDTH-1:0];
+            if (we && ch != '0) begin
+                $sformat( m_str, "%s%c", m_str, ch );
                 if (showOutput) begin
-                    $write("%c", data);
+                    $write("%c", ch);
                 end
             end
         endfunction

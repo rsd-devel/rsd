@@ -100,6 +100,7 @@ module TestMain;
     string TEST_CODE;
     string RSD_LOG_FILE;
     string REG_CSV_FILE;
+    string WAVE_LOG_FILE;
     string DUMMY_DATA_FILE;
 
     string codeFileName;
@@ -208,6 +209,13 @@ module TestMain;
             registerFileCSV_Dumper = new;
             registerFileCSV_Dumper.Open( REG_CSV_FILE );
         end
+
+`ifdef RSD_FUNCTIONAL_SIMULATION_VERILATOR
+        if( $value$plusargs( "WAVE_LOG_FILE=%s", WAVE_LOG_FILE ) ) begin
+            $dumpfile(WAVE_LOG_FILE);
+            $dumpvars;
+        end
+`endif
 
         codeFileName = { TEST_CODE, "/", "code.hex" };
         regOutFileName = { TEST_CODE, "/", "reg.out.hex" };

@@ -37,6 +37,7 @@ TYPES = \
 	IO/IO_UnitTypes.sv \
 	Privileged/CSR_UnitTypes.sv \
 	Debug/DebugTypes.sv \
+	Verification/Dumper.sv \
 
 # CORE_MODULES specifies files that defines the RSD core.
 # The order of the files in this section is arbitrary.
@@ -193,7 +194,6 @@ MODULES = \
 # TestMain depends on Dumper and should come later.
 TEST_MODULES = \
 	Verification/TestBenchClockGenerator.sv \
-	Verification/Dumper.sv \
 	Verification/TestMain.sv \
 
 # Header files
