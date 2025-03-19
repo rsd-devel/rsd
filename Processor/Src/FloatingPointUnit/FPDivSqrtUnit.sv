@@ -28,12 +28,14 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
         FP32DivSqrter fpDivSqrter(
             .clk(port.clk),
             .rst(rst_divider[i]),
-            .lhs(port.dataInA[i]),
-            .rhs(port.dataInB[i]),
-            .is_divide(port.is_divide[i]),
+            .input_lhs(port.dataInA[i]),
+            .input_rhs(port.dataInB[i]),
+            .input_is_divide(port.is_divide[i]),
+            .input_round_mode(port.rm[i]),
             .req(port.Req[i]),
             .finished(finished[i]),
-            .result(port.DataOut[i])
+            .result(port.DataOut[i]),
+            .fflags(port.FFlagsOut[i])
         );
     end
 

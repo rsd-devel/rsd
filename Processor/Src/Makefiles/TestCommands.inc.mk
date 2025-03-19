@@ -325,84 +325,6 @@ test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
     fsub_b3-01 \
     fsub_b8-01 \
 
-# unsupported rounding mode
-    #fadd_b7-01 \
-    fadd_b2-01 \
-    fadd_b4-01 \
-    fadd_b5-01 \
-    fdiv_b4-01 \
-    fdiv_b5-01 \
-    fdiv_b6-01 \
-    fdiv_b7-01 \
-    fmadd_b4-01 \
-    fmadd_b5-01 \
-    fmadd_b6-01 \
-    fmadd_b7-01 \
-    fmsub_b4-01 \
-    fmsub_b5-01 \
-    fmsub_b6-01 \
-    fmsub_b7-01 \
-    fmul_b4-01 \
-    fmul_b5-01 \
-    fmul_b6-01 \
-    fmul_b7-01 \
-    fnmadd_b4-01 \
-    fnmadd_b5-01 \
-    fnmadd_b6-01 \
-    fnmadd_b7-01 \
-    fnmsub_b4-01 \
-    fnmsub_b5-01 \
-    fnmsub_b6-01 \
-    fnmsub_b7-01 \
-    fsqrt_b3-01 \
-    fsqrt_b4-01 \
-    fsqrt_b5-01 \
-    fsqrt_b7-01 \
-    fsqrt_b8-01 \
-    fsub_b4-01 \
-    fsub_b5-01 \
-    fsub_b7-01 \
-
-# unsupported fflags
-    #fadd_b1-01 \
-    fadd_b10-01 \
-    fadd_b12-01 \
-    fadd_b13-01 \
-    fdiv_b1-01 \
-    fdiv_b2-01 \
-    fdiv_b20-01 \
-    fmadd_b14-01 \
-    fmadd_b16-01 \
-    fmadd_b17-01 \
-    fmadd_b18-01 \
-    fmadd_b2-01 \
-    fmsub_b14-01 \
-    fmsub_b16-01 \
-    fmsub_b17-01 \
-    fmsub_b18-01 \
-    fmsub_b2-01 \
-    fmul_b1-01 \
-    fmul_b2-01 \
-    fnmadd_b14-01 \
-    fnmadd_b16-01 \
-    fnmadd_b17-01 \
-    fnmadd_b18-01 \
-    fnmadd_b2-01 \
-    fnmsub_b14-01 \
-    fnmsub_b16-01 \
-    fnmsub_b17-01 \
-    fnmsub_b18-01 \
-    fnmsub_b2-01 \
-    fsqrt_b1-01 \
-    fsqrt_b2-01 \
-    fsqrt_b20-01 \
-    fsqrt_b9-01 \
-    fsub_b1-01 \
-    fsub_b10-01 \
-    fsub_b12-01 \
-    fsub_b13-01 \
-    fsub_b2-01 \
-
 RISCV_RV32F_COMPLIANCE_TESTS =    \
   fcvt.s.w_b25-01 \
   fcvt.s.w_b26-01 \
@@ -442,6 +364,81 @@ RISCV_RV32F_COMPLIANCE_TESTS =    \
   fsgnjn_b1-01 \
   fsgnjx_b1-01 \
   fsw-align-01 \
+  fdiv_b1-01 \
+  fdiv_b2-01 \
+  fdiv_b4-01 \
+  fdiv_b5-01 \
+  fdiv_b6-01 \
+  fdiv_b7-01 \
+  fdiv_b20-01 \
+  fsqrt_b1-01 \
+  fsqrt_b2-01 \
+  fsqrt_b20-01 \
+  fsqrt_b9-01 \
+  fsqrt_b3-01 \
+  fsqrt_b4-01 \
+  fsqrt_b5-01 \
+  fsqrt_b7-01 \
+  fsqrt_b8-01 \
+  fadd_b7-01 \
+  fadd_b2-01 \
+  fadd_b4-01 \
+  fadd_b5-01 \
+  fmadd_b4-01 \
+  fmadd_b5-01 \
+  fmadd_b6-01 \
+  fmadd_b7-01 \
+  fmsub_b4-01 \
+  fmsub_b5-01 \
+  fmsub_b6-01 \
+  fmsub_b7-01 \
+  fmul_b4-01 \
+  fmul_b6-01 \
+  fmul_b7-01 \
+  fnmadd_b4-01 \
+  fnmadd_b5-01 \
+  fnmadd_b6-01 \
+  fnmadd_b7-01 \
+  fnmsub_b4-01 \
+  fnmsub_b5-01 \
+  fnmsub_b6-01 \
+  fnmsub_b7-01 \
+  fsub_b4-01 \
+  fsub_b5-01 \
+  fsub_b7-01 \
+  fadd_b1-01 \
+  fadd_b10-01 \
+  fadd_b12-01 \
+  fadd_b13-01 \
+  fmadd_b14-01 \
+  fmadd_b16-01 \
+  fmadd_b17-01 \
+  fmadd_b18-01 \
+  fmadd_b2-01 \
+  fmsub_b14-01 \
+  fmsub_b16-01 \
+  fmsub_b17-01 \
+  fmsub_b18-01 \
+  fmsub_b2-01 \
+  fmul_b2-01 \
+  fnmadd_b14-01 \
+  fnmadd_b16-01 \
+  fnmadd_b17-01 \
+  fnmadd_b18-01 \
+  fnmadd_b2-01 \
+  fnmsub_b14-01 \
+  fnmsub_b16-01 \
+  fnmsub_b17-01 \
+  fnmsub_b18-01 \
+  fnmsub_b2-01 \
+  fsub_b1-01 \
+  fsub_b10-01 \
+  fsub_b12-01 \
+  fsub_b13-01 \
+  fsub_b2-01 \
+  fmul_b1-01 \
+  fmul_b5-01 \
+
 
 RISCV_RV32F_COMPLIANCE_TEST_TARGETS = $(RISCV_RV32F_COMPLIANCE_TESTS:%=test-riscv-compliance-%)
 
