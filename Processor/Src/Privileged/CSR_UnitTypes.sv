@@ -13,14 +13,22 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
 
+typedef enum logic [1:0] {
+    PRIVILEGE_LEVEL_M = 2'b11,
+    PRIVILEGE_LEVEL_S = 2'b01,
+    PRIVILEGE_LEVEL_U = 2'b00
+} PrivilegeLevelType;
+
 // If you add additional status bits, check CSR_Unit.sv because 
 // only valid fields are updated.
 typedef struct packed {
-    logic [23:0] padding_2;  // 31:8
-    logic MPIE;               // 7
-    logic [2:0] padding_1;   // 6:4
+    logic [18:0] padding_3; // 31:13
+    PrivilegeLevelType MPP; // 12:11
+    logic [2:0] padding_2;  // 10:8
+    logic MPIE;             // 7
+    logic [2:0] padding_1;  // 6:4
     logic MIE;              // 3
-    logic [2:0] padding_0;   // 2:0
+    logic [2:0] padding_0;  // 2:0
 } CSR_MSTATUS_Path;
 
 // Machine ISA

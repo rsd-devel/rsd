@@ -27,6 +27,8 @@ module CSR_Unit(
     AddrPath jumpTarget;
     CommitLaneCountPath regCommitNum;
 
+    PrivilegeLevelType privilegeLevel, privilegeLevelNext;
+
     // An external interrupt request is latched in the CSR, and an actual 
     // interrupt is triggered at the next cycle. So external interrupt code must be latched.
     ExternalInterruptCodePath externalInterruptCodeReg;
@@ -38,25 +40,39 @@ module CSR_Unit(
         value.misa.EXTENSIONS.M = 1;
         value.misa.EXTENSIONS.F = 1;
         value.misa.EXTENSIONS.D = 1;
+        value.misa.EXTENSIONS.U = 1;
         return value;
+    endfunction
+
+    function logic IsSupportedPrivilegeLevel(
+        input PrivilegeLevelType level
+    );
+        return level == PRIVILEGE_LEVEL_M || level == PRIVILEGE_LEVEL_S || level == PRIVILEGE_LEVEL_U;
     endfunction
 
     always_ff@(posedge port.clk) begin
         if (port.rst) begin
             csrReg <= GetCSRResetValue();
             regCommitNum <= '0;
+            privilegeLevel <= PRIVILEGE_LEVEL_M;
             externalInterruptCodeReg <= '0;
         end
         else begin
             csrReg <= csrNext;
+            privilegeLevel <= privilegeLevelNext;
             regCommitNum <= port.commitNum;
-            externalInterruptCodeReg <= port.externalInterruptCode;
+            externalInterruptCodeReg <= port.externalInterruptCode;            
+            // if (privilegeLevel != privilegeLevelNext) begin
+            //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
+            // end
         end
     end
 
     always_comb begin
         mcycle = csrReg.mcycle;
-        
+
+        privilegeLevelNext = privilegeLevel;
+
         // Read a CSR value
         unique case (port.csrNumber) 
             CSR_NUM_MSTATUS:    rv = csrReg.mstatus;
@@ -100,9 +116,13 @@ module CSR_Unit(
             // Interrupt
             csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
             csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
+            csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
             csrNext.mepc = ToAddrFromPC(port.interruptRetAddr); // 割り込み発生時の PC
             csrNext.mtval = ToAddrFromPC(port.interruptRetAddr);// PC?
-            
+
+            // change Privilege Level to M-mode
+            privilegeLevelNext = PRIVILEGE_LEVEL_M;
+
             csrNext.mcause.isInterrupt = TRUE;
             csrNext.mcause.code.interruptCode = port.interruptCode;
             //$display("int: from %x", port.interruptRetAddr);
@@ -111,15 +131,21 @@ module CSR_Unit(
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
                 // MRET
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
+                csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
+                privilegeLevelNext = csrReg.mstatus.MPP;
                 //$display("mret: to %x", csrNext.mepc);
             end
             else begin
                 // Trap
                 csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
                 csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
+                csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
                 csrNext.mepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
                 csrNext.mtval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
                 
+                // change Privilege Level to M-mode
+                privilegeLevelNext = PRIVILEGE_LEVEL_M;
+
                 csrNext.mcause.isInterrupt = FALSE;
                 csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause);
                 //$display("trap: from %x", csrNext.mepc);
@@ -140,7 +166,12 @@ module CSR_Unit(
                     //csrNext.mstatus.MIE = wv.mstatus.MIE;
                     //csrNext.mstatus.MPIE = wv.mstatus.MPIE;
                     csrNext.mstatus = wv;
-                   //$display("mstatus: %x", wv);
+                    // check MPP is supported Level
+                    if (!IsSupportedPrivilegeLevel(csrNext.mstatus.MPP)) begin
+                        // fallback
+                        csrNext.mstatus.MPP = csrReg.mstatus.MPP;
+                    end
+                    //$display("mstatus: %x", wv);
                 end
 
                 // MIP                
