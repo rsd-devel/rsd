@@ -31,9 +31,19 @@ module CSR_Unit(
     // interrupt is triggered at the next cycle. So external interrupt code must be latched.
     ExternalInterruptCodePath externalInterruptCodeReg;
 
+    function automatic CSR_BodyPath GetCSRResetValue();
+        CSR_BodyPath value;
+        value = '0;
+        value.misa.MXL = ENCODED_XLEN_32;
+        value.misa.EXTENSIONS.M = 1;
+        value.misa.EXTENSIONS.F = 1;
+        value.misa.EXTENSIONS.D = 1;
+        return value;
+    endfunction
+
     always_ff@(posedge port.clk) begin
         if (port.rst) begin
-            csrReg <= '0;
+            csrReg <= GetCSRResetValue();
             regCommitNum <= '0;
             externalInterruptCodeReg <= '0;
         end
@@ -57,6 +67,8 @@ module CSR_Unit(
             CSR_NUM_MTVAL:      rv = csrReg.mtval;
             CSR_NUM_MEPC:       rv = csrReg.mepc;
             CSR_NUM_MSCRATCH:   rv = csrReg.mscratch;
+
+            CSR_NUM_MISA: rv = csrReg.misa;
 
             CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
             CSR_NUM_MINSTRET: rv = csrReg.minstret;

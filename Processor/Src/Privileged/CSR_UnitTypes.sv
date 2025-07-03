@@ -23,6 +23,42 @@ typedef struct packed {
     logic [2:0] padding_0;   // 2:0
 } CSR_MSTATUS_Path;
 
+// Machine ISA
+typedef struct packed {
+    logic Z;
+    logic Y;
+    logic X;
+    logic W;
+    logic V;
+    logic U;
+    logic T;
+    logic S;
+    logic R;
+    logic Q;
+    logic P;
+    logic O;
+    logic N;
+    logic M;
+    logic L;
+    logic K;
+    logic J;
+    logic I;
+    logic H;
+    logic G;
+    logic F;
+    logic E;
+    logic D;
+    logic C;
+    logic B;
+    logic A;
+} CSR_MISA_ExtensionsType;
+
+typedef struct packed {
+    logic [1:0] MXL; // 31:30
+    logic [3:0] padding_0; // 29:26
+    CSR_MISA_ExtensionsType EXTENSIONS; // 25:0
+} CSR_MISA_Path;
+
 // Interrupt pending?
 typedef struct packed {
     logic [19:0] padding_3; // 31:12
@@ -132,6 +168,8 @@ typedef union packed {
     DataPath mepc;
     DataPath mscratch;
 
+    CSR_MISA_Path misa;
+
     DataPath mcycle;
     DataPath minstret;
     CSR_FCSR_Path fcsr;
@@ -147,6 +185,8 @@ typedef struct packed {
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
+
+    CSR_MISA_Path misa;
 
     DataPath mcycle;
     DataPath minstret;
