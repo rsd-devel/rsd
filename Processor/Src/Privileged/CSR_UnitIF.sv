@@ -50,6 +50,8 @@ interface CSR_UnitIF(
     // Used in updating minstret
     CommitLaneCountPath commitNum;
 
+    PrivilegeLevelType privilegeLevel;
+
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
     Rounding_Mode frm;
@@ -62,6 +64,7 @@ interface CSR_UnitIF(
         clk, rst, rstStart,
         csrReadOut,
         csrUnitTriggerExcpt,
+        privilegeLevel,
     output 
         csrWE,
         csrNumber,
@@ -143,7 +146,8 @@ interface CSR_UnitIF(
         csrReadOut,
         csrUnitTriggerExcpt,
         excptTargetAddr,
-        externalInterruptCodeInCSR
+        externalInterruptCodeInCSR,
+        privilegeLevel
     );
 
     modport InterruptController(

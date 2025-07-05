@@ -242,6 +242,13 @@ module MemoryExecutionStage(
                 nextStage[i].memQueueData.memOpInfo.envCode = ENV_INSN_ILLEGAL;
             end
 
+            if (nextStage[i].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_ENV) begin
+                // MRET must be executed in M-mode
+                if (nextStage[i].memQueueData.memOpInfo.envCode == ENV_MRET && csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M) begin
+                    nextStage[i].memQueueData.memOpInfo.envCode = ENV_INSN_ILLEGAL;
+                end
+            end
+
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =
                 (stall || clear || port.rst || flush[i]) ? FALSE : pipeReg[i].valid;

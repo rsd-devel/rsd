@@ -228,6 +228,8 @@ module CSR_Unit(
         end
 
         port.csrWholeOut = csrReg;
+
+        port.privilegeLevel = privilegeLevel;
     end
 
     `RSD_ASSERT_CLK(
