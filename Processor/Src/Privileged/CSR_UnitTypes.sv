@@ -98,14 +98,23 @@ typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION = 5,
     CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED = 6,
     CSR_CAUSE_TRAP_CODE_STORE_VIOLATION = 7,
+    CSR_CAUSE_TRAP_CODE_UCALL = 8,
+    CSR_CAUSE_TRAP_CODE_SCALL = 9,
     CSR_CAUSE_TRAP_CODE_MCALL = 11,
 
     CSR_CAUSE_TRAP_CODE_UNKNOWN = 14
 } CSR_CAUSE_TrapCodePath;
 
-function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState state);
+function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState state, PrivilegeLevelType priv);
     case(state)
-    EXEC_STATE_TRAP_ECALL:  return CSR_CAUSE_TRAP_CODE_MCALL;
+    EXEC_STATE_TRAP_ECALL: begin
+        case (priv)
+            PRIVILEGE_LEVEL_U: return CSR_CAUSE_TRAP_CODE_UCALL;
+            PRIVILEGE_LEVEL_S: return CSR_CAUSE_TRAP_CODE_SCALL;
+            PRIVILEGE_LEVEL_M: return CSR_CAUSE_TRAP_CODE_MCALL;
+            default: return CSR_CAUSE_TRAP_CODE_UNKNOWN;
+        endcase
+    end
     EXEC_STATE_TRAP_EBREAK: return CSR_CAUSE_TRAP_CODE_BREAK;
 
     EXEC_STATE_FAULT_LOAD_MISALIGNED:  return CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED;

@@ -149,7 +149,7 @@ module CSR_Unit(
                 privilegeLevelNext = PRIVILEGE_LEVEL_M;
 
                 csrNext.mcause.isInterrupt = FALSE;
-                csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause);
+                csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 //$display("trap: from %x", csrNext.mepc);
 
             end
