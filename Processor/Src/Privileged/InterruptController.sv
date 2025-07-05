@@ -36,7 +36,7 @@ module InterruptController(
         reqTimerInterrupt =     csrReg.mie.MTIE && csrReg.mip.MTIP;
         reqExternalInterrupt =  csrReg.mie.MEIE && csrReg.mip.MEIP;
 
-        reqInterrupt = csrReg.mstatus.MIE && (reqTimerInterrupt || reqExternalInterrupt);
+        reqInterrupt = (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE) && (reqTimerInterrupt || reqExternalInterrupt);
         interruptCodeConv.exCode = csrUnit.externalInterruptCodeInCSR; // Type conversion through union
         if (reqTimerInterrupt) begin
             // Timer has higher priority.

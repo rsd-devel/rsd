@@ -155,6 +155,7 @@ interface CSR_UnitIF(
         clk, rst, rstStart,
         csrWholeOut,
         externalInterruptCodeInCSR,
+        privilegeLevel,
     output
         triggerInterrupt,
         interruptRetAddr,
