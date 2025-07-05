@@ -34,6 +34,7 @@ interface CSR_UnitIF(
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
     AddrPath excptTargetAddr;   // Trap vector or MRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
+    logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
 
     // Interrupt
     logic triggerInterrupt;
@@ -60,6 +61,7 @@ interface CSR_UnitIF(
     input
         clk, rst, rstStart,
         csrReadOut,
+        csrUnitTriggerExcpt,
     output 
         csrWE,
         csrNumber,
@@ -139,6 +141,7 @@ interface CSR_UnitIF(
 `endif
         csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
         excptTargetAddr,
         externalInterruptCodeInCSR
     );

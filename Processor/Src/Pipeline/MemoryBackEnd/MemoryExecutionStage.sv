@@ -237,6 +237,11 @@ module MemoryExecutionStage(
             // if (pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD)
             //     nextStage[i].memQueueData.hasAllocatedMSHR = FALSE;
 
+            if (i == 0 && isCSR && csrUnit.csrUnitTriggerExcpt) begin
+                nextStage[i].memQueueData.memOpInfo.opType = MEM_MOP_TYPE_ENV;
+                nextStage[i].memQueueData.memOpInfo.envCode = ENV_INSN_ILLEGAL;
+            end
+
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =
                 (stall || clear || port.rst || flush[i]) ? FALSE : pipeReg[i].valid;

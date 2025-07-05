@@ -102,6 +102,8 @@ module CSR_Unit(
             default:          rv = '0;
         endcase 
 
+        // check csr read/write permission
+        port.csrUnitTriggerExcpt = port.csrWE && privilegeLevel < port.csrNumber[9:8];
 
         // Writeback 
         csrNext = csrReg;
@@ -152,7 +154,7 @@ module CSR_Unit(
 
             end
         end
-        else if (port.csrWE) begin
+        else if (port.csrWE && !port.csrUnitTriggerExcpt) begin
             // Operation
             unique case (port.csrCode) 
                 CSR_WRITE:  wv = port.csrWriteIn;
