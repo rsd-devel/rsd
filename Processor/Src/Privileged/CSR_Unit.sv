@@ -144,6 +144,7 @@ module CSR_Unit(
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
                 // MRET
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
+                csrNext.mstatus.MPIE = 1; // MPIE = 1
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
                 privilegeLevelNext = csrReg.mstatus.MPP;
                 //$display("mret: to %x", csrNext.mepc);
