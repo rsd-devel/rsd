@@ -79,6 +79,8 @@ module CSR_Unit(
 
         // Read a CSR value
         unique case (port.csrNumber) 
+            CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
+
             CSR_NUM_MSTATUS:    rv = csrReg.mstatus;
             CSR_NUM_MIP:        rv = csrReg.mip;
             CSR_NUM_MIE:        rv = csrReg.mie;
@@ -168,10 +170,15 @@ module CSR_Unit(
             endcase
 
             unique case (port.csrNumber) 
-                CSR_NUM_MSTATUS: begin
+                CSR_NUM_MSTATUS, CSR_NUM_SSTATUS: begin
                     //csrNext.mstatus.MIE = wv.mstatus.MIE;
                     //csrNext.mstatus.MPIE = wv.mstatus.MPIE;
-                    csrNext.mstatus = wv;
+                    if (port.csrNumber == CSR_NUM_MSTATUS) begin
+                        csrNext.mstatus = wv;
+                    end
+                    else begin
+                        csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
+                    end
                     // check MPP is supported Level
                     if (!IsSupportedPrivilegeLevel(csrNext.mstatus.MPP, csrNext.misa)) begin
                         // fallback

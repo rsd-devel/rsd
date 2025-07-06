@@ -22,14 +22,71 @@ typedef enum logic [1:0] {
 // If you add additional status bits, check CSR_Unit.sv because 
 // only valid fields are updated.
 typedef struct packed {
-    logic [18:0] padding_3; // 31:13
+    logic [8:0] padding_7;  // 31:23
+    logic TSR;              // 22
+    logic padding_6;        // 21
+    logic TVM;              // 20
+    logic MXR;              // 19
+    logic SUM;              // 18
+    logic [4:0] padding_5;  // 17:13
     PrivilegeLevelType MPP; // 12:11
-    logic [2:0] padding_2;  // 10:8
+    logic [1:0] padding_4;  // 10:9
+    logic SPP;              // 8
     logic MPIE;             // 7
-    logic [2:0] padding_1;  // 6:4
+    logic padding_3;        // 6
+    logic SPIE;             // 5
+    logic padding_2;        // 4
     logic MIE;              // 3
-    logic [2:0] padding_0;  // 2:0
+    logic padding_1;        // 2
+    logic SIE;              // 1
+    logic padding_0;        // 0
 } CSR_MSTATUS_Path;
+
+// If you add additional sstatus fields,
+// add fields that will be copied from/to mstatus in ToSstatusFromMstatus/ToMstatusFromSstatus
+typedef struct packed {
+    logic [11:0] padding_4; // 31:20
+    logic MXR;              // 19
+    logic SUM;              // 18
+    logic [8:0] padding_3;  // 17:9
+    logic SPP;              // 8
+    logic [1:0] padding_2;  // 7:6
+    logic SPIE;             // 5
+    logic [2:0] padding_1;  // 4:2
+    logic SIE;              // 1
+    logic padding_0;        // 0
+} CSR_SSTATUS_Path;
+
+function automatic CSR_SSTATUS_Path ToSstatusFromMstatus(input CSR_MSTATUS_Path mstatus);
+    CSR_SSTATUS_Path value;
+    value      = '0;
+    value.MXR  = mstatus.MXR ;
+    value.SUM  = mstatus.SUM ;
+    value.SPP  = mstatus.SPP ;
+    value.SPIE = mstatus.SPIE;
+    value.SIE  = mstatus.SIE ;
+    return value;
+endfunction
+
+function automatic CSR_MSTATUS_Path ToMstatusFromSstatus(input CSR_SSTATUS_Path sstatus, input CSR_MSTATUS_Path currentMstatus);
+    CSR_MSTATUS_Path value;
+    value      = currentMstatus;
+    value.MXR  = sstatus.MXR ;
+    value.SUM  = sstatus.SUM ;
+    value.SPP  = sstatus.SPP ;
+    value.SPIE = sstatus.SPIE;
+    value.SIE  = sstatus.SIE ;
+    return value;
+endfunction
+
+function automatic PrivilegeLevelType ToPrivilegeLevelFromSPP(input logic SPP);
+    return SPP ? PRIVILEGE_LEVEL_S : PRIVILEGE_LEVEL_U;
+endfunction
+
+function automatic logic ToSPP_FromPrivilegeLevel(input PrivilegeLevelType privilegeLevel);
+    assert(privilegeLevel inside {PRIVILEGE_LEVEL_U, PRIVILEGE_LEVEL_S});
+    return privilegeLevel == PRIVILEGE_LEVEL_S;
+endfunction
 
 // Machine ISA
 typedef struct packed {
