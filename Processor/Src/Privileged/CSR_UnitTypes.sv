@@ -213,6 +213,55 @@ typedef struct packed {
 } CSR_BodyPath;
 
 //
+// Supervisor Trap Setup
+//
+localparam CSR_NUM_SSTATUS    = 12'h100;
+localparam CSR_NUM_SIE        = 12'h104;
+localparam CSR_NUM_STVEC      = 12'h105;
+localparam CSR_NUM_SCOUNTEREN = 12'h106;
+
+
+//
+// Supervisor Configuration
+//
+localparam CSR_NUM_SENVCFG = 12'h10A;
+
+//
+// Supervisor Counter Setup
+//
+localparam CSR_NUM_SCOUNTINHIBIT = 12'h120;
+
+
+//
+// Supervisor Trap Handling
+//
+localparam CSR_NUM_SSCRATCH = 12'h140;
+localparam CSR_NUM_SEPC = 12'h141;
+localparam CSR_NUM_SCAUSE = 12'h142;
+localparam CSR_NUM_STVAL = 12'h143;
+localparam CSR_NUM_SIP = 12'h144;
+localparam CSR_NUM_SCOUNTOVF = 12'hDA0;
+
+//
+// Supervisor Protection and Translation
+//
+localparam CSR_NUM_SATP = 12'h180;
+
+//
+// Debug/Trace Registers
+//
+localparam CSR_NUM_SCONTEXT = 12'h5A8;
+
+//
+// Supervisor State Enable Registers
+//
+localparam CSR_NUM_SSTATEEN0 = 12'h10C;
+localparam CSR_NUM_SSTATEEN1 = 12'h10D;
+localparam CSR_NUM_SSTATEEN2 = 12'h10E;
+localparam CSR_NUM_SSTATEEN3 = 12'h10F;
+
+
+//
 // Machine Information Registers
 //
 localparam CSR_NUM_MVENDORID = 12'hF11; // Vendor ID.
