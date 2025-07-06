@@ -62,6 +62,7 @@ interface CSR_UnitIF(
     modport MemoryExecutionStage(
     input
         clk, rst, rstStart,
+        csrWholeOut,
         csrReadOut,
         csrUnitTriggerExcpt,
         privilegeLevel,
