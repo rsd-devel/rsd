@@ -41,13 +41,17 @@ module CSR_Unit(
         value.misa.EXTENSIONS.F = 1;
         value.misa.EXTENSIONS.D = 1;
         value.misa.EXTENSIONS.U = 1;
+        value.misa.EXTENSIONS.S = 1;
         return value;
     endfunction
 
     function logic IsSupportedPrivilegeLevel(
-        input PrivilegeLevelType level
+        input PrivilegeLevelType level,
+        input CSR_MISA_Path misa,
     );
-        return level == PRIVILEGE_LEVEL_M || level == PRIVILEGE_LEVEL_S || level == PRIVILEGE_LEVEL_U;
+        return level == PRIVILEGE_LEVEL_M ||
+               misa.EXTENSIONS.S && level == PRIVILEGE_LEVEL_S ||
+               misa.EXTENSIONS.U && level == PRIVILEGE_LEVEL_U;
     endfunction
 
     always_ff@(posedge port.clk) begin
@@ -169,7 +173,7 @@ module CSR_Unit(
                     //csrNext.mstatus.MPIE = wv.mstatus.MPIE;
                     csrNext.mstatus = wv;
                     // check MPP is supported Level
-                    if (!IsSupportedPrivilegeLevel(csrNext.mstatus.MPP)) begin
+                    if (!IsSupportedPrivilegeLevel(csrNext.mstatus.MPP, csrNext.misa)) begin
                         // fallback
                         csrNext.mstatus.MPP = csrReg.mstatus.MPP;
                     end
