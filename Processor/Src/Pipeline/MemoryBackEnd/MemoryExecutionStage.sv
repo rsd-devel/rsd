@@ -243,8 +243,11 @@ module MemoryExecutionStage(
             end
 
             if (nextStage[i].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_ENV) begin
-                // MRET must be executed in M-mode
-                if (nextStage[i].memQueueData.memOpInfo.envCode == ENV_MRET && csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M) begin
+                // xRET must be executed in y-mode >= x-mode
+                if (
+                    nextStage[i].memQueueData.memOpInfo.envCode == ENV_SRET && csrUnit.privilegeLevel < PRIVILEGE_LEVEL_S ||
+                    nextStage[i].memQueueData.memOpInfo.envCode == ENV_MRET && csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M
+                ) begin
                     nextStage[i].memQueueData.memOpInfo.envCode = ENV_INSN_ILLEGAL;
                 end
             end

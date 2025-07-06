@@ -139,6 +139,7 @@ function automatic void DecideCommit(
         else if (execState[i] inside{
             EXEC_STATE_TRAP_ECALL, 
             EXEC_STATE_TRAP_EBREAK, 
+            EXEC_STATE_TRAP_SRET,
             EXEC_STATE_TRAP_MRET,
             EXEC_STATE_FAULT_INSN_MISALIGNED
         }) begin

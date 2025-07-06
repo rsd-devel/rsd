@@ -153,11 +153,17 @@ module CSR_Unit(
         else if (port.triggerExcpt) begin
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
                 // MRET
+                privilegeLevelNext = csrReg.mstatus.MPP;
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
                 csrNext.mstatus.MPIE = 1; // MPIE = 1
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
-                privilegeLevelNext = csrReg.mstatus.MPP;
-                //$display("mret: to %x", csrNext.mepc);
+            end
+            else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
+                // SRET
+                privilegeLevelNext = ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
+                csrNext.mstatus.SIE = csrNext.mstatus.SPIE; // SIE の古い値に戻す
+                csrNext.mstatus.SPIE = 1; // SPIE = 1
+                csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(PRIVILEGE_LEVEL_U); // 最小の特権レベル
             end
             else begin
                 // Exception
@@ -264,6 +270,11 @@ module CSR_Unit(
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
             port.excptTargetAddr = csrReg.mepc;
+            //$display("mret: to %x", csrNext.mepc);
+        end
+        else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
+            port.excptTargetAddr = csrReg.sepc;
+            //$display("sret: to %x", csrNext.sepc);
         end
         else begin
             case (privilegeLevelNext)
@@ -283,6 +294,7 @@ module CSR_Unit(
         !(port.triggerExcpt && !(port.excptCause inside {
             EXEC_STATE_TRAP_ECALL, 
             EXEC_STATE_TRAP_EBREAK, 
+            EXEC_STATE_TRAP_SRET,
             EXEC_STATE_TRAP_MRET,
             EXEC_STATE_FAULT_LOAD_MISALIGNED,
             EXEC_STATE_FAULT_LOAD_VIOLATION,

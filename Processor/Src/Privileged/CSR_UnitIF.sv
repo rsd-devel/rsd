@@ -32,7 +32,7 @@ interface CSR_UnitIF(
     logic   triggerExcpt;
     ExecutionState excptCause;
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
-    AddrPath excptTargetAddr;   // Trap vector or MRET return target
+    AddrPath excptTargetAddr;   // Trap vector or xRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
     logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
 

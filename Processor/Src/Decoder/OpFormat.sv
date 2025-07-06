@@ -132,7 +132,7 @@ typedef enum logic [2:0]    // enum MiscMemFunct3
 //
 typedef enum logic [2:0]    // enum SystemFunct3
 {
-    SYSTEM_FUNCT3_PRIV  = 3'b000,     // Privileged (ecall/ebreak/mret
+    SYSTEM_FUNCT3_PRIV  = 3'b000,     // Privileged (ecall/ebreak/mret/sret)
 
     SYSTEM_FUNCT3_CSR_RW    = 3'b001, // CSRRW
     SYSTEM_FUNCT3_CSR_RS    = 3'b010, // CSRRS
@@ -150,6 +150,7 @@ typedef enum logic [11:0]    // enum SystemFunct12
 {
     SYSTEM_FUNCT12_ECALL  = 12'b0000_0000_0000, // ECALL
     SYSTEM_FUNCT12_EBREAK = 12'b0000_0000_0001, // EBREAK
+    SYSTEM_FUNCT12_SRET   = 12'b0001_0000_0010, // SRET
     SYSTEM_FUNCT12_MRET   = 12'b0011_0000_0010, // MRET
     SYSTEM_FUNCT12_WFI    = 12'b0001_0000_0101  // WFI
 } SystemFunct12;
@@ -366,11 +367,12 @@ typedef enum logic [2:0]      // enum ENV_Code
 {
     ENV_CALL            = 3'b000,    // ECALL
     ENV_BREAK           = 3'b001,    // EBREAK
-    ENV_MRET            = 3'b010,    // MRET
-    ENV_INSN_ILLEGAL    = 3'b011,    // Executes illegal insturction
-    ENV_INSN_VIOLATION  = 3'b100,    // Insturction access violation
+    ENV_SRET            = 3'b010,    // SRET
+    ENV_MRET            = 3'b011,    // MRET
+    ENV_INSN_ILLEGAL    = 3'b100,    // Executes illegal insturction
+    ENV_INSN_VIOLATION  = 3'b101,    // Insturction access violation
 
-    ENV_UNKNOWN         = 3'b101     //
+    ENV_UNKNOWN         = 3'b110     //
 } ENV_Code;
 
 // FPU code

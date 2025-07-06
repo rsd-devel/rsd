@@ -1137,7 +1137,8 @@ function automatic void RISCV_EmitSystemOp(
         unique case(SystemFunct12'(isfSystem.funct12))
             SYSTEM_FUNCT12_ECALL:  systemOp.envCode = ENV_CALL;
             SYSTEM_FUNCT12_EBREAK: systemOp.envCode = ENV_BREAK;
-            SYSTEM_FUNCT12_MRET:   systemOp.envCode = ENV_MRET;
+            SYSTEM_FUNCT12_SRET: systemOp.envCode = ENV_SRET;
+            SYSTEM_FUNCT12_MRET: systemOp.envCode = ENV_MRET;
             default: begin// Unknown
                 systemOp.envCode = ENV_BREAK;            
                 undefined = TRUE;

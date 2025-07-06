@@ -294,10 +294,11 @@ module MemoryTagAccessStage(
                         loadStoreUnit.mshrReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
             end
             else if (isENV[i]) begin
-                // EBREAK/ECALL/MRET はトラップ扱い
+                // EBREAK/ECALL/MRET/SRET はトラップ扱い
                 unique case (ldIqData[i].memOpInfo.envCode)
                 ENV_BREAK:          ldNextStage[i].execState = EXEC_STATE_TRAP_EBREAK;
                 ENV_CALL:           ldNextStage[i].execState = EXEC_STATE_TRAP_ECALL;
+                ENV_SRET:           ldNextStage[i].execState = EXEC_STATE_TRAP_SRET;
                 ENV_MRET:           ldNextStage[i].execState = EXEC_STATE_TRAP_MRET;
                 ENV_INSN_ILLEGAL:   ldNextStage[i].execState = EXEC_STATE_FAULT_INSN_ILLEGAL;
                 ENV_INSN_VIOLATION: ldNextStage[i].execState = EXEC_STATE_FAULT_INSN_VIOLATION;

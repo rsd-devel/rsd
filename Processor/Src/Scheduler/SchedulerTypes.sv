@@ -68,7 +68,8 @@ typedef enum logic [3:0] // ExecutionState
                                            // but it must be refetch from next op.
     EXEC_STATE_TRAP_ECALL       = 4'b0100, // Execution causes a trap (ECALL)
     EXEC_STATE_TRAP_EBREAK      = 4'b0101, // Execution causes a trap (EBREAK)
-    EXEC_STATE_TRAP_MRET        = 4'b0110,  // Execution causes a MRET
+    EXEC_STATE_TRAP_SRET        = 4'b0110,  // Execution causes a SRET
+    EXEC_STATE_TRAP_MRET        = 4'b0111,  // Execution causes a MRET
 
     EXEC_STATE_FAULT_LOAD_MISALIGNED  = 4'b1000,  // Misaligned load is executed
     EXEC_STATE_FAULT_LOAD_VIOLATION   = 4'b1001,  // Load access violation
