@@ -80,6 +80,11 @@ module CSR_Unit(
         // Read a CSR value
         unique case (port.csrNumber) 
             CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
+            CSR_NUM_STVEC:      rv = csrReg.stvec;
+            CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
+            CSR_NUM_SEPC:       rv = csrReg.sepc;
+            CSR_NUM_SCAUSE:     rv = csrReg.scause;
+            CSR_NUM_STVAL:      rv = csrReg.stval;
 
             CSR_NUM_MSTATUS:    rv = csrReg.mstatus;
             CSR_NUM_MIP:        rv = csrReg.mip;
@@ -187,6 +192,12 @@ module CSR_Unit(
                     //$display("mstatus: %x", wv);
                 end
 
+                CSR_NUM_STVEC:      csrNext.stvec = wv;
+                CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
+                CSR_NUM_SEPC:       csrNext.sepc = wv;
+                CSR_NUM_SCAUSE:     csrNext.scause = wv;
+                CSR_NUM_STVAL:      csrNext.stval = wv;
+
                 // MIP                
                 // > Only the bits corresponding to lower-privilege 
                 // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
@@ -235,7 +246,7 @@ module CSR_Unit(
             port.excptTargetAddr = csrReg.mepc;
         end
         else begin
-            port.excptTargetAddr = {csrReg.mtvec.base, CSR_MTVEC_BASE_PADDING};
+            port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING};
         end
 
         port.csrWholeOut = csrReg;

@@ -214,14 +214,14 @@ typedef struct packed {
 
 
 typedef enum logic [1:0] {
-    CSR_MTVEC_MODE_BASE = 0,
-    CSR_MTVEC_MODE_VECTORED = 1
-} CSR_MTVEC_ModePath;
+    CSR_XTVEC_MODE_BASE = 0,
+    CSR_XTVEC_MODE_VECTORED = 1
+} CSR_XTVEC_ModePath;
 
 typedef struct packed {
     logic [29:0]        base;    // 31:2
-    CSR_MTVEC_ModePath  mode;    //  1:0
-} CSR_MTVEC_Path;
+    CSR_XTVEC_ModePath  mode;    //  1:0
+} CSR_XTVEC_Path;
 
 typedef struct packed {
     logic [23:0] padding;
@@ -229,15 +229,21 @@ typedef struct packed {
     FFlags_Path fflags;
 } CSR_FCSR_Path;
 
-localparam logic [1:0] CSR_MTVEC_BASE_PADDING = 2'b0;
+localparam logic [1:0] CSR_XTVEC_BASE_PADDING = 2'b0;
 
 // All members have 32bit width
 typedef union packed {
+    CSR_XTVEC_Path  stvec;
+    DataPath        sscratch;
+    DataPath        sepc;
+    CSR_CAUSE_Path  scause;
+    DataPath        stval;
+
     CSR_MSTATUS_Path mstatus;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
-    CSR_MTVEC_Path mtvec;
+    CSR_XTVEC_Path mtvec;
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
@@ -251,11 +257,17 @@ typedef union packed {
 
 typedef struct packed {
     // Interrupt related registers
+    CSR_XTVEC_Path  stvec;
+    DataPath        sscratch;
+    DataPath        sepc;
+    CSR_CAUSE_Path  scause;
+    DataPath        stval;
+
     CSR_MSTATUS_Path mstatus;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
-    CSR_MTVEC_Path mtvec;
+    CSR_XTVEC_Path mtvec;
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
