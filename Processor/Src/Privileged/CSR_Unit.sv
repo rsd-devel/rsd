@@ -127,17 +127,27 @@ module CSR_Unit(
 
         if (port.triggerInterrupt) begin
             // Interrupt
-            csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
-            csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
-            csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
-            csrNext.mepc = ToAddrFromPC(port.interruptRetAddr); // 割り込み発生時の PC
-            csrNext.mtval = 0;
-
             // change Privilege Level to M-mode
             privilegeLevelNext = PRIVILEGE_LEVEL_M;
 
-            csrNext.mcause.isInterrupt = TRUE;
-            csrNext.mcause.code.interruptCode = port.interruptCode;
+            if (privilegeLevelNext == PRIVILEGE_LEVEL_M) begin
+                csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
+                csrNext.mstatus.MIE = 0; // グローバル割り込み許可を落とす
+                csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
+                csrNext.mepc = ToAddrFromPC(port.interruptRetAddr); // 割り込み発生時の PC
+                csrNext.mtval = 0;
+                csrNext.mcause.isInterrupt = TRUE;
+                csrNext.mcause.code.interruptCode = port.interruptCode;
+            end
+            else if (privilegeLevelNext == PRIVILEGE_LEVEL_S) begin
+                csrNext.mstatus.SPIE = csrNext.mstatus.SIE; // SIE の古い値
+                csrNext.mstatus.SIE = 0; // グローバル割り込み許可を落とす
+                csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel); // トラップ前の特権レベル
+                csrNext.sepc = ToAddrFromPC(port.interruptRetAddr); // 割り込み発生時の PC
+                csrNext.stval = 0;
+                csrNext.scause.isInterrupt = TRUE;
+                csrNext.scause.code.interruptCode = port.interruptCode;
+            end
             //$display("int: from %x", port.interruptRetAddr);
         end
         else if (port.triggerExcpt) begin
@@ -150,20 +160,29 @@ module CSR_Unit(
                 //$display("mret: to %x", csrNext.mepc);
             end
             else begin
-                // Trap
-                csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
-                csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
-                csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
-                csrNext.mepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
-                csrNext.mtval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
-                
+                // Exception
                 // change Privilege Level to M-mode
                 privilegeLevelNext = PRIVILEGE_LEVEL_M;
 
-                csrNext.mcause.isInterrupt = FALSE;
-                csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
-                //$display("trap: from %x", csrNext.mepc);
-
+                if (privilegeLevelNext == PRIVILEGE_LEVEL_M) begin
+                    csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
+                    csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
+                    csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
+                    csrNext.mepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
+                    csrNext.mtval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.mcause.isInterrupt = FALSE;
+                    csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                end
+                else if (privilegeLevelNext == PRIVILEGE_LEVEL_S) begin
+                    csrNext.mstatus.SPIE = csrNext.mstatus.SIE; // MIE の古い値
+                    csrNext.mstatus.SIE = 0;    // グローバル割り込み許可を落とす
+                    csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel); // トラップ前の特権レベル
+                    csrNext.sepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
+                    csrNext.stval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.scause.isInterrupt = FALSE;
+                    csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                end
+                //$display("trap: from %x", ToAddrFromPC(port.excptCauseAddr));
             end
         end
         else if (port.csrWE && !port.csrUnitTriggerExcpt) begin
@@ -247,7 +266,11 @@ module CSR_Unit(
             port.excptTargetAddr = csrReg.mepc;
         end
         else begin
-            port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING};
+            case (privilegeLevelNext)
+                PRIVILEGE_LEVEL_M: port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING};
+                PRIVILEGE_LEVEL_S: port.excptTargetAddr = {csrReg.stvec.base, CSR_XTVEC_BASE_PADDING};
+                default: begin end // TODO assert
+            endcase
         end
 
         port.csrWholeOut = csrReg;
