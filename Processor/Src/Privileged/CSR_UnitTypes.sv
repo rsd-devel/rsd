@@ -284,51 +284,47 @@ typedef struct packed {
 //
 // Supervisor Trap Setup
 //
-localparam CSR_NUM_SSTATUS    = 12'h100;
-localparam CSR_NUM_SIE        = 12'h104;
-localparam CSR_NUM_STVEC      = 12'h105;
-localparam CSR_NUM_SCOUNTEREN = 12'h106;
-
+localparam CSR_NUM_SSTATUS    = 12'h100; // Supervisor status register.
+localparam CSR_NUM_SIE        = 12'h104; // Supervisor interrupt-enable register.
+localparam CSR_NUM_STVEC      = 12'h105; // Supervisor trap handler base address.
+localparam CSR_NUM_SCOUNTEREN = 12'h106; // Supervisor counter enable.
 
 //
 // Supervisor Configuration
 //
-localparam CSR_NUM_SENVCFG = 12'h10A;
+localparam CSR_NUM_SENVCFG = 12'h10A; // Supervisor environment configuration register.
 
 //
 // Supervisor Counter Setup
 //
-localparam CSR_NUM_SCOUNTINHIBIT = 12'h120;
-
+localparam CSR_NUM_SCOUNTINHIBIT = 12'h120; // Supervisor counter-inhibit register.
 
 //
 // Supervisor Trap Handling
 //
-localparam CSR_NUM_SSCRATCH = 12'h140;
-localparam CSR_NUM_SEPC = 12'h141;
-localparam CSR_NUM_SCAUSE = 12'h142;
-localparam CSR_NUM_STVAL = 12'h143;
-localparam CSR_NUM_SIP = 12'h144;
-localparam CSR_NUM_SCOUNTOVF = 12'hDA0;
+localparam CSR_NUM_SSCRATCH = 12'h140; // Supervisor scratch register.
+localparam CSR_NUM_SEPC = 12'h141; // Supervisor exception program counter.
+localparam CSR_NUM_SCAUSE = 12'h142; // Supervisor trap cause.
+localparam CSR_NUM_STVAL = 12'h143; // Supervisor trap value.
+localparam CSR_NUM_SIP = 12'h144; // Supervisor interrupt pending.
+localparam CSR_NUM_SCOUNTOVF = 12'hDA0; // Supervisor count overflow.
 
 //
 // Supervisor Protection and Translation
 //
-localparam CSR_NUM_SATP = 12'h180;
-
+localparam CSR_NUM_SATP = 12'h180; // Supervisor address translation and protection.
 //
 // Debug/Trace Registers
 //
-localparam CSR_NUM_SCONTEXT = 12'h5A8;
+localparam CSR_NUM_SCONTEXT = 12'h5A8; // Supervisor-mode context register.
 
 //
 // Supervisor State Enable Registers
 //
-localparam CSR_NUM_SSTATEEN0 = 12'h10C;
+localparam CSR_NUM_SSTATEEN0 = 12'h10C; // Supervisor State Enable 0 Register.
 localparam CSR_NUM_SSTATEEN1 = 12'h10D;
 localparam CSR_NUM_SSTATEEN2 = 12'h10E;
 localparam CSR_NUM_SSTATEEN3 = 12'h10F;
-
 
 //
 // Machine Information Registers
@@ -348,6 +344,8 @@ localparam CSR_NUM_MIDELEG   = 12'h303; // Machine interrupt delegation register
 localparam CSR_NUM_MIE       = 12'h304; // Machine interrupt-enable register.
 localparam CSR_NUM_MTVEC     = 12'h305; // Machine trap-handler base address.
 localparam CSR_NUM_MCOUNTEREN = 12'h306; // Machine counter enable.
+localparam CSR_NUM_MSTATUSH  = 12'h310; // Additional machine status register, RV32 only.
+localparam CSR_NUM_MEDELEGH  = 12'h312; // Upper 32 bits of medeleg, RV32 only.
 
 //
 // Machine Trap Handling
