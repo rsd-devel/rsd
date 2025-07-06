@@ -131,7 +131,7 @@ module CSR_Unit(
             csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
             csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
             csrNext.mepc = ToAddrFromPC(port.interruptRetAddr); // 割り込み発生時の PC
-            csrNext.mtval = ToAddrFromPC(port.interruptRetAddr);// PC?
+            csrNext.mtval = 0;
 
             // change Privilege Level to M-mode
             privilegeLevelNext = PRIVILEGE_LEVEL_M;
