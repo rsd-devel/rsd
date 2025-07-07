@@ -216,10 +216,17 @@ module CSR_Unit(
 
             unique case (port.csrNumber) 
                 CSR_NUM_MSTATUS, CSR_NUM_SSTATUS: begin
-                    //csrNext.mstatus.MIE = wv.mstatus.MIE;
-                    //csrNext.mstatus.MPIE = wv.mstatus.MPIE;
                     if (port.csrNumber == CSR_NUM_MSTATUS) begin
-                        csrNext.mstatus = wv;
+                        csrNext.mstatus.TSR = wv.mstatus.TSR;
+                        csrNext.mstatus.TVM = wv.mstatus.TVM;
+                        csrNext.mstatus.MXR = wv.mstatus.MXR;
+                        csrNext.mstatus.SUM = wv.mstatus.SUM;
+                        csrNext.mstatus.MPP = wv.mstatus.MPP;
+                        csrNext.mstatus.SPP = wv.mstatus.SPP;
+                        csrNext.mstatus.MPIE= wv.mstatus.MPIE;
+                        csrNext.mstatus.SPIE= wv.mstatus.SPIE;
+                        csrNext.mstatus.MIE = wv.mstatus.MIE;
+                        csrNext.mstatus.SIE = wv.mstatus.SIE;
                     end
                     else begin
                         csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
