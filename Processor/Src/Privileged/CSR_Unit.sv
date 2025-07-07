@@ -80,6 +80,8 @@ module CSR_Unit(
         // Read a CSR value
         unique case (port.csrNumber) 
             CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
+            CSR_NUM_SIP:        rv = csrReg.mip & csrReg.mideleg;
+            CSR_NUM_SIE:        rv = csrReg.sie & csrReg.mideleg;
             CSR_NUM_STVEC:      rv = csrReg.stvec;
             CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
             CSR_NUM_SEPC:       rv = csrReg.sepc;
@@ -94,6 +96,10 @@ module CSR_Unit(
             CSR_NUM_MTVAL:      rv = csrReg.mtval;
             CSR_NUM_MEPC:       rv = csrReg.mepc;
             CSR_NUM_MSCRATCH:   rv = csrReg.mscratch;
+
+            CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
+            CSR_NUM_MEDELEGH:   rv = csrReg.medelegh;
+            CSR_NUM_MIDELEG:    rv = csrReg.mideleg;
 
             CSR_NUM_MISA: rv = csrReg.misa;
 
@@ -127,8 +133,12 @@ module CSR_Unit(
 
         if (port.triggerInterrupt) begin
             // Interrupt
-            // change Privilege Level to M-mode
-            privilegeLevelNext = PRIVILEGE_LEVEL_M;
+            if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.mideleg[port.interruptCode]) begin
+                privilegeLevelNext = PRIVILEGE_LEVEL_M;
+            end
+            else begin
+                privilegeLevelNext = PRIVILEGE_LEVEL_S;
+            end
 
             if (privilegeLevelNext == PRIVILEGE_LEVEL_M) begin
                 csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
@@ -167,8 +177,12 @@ module CSR_Unit(
             end
             else begin
                 // Exception
-                // change Privilege Level to M-mode
-                privilegeLevelNext = PRIVILEGE_LEVEL_M;
+                if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)]) begin
+                    privilegeLevelNext = PRIVILEGE_LEVEL_M;
+                end
+                else begin
+                    privilegeLevelNext = PRIVILEGE_LEVEL_S;
+                end
 
                 if (privilegeLevelNext == PRIVILEGE_LEVEL_M) begin
                     csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
@@ -218,6 +232,7 @@ module CSR_Unit(
                     //$display("mstatus: %x", wv);
                 end
 
+                CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
                 CSR_NUM_STVEC:      csrNext.stvec = wv;
                 CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
                 CSR_NUM_SEPC:       csrNext.sepc = wv;
@@ -229,9 +244,11 @@ module CSR_Unit(
                 // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
                 // > STIP), and external interrupts (UEIP, SEIP) in mip are writable 
                 // > through this CSR address; the remaining bits are read-only.
-                // Currently, only MTIP is supported and thus this is write only.
-                //CSR_NUM_MIP:        csrNext.mip = wv;
-
+                CSR_NUM_MIP: begin
+                    csrNext.mip.SEIP = wv.mip.SEIP;
+                    csrNext.mip.STIP = wv.mip.STIP;
+                    csrNext.mip.SSIP = wv.mip.SSIP;
+                end
                 CSR_NUM_MIE:begin
                     csrNext.mie = wv;
                     //$display("mie: %x", wv);
@@ -243,6 +260,18 @@ module CSR_Unit(
                 // as described in Chapter 3.1.19 of RISC-V Privileged Architectures.
                 CSR_NUM_MEPC:       csrNext.mepc = {wv[31:1], 1'b0};
                 CSR_NUM_MSCRATCH:   csrNext.mscratch = wv;
+
+                CSR_NUM_MEDELEG: begin
+                    csrNext.medeleg = wv;
+                    csrNext.medeleg[16] = 0; // can't delegate double trap
+                    csrNext.medeleg[11] = 0; // can't delegate ECALL from M-mode
+                end
+                CSR_NUM_MEDELEGH: csrNext.medelegh = wv;
+                CSR_NUM_MIDELEG: begin
+                    csrNext.mideleg.SEI = wv.mideleg.SEI;
+                    csrNext.mideleg.STI = wv.mideleg.STI;
+                    csrNext.mideleg.SSI = wv.mideleg.SSI;
+                end
 
                 CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
                 CSR_NUM_MINSTRET:   csrNext.minstret = wv;

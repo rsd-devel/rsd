@@ -126,25 +126,67 @@ typedef struct packed {
 
 // Interrupt pending?
 typedef struct packed {
-    logic [19:0] padding_3; // 31:12
-    logic MEIP;             // 11:11    external interrupt
-    logic [2:0] padding_2;  // 10:8
-    logic MTIP;             // 7:7      timer interrupt
-    logic [2:0] padding_1;  // 6:4
-    logic MSIP;             // 3:3      software interrupt
-    logic [2:0] padding_0;  // 2:0
+    logic [19:0] padding_6; // 31:12
+    logic MEIP;             // 11:11    machine external interrupt
+    logic padding_5;        // 10:10
+    logic SEIP;             // 11:11    supervisor external interrupt
+    logic padding_4;        // 8:8
+    logic MTIP;             // 7:7      machine timer interrupt
+    logic padding_3;        // 6:6
+    logic STIP;             // 5:5      supervisor timer interrupt
+    logic padding_2;        // 4:4
+    logic MSIP;             // 3:3      machine software interrupt
+    logic padding_1;        // 2:2
+    logic SSIP;             // 1:1      supervisor software interrupt
+    logic padding_0;        // 0:0
 } CSR_MIP_Path;
+
+typedef struct packed {
+    logic [21:0] padding_3; // 31:10
+    logic SEIP;             // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STIP;             // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSIP;             // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_SIP_Path;
 
 // Interrupt enable?
 typedef struct packed {
-    logic [19:0] padding_3; // 31:12
-    logic MEIE;             // 11:11    external interrupt
-    logic [2:0] padding_2;  // 10:8
-    logic MTIE;             // 7:7      timer interrupt
-    logic [2:0] padding_1;  // 6:4
-    logic MSIE;             // 3:3      software interrupt
-    logic [2:0] padding_0;  // 2:0
+    logic [19:0] padding_6; // 31:12
+    logic MEIE;             // 11:11    machine external interrupt
+    logic padding_5;        // 10:10
+    logic SEIE;             // 9:9      supervisor external interrupt
+    logic padding_4;        // 8:8
+    logic MTIE;             // 7:7      machine timer interrupt
+    logic padding_3;        // 6:6
+    logic STIE;             // 5:5      supervisor timer interrupt
+    logic padding_2;        // 4:4
+    logic MSIE;             // 3:3      machine software interrupt
+    logic padding_1;        // 2:2
+    logic SSIE;             // 1:1      supervisor software interrupt
+    logic padding_0;        // 0:0
 } CSR_MIE_Path;
+
+typedef struct packed {
+    logic [21:0] padding_3; // 31:10
+    logic SEIE;             // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STIE;             // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSIE;             // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_SIE_Path;
+
+typedef struct packed {
+    logic [21:0] padding_3; // 31:10
+    logic SEI;              // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STI;              // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSI;              // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_MIDELEG_Path;
 
 typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED = 0,
@@ -233,6 +275,8 @@ localparam logic [1:0] CSR_XTVEC_BASE_PADDING = 2'b0;
 
 // All members have 32bit width
 typedef union packed {
+    CSR_SIP_Path    sip;
+    CSR_SIE_Path    sie;
     CSR_XTVEC_Path  stvec;
     DataPath        sscratch;
     DataPath        sepc;
@@ -247,6 +291,9 @@ typedef union packed {
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
+    DataPath medeleg;
+    DataPath medelegh;
+    CSR_MIDELEG_Path mideleg;
 
     CSR_MISA_Path misa;
 
@@ -257,6 +304,7 @@ typedef union packed {
 
 typedef struct packed {
     // Interrupt related registers
+    CSR_SIE_Path    sie;
     CSR_XTVEC_Path  stvec;
     DataPath        sscratch;
     DataPath        sepc;
@@ -271,6 +319,9 @@ typedef struct packed {
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
+    DataPath medeleg;
+    DataPath medelegh;
+    CSR_MIDELEG_Path mideleg;
 
     CSR_MISA_Path misa;
 
