@@ -28,7 +28,8 @@ typedef struct packed {
     logic TVM;              // 20
     logic MXR;              // 19
     logic SUM;              // 18
-    logic [4:0] padding_5;  // 17:13
+    logic MPRV;             // 17
+    logic [3:0] padding_5;  // 16:13
     PrivilegeLevelType MPP; // 12:11
     logic [1:0] padding_4;  // 10:9
     logic SPP;              // 8

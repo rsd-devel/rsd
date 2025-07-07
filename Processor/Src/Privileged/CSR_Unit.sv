@@ -93,6 +93,7 @@ module CSR_Unit(
                     value.SIE = '0;
                 end
                 if (!csrReg.misa.EXTENSIONS.U) begin
+                    value.MPRV = '0;
                     value.MPP = '0;
                 end
                 rv = value;
@@ -192,6 +193,10 @@ module CSR_Unit(
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
                 csrNext.mstatus.MPIE = 1; // MPIE = 1
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
+                // > If y≠M, xRET also sets MPRV=0.
+                if (privilegeLevelNext != PRIVILEGE_LEVEL_M) begin
+                    csrNext.mstatus.MPRV = 0;
+                end
             end
             else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
                 // SRET
@@ -199,6 +204,10 @@ module CSR_Unit(
                 csrNext.mstatus.SIE = csrNext.mstatus.SPIE; // SIE の古い値に戻す
                 csrNext.mstatus.SPIE = 1; // SPIE = 1
                 csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(PRIVILEGE_LEVEL_U); // 最小の特権レベル
+                // > If y≠M, xRET also sets MPRV=0.
+                if (privilegeLevelNext != PRIVILEGE_LEVEL_M) begin
+                    csrNext.mstatus.MPRV = 0;
+                end
             end
             else begin
                 // Exception
@@ -259,6 +268,7 @@ module CSR_Unit(
                             csrNext.mstatus.SIE = wv.mstatus.SIE;
                         end
                         if (csrReg.misa.EXTENSIONS.U) begin
+                            csrNext.mstatus.MPRV = wv.mstatus.MPRV;
                             csrNext.mstatus.MPP = wv.mstatus.MPP;
                         end
                         csrNext.mstatus.MPIE= wv.mstatus.MPIE;
