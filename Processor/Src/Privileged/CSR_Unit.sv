@@ -37,6 +37,7 @@ module CSR_Unit(
         CSR_BodyPath value;
         value = '0;
         value.misa.MXL = ENCODED_XLEN_32;
+        value.misa.EXTENSIONS.I = 1;
         value.misa.EXTENSIONS.M = 1;
         value.misa.EXTENSIONS.F = 1;
         value.misa.EXTENSIONS.D = 1;
