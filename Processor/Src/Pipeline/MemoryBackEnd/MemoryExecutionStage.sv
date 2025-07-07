@@ -245,7 +245,11 @@ module MemoryExecutionStage(
             if (nextStage[i].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_ENV) begin
                 // xRET must be executed in y-mode >= x-mode
                 if (
-                    nextStage[i].memQueueData.memOpInfo.envCode == ENV_SRET && (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_S || csrUnit.privilegeLevel == PRIVILEGE_LEVEL_S && csrUnit.csrWholeOut.mstatus.TSR) ||
+                    nextStage[i].memQueueData.memOpInfo.envCode == ENV_SRET && (
+                        !csrUnit.csrWholeOut.misa.EXTENSIONS.S ||
+                        csrUnit.privilegeLevel < PRIVILEGE_LEVEL_S ||
+                        csrUnit.privilegeLevel == PRIVILEGE_LEVEL_S && csrUnit.csrWholeOut.mstatus.TSR
+                    ) ||
                     nextStage[i].memQueueData.memOpInfo.envCode == ENV_MRET && csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M
                 ) begin
                     nextStage[i].memQueueData.memOpInfo.envCode = ENV_INSN_ILLEGAL;

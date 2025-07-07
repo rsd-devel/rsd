@@ -80,16 +80,23 @@ module CSR_Unit(
 
         // Read a CSR value
         unique case (port.csrNumber) 
-            CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
-            CSR_NUM_SIP:        rv = csrReg.mip & csrReg.mideleg;
-            CSR_NUM_SIE:        rv = csrReg.sie & csrReg.mideleg;
-            CSR_NUM_STVEC:      rv = csrReg.stvec;
-            CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
-            CSR_NUM_SEPC:       rv = csrReg.sepc;
-            CSR_NUM_SCAUSE:     rv = csrReg.scause;
-            CSR_NUM_STVAL:      rv = csrReg.stval;
-
-            CSR_NUM_MSTATUS:    rv = csrReg.mstatus;
+            CSR_NUM_MSTATUS: begin
+                CSR_MSTATUS_Path value;
+                value = csrReg.mstatus;
+                if (!csrReg.misa.EXTENSIONS.S) begin
+                    value.TSR = '0;
+                    value.TVM = '0;
+                    value.MXR = '0;
+                    value.SUM = '0;
+                    value.SPP = '0;
+                    value.SPIE= '0;
+                    value.SIE = '0;
+                end
+                if (!csrReg.misa.EXTENSIONS.U) begin
+                    value.MPP = '0;
+                end
+                rv = value;
+            end
             CSR_NUM_MIP:        rv = csrReg.mip;
             CSR_NUM_MIE:        rv = csrReg.mie;
             CSR_NUM_MCAUSE:     rv = csrReg.mcause;
@@ -97,10 +104,6 @@ module CSR_Unit(
             CSR_NUM_MTVAL:      rv = csrReg.mtval;
             CSR_NUM_MEPC:       rv = csrReg.mepc;
             CSR_NUM_MSCRATCH:   rv = csrReg.mscratch;
-
-            CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
-            CSR_NUM_MEDELEGH:   rv = csrReg.medelegh;
-            CSR_NUM_MIDELEG:    rv = csrReg.mideleg;
 
             CSR_NUM_MISA: rv = csrReg.misa;
 
@@ -117,7 +120,28 @@ module CSR_Unit(
             CSR_NUM_FRM:    rv = csrReg.fcsr.frm;
             CSR_NUM_FCSR:   rv = csrReg.fcsr;
 `endif
-            default:          rv = '0;
+            default: begin
+                if (csrReg.misa.EXTENSIONS.S) begin
+                    unique case (port.csrNumber)
+                        CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
+                        CSR_NUM_SIP:        rv = csrReg.mip & csrReg.mideleg;
+                        CSR_NUM_SIE:        rv = csrReg.sie & csrReg.mideleg;
+                        CSR_NUM_STVEC:      rv = csrReg.stvec;
+                        CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
+                        CSR_NUM_SEPC:       rv = csrReg.sepc;
+                        CSR_NUM_SCAUSE:     rv = csrReg.scause;
+                        CSR_NUM_STVAL:      rv = csrReg.stval;
+
+                        CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
+                        CSR_NUM_MEDELEGH:   rv = csrReg.medelegh;
+                        CSR_NUM_MIDELEG:    rv = csrReg.mideleg;
+                        default: rv = '0;
+                    endcase
+                end
+                else begin
+                    rv = '0;
+                end
+            end
         endcase 
 
         // check csr read/write permission
@@ -134,7 +158,7 @@ module CSR_Unit(
 
         if (port.triggerInterrupt) begin
             // Interrupt
-            if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.mideleg[port.interruptCode]) begin
+            if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S || !csrReg.mideleg[port.interruptCode]) begin
                 privilegeLevelNext = PRIVILEGE_LEVEL_M;
             end
             else begin
@@ -164,7 +188,7 @@ module CSR_Unit(
         else if (port.triggerExcpt) begin
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
                 // MRET
-                privilegeLevelNext = csrReg.mstatus.MPP;
+                privilegeLevelNext = csrReg.misa.EXTENSIONS.U ? csrReg.mstatus.MPP : PRIVILEGE_LEVEL_M;
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
                 csrNext.mstatus.MPIE = 1; // MPIE = 1
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
@@ -178,7 +202,7 @@ module CSR_Unit(
             end
             else begin
                 // Exception
-                if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)]) begin
+                if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S || !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)]) begin
                     privilegeLevelNext = PRIVILEGE_LEVEL_M;
                 end
                 else begin
@@ -216,20 +240,31 @@ module CSR_Unit(
             endcase
 
             unique case (port.csrNumber) 
+                CSR_NUM_MISA: begin
+                    if (wv.misa.EXTENSIONS.S && !wv.misa.EXTENSIONS.U) begin
+                        wv.misa.EXTENSIONS.S = 0;
+                    end
+                    csrNext.misa.EXTENSIONS.S = wv.misa.EXTENSIONS.S;
+                    csrNext.misa.EXTENSIONS.U = wv.misa.EXTENSIONS.U;
+                end
                 CSR_NUM_MSTATUS, CSR_NUM_SSTATUS: begin
                     if (port.csrNumber == CSR_NUM_MSTATUS) begin
-                        csrNext.mstatus.TSR = wv.mstatus.TSR;
-                        csrNext.mstatus.TVM = wv.mstatus.TVM;
-                        csrNext.mstatus.MXR = wv.mstatus.MXR;
-                        csrNext.mstatus.SUM = wv.mstatus.SUM;
-                        csrNext.mstatus.MPP = wv.mstatus.MPP;
-                        csrNext.mstatus.SPP = wv.mstatus.SPP;
+                        if (csrReg.misa.EXTENSIONS.S) begin
+                            csrNext.mstatus.TSR = wv.mstatus.TSR;
+                            csrNext.mstatus.TVM = wv.mstatus.TVM;
+                            csrNext.mstatus.MXR = wv.mstatus.MXR;
+                            csrNext.mstatus.SUM = wv.mstatus.SUM;
+                            csrNext.mstatus.SPP = wv.mstatus.SPP;
+                            csrNext.mstatus.SPIE= wv.mstatus.SPIE;
+                            csrNext.mstatus.SIE = wv.mstatus.SIE;
+                        end
+                        if (csrReg.misa.EXTENSIONS.U) begin
+                            csrNext.mstatus.MPP = wv.mstatus.MPP;
+                        end
                         csrNext.mstatus.MPIE= wv.mstatus.MPIE;
-                        csrNext.mstatus.SPIE= wv.mstatus.SPIE;
                         csrNext.mstatus.MIE = wv.mstatus.MIE;
-                        csrNext.mstatus.SIE = wv.mstatus.SIE;
                     end
-                    else begin
+                    else if (csrReg.misa.EXTENSIONS.S) begin
                         csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
                     end
                     // check MPP is supported Level
@@ -239,20 +274,12 @@ module CSR_Unit(
                     end
                     //$display("mstatus: %x", wv);
                 end
-
-                CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
-                CSR_NUM_STVEC:      csrNext.stvec = wv;
-                CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
-                CSR_NUM_SEPC:       csrNext.sepc = wv;
-                CSR_NUM_SCAUSE:     csrNext.scause = wv;
-                CSR_NUM_STVAL:      csrNext.stval = wv;
-
                 // MIP                
                 // > Only the bits corresponding to lower-privilege 
                 // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
                 // > STIP), and external interrupts (UEIP, SEIP) in mip are writable 
                 // > through this CSR address; the remaining bits are read-only.
-                CSR_NUM_MIP: begin
+                CSR_NUM_MIP: if (csrReg.misa.EXTENSIONS.S) begin
                     csrNext.mip.SEIP = wv.mip.SEIP;
                     csrNext.mip.STIP = wv.mip.STIP;
                     csrNext.mip.SSIP = wv.mip.SSIP;
@@ -269,18 +296,6 @@ module CSR_Unit(
                 CSR_NUM_MEPC:       csrNext.mepc = {wv[31:1], 1'b0};
                 CSR_NUM_MSCRATCH:   csrNext.mscratch = wv;
 
-                CSR_NUM_MEDELEG: begin
-                    csrNext.medeleg = wv;
-                    csrNext.medeleg[16] = 0; // can't delegate double trap
-                    csrNext.medeleg[11] = 0; // can't delegate ECALL from M-mode
-                end
-                CSR_NUM_MEDELEGH: csrNext.medelegh = wv;
-                CSR_NUM_MIDELEG: begin
-                    csrNext.mideleg.SEI = wv.mideleg.SEI;
-                    csrNext.mideleg.STI = wv.mideleg.STI;
-                    csrNext.mideleg.SSI = wv.mideleg.SSI;
-                end
-
                 CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
                 CSR_NUM_MINSTRET:   csrNext.minstret = wv;
 `ifdef RSD_MARCH_FP_PIPE
@@ -288,9 +303,32 @@ module CSR_Unit(
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
                 CSR_NUM_FCSR:       csrNext.fcsr = FFlags_Path'(wv);
 `endif
-                default:            wv = '0;    // dummy
+                default: if (csrReg.misa.EXTENSIONS.S) begin
+                    unique case (port.csrNumber)
+                        CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
+                        CSR_NUM_STVEC:      csrNext.stvec = wv;
+                        CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
+                        CSR_NUM_SEPC:       csrNext.sepc = wv;
+                        CSR_NUM_SCAUSE:     csrNext.scause = wv;
+                        CSR_NUM_STVAL:      csrNext.stval = wv;
+
+                        CSR_NUM_MEDELEG: begin
+                            csrNext.medeleg = wv;
+                            csrNext.medeleg[16] = 0; // can't delegate double trap
+                            csrNext.medeleg[11] = 0; // can't delegate ECALL from M-mode
+                        end
+                        CSR_NUM_MEDELEGH: csrNext.medelegh = wv;
+                        CSR_NUM_MIDELEG: begin
+                            csrNext.mideleg.SEI = wv.mideleg.SEI;
+                            csrNext.mideleg.STI = wv.mideleg.STI;
+                            csrNext.mideleg.SSI = wv.mideleg.SSI;
+                        end
+                        default: wv = '0;    // dummy
+                    endcase
+                end
             endcase 
         end
+
 `ifdef RSD_MARCH_FP_PIPE
         // write to fflags from FP-CM and Mem-EX(CSR) shouldn't occur at the same time.
         else if(port.fflagsWE) begin
