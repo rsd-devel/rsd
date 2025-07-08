@@ -19,32 +19,39 @@ module InterruptController(
     RecoveryManagerIF.InterruptController recoveryManager
 );
     logic reqInterrupt, triggerInterrupt;
-    logic reqTimerInterrupt, reqExternalInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptTargetAddr;
     CSR_BodyPath csrReg;
-    InterruptCodeConvPath interruptCodeConv;
 
     `RSD_STATIC_ASSERT(
-        RSD_EXTERNAL_INTERRUPT_CODE_WIDTH == CSR_CAUSE_INTERRUPT_CODE_WIDTH,
-        "The width of an external interrupt code and the code in the CSR do not match"
+        RSD_CUSTOM_INTERRUPT_CODE_WIDTH + 1 == CSR_CAUSE_INTERRUPT_CODE_WIDTH,
+        "The width of an custom interrupt code and the code in the CSR do not match"
     );
 
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
-        reqTimerInterrupt =     csrReg.mie.MTIE && csrReg.mip.MTIP;
-        reqExternalInterrupt =  csrReg.mie.MEIE && csrReg.mip.MEIP;
+        // priority order is
+        // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
+        reqInterrupt = 0;
+        interruptCode = 0;
 
-        reqInterrupt = (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE) && (reqTimerInterrupt || reqExternalInterrupt);
-        interruptCodeConv.exCode = csrUnit.externalInterruptCodeInCSR; // Type conversion through union
-        if (reqTimerInterrupt) begin
-            // Timer has higher priority.
+        // Machine timer interrupt
+        if (csrReg.mie.MTIE && csrReg.mip.MTIP) begin
+            reqInterrupt = 1;
             interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
         end
-        else begin
-            interruptCode = interruptCodeConv.csrCode;
+
+        // Custom Interrupt
+        for (int i = 16; i < 32; i++) begin
+            if (csrReg.mie[i] && csrReg.mip[i]) begin
+                reqInterrupt = 1;
+                interruptCode = i;
+            end
         end
+
+        // check global mask
+        reqInterrupt &= csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE;
 
         // パイプライン全体が空になるまでフェッチをとめる        
         ctrl.npStageSendBubbleLowerForInterrupt =

@@ -29,10 +29,6 @@ module CSR_Unit(
 
     PrivilegeLevelType privilegeLevel, privilegeLevelNext;
 
-    // An external interrupt request is latched in the CSR, and an actual 
-    // interrupt is triggered at the next cycle. So external interrupt code must be latched.
-    ExternalInterruptCodePath externalInterruptCodeReg;
-
     function automatic CSR_BodyPath GetCSRResetValue();
         CSR_BodyPath value;
         value = '0;
@@ -60,13 +56,11 @@ module CSR_Unit(
             csrReg <= GetCSRResetValue();
             regCommitNum <= '0;
             privilegeLevel <= PRIVILEGE_LEVEL_M;
-            externalInterruptCodeReg <= '0;
         end
         else begin
             csrReg <= csrNext;
             privilegeLevel <= privilegeLevelNext;
             regCommitNum <= port.commitNum;
-            externalInterruptCodeReg <= port.externalInterruptCode;            
             // if (privilegeLevel != privilegeLevelNext) begin
             //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
             // end
@@ -289,10 +283,13 @@ module CSR_Unit(
                 // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
                 // > STIP), and external interrupts (UEIP, SEIP) in mip are writable 
                 // > through this CSR address; the remaining bits are read-only.
-                CSR_NUM_MIP: if (csrReg.misa.EXTENSIONS.S) begin
-                    csrNext.mip.SEIP = wv.mip.SEIP;
-                    csrNext.mip.STIP = wv.mip.STIP;
-                    csrNext.mip.SSIP = wv.mip.SSIP;
+                CSR_NUM_MIP: begin
+                    csrNext.mip.CUSTOM = wv.mip.CUSTOM;
+                    if (csrReg.misa.EXTENSIONS.S) begin
+                        csrNext.mip.SEIP = wv.mip.SEIP;
+                        csrNext.mip.STIP = wv.mip.STIP;
+                        csrNext.mip.SSIP = wv.mip.SSIP;
+                    end
                 end
                 CSR_NUM_MIE:begin
                     csrNext.mie = wv;
@@ -329,9 +326,10 @@ module CSR_Unit(
                         end
                         CSR_NUM_MEDELEGH: csrNext.medelegh = wv;
                         CSR_NUM_MIDELEG: begin
-                            csrNext.mideleg.SEI = wv.mideleg.SEI;
-                            csrNext.mideleg.STI = wv.mideleg.STI;
-                            csrNext.mideleg.SSI = wv.mideleg.SSI;
+                            csrNext.mideleg.CUSTOM = wv.mideleg.CUSTOM;
+                            csrNext.mideleg.SEI    = wv.mideleg.SEI;
+                            csrNext.mideleg.STI    = wv.mideleg.STI;
+                            csrNext.mideleg.SSI    = wv.mideleg.SSI;
                         end
                         default: wv = '0;    // dummy
                     endcase
@@ -349,8 +347,7 @@ module CSR_Unit(
 `endif
 
         csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
-        csrNext.mip.MEIP = port.reqExternalInterrupt;   // External interrupt request
-        port.externalInterruptCodeInCSR = externalInterruptCodeReg;
+        csrNext.mip.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;   // Custom interrupt request
 
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin

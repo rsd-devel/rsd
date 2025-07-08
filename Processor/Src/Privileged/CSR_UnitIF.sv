@@ -16,8 +16,8 @@ import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(
-    input logic clk, rst, rstStart, reqExternalInterrupt, 
-    ExternalInterruptCodePath externalInterruptCode
+    input logic clk, rst, rstStart, reqCustomInterrupt, 
+    CustomInterruptCodePath customInterruptCode
 );
 
     logic csrWE;  // CSR write enable
@@ -43,9 +43,6 @@ interface CSR_UnitIF(
 
     // Timer interrupt request
     logic reqTimerInterrupt;
-
-    // Latched code, see the cooments in the CSR.
-    ExternalInterruptCodePath externalInterruptCodeInCSR;
 
     // Used in updating minstret
     CommitLaneCountPath commitNum;
@@ -129,8 +126,8 @@ interface CSR_UnitIF(
         excptCauseDataAddr,
         commitNum,
         reqTimerInterrupt,
-        reqExternalInterrupt,
-        externalInterruptCode,
+        reqCustomInterrupt,
+        customInterruptCode,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
@@ -147,7 +144,6 @@ interface CSR_UnitIF(
         csrReadOut,
         csrUnitTriggerExcpt,
         excptTargetAddr,
-        externalInterruptCodeInCSR,
         privilegeLevel
     );
 
@@ -155,7 +151,6 @@ interface CSR_UnitIF(
     input
         clk, rst, rstStart,
         csrWholeOut,
-        externalInterruptCodeInCSR,
         privilegeLevel,
     output
         triggerInterrupt,

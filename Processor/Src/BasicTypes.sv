@@ -221,8 +221,8 @@ typedef logic [SHIFT_AMOUNT_BIT_SIZE-1:0] ShiftAmountPath;
 //
 // --- Interrupt
 //
-localparam RSD_EXTERNAL_INTERRUPT_CODE_WIDTH = 5;
-typedef logic [RSD_EXTERNAL_INTERRUPT_CODE_WIDTH-1:0] ExternalInterruptCodePath;
+localparam RSD_CUSTOM_INTERRUPT_CODE_WIDTH = 4;
+typedef logic [RSD_CUSTOM_INTERRUPT_CODE_WIDTH-1:0] CustomInterruptCodePath;
 
 // XLEN
 typedef enum logic [1:0]

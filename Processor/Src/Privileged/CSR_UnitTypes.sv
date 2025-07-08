@@ -127,7 +127,8 @@ typedef struct packed {
 
 // Interrupt pending?
 typedef struct packed {
-    logic [19:0] padding_6; // 31:12
+    logic [15:0] CUSTOM;    // 31:16    designated for platform use
+    logic [3:0] padding_6;  // 15:12
     logic MEIP;             // 11:11    machine external interrupt
     logic padding_5;        // 10:10
     logic SEIP;             // 11:11    supervisor external interrupt
@@ -143,7 +144,8 @@ typedef struct packed {
 } CSR_MIP_Path;
 
 typedef struct packed {
-    logic [21:0] padding_3; // 31:10
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
     logic SEIP;             // 9:9    supervisor external interrupt
     logic [2:0] padding_2;  // 8:6
     logic STIP;             // 5:5    supervisor timer interrupt
@@ -154,7 +156,8 @@ typedef struct packed {
 
 // Interrupt enable?
 typedef struct packed {
-    logic [19:0] padding_6; // 31:12
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [3:0] padding_6;  // 15:12
     logic MEIE;             // 11:11    machine external interrupt
     logic padding_5;        // 10:10
     logic SEIE;             // 9:9      supervisor external interrupt
@@ -170,7 +173,8 @@ typedef struct packed {
 } CSR_MIE_Path;
 
 typedef struct packed {
-    logic [21:0] padding_3; // 31:10
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
     logic SEIE;             // 9:9    supervisor external interrupt
     logic [2:0] padding_2;  // 8:6
     logic STIE;             // 5:5    supervisor timer interrupt
@@ -180,7 +184,8 @@ typedef struct packed {
 } CSR_SIE_Path;
 
 typedef struct packed {
-    logic [21:0] padding_3; // 31:10
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
     logic SEI;              // 9:9    supervisor external interrupt
     logic [2:0] padding_2;  // 8:6
     logic STI;              // 5:5    supervisor timer interrupt
@@ -235,12 +240,6 @@ typedef enum logic [CSR_CAUSE_INTERRUPT_CODE_WIDTH-1:0] {
     CSR_CAUSE_INTERRUPT_CODE_TIMER = 7,
     CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL = 11
 } CSR_CAUSE_InterruptCodePath;
-
-typedef union packed    // IntOpInfo
-{
-    ExternalInterruptCodePath   exCode;
-    CSR_CAUSE_InterruptCodePath csrCode;
-} InterruptCodeConvPath;
 
 
 typedef union packed    // CSR_CAUSE_CodePath
