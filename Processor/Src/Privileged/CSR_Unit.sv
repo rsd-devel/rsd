@@ -321,8 +321,8 @@ module CSR_Unit(
 
                         CSR_NUM_MEDELEG: begin
                             csrNext.medeleg = wv;
-                            csrNext.medeleg[16] = 0; // can't delegate double trap
-                            csrNext.medeleg[11] = 0; // can't delegate ECALL from M-mode
+                            csrNext.medeleg[CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP] = 0; // can't delegate double trap
+                            csrNext.medeleg[CSR_CAUSE_TRAP_CODE_MCALL]       = 0; // can't delegate ECALL from M-mode
                         end
                         CSR_NUM_MEDELEGH: csrNext.medelegh = wv;
                         CSR_NUM_MIDELEG: begin
