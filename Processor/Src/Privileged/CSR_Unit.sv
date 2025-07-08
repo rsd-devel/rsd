@@ -365,7 +365,7 @@ module CSR_Unit(
             case (privilegeLevelNext)
                 PRIVILEGE_LEVEL_M: port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING};
                 PRIVILEGE_LEVEL_S: port.excptTargetAddr = {csrReg.stvec.base, CSR_XTVEC_BASE_PADDING};
-                default: begin end // TODO assert
+                default: begin end
             endcase
         end
 
@@ -400,6 +400,16 @@ module CSR_Unit(
             (port.triggerExcpt && port.triggerInterrupt)
         ),
         "CSR update, trap or interrupt are performed at the same cycle"
+    );
+
+    `RSD_ASSERT_CLK(
+        port.clk, 
+        !(
+            (port.triggerInterrupt ||
+                (port.triggerExcpt && port.excptCause != EXEC_STATE_TRAP_MRET && port.excptCause != EXEC_STATE_TRAP_SRET)
+            ) && privilegeLevelNext >= privilegeLevel
+        ),
+        "Trap to lower privilege level"
     );
 
 endmodule : CSR_Unit
