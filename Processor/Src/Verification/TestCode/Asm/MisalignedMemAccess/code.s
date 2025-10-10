@@ -185,7 +185,7 @@ unaligned_load:
     andi a4, t0, 31             # a4 <- rd
     srli t0, t0, 5
     andi a5, t0, 7              # a5 <- 1(lh)/2(lw)/5(lhu)
-    csrrw a7, mbadaddr, a7      # a7 <- addr
+    csrrw a7, mtval, a7         # a7 <- addr
 
     li t0, 1
     beq a5, t0, unaligned_lh
@@ -234,7 +234,7 @@ unaligned_lw:
 unaligned_store:
     srli t0, a3, 12
     andi a4, t0, 7              # a4 <- 1(sh)/2(sw)
-    csrrw a5, mbadaddr, a5      # a5 <- addr
+    csrrw a5, mtval, a5         # a5 <- addr
     srli t0, t0, 8
     andi a6, t0, 0x1f           # a6 <- rs2 (store value)
     mv t0, a6
