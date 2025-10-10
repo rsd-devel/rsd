@@ -51,7 +51,7 @@ function automatic void GetFinishedOpNum(
     end
 endfunction
 
-// そのInsnと次のInsnの最初のマイクロ命令を指すポインタを得る
+// Insnの最初と最後のマイクロ命令を指すポインタを得る
 function automatic void GetInsnPtr(
     output CommitLaneIndexPath headOfThisInsn[COMMIT_WIDTH],
     output CommitLaneIndexPath tailOfThisInsn[COMMIT_WIDTH],
