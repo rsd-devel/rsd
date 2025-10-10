@@ -52,6 +52,10 @@ STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
 #
 # コンパイルオプションとリンクオプション
 #
+ARCHFLAGS = \
+	-march=rv32imf \
+	-mabi=ilp32 \
+
 CFLAGS = \
 	-g \
 	-O3 \
@@ -63,7 +67,7 @@ CFLAGS = \
 	-nodefaultlibs \
 	-nostartfiles \
 	-mstrict-align \
-	-march=rv32imf \
+	$(ARCHFLAGS) \
 
 LDFLAGS= \
 	-static \
