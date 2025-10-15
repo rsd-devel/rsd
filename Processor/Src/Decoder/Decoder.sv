@@ -676,7 +676,7 @@ function automatic void RISCV_DecodeBranch(
 endfunction
 
 //
-// --- EISCV MEMORY OP
+// --- RISCV MEMORY OP
 //
 function automatic void RISCV_EmitMemOp(
     output OpInfo  opInfo,
