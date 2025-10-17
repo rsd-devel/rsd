@@ -404,7 +404,7 @@ module CSR_Unit(
         !(
             (port.triggerInterrupt ||
                 (port.triggerExcpt && port.excptCause != EXEC_STATE_TRAP_MRET && port.excptCause != EXEC_STATE_TRAP_SRET)
-            ) && privilegeLevelNext >= privilegeLevel
+            ) && privilegeLevelNext < privilegeLevel
         ),
         "Trap to lower privilege level"
     );
