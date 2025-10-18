@@ -270,6 +270,9 @@ typedef struct packed // MemOpInfo
     CSR_CtrlPath csrCtrl;
     ENV_Code envCode;
 
+    // Aext
+    logic isZalrsc;
+
     // FENCE.I
     logic isFenceI;
 

@@ -61,6 +61,8 @@ module MemoryAccessStage(
     logic isDiv   [ MEM_ISSUE_WIDTH ];
     logic isMul   [ MEM_ISSUE_WIDTH ];
 
+    logic isZalrsc[ MEM_ISSUE_WIDTH ];
+    logic isScFail[ MEM_ISSUE_WIDTH ];
 
     logic valid   [ MEM_ISSUE_WIDTH ];
     logic update  [ MEM_ISSUE_WIDTH ];
@@ -96,6 +98,10 @@ module MemoryAccessStage(
             isCSR[i]   = pipeReg[i].isCSR;
             isDiv[i]   = pipeReg[i].isDiv;
             isMul[i]   = pipeReg[i].isMul;
+
+            isZalrsc[i]= pipeReg[i].isZalrsc;
+            isScFail[i]= pipeReg[i].isScFail;
+
             update[i]  = pipeReg[i].valid && !stall && !clear && !flush[i];
             regValid[i] = pipeReg[i].regValid;
         end
@@ -144,8 +150,15 @@ module MemoryAccessStage(
         end
         
         for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
-            stDataOut[i].data = '0;
-            stDataOut[i].valid = FALSE;
+            // SC
+            if (isStore[i + STORE_ISSUE_LANE_BEGIN] && isZalrsc[i + STORE_ISSUE_LANE_BEGIN]) begin
+                stDataOut[i].data = isScFail[i + STORE_ISSUE_LANE_BEGIN] ? SC_CODE_FAIL : SC_CODE_SUCCESS;
+                stDataOut[i].valid = regValid[i + STORE_ISSUE_LANE_BEGIN];
+            end
+            else begin
+                stDataOut[i].data = '0;
+                stDataOut[i].valid =  FALSE;
+            end
         end
 
 

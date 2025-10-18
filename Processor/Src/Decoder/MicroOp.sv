@@ -37,6 +37,10 @@ localparam MICRO_OP_SOURCE_REG_NUM = 3;
 localparam MICRO_OP_SOURCE_REG_NUM = 2;
 `endif
 
+// Aext
+localparam SC_CODE_SUCCESS = 0;
+localparam SC_CODE_FAIL = 1;
+
 typedef enum logic [1:0]
 {
     MOP_TYPE_INT     = 2'b00,

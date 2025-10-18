@@ -84,6 +84,28 @@ module MemoryTagAccessStage(
 
     end
 
+    logic update_is_reserved_byLR, update_is_reserved_bySC;
+    logic last_is_reserved, prev_is_reserved;
+    PhyAddrPath last_reserved_addr, prev_reserved_addr;
+
+    // LR SC
+    always_ff @( posedge port.clk )
+    begin
+        if (port.rst) begin
+            prev_is_reserved        <= FALSE;
+            prev_reserved_addr      <= '0;
+        end
+        else begin
+            if (update_is_reserved_byLR) begin
+                prev_is_reserved <= last_is_reserved;
+                prev_reserved_addr <= last_reserved_addr;
+            end
+            if (update_is_reserved_bySC) begin
+                prev_is_reserved <= FALSE;
+            end
+        end
+    end
+
     // Load pipe
     logic isLoad    [LOAD_ISSUE_WIDTH];
     logic isCSR     [LOAD_ISSUE_WIDTH];
@@ -103,6 +125,10 @@ module MemoryTagAccessStage(
     DataPath ldMSHR_EntryID[LOAD_ISSUE_WIDTH];
 
     always_comb begin
+        update_is_reserved_byLR = FALSE;
+        last_is_reserved = FALSE;
+        last_reserved_addr = '0;
+
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
 
             ldFlush[i] = SelectiveFlushDetector(
@@ -245,6 +271,7 @@ module MemoryTagAccessStage(
 
             ldNextStage[i].isLoad  = isLoad[i];
             ldNextStage[i].isStore = FALSE;
+            ldNextStage[i].isZalrsc= ldIqData[i].memOpInfo.isZalrsc;
             ldNextStage[i].isCSR   = isCSR[i];
             ldNextStage[i].isDiv   = isDiv[i];
             ldNextStage[i].isMul   = isMul[i];
@@ -259,6 +286,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].mshrID = ldRecordData[i].mshrID;
             ldNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
+            ldNextStage[i].isScFail = FALSE;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -325,12 +353,21 @@ module MemoryTagAccessStage(
             if (ldNextStage[i].execState inside {EXEC_STATE_SUCCESS, EXEC_STATE_REFETCH_NEXT}) begin
                 if (isLoad[i]) begin
                     if (ldPipeReg[i].memMapType == MMT_ILLEGAL)
-                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_VIOLATION;
+                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc) ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
                     else if (IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size))
-                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_MISALIGNED;
+                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc) ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
                 end
             end
 
+            // RVA LR
+            if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
+                // LR
+                if (i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc) begin
+                    update_is_reserved_byLR = TRUE;
+                    last_is_reserved = TRUE;
+                    last_reserved_addr = ldPipeReg[i].phyAddrOut;
+                end
+            end
 
             // リセットorフラッシュ時はNOP
             ldNextStage[i].valid =
@@ -352,10 +389,13 @@ module MemoryTagAccessStage(
     MemoryAccessStageRegPath stNextStage[STORE_ISSUE_WIDTH];
     MemIssueQueueEntry stRecordData[STORE_ISSUE_WIDTH];  // for ReplayQueue
 
+    logic isScFail [STORE_ISSUE_WIDTH];
+
     // For memory dependency prediction (only for STORE)
     logic memAccessOrderViolation[STORE_ISSUE_WIDTH];
 
     always_comb begin
+        update_is_reserved_bySC = FALSE;
 
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
             memAccessOrderViolation[i] = FALSE;
@@ -368,6 +408,8 @@ module MemoryTagAccessStage(
                         );
             stUpdate[i]  = stPipeReg[i].valid && !stall && !clear && !stFlush[i];
             isStore[i] = (stIqData[i].memOpInfo.opType == MEM_MOP_TYPE_STORE);
+
+            isScFail[i] = isStore[i] && stIqData[i].memOpInfo.isZalrsc && (!prev_is_reserved || stPipeReg[i].phyAddrOut != prev_reserved_addr);
 
             // Load store unit
             loadStoreUnit.executeStore[i] = stUpdate[i] && isStore[i];
@@ -413,6 +455,7 @@ module MemoryTagAccessStage(
 
             stNextStage[i].isLoad = FALSE;
             stNextStage[i].isStore = isStore[i];
+            stNextStage[i].isZalrsc= stIqData[i].memOpInfo.isZalrsc;
             stNextStage[i].isCSR = FALSE;
             stNextStage[i].isDiv = FALSE;
             stNextStage[i].isMul = FALSE;
@@ -426,6 +469,8 @@ module MemoryTagAccessStage(
             stNextStage[i].hasAllocatedMSHR = FALSE;
             stNextStage[i].mshrID = 0;
             stNextStage[i].storeForwardMiss = storeForwardMiss[i];
+
+            stNextStage[i].isScFail = isScFail[i];
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -455,6 +500,10 @@ module MemoryTagAccessStage(
                 end
             end
 
+            // RVA SC
+            if (i == 0 && isStore[i] && stIqData[i].memOpInfo.isZalrsc) begin
+                update_is_reserved_bySC = stUpdate[i] && stRegValid[i];
+            end
 
             // リセットorフラッシュ時はNOP
             stNextStage[i].valid =

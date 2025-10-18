@@ -183,6 +183,7 @@ module DispatchStage(
             memEntry[i].memOpInfo.isAddAddr     = opInfo[i].operand.memOp.isAddAddr;
             memEntry[i].memOpInfo.isRegAddr     = opInfo[i].operand.memOp.isRegAddr;
             memEntry[i].memOpInfo.memAccessMode = opInfo[i].operand.memOp.memAccessMode;
+            memEntry[i].memOpInfo.isZalrsc      = opInfo[i].operand.memOp.isZalrsc;
 
             memEntry[i].memOpInfo.csrCtrl     = opInfo[i].operand.memOp.csrCtrl;
             memEntry[i].memOpInfo.envCode     = opInfo[i].operand.systemOp.envCode;
