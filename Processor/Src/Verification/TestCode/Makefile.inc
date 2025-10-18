@@ -53,7 +53,7 @@ STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
 # コンパイルオプションとリンクオプション
 #
 ARCHFLAGS = \
-	-march=rv32imf \
+	-march=rv32imaf \
 	-mabi=ilp32 \
 
 CFLAGS = \
