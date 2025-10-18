@@ -127,7 +127,7 @@ module MemoryRegisterWriteStage(
         //
         // Register file
         //
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
+        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
 
             registerFile.memDstRegWE[i] =
                 update[i] && pipeReg[i].opDst.writeReg;

@@ -23,7 +23,7 @@ module RegisterFile(
     // Register
     //
     parameter REG_READ_NUM = (INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH) * 2 + FP_ISSUE_WIDTH;
-    parameter REG_WRITE_NUM = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH + FP_ISSUE_WIDTH;
+    parameter REG_WRITE_NUM = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
 
     logic       regWE      [ REG_WRITE_NUM ];
     PScalarRegNumPath dstRegNum  [ REG_WRITE_NUM ];
@@ -36,7 +36,7 @@ module RegisterFile(
     // FP Register
     //
     parameter FP_READ_NUM = FP_ISSUE_WIDTH * 3 + MEM_ISSUE_WIDTH;
-    parameter FP_WRITE_NUM = FP_ISSUE_WIDTH + LOAD_ISSUE_WIDTH;
+    parameter FP_WRITE_NUM = FP_ISSUE_WIDTH + MEM_ISSUE_WIDTH;
 
     logic             fpRegWE      [ FP_WRITE_NUM ];
     PScalarFPRegNumPath       dstFPRegNum  [ FP_WRITE_NUM ];
@@ -110,7 +110,7 @@ module RegisterFile(
 `endif
         end
 
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
+        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
 `ifdef RSD_MARCH_FP_PIPE
             regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH)] = port.memDstRegWE[i] && !port.memDstRegNum[i].isFP;
 `else
@@ -125,9 +125,9 @@ module RegisterFile(
         for ( int i = 0; i < FP_ISSUE_WIDTH; i++ ) begin
             srcRegNum[i+(INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)*2  ] = port.fpSrcRegNumA[i].regNum;
             //port.fpSrcRegDataA[i] = srcRegData[i+(INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)*2  ];
-            regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = port.fpDstRegWE[i] && !port.fpDstRegNum[i].isFP;
-            dstRegNum [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = port.fpDstRegNum[i].regNum;
-            dstRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+LOAD_ISSUE_WIDTH)] = port.fpDstRegData[i];
+            regWE     [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpDstRegWE[i] && !port.fpDstRegNum[i].isFP;
+            dstRegNum [(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpDstRegNum[i].regNum;
+            dstRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpDstRegData[i];
         end
 `endif
         // 以下のリセット後の初期化処理で全てのレジスタに0x0を代入する.
@@ -188,9 +188,7 @@ module RegisterFile(
 
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             srcFPRegNum[i+FP_ISSUE_WIDTH*3] = port.memSrcRegNumB[i].regNum;
-        end
 
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             fpRegWE     [i+FP_ISSUE_WIDTH] = port.memDstRegWE[i] && port.memDstRegNum[i].isFP;
             dstFPRegNum [i+FP_ISSUE_WIDTH] = port.memDstRegNum[i].regNum;
             dstFPRegData[i+FP_ISSUE_WIDTH] = port.memDstRegData[i];
