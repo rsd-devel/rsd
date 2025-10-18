@@ -35,6 +35,7 @@ module CSR_Unit(
         value.misa.MXL = ENCODED_XLEN_32;
         value.misa.EXTENSIONS.I = 1;
         value.misa.EXTENSIONS.M = 1;
+        value.misa.EXTENSIONS.A = 1;
         value.misa.EXTENSIONS.F = 1;
         value.misa.EXTENSIONS.D = 1;
         value.misa.EXTENSIONS.U = 1;
