@@ -18,6 +18,29 @@ import RenameLogicTypes::*;
 import DebugTypes::*;
 import MemoryMapTypes::*;
 
+module AmoALU(
+output
+    DataPath amoAluDataOut,
+input
+    MemZaamo_Code amoCode,
+    DataPath opA, // rs1
+    DataPath opB  // loaded data
+);
+    always_comb begin
+        case (amoCode)
+            MEM_ZAAMO_SWAP: amoAluDataOut = opA;
+            MEM_ZAAMO_ADD: amoAluDataOut = opA + opB;
+            MEM_ZAAMO_XOR: amoAluDataOut = opA ^ opB;
+            MEM_ZAAMO_AND: amoAluDataOut = opA & opB;
+            MEM_ZAAMO_OR:  amoAluDataOut = opA | opB;
+            MEM_ZAAMO_MIN: amoAluDataOut = ($signed(opA) < $signed(opB)) ? opA : opB;
+            MEM_ZAAMO_MAX: amoAluDataOut = ($signed(opA) > $signed(opB)) ? opA : opB;
+            MEM_ZAAMO_MINU: amoAluDataOut = (opA < opB) ? opA : opB;
+            MEM_ZAAMO_MAXU: amoAluDataOut = (opA > opB) ? opA : opB;
+            default: amoAluDataOut = '0;
+        endcase
+    end
+endmodule
 
 //
 // 実行ステージ
@@ -33,6 +56,7 @@ module MemoryExecutionStage(
     RecoveryManagerIF.MemoryExecutionStage recovery,
     ControllerIF.MemoryExecutionStage ctrl,
     CSR_UnitIF.MemoryExecutionStage csrUnit,
+    AMOCacheIF.MemoryExecutionStage amoCache,
     DebugIF.MemoryExecutionStage debug
 );
 
@@ -128,8 +152,10 @@ module MemoryExecutionStage(
             // 領域にアクセスをするとしても DC からデータを拾うようにしておく
             loadStoreUnit.dcReadReq[i] =
                 !stall && !clear && pipeReg[i].valid && regValid[i] && !flush[i] &&
-                (memOpInfo[i].opType inside { MEM_MOP_TYPE_LOAD });
-
+                (
+                    memOpInfo[i].opType inside { MEM_MOP_TYPE_LOAD } ||
+                    memOpInfo[i].opType inside { MEM_MOP_TYPE_ZAAMO } && !(amoCache.cached && amoCache.readAddr == phyAddrOut[i])
+                );
             //loadStoreUnit.dcReadAddr[i] = addrOut[i];
             loadStoreUnit.dcReadAddr[i] = phyAddrOut[i];
 
@@ -225,6 +251,14 @@ module MemoryExecutionStage(
 `endif
 
 
+    DataPath amoAluDataOut;
+
+    AmoALU amoAlu(
+        .amoAluDataOut( amoAluDataOut ),
+        .amoCode( memOpInfo[0].amoCode ),
+        .opA( fuOpB[0].data ), // rs2
+        .opB( amoCache.readDataOut )  // loaded data
+    );
 
     //
     // --- Pipeline レジスタ書き込み
@@ -260,11 +294,14 @@ module MemoryExecutionStage(
             nextStage[i].valid =
                 (stall || clear || port.rst || flush[i]) ? FALSE : pipeReg[i].valid;
             nextStage[i].condEnabled = TRUE;
-            nextStage[i].dataIn = (i == 0 && isCSR) ? csrUnit.csrReadOut : fuOpB[i].data;   // CSR must be issued to the lane 0
+            nextStage[i].dataIn = (i == 0 && isCSR) ? csrUnit.csrReadOut : // CSR / Zaamo must be issued to the lane 0
+                                    (i == 0 && memOpInfo[0].opType == MEM_MOP_TYPE_ZAAMO ) ? amoAluDataOut : fuOpB[i].data;
             nextStage[i].addrOut = addrOut[i];
             nextStage[i].regValid = regValid[i];
             nextStage[i].memMapType = memMapType[i];
             nextStage[i].phyAddrOut = phyAddrOut[i];
+            nextStage[i].amoCacheHit = amoCache.cached && amoCache.readAddr == phyAddrOut[i];
+            nextStage[i].amoDataOut = amoCache.readDataOut;
 `ifndef RSD_DISABLE_DEBUG_REGISTER
             nextStage[i].opId = pipeReg[i].opId;
 `endif
@@ -304,7 +341,7 @@ module MemoryExecutionStage(
             `RSD_ASSERT_CLK(
                 port.clk, 
                 !(pipeReg[i].valid && 
-                pipeReg[i].memQueueData.memOpInfo.opType != MEM_MOP_TYPE_LOAD && 
+                !(pipeReg[i].memQueueData.memOpInfo.opType inside {MEM_MOP_TYPE_LOAD, MEM_MOP_TYPE_ZAAMO} ) && 
                 pipeReg[i].memQueueData.hasAllocatedMSHR),
                 "hasAllocatedMSHR is asserted other than a load pipe"
             );

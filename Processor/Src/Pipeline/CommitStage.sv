@@ -306,9 +306,9 @@ module CommitStage(
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 commitNum++;
-                if (alReadData[i].isLoad)
+                if (alReadData[i].isLoad || alReadData[i].isZaamo)
                     commitLoadNum++;
-                if (alReadData[i].isStore)
+                if (alReadData[i].isStore || alReadData[i].isZaamo)
                     commitStoreNum++;
             end
         end

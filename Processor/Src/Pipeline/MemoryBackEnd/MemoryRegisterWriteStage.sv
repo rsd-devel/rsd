@@ -73,13 +73,15 @@ module MemoryRegisterWriteStage(
         // 1. MSHR を確保した命令がライトバックまで達した場合
         // 2. MSHR を確保した命令が後から SQ からのフォワードミスが発生した場合
         //      フォワード元のストアがミスしていた場合，MSHR をてばなさいとデッドロックする
+        // 3. Zaamo拡張の命令でロードが完了したとき (ストア時はMSHRをつかんでいない)
         for (int j = 0; j < MSHR_NUM; j++) begin
             loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
             for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-                if (j == pipeReg[i].mshrID && 
-                    ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) &&
-                    pipeReg[i].valid && 
-                    pipeReg[i].isLoad
+                if (j == pipeReg[i].mshrID && pipeReg[i].valid &&
+                    (
+                        ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) && pipeReg[i].isLoad ||
+                        pipeReg[i].zaamoReleaseMSHR
+                    )
                 ) begin
                     loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;
                 end

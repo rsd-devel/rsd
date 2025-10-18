@@ -106,6 +106,32 @@ module MemoryTagAccessStage(
         end
     end
 
+    // load store unit
+    logic               replaceStoreByLoad;
+    logic               executeStore [STORE_ISSUE_WIDTH + 1];
+    DataPath            executedStoreData [STORE_ISSUE_WIDTH + 1];
+    VectorPath          executedStoreVectorData [STORE_ISSUE_WIDTH + 1];
+    PhyAddrPath         executedStoreAddr [STORE_ISSUE_WIDTH + 1];
+    logic               executedStoreCondEnabled [STORE_ISSUE_WIDTH + 1];
+    logic               executedStoreRegValid [STORE_ISSUE_WIDTH + 1];
+    MemAccessMode       executedStoreMemAccessMode [STORE_ISSUE_WIDTH + 1];
+    LoadQueueIndexPath  executedLoadQueuePtrByStore [STORE_ISSUE_WIDTH + 1];
+    StoreQueueIndexPath executedStoreQueuePtrByStore [STORE_ISSUE_WIDTH + 1];
+
+    always_comb begin
+        for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
+            loadStoreUnit.executeStore[i]                   = (i == 0 && replaceStoreByLoad) ? executeStore[STORE_ISSUE_WIDTH] : executeStore[i];
+            loadStoreUnit.executedStoreData[i]              = (i == 0 && replaceStoreByLoad) ? executedStoreData[STORE_ISSUE_WIDTH] : executedStoreData[i];
+            loadStoreUnit.executedStoreVectorData[i]        = (i == 0 && replaceStoreByLoad) ? executedStoreVectorData[STORE_ISSUE_WIDTH] : executedStoreVectorData[i];
+            loadStoreUnit.executedStoreAddr[i]              = (i == 0 && replaceStoreByLoad) ? executedStoreAddr[STORE_ISSUE_WIDTH] : executedStoreAddr[i];
+            loadStoreUnit.executedStoreCondEnabled[i]       = (i == 0 && replaceStoreByLoad) ? executedStoreCondEnabled[STORE_ISSUE_WIDTH] : executedStoreCondEnabled[i];
+            loadStoreUnit.executedStoreRegValid[i]          = (i == 0 && replaceStoreByLoad) ? executedStoreRegValid[STORE_ISSUE_WIDTH] : executedStoreRegValid[i];
+            loadStoreUnit.executedStoreMemAccessMode[i]     = (i == 0 && replaceStoreByLoad) ? executedStoreMemAccessMode[STORE_ISSUE_WIDTH] : executedStoreMemAccessMode[i];
+            loadStoreUnit.executedLoadQueuePtrByStore[i]    = (i == 0 && replaceStoreByLoad) ? executedLoadQueuePtrByStore[STORE_ISSUE_WIDTH] : executedLoadQueuePtrByStore[i];
+            loadStoreUnit.executedStoreQueuePtrByStore[i]   = (i == 0 && replaceStoreByLoad) ? executedStoreQueuePtrByStore[STORE_ISSUE_WIDTH] : executedStoreQueuePtrByStore[i];
+        end
+    end
+
     // Load pipe
     logic isLoad    [LOAD_ISSUE_WIDTH];
     logic isCSR     [LOAD_ISSUE_WIDTH];
@@ -116,6 +142,7 @@ module MemoryTagAccessStage(
     logic isDiv     [LOAD_ISSUE_WIDTH];
     logic isMul     [LOAD_ISSUE_WIDTH];
     logic isFenceI  [LOAD_ISSUE_WIDTH];
+    logic isZaamo   [LOAD_ISSUE_WIDTH];
     logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
@@ -145,9 +172,10 @@ module MemoryTagAccessStage(
             isDiv[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV );
             isMul[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_MUL );
             isFenceI[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_FENCE ) && ldIqData[i].memOpInfo.isFenceI;
+            isZaamo[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_ZAAMO );
 
             // Load store unit
-            loadStoreUnit.executeLoad[i] = ldUpdate[i] && isLoad[i];
+            loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || isZaamo[i]);
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
@@ -223,8 +251,12 @@ module MemoryTagAccessStage(
            
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
-            if (isLoad[i]) begin
-                if (loadStoreUnit.storeLoadForwarded[i]) begin
+            if (isLoad[i] || isZaamo[i]) begin
+                if (isZaamo[i] && ldPipeReg[i].amoCacheHit) begin
+                    // When AMO cache hit, the data comes from AMO cache.
+                    ldRegValid[i] = ldPipeReg[i].regValid;
+                end
+                else if (loadStoreUnit.storeLoadForwarded[i]) begin
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 end
                 else if (ldRecordData[i].hasAllocatedMSHR) begin
@@ -272,6 +304,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].isLoad  = isLoad[i];
             ldNextStage[i].isStore = FALSE;
             ldNextStage[i].isZalrsc= ldIqData[i].memOpInfo.isZalrsc;
+            ldNextStage[i].isZaamo = isZaamo[i];
             ldNextStage[i].isCSR   = isCSR[i];
             ldNextStage[i].isDiv   = isDiv[i];
             ldNextStage[i].isMul   = isMul[i];
@@ -287,13 +320,15 @@ module MemoryTagAccessStage(
             ldNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
             ldNextStage[i].isScFail = FALSE;
+            ldNextStage[i].amoCacheHit = ldPipeReg[i].amoCacheHit;
+            ldNextStage[i].amoDataOut = ldPipeReg[i].amoDataOut;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
             if (!ldUpdate[i] || (ldUpdate[i] && !ldRegValid[i])) begin
                 ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
             end
-            else if ( isLoad[i] ) begin
+            else if ( isLoad[i] || (isZaamo[i] && !ldPipeReg[i].amoCacheHit) ) begin
                 // ロードの実行に失敗した場合は、
                 // 正しい実行結果が得られていないので、
                 // そのロード命令からやり直す
@@ -316,6 +351,9 @@ module MemoryTagAccessStage(
                     ldNextStage[i].execState =
                         loadStoreUnit.dcReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
+            end
+            else if (isZaamo[i] && ldPipeReg[i].amoCacheHit) begin
+                ldNextStage[i].execState = EXEC_STATE_SUCCESS;
             end
             else if (ldRecordData[i].hasAllocatedMSHR) begin
                 ldNextStage[i].execState =
@@ -353,9 +391,9 @@ module MemoryTagAccessStage(
             if (ldNextStage[i].execState inside {EXEC_STATE_SUCCESS, EXEC_STATE_REFETCH_NEXT}) begin
                 if (isLoad[i]) begin
                     if (ldPipeReg[i].memMapType == MMT_ILLEGAL)
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc) ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
+                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
                     else if (IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size))
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc) ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
+                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
                 end
             end
 
@@ -367,6 +405,33 @@ module MemoryTagAccessStage(
                     last_is_reserved = TRUE;
                     last_reserved_addr = ldPipeReg[i].phyAddrOut;
                 end
+            end
+
+            // ZaamoのAmoCacheへのロード確認
+            ldNextStage[i].amoCacheLoadMiss = FALSE;
+            if (isZaamo[i] && !ldPipeReg[i].amoCacheHit) begin
+                if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
+                    // キャッシュにロードして、ストアをやり直す
+                    ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
+                end
+                else if (ldNextStage[i].execState inside { EXEC_STATE_STORE_LOAD_FORWARDING_MISS, EXEC_STATE_REFETCH_THIS }) begin
+                    // キャッシュにロードできないので、ロードをやり直す
+                    ldNextStage[i].amoCacheLoadMiss = TRUE;
+                end
+            end
+            
+            // Zaamoのストア
+            if (i == 0) begin
+                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && ldPipeReg[i].amoCacheHit;
+                executeStore[STORE_ISSUE_WIDTH] = TRUE;
+                executedStoreData[STORE_ISSUE_WIDTH] = ldPipeReg[i].dataIn;
+                executedStoreVectorData[STORE_ISSUE_WIDTH] = '0;
+                executedStoreAddr[STORE_ISSUE_WIDTH] = ldPipeReg[i].phyAddrOut;
+                executedStoreCondEnabled[STORE_ISSUE_WIDTH] = TRUE;
+                executedStoreRegValid[STORE_ISSUE_WIDTH] = ldRegValid[i];
+                executedStoreMemAccessMode[STORE_ISSUE_WIDTH] = ldIqData[i].memOpInfo.memAccessMode;
+                executedLoadQueuePtrByStore[STORE_ISSUE_WIDTH] = ldIqData[i].loadQueuePtr;
+                executedStoreQueuePtrByStore[STORE_ISSUE_WIDTH] = ldIqData[i].storeQueuePtr;
             end
 
             // リセットorフラッシュ時はNOP
@@ -412,15 +477,15 @@ module MemoryTagAccessStage(
             isScFail[i] = isStore[i] && stIqData[i].memOpInfo.isZalrsc && (!prev_is_reserved || stPipeReg[i].phyAddrOut != prev_reserved_addr);
 
             // Load store unit
-            loadStoreUnit.executeStore[i] = stUpdate[i] && isStore[i];
-            loadStoreUnit.executedStoreData[i] = stPipeReg[i].dataIn;
-            loadStoreUnit.executedStoreVectorData[i] = '0;
-            loadStoreUnit.executedStoreAddr[i] = stPipeReg[i].phyAddrOut;
-            loadStoreUnit.executedStoreCondEnabled[i]   = stPipeReg[i].condEnabled;
-            loadStoreUnit.executedStoreRegValid[i] = stPipeReg[i].regValid;
-            loadStoreUnit.executedStoreMemAccessMode[i] = stIqData[i].memOpInfo.memAccessMode;
-            loadStoreUnit.executedLoadQueuePtrByStore[i] = stIqData[i].loadQueuePtr;
-            loadStoreUnit.executedStoreQueuePtrByStore[i] = stIqData[i].storeQueuePtr;
+            executeStore[i] = stUpdate[i] && isStore[i];
+            executedStoreData[i] = stPipeReg[i].dataIn;
+            executedStoreVectorData[i] = '0;
+            executedStoreAddr[i] = stPipeReg[i].phyAddrOut;
+            executedStoreCondEnabled[i]   = stPipeReg[i].condEnabled && !isScFail[i];
+            executedStoreRegValid[i] = stPipeReg[i].regValid;
+            executedStoreMemAccessMode[i] = stIqData[i].memOpInfo.memAccessMode;
+            executedLoadQueuePtrByStore[i] = stIqData[i].loadQueuePtr;
+            executedStoreQueuePtrByStore[i] = stIqData[i].storeQueuePtr;
 
             // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
             // whether missed loads have allocated MSHRs or not.
@@ -456,6 +521,7 @@ module MemoryTagAccessStage(
             stNextStage[i].isLoad = FALSE;
             stNextStage[i].isStore = isStore[i];
             stNextStage[i].isZalrsc= stIqData[i].memOpInfo.isZalrsc;
+            stNextStage[i].isZaamo = FALSE;
             stNextStage[i].isCSR = FALSE;
             stNextStage[i].isDiv = FALSE;
             stNextStage[i].isMul = FALSE;
@@ -471,6 +537,9 @@ module MemoryTagAccessStage(
             stNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
             stNextStage[i].isScFail = isScFail[i];
+            stNextStage[i].amoCacheHit = FALSE;
+            stNextStage[i].amoDataOut = '0;
+            stNextStage[i].amoCacheLoadMiss = FALSE;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する

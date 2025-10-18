@@ -26,6 +26,7 @@ module MemoryAccessStage(
     IO_UnitIF.MemoryAccessStage ioUnit,
     RecoveryManagerIF.MemoryAccessStage recovery,
     ControllerIF.MemoryAccessStage ctrl,
+    AMOCacheIF.MemoryAccessStage amoCache,
     DebugIF.MemoryAccessStage debug
 );
 
@@ -63,6 +64,7 @@ module MemoryAccessStage(
 
     logic isZalrsc[ MEM_ISSUE_WIDTH ];
     logic isScFail[ MEM_ISSUE_WIDTH ];
+    logic isZaamo [ MEM_ISSUE_WIDTH ];
 
     logic valid   [ MEM_ISSUE_WIDTH ];
     logic update  [ MEM_ISSUE_WIDTH ];
@@ -101,23 +103,39 @@ module MemoryAccessStage(
 
             isZalrsc[i]= pipeReg[i].isZalrsc;
             isScFail[i]= pipeReg[i].isScFail;
+            isZaamo [i]= pipeReg[i].isZaamo;
 
             update[i]  = pipeReg[i].valid && !stall && !clear && !flush[i];
             regValid[i] = pipeReg[i].regValid;
         end
+
+        amoCache.writeEnable = FALSE;
+        amoCache.writeAddr = '0;
+        amoCache.writeData = '0;
+        amoCache.invalidate = FALSE;
 
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             if (i == 0) begin
                 ioUnit.ioReadAddrIn = pipeReg[i].phyAddrOut;
             end
 
-            if (isLoad[i]) begin
+            if (isLoad[i] || (isZaamo[i] && !pipeReg[i].amoCacheHit)) begin
                 if (i == 0 && pipeReg[i].memMapType == MMT_IO) begin
                     ldDataOut[i].data = ioUnit.ioReadDataOut;
                 end
                 else begin
                     ldDataOut[i].data = loadStoreUnit.executedLoadData[i];
                 end
+
+                if (isZaamo[i] && !pipeReg[i].amoCacheLoadMiss) begin
+                    amoCache.writeEnable = update[i] && regValid[i];
+                    amoCache.writeAddr = pipeReg[i].phyAddrOut;
+                    amoCache.writeData = ldDataOut[i].data;
+                end
+            end
+            else if (isZaamo[i] && pipeReg[i].amoCacheHit) begin
+                ldDataOut[i].data = pipeReg[i].amoDataOut;
+                amoCache.invalidate = update[i] && regValid[i]; // Invalidate after use
             end
             else if (isCSR[i])
                 ldDataOut[i].data = pipeReg[i].csrDataOut;
@@ -197,6 +215,7 @@ module MemoryAccessStage(
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
+            nextStage[i].zaamoReleaseMSHR = update[i] && regValid[i] && isZaamo[i] && !pipeReg[i].amoCacheLoadMiss;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

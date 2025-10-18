@@ -316,6 +316,9 @@ typedef struct packed // MemoryTagAccessStageRegPath
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;
 
+    logic amoCacheHit;
+    DataPath amoDataOut;
+
 } MemoryTagAccessStageRegPath;
 
 
@@ -330,6 +333,7 @@ typedef struct packed // MemoryAccessStageRegPath
     logic isStore;
     logic isLoad;
     logic isZalrsc;
+    logic isZaamo;
     logic isCSR;
     logic isDiv;
     logic isMul;
@@ -348,9 +352,12 @@ typedef struct packed // MemoryAccessStageRegPath
     PhyAddrPath phyAddrOut;    // The result of address calculation.
 
     logic isScFail;
+    logic amoCacheHit;
+    DataPath amoDataOut;
+    logic amoCacheLoadMiss;
     
     // CSR data out. csrDataOut is from dataIn in MemoryTagAccessStageRegPath
-    // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
+    // TODO: addrOut and csrDataOut, amoDataOut is exclusively used, these can be unified.
     DataPath csrDataOut; 
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
@@ -376,6 +383,8 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     ExecutionState execState; // Execution status. See RenameLogicTypes.sv
     logic isStore;
     logic isLoad;
+    
+    logic zaamoReleaseMSHR;
 
     PRegDataPath dataOut;    // Result of Load
 

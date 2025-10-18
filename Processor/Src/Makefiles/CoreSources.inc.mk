@@ -114,6 +114,8 @@ CORE_MODULES = \
 	LoadStoreUnit/LoadQueue.sv \
 	LoadStoreUnit/StoreQueue.sv \
 	LoadStoreUnit/StoreCommitter.sv \
+	LoadStoreUnit/AMOCache.sv \
+	LoadStoreUnit/AMOCacheIF.sv \
 	FloatingPointUnit/FP32PipelinedAdder.sv \
 	FloatingPointUnit/FP32PipelinedMultiplier.sv \
 	FloatingPointUnit/FP32PipelinedFMA.sv \

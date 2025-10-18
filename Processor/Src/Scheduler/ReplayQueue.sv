@@ -508,7 +508,7 @@ module ReplayQueue(
             for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
                 if (replayEntryOut.memValid[i] && !flushMem[i] &&
                     (replayEntryOut.memData[i].memOpInfo.opType
-                        inside { MEM_MOP_TYPE_LOAD }) && // the load is valid,
+                        inside { MEM_MOP_TYPE_LOAD, MEM_MOP_TYPE_ZAAMO }) && // the load / Zaamo is valid,
                     replayEntryOut.memData[i].hasAllocatedMSHR && // has allocated MSHR entries,
                     targetMSHRValid[i] && // the MSHR entry is valid
                     mshrNotReady[i] // the corresponding MSHR entry has not receive data yet.

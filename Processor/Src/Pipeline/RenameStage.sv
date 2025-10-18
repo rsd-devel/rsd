@@ -174,6 +174,7 @@ module RenameStage(
 
     logic isLoad[RENAME_WIDTH];
     logic isStore[RENAME_WIDTH];
+    logic isZaamo[RENAME_WIDTH];
     logic isBranch[RENAME_WIDTH];
 
     logic activeListEmpty;
@@ -236,6 +237,9 @@ module RenameStage(
             isBranch[i] =
                 (opInfo[i].mopType == MOP_TYPE_INT) &&
                 (opInfo[i].mopSubType.intType inside {INT_MOP_TYPE_BR, INT_MOP_TYPE_RIJ});
+            isZaamo[i] =
+                (opInfo[i].mopType == MOP_TYPE_MEM) &&
+                (opInfo[i].mopSubType.memType == MEM_MOP_TYPE_ZAAMO);
         end
 
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
@@ -308,6 +312,7 @@ module RenameStage(
             alEntry[i].writeReg = opInfo[i].writeReg;
             alEntry[i].isLoad = isLoad[i];
             alEntry[i].isStore = isStore[i];
+            alEntry[i].isZaamo = isZaamo[i];
             alEntry[i].isBranch = isBranch[i];
             alEntry[i].isEnv = opInfo[i].operand.systemOp.isEnv;
             alEntry[i].undefined = opInfo[i].undefined || opInfo[i].unsupported;
@@ -331,8 +336,8 @@ module RenameStage(
         // Load/store unit allocation
         //
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
-            loadStoreUnit.allocateLoadQueue[i] = update[i] && isLoad[i];
-            loadStoreUnit.allocateStoreQueue[i] = update[i] && isStore[i];
+            loadStoreUnit.allocateLoadQueue[i] = update[i] && (isLoad[i] || isZaamo[i]);
+            loadStoreUnit.allocateStoreQueue[i] = update[i] && (isStore[i] || isZaamo[i]);
 
             nextStage[i].loadQueuePtr = loadStoreUnit.allocatedLoadQueuePtr[i];
             nextStage[i].storeQueuePtr = loadStoreUnit.allocatedStoreQueuePtr[i];

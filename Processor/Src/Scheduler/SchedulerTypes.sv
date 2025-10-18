@@ -96,6 +96,7 @@ typedef struct packed // ActiveListEntry
     
     logic isLoad;
     logic isStore;
+    logic isZaamo;
     logic isBranch; // TRUE if the op is BR or RIJ
     logic isEnv;    // TRUE if the op is ECALL/EBREAK
     
@@ -272,6 +273,7 @@ typedef struct packed // MemOpInfo
 
     // Aext
     logic isZalrsc;
+    MemZaamo_Code amoCode;
 
     // FENCE.I
     logic isFenceI;
