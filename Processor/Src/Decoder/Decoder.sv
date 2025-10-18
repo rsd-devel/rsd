@@ -704,6 +704,8 @@ function automatic void RISCV_EmitMemOp(
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     opInfo.operand.memOp.csrCtrl = '0; // unused
+    opInfo.operand.memOp.isZalrsc = FALSE;
+    opInfo.operand.memOp.amoCode = '0;
     opInfo.operand.memOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
@@ -771,6 +773,122 @@ function automatic void RISCV_DecodeMemOp(
     insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
+
+endfunction
+
+
+
+//
+// --- RISCV Aext OP
+//
+function automatic void RISCV_EmitAextOp(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf
+);
+    RISCV_ISF_R_A isfA;
+    RVAFunct5 rvaFunct5;
+    MemFunct3 memFunct3;
+
+    logic isLR;
+    logic isSC;
+    MemZaamo_Code amoCode;
+    MemAccessMode memAccessMode;
+    logic undefined;
+
+    isfA = isf;
+    rvaFunct5 = RVAFunct5'(isfA.funct5);
+    memFunct3 = MemFunct3'(isfA.funct3);
+
+    RISCV_DecodeRVAFunct5(undefined, isLR, isSC, amoCode, rvaFunct5);
+
+    if (isLR && isfA.rs2 != 0) begin
+        undefined = TRUE;
+    end
+
+    // 論理レジスタ番号
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
+`endif
+    opInfo.operand.memOp.dstRegNum.regNum  = isfA.rd;
+    opInfo.operand.memOp.srcRegNumA.regNum = isfA.rs1;
+    opInfo.operand.memOp.srcRegNumB.regNum = isLR ? '0 : isfA.rs2;
+    opInfo.operand.memOp.csrCtrl = '0; // unused
+    opInfo.operand.memOp.isZalrsc = isLR || isSC;
+    opInfo.operand.memOp.amoCode = amoCode;
+    opInfo.operand.memOp.padding = '0;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = isfA.rd != ZERO_REGISTER;
+
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_REG;
+`ifdef RSD_MARCH_FP_PIPE 
+    opInfo.opTypeC = OOT_IMM;
+`endif
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_MEM;
+    opInfo.mopSubType.memType = isLR ? MEM_MOP_TYPE_LOAD :
+                                isSC ? MEM_MOP_TYPE_STORE : MEM_MOP_TYPE_ZAAMO;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // アドレッシング
+    opInfo.operand.memOp.addrIn    = '0;
+    opInfo.operand.memOp.isAddAddr = FALSE;
+    opInfo.operand.memOp.isRegAddr = TRUE;
+    RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+    opInfo.operand.memOp.memAccessMode = memAccessMode;
+
+    undefined = undefined || !(memAccessMode.isSigned && memAccessMode.size == MEM_ACCESS_SIZE_WORD);
+
+    opInfo.valid = TRUE;
+
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = undefined;
+
+    // Serialized
+    // aq/rlビットに関係なくSerializedとする
+    opInfo.serialized = TRUE;
+endfunction
+
+function automatic void RISCV_DecodeAextOp(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo memOp;
+    MicroOpIndex mid;
+
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+
+    RISCV_EmitAextOp(
+        .opInfo( memOp ),
+        .isf( isf )
+    );
+
+    // Initizalize
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+
+    insnInfo.writePC    = FALSE;
+    insnInfo.isCall     = FALSE;
+    insnInfo.isReturn   = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    // aq/rlビットに関係なくSerializedとする
+    insnInfo.isSerialized = TRUE;
 
 endfunction
 
@@ -1028,6 +1146,8 @@ function automatic void RISCV_EmitCSR_Op(
     memOp.dstRegNum.regNum  = isfSystem.rd;
     memOp.srcRegNumA.regNum = isfSystem.rs1;
     memOp.srcRegNumB.regNum = '0;
+    memOp.isZalrsc = FALSE;
+    memOp.amoCode = '0;
     memOp.padding = '0;
 
     // Don't care
@@ -1239,6 +1359,8 @@ function automatic void RISCV_EmitFPMemOp(
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     
+    opInfo.operand.memOp.isZalrsc = FALSE;
+    opInfo.operand.memOp.amoCode = '0;
     opInfo.operand.memOp.csrCtrl = '0; // unused
     opInfo.operand.memOp.padding = '0;
 
@@ -1848,6 +1970,11 @@ output
             // S: LOAD, STORE
             RISCV_LD, RISCV_ST : begin
                 RISCV_DecodeMemOp(microOps, insnInfo, insn);
+            end
+
+            // R: A extension
+            RISCV_AMO : begin
+                RISCV_DecodeAextOp(microOps, insnInfo, insn);
             end
 
             // B: BRANCH
