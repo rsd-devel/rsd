@@ -316,7 +316,6 @@ typedef struct packed // MemoryTagAccessStageRegPath
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;
 
-    logic amoCacheHit;
     DataPath amoDataOut;
 
 } MemoryTagAccessStageRegPath;

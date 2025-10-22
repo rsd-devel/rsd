@@ -28,9 +28,13 @@ interface AMOCacheIF( input logic clk, rst );
 
     modport MemoryExecutionStage (
     input
-        cached,
-        readAddr,
         readDataOut
+    );
+
+    modport MemoryTagAccessStage (
+    input
+        cached,
+        readAddr
     );
 
     modport MemoryAccessStage (

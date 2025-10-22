@@ -31,6 +31,7 @@ module MemoryTagAccessStage(
     MulDivUnitIF.MemoryTagAccessStage mulDivUnit,    
     RecoveryManagerIF.MemoryTagAccessStage recovery,
     ControllerIF.MemoryTagAccessStage ctrl,
+    AMOCacheIF.MemoryTagAccessStage amoCache,
     DebugIF.MemoryTagAccessStage debug,
     PerformanceCounterIF.MemoryTagAccessStage perfCounter
 );
@@ -143,6 +144,7 @@ module MemoryTagAccessStage(
     logic isMul     [LOAD_ISSUE_WIDTH];
     logic isFenceI  [LOAD_ISSUE_WIDTH];
     logic isZaamo   [LOAD_ISSUE_WIDTH];
+    logic amoCacheHit[LOAD_ISSUE_WIDTH];
     logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
@@ -173,6 +175,7 @@ module MemoryTagAccessStage(
             isMul[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_MUL );
             isFenceI[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_FENCE ) && ldIqData[i].memOpInfo.isFenceI;
             isZaamo[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_ZAAMO );
+            amoCacheHit[i] = amoCache.cached && amoCache.readAddr == ldPipeReg[i].phyAddrOut;
 
             // Load store unit
             loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || isZaamo[i]);
@@ -252,7 +255,7 @@ module MemoryTagAccessStage(
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i] || isZaamo[i]) begin
-                if (isZaamo[i] && ldPipeReg[i].amoCacheHit) begin
+                if (isZaamo[i] && amoCacheHit[i]) begin
                     // When AMO cache hit, the data comes from AMO cache.
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 end
@@ -320,7 +323,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].storeForwardMiss = storeForwardMiss[i];
 
             ldNextStage[i].isScFail = FALSE;
-            ldNextStage[i].amoCacheHit = ldPipeReg[i].amoCacheHit;
+            ldNextStage[i].amoCacheHit = amoCacheHit[i];
             ldNextStage[i].amoDataOut = ldPipeReg[i].amoDataOut;
 
             // ExecState
@@ -328,7 +331,7 @@ module MemoryTagAccessStage(
             if (!ldUpdate[i] || (ldUpdate[i] && !ldRegValid[i])) begin
                 ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
             end
-            else if ( isLoad[i] || (isZaamo[i] && !ldPipeReg[i].amoCacheHit) ) begin
+            else if ( isLoad[i] || (isZaamo[i] && !amoCacheHit[i]) ) begin
                 // ロードの実行に失敗した場合は、
                 // 正しい実行結果が得られていないので、
                 // そのロード命令からやり直す
@@ -352,7 +355,7 @@ module MemoryTagAccessStage(
                         loadStoreUnit.dcReadHit[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_REFETCH_THIS;
                 end
             end
-            else if (isZaamo[i] && ldPipeReg[i].amoCacheHit) begin
+            else if (isZaamo[i] && amoCacheHit[i]) begin
                 ldNextStage[i].execState = EXEC_STATE_SUCCESS;
             end
             else if (ldRecordData[i].hasAllocatedMSHR) begin
@@ -409,7 +412,7 @@ module MemoryTagAccessStage(
 
             // ZaamoのAmoCacheへのロード確認
             ldNextStage[i].amoCacheLoadMiss = FALSE;
-            if (isZaamo[i] && !ldPipeReg[i].amoCacheHit) begin
+            if (isZaamo[i] && !amoCacheHit[i]) begin
                 if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
                     // キャッシュにロードして、ストアをやり直す
                     ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
@@ -422,7 +425,7 @@ module MemoryTagAccessStage(
             
             // Zaamoのストア
             if (i == 0) begin
-                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && ldPipeReg[i].amoCacheHit;
+                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i];
                 executeStore[STORE_ISSUE_WIDTH] = TRUE;
                 executedStoreData[STORE_ISSUE_WIDTH] = ldPipeReg[i].dataIn;
                 executedStoreVectorData[STORE_ISSUE_WIDTH] = '0;
