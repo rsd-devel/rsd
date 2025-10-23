@@ -32,6 +32,7 @@ LEVEL1_TESTS = \
 	test-RV32M-IntMulZynq \
 	test-RV32M-IntDivZynq \
 	test-RV32M-DividerTest \
+    test-RV32A-Aext \
 	test-HelloWorld \
 	test-Fibonacci \
 	test-Exception \
@@ -179,6 +180,9 @@ test-RV32M-IntDivZynq:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntDivZynq
 test-RV32M-DividerTest:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DividerTest
+
+test-RV32A-Aext:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Aext
 
 test-RV32F-Asm:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/FP
