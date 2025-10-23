@@ -203,6 +203,8 @@ module DispatchStage(
             memEntry[i].hasAllocatedMSHR = 0;
             memEntry[i].mshrID = '0;
 
+            memEntry[i].hasLoadedAMOCache = 0;
+
             // OpSrc
             memEntry[i].opSrc = opSrc[i];
             memEntry[i].opDst = opDst[i];

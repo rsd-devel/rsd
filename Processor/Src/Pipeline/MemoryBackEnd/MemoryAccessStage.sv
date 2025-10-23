@@ -127,14 +127,14 @@ module MemoryAccessStage(
                     ldDataOut[i].data = loadStoreUnit.executedLoadData[i];
                 end
 
-                if (isZaamo[i] && !pipeReg[i].amoCacheLoadMiss) begin
-                    amoCache.writeEnable = update[i] && regValid[i];
+                if (isZaamo[i]) begin
+                    amoCache.writeEnable = update[i] && pipeReg[i].writeAMOCache;
                     amoCache.writeAddr = pipeReg[i].phyAddrOut;
                     amoCache.writeData = ldDataOut[i].data;
                 end
             end
             else if (isZaamo[i] && pipeReg[i].amoCacheHit) begin
-                ldDataOut[i].data = pipeReg[i].amoDataOut;
+                ldDataOut[i].data = amoCache.readDataOut;
                 amoCache.invalidate = update[i] && regValid[i]; // Invalidate after use
             end
             else if (isCSR[i])
@@ -215,7 +215,7 @@ module MemoryAccessStage(
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
-            nextStage[i].zaamoReleaseMSHR = update[i] && regValid[i] && isZaamo[i] && !pipeReg[i].amoCacheLoadMiss;
+            nextStage[i].zaamoReleaseMSHR = update[i] && isZaamo[i] && pipeReg[i].writeAMOCache;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

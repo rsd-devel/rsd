@@ -38,6 +38,8 @@ interface AMOCacheIF( input logic clk, rst );
     );
 
     modport MemoryAccessStage (
+    input
+        readDataOut,
     output
         writeEnable,
         writeAddr,

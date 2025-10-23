@@ -303,6 +303,8 @@ typedef struct packed // MemIssueQueueEntry
     logic hasAllocatedMSHR;
     MSHR_IndexPath mshrID;
 
+    logic hasLoadedAMOCache;
+
     ActiveListIndexPath activeListPtr;
     LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery
     StoreQueueIndexPath storeQueueRecoveryPtr;    //for recovery

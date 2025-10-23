@@ -152,7 +152,10 @@ module MemoryExecutionStage(
             // 領域にアクセスをするとしても DC からデータを拾うようにしておく
             loadStoreUnit.dcReadReq[i] =
                 !stall && !clear && pipeReg[i].valid && regValid[i] && !flush[i] &&
-                (memOpInfo[i].opType inside { MEM_MOP_TYPE_LOAD, MEM_MOP_TYPE_ZAAMO });
+                (
+                    (memOpInfo[i].opType inside { MEM_MOP_TYPE_LOAD }) ||
+                    (memOpInfo[i].opType inside { MEM_MOP_TYPE_ZAAMO } && !iqData[i].hasLoadedAMOCache)
+                );
             //loadStoreUnit.dcReadAddr[i] = addrOut[i];
             loadStoreUnit.dcReadAddr[i] = phyAddrOut[i];
 
@@ -297,7 +300,6 @@ module MemoryExecutionStage(
             nextStage[i].regValid = regValid[i];
             nextStage[i].memMapType = memMapType[i];
             nextStage[i].phyAddrOut = phyAddrOut[i];
-            nextStage[i].amoDataOut = amoCache.readDataOut;
 `ifndef RSD_DISABLE_DEBUG_REGISTER
             nextStage[i].opId = pipeReg[i].opId;
 `endif

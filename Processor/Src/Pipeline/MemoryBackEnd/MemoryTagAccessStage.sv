@@ -178,7 +178,7 @@ module MemoryTagAccessStage(
             amoCacheHit[i] = amoCache.cached && amoCache.readAddr == ldPipeReg[i].phyAddrOut;
 
             // Load store unit
-            loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || isZaamo[i]);
+            loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
@@ -200,6 +200,7 @@ module MemoryTagAccessStage(
             ldRecordData[i].loadQueueRecoveryPtr  = ldIqData[i].loadQueueRecoveryPtr;
             ldRecordData[i].loadQueuePtr  = ldIqData[i].loadQueuePtr;
             ldRecordData[i].storeQueuePtr  = ldIqData[i].storeQueuePtr;
+            ldRecordData[i].hasLoadedAMOCache = FALSE;
 
             // For performance counters
             ldMSHR_Allocated[i] = FALSE;
@@ -324,7 +325,7 @@ module MemoryTagAccessStage(
 
             ldNextStage[i].isScFail = FALSE;
             ldNextStage[i].amoCacheHit = amoCacheHit[i];
-            ldNextStage[i].amoDataOut = ldPipeReg[i].amoDataOut;
+            ldNextStage[i].writeAMOCache = FALSE;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -410,16 +411,18 @@ module MemoryTagAccessStage(
                 end
             end
 
-            // ZaamoのAmoCacheへのロード確認
-            ldNextStage[i].amoCacheLoadMiss = FALSE;
+            // Zaamoのとき、AmoCacheにロードできるか確認する
             if (isZaamo[i] && !amoCacheHit[i]) begin
                 if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
-                    // キャッシュにロードして、ストアをやり直す
+                    // AMOCacheにロードして、ストアをやり直す
+`ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
+                    ldRegValid[i] = FALSE;
+                    ldRecordData[i].hasLoadedAMOCache = TRUE;
+                    ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
+`else
                     ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
-                end
-                else if (ldNextStage[i].execState inside { EXEC_STATE_STORE_LOAD_FORWARDING_MISS, EXEC_STATE_REFETCH_THIS }) begin
-                    // キャッシュにロードできないので、ロードをやり直す
-                    ldNextStage[i].amoCacheLoadMiss = TRUE;
+`endif
+                    ldNextStage[i].writeAMOCache = TRUE;
                 end
             end
             
@@ -506,6 +509,7 @@ module MemoryTagAccessStage(
             stRecordData[i].storeQueuePtr  = stIqData[i].storeQueuePtr;
             stRecordData[i].hasAllocatedMSHR = FALSE;
             stRecordData[i].mshrID = '0;
+            stRecordData[i].hasLoadedAMOCache = FALSE;
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             stRegValid[i] = stPipeReg[i].regValid;
@@ -541,8 +545,7 @@ module MemoryTagAccessStage(
 
             stNextStage[i].isScFail = isScFail[i];
             stNextStage[i].amoCacheHit = FALSE;
-            stNextStage[i].amoDataOut = '0;
-            stNextStage[i].amoCacheLoadMiss = FALSE;
+            stNextStage[i].writeAMOCache = FALSE;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する

@@ -316,8 +316,6 @@ typedef struct packed // MemoryTagAccessStageRegPath
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;
 
-    DataPath amoDataOut;
-
 } MemoryTagAccessStageRegPath;
 
 
@@ -352,11 +350,10 @@ typedef struct packed // MemoryAccessStageRegPath
 
     logic isScFail;
     logic amoCacheHit;
-    DataPath amoDataOut;
-    logic amoCacheLoadMiss;
+    logic writeAMOCache;
     
     // CSR data out. csrDataOut is from dataIn in MemoryTagAccessStageRegPath
-    // TODO: addrOut and csrDataOut, amoDataOut is exclusively used, these can be unified.
+    // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
     DataPath csrDataOut; 
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
