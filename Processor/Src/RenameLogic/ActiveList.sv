@@ -250,10 +250,10 @@ module ActiveList(
                     // Rwステージで例外が検出された時点でリカバリを開始する(詳細はRecoveryManager)
                     // EXEC_STATE_TRAP や例外は必ずコミット時に処理する（CSR の操作が伴うため）
                     exceptionDetected = writeData[i].state inside {
-                        EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS
+                        EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS, EXEC_STATE_REFETCH_THIS_SERIALIZED
                     };
                     exceptionIndex = i;
-                    if (!(writeData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS})) begin
+                    if (!(writeData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS, EXEC_STATE_REFETCH_THIS_SERIALIZED})) begin
                         // Need to update the recovery register when handling exceptions at commit time
                         startRecoveryAtCommit = TRUE;
                     end
@@ -267,6 +267,9 @@ module ActiveList(
                             writeData[i].isStore ?  REFETCH_TYPE_STORE_NEXT_PC : 
                                                     REFETCH_TYPE_NEXT_PC 
                         );
+                    end
+                    else if (writeData[i].state == EXEC_STATE_REFETCH_THIS_SERIALIZED) begin
+                        refetchType = REFETCH_TYPE_THIS_PC_SERIALIZED;
                     end
                     else begin
                         refetchType = REFETCH_TYPE_THIS_PC;

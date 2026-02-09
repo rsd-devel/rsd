@@ -17,10 +17,13 @@ interface DecodeStageIF( input logic clk, rst );
     logic nextFlush;
     AddrPath nextRecoveredPC;
     
+    logic serializeNextInsn;
+
     modport ThisStage(
     input 
         clk, 
         rst,
+        serializeNextInsn,
     output 
         nextStage,
         nextFlush,
@@ -32,6 +35,11 @@ interface DecodeStageIF( input logic clk, rst );
         nextStage,
         nextFlush,
         nextRecoveredPC
+    );
+
+    modport RecoveryManager(
+    output
+        serializeNextInsn
     );
     
 endinterface : DecodeStageIF

@@ -61,7 +61,11 @@ typedef enum logic [2:0] { // RefetchType
     // Re-fetch from a PC specified by CSR.
     // This refetch occurs on a trap or an exception.
     REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET  = 3'b100,
-    REFETCH_TYPE_THIS_PC_TO_CSR_TARGET  = 3'b101
+    REFETCH_TYPE_THIS_PC_TO_CSR_TARGET  = 3'b101,
+
+    // Re-fetch starts from the PC of an instruction that causes an exception.
+    // This refetch requests serialized execution of the instruction.
+    REFETCH_TYPE_THIS_PC_SERIALIZED     = 3'b110
 } RefetchType;
 
 //

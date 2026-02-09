@@ -130,11 +130,13 @@ function automatic void DecideCommit(
         end
         else if (execState[i] inside {
             EXEC_STATE_REFETCH_THIS,
+            EXEC_STATE_REFETCH_THIS_SERIALIZED,
             EXEC_STATE_STORE_LOAD_FORWARDING_MISS
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = headOfThisInsn[i];
-            opRefetchType[i] = REFETCH_TYPE_THIS_PC;
+            opRefetchType[i] = execState[i] == EXEC_STATE_REFETCH_THIS_SERIALIZED ?
+                REFETCH_TYPE_THIS_PC_SERIALIZED : REFETCH_TYPE_THIS_PC;
         end
         else if (execState[i] inside{
             EXEC_STATE_TRAP_ECALL, 
@@ -196,6 +198,7 @@ function automatic void DecideCommit(
                     commit[i] =
                         ( ((execState[i] inside {
                             EXEC_STATE_REFETCH_THIS,
+                            EXEC_STATE_REFETCH_THIS_SERIALIZED,
                             EXEC_STATE_STORE_LOAD_FORWARDING_MISS,
                             EXEC_STATE_FAULT_LOAD_MISALIGNED,
                             EXEC_STATE_FAULT_LOAD_VIOLATION,

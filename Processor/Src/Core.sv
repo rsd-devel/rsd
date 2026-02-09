@@ -204,7 +204,7 @@ output
     
     // A commitment stage generates a flush signal and this is send to scheduler.
     CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
-        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF, perfCounterIF );
+        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, idStageIF, ctrlIF, perfCounterIF );
 
     CSR_Unit csrUnit(csrUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );

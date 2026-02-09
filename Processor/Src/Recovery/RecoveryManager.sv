@@ -25,6 +25,7 @@ module RecoveryManager(
     RecoveryManagerIF.RecoveryManager port,
     ActiveListIF.RecoveryManager activeList,
     CSR_UnitIF.RecoveryManager csrUnit,
+    DecodeStageIF.RecoveryManager idStage,
     ControllerIF.RecoveryManager ctrl,
     PerformanceCounterIF.RecoveryManager perfCounter
 );
@@ -139,7 +140,7 @@ module RecoveryManager(
                 recoveredPC = ToPC_FromAddr(csrUnit.excptTargetAddr);
             end
             else begin
-                if (regState.refetchType == REFETCH_TYPE_THIS_PC) begin
+                if (regState.refetchType inside {REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_SERIALIZED}) begin
                     recoveredPC = regState.exceptionDetectedInCommitStage ?
                         ToPC_FromAddr(regState.recoveredPC_FromCommitStage) : 
                         ToPC_FromAddr(regState.recoveredPC_FromRwStage);
@@ -191,7 +192,7 @@ module RecoveryManager(
         exceptionOpPtr = activeList.exceptionOpPtr;
 
         nextState.flushRangeHeadPtr = 
-            (nextState.refetchType inside {REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_TO_CSR_TARGET}) ?
+            (nextState.refetchType inside {REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_SERIALIZED, REFETCH_TYPE_THIS_PC_TO_CSR_TARGET}) ?
                 exceptionOpPtr : exceptionOpPtr + 1;
         nextState.flushRangeTailPtr = activeList.detectedFlushRangeTailPtr;
         port.loadQueueRecoveryTailPtr = activeList.loadQueueRecoveryTailPtr;
@@ -201,6 +202,10 @@ module RecoveryManager(
 
         port.flushRangeHeadPtr = regState.flushRangeHeadPtr;
         port.flushRangeTailPtr = regState.flushRangeTailPtr;
+
+        idStage.serializeNextInsn =
+            (regState.phase == PHASE_RECOVER_0) &&
+            (regState.refetchType == REFETCH_TYPE_THIS_PC_SERIALIZED);
 
         // 
         port.unableToStartRecovery = 
