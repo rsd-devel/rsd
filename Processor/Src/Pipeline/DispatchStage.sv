@@ -219,6 +219,8 @@ module DispatchStage(
             // PC
             memEntry[i].pc = pipeReg[i].pc;
 
+            memEntry[i].serialized = pipeReg[i].opInfo.serialized;
+
 `ifdef RSD_MARCH_FP_PIPE
             //
             // --- To a FP queue.

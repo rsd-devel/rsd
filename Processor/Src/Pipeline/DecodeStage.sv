@@ -103,17 +103,12 @@ module DecodeStage(
     RenameStageRegPath nextStage[DECODE_WIDTH];
     
     // Micro-op decoder
+    OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] originalMicroOps;
+    InsnInfo [DECODE_WIDTH-1:0] originalInsnInfo;
     OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps;  // Decoded micro ops
     InsnInfo [DECODE_WIDTH-1:0] insnInfo;   // Whether a decoded instruction is branch or not.
     
     always_comb begin
-        for (int i = 0; i < DECODE_WIDTH; i++) begin
-            for (int j = 0; j < MICRO_OP_MAX_NUM; j++) begin
-                microOps[i*MICRO_OP_MAX_NUM + j] = pipeReg[i].microOps[j];
-            end
-            insnInfo[i] = pipeReg[i].insnInfo;
-        end
-
         empty = TRUE;
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             if (pipeReg[i].valid)
@@ -210,26 +205,85 @@ module DecodeStage(
         return 0;
     endfunction
     
+    logic currentSerializeNextInsn, nextSerializeNextInsn;
+
+    always_ff@ (posedge port.clk)
+    begin
+        if (port.rst) begin
+            currentSerializeNextInsn <= FALSE;
+        end
+        else begin
+            if (port.serializeNextInsn) begin
+                currentSerializeNextInsn <= TRUE;
+            end
+            else if (complete) begin
+                currentSerializeNextInsn <= nextSerializeNextInsn;
+            end
+        end
+    end
 
     always_comb begin
+        for (int i = 0; i < DECODE_WIDTH; i++) begin
+            for (int j = 0; j < MICRO_OP_MAX_NUM; j++) begin
+                originalMicroOps[i*MICRO_OP_MAX_NUM + j] = pipeReg[i].microOps[j];
+            end
+            originalInsnInfo[i] = pipeReg[i].insnInfo;
+        end
         
         //
         // Setup current valid bits(=un-decoded bits).
         //
         if (initiate) begin
             for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
-                curValidMOps[i] = microOps[i].valid;
+                curValidMOps[i] = originalMicroOps[i].valid;
             end
         end
         else begin
             curValidMOps = remainingValidMOps;
         end
 
+        ProcessSerializeNextInsn(
+            .insnValidIn(insnValidIn),
+            .microOps(originalMicroOps),
+            .insnInfo(originalInsnInfo),
+            .currentSerializeNextInsn(currentSerializeNextInsn),
+            .modifiedMicroOps(microOps),
+            .modifiedInsnInfo(insnInfo),
+            .nextSerializeNextInsn(nextSerializeNextInsn)
+        );
+
         // Set a "serialized" flag for each micro op.
         for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
             serializedMOps[i] = microOps[i].serialized;
         end
     end
+
+    // serialize next microOp
+    function automatic void ProcessSerializeNextInsn(
+        input logic insnValidIn[DECODE_WIDTH],
+        input OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps,
+        input InsnInfo [DECODE_WIDTH-1:0] insnInfo,
+        input logic currentSerializeNextInsn,
+        output OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] modifiedMicroOps,
+        output InsnInfo [DECODE_WIDTH-1:0] modifiedInsnInfo,
+        output logic nextSerializeNextInsn
+    );
+        for (int i = 0; i < DECODE_WIDTH; i++) begin
+            modifiedInsnInfo[i] = insnInfo[i];
+        end
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            modifiedMicroOps[i] = microOps[i];
+        end
+
+        nextSerializeNextInsn = currentSerializeNextInsn;
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            if (insnValidIn[ToInsnLane(i)] && microOps[i].valid && nextSerializeNextInsn) begin
+                modifiedInsnInfo[ToInsnLane(i)].isSerialized = TRUE;
+                modifiedMicroOps[i].serialized = TRUE;
+                nextSerializeNextInsn = FALSE;
+            end
+        end
+    endfunction
 
     MicroOpPicker picker(curValidMOps, serializedMOps, mopPicked, mopPickedIndex, pickedValidMOps);
 

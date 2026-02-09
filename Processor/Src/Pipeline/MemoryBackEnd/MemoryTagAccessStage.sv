@@ -144,8 +144,10 @@ module MemoryTagAccessStage(
     logic isMul     [LOAD_ISSUE_WIDTH];
     logic isFenceI  [LOAD_ISSUE_WIDTH];
     logic isZaamo   [LOAD_ISSUE_WIDTH];
+    logic isSerialized[LOAD_ISSUE_WIDTH];
     logic amoCacheHit[LOAD_ISSUE_WIDTH];
     logic storeForwardMiss[LOAD_ISSUE_WIDTH];
+    logic isLoadIO  [LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
     MemIssueQueueEntry ldRecordData[LOAD_ISSUE_WIDTH];  // for ReplayQueue
 
@@ -176,9 +178,18 @@ module MemoryTagAccessStage(
             isFenceI[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_FENCE ) && ldIqData[i].memOpInfo.isFenceI;
             isZaamo[i] = ( ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_ZAAMO );
             amoCacheHit[i] = amoCache.cached && amoCache.readAddr == ldPipeReg[i].phyAddrOut;
+            isSerialized[i] = ldIqData[i].serialized;
+            isLoadIO[i] = isLoad[i] && ldPipeReg[i].memMapType == MMT_IO;
 
             // Load store unit
-            loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
+            // Load only when
+            //  1. inst is load instruction and not non-serialized IO load and not misaligned
+            //  2. inst is Zaamo and AMO cache miss
+            if (isLoadIO[i])
+                loadStoreUnit.executeLoad[i] = ldUpdate[i] && isSerialized[i]
+                    && !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size);
+            else
+                loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
@@ -201,6 +212,7 @@ module MemoryTagAccessStage(
             ldRecordData[i].loadQueuePtr  = ldIqData[i].loadQueuePtr;
             ldRecordData[i].storeQueuePtr  = ldIqData[i].storeQueuePtr;
             ldRecordData[i].hasLoadedAMOCache = FALSE;
+            ldRecordData[i].serialized = ldIqData[i].serialized;
 
             // For performance counters
             ldMSHR_Allocated[i] = FALSE;
@@ -336,7 +348,12 @@ module MemoryTagAccessStage(
                 // ロードの実行に失敗した場合は、
                 // 正しい実行結果が得られていないので、
                 // そのロード命令からやり直す
-                if ( loadStoreUnit.storeLoadForwarded[i] ) begin
+                if ( isLoadIO[i] && !isSerialized[i] ) begin
+                    // To prevent speculative load from IO,
+                    // load instruction which is not serialized will be refetched.
+                    ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS_SERIALIZED;
+                end
+                else if ( loadStoreUnit.storeLoadForwarded[i] ) begin
                     // フォワードされた場合
                     // A load instruction that caused a store-load forwarding miss is not replayed but flushed to prevent a deadlock due to replay.
                     // To wait for the commit of the dependent store instruction, The flush is performed in commit stage.
