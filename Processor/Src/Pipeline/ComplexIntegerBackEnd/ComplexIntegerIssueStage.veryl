@@ -1,3 +1,4 @@
+// A pipeline stage for issuing ops.
 module ComplexIntegerIssueStage (
     port      : modport ComplexIntegerIssueStageIF::ThisStage,
     prev      : modport ScheduleStageIF::ComplexNextStage,
@@ -14,10 +15,11 @@ module ComplexIntegerIssueStage (
     import SchedulerTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
     var nextPipeReg: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
 
-    always_ff (port.clk) {
+    always_ff (port.clk) { // synchronous rst
         if port.rst {
             for i in 0..COMPLEX_ISSUE_WIDTH {
                 pipeReg[i] = '0;
@@ -48,6 +50,7 @@ module ComplexIntegerIssueStage (
         }
     }
 
+    // Pipeline control
     var stall: logic;
     var clear: logic;
     var valid: logic [COMPLEX_ISSUE_WIDTH];
@@ -64,9 +67,11 @@ module ComplexIntegerIssueStage (
             var divIsIssuedValue: logic;
 
             if scheduler.replay {
+                // In this cycle, the pipeline replays ops.
                 issuedDataValue = scheduler.complexReplayData[i];
                 valid[i] = scheduler.complexReplayEntry[i];
             } else {
+                // In this cycle, the pipeline issues ops.
                 issuedDataValue = scheduler.complexIssuedData[i];
                 valid[i] = !stall && pipeReg[i].valid;
             }
@@ -81,15 +86,19 @@ module ComplexIntegerIssueStage (
                 issuedDataValue.activeListPtr
             );
 
+            // Issue.
             scheduler.complexIssue[i] = !clear && valid[i] && !flushValue;
             scheduler.complexIssuePtr[i] = issueQueuePtrValue;
 
+            // Lock div units
             divIsIssuedValue = !clear && valid[i] && !flushValue && issuedDataValue.opType == COMPLEX_MOP_TYPE_DIV;
             scheduler.divIsIssued[i] = divIsIssuedValue;
             mulDivUnit.divAcquire[i] = divIsIssuedValue;
             mulDivUnit.acquireData[i].activeListPtr = issuedDataValue.activeListPtr;
             mulDivUnit.acquireData[i].opDst = issuedDataValue.opDst;
 
+            // --- Pipeline ラッチ書き込み
+            // リセットorフラッシュ時はNOP
             if clear || port.rst || flushValue {
                 nextStage[i].valid = FALSE;
             } else {
@@ -99,6 +108,7 @@ module ComplexIntegerIssueStage (
             nextStage[i].replay = scheduler.replay;
             nextStage[i].opId = issuedDataValue.opId;
 
+            // Debug Register
             debug.complexIsReg[i].valid = valid[i];
             debug.complexIsReg[i].flush = flushValue;
             debug.complexIsReg[i].opId = issuedDataValue.opId;

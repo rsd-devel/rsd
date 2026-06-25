@@ -1,3 +1,8 @@
+//
+// PC
+// PC has INSN_RESET_VECTOR and cannot use AddrReg.
+//
+
 module PC (
     port: modport NextPCStageIF::PC,
 ) {

@@ -1,10 +1,15 @@
+// Scheduler::DestinationRAM
+// DestinationRAM is a table that has destination register numbers.
+// It is looked up with the id of a woke up op in the IQ.
 module DestinationRAM (
     port: modport WakeupSelectIF::DestinationRAM,
 ) {
     import BasicTypes::*;
     import SchedulerTypes::*;
 
+    // Destination register number
     struct Entry {
+        // Entry
         regTag: SchedulerRegTag,
     }
 
@@ -64,6 +69,9 @@ module DestinationRAM (
                 port.wakeupPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
         }
 
+        // Stores do not wake up consumers.
+
+        // Reset sequence.
         if port.rst {
             for i in 0..DISPATCH_WIDTH {
                 write[i] = FALSE;

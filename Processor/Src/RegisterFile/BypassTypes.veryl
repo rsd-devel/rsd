@@ -1,6 +1,10 @@
+//
+// --- Types related to bypass network.
+//
 package BypassTypes {
     import BasicTypes::*;
 
+    // enum BypassSelect
     enum BypassSelectStage: logic<2> {
         BYPASS_STAGE_INT_EX = 2'd0,
         BYPASS_STAGE_INT_WB = 2'd1,
@@ -13,6 +17,7 @@ package BypassTypes {
     const BYPASS_STAGE_MEM_WB: BypassSelectStage = BypassSelectStage::BYPASS_STAGE_MEM_WB;
 
     struct BypassLane {
+        // TODO: unionで実装
         intLane    : IntIssueLaneIndexPath,
         complexLane: ComplexIssueLaneIndexPath,
         memLane    : MemIssueLaneIndexPath,
@@ -20,7 +25,7 @@ package BypassTypes {
     }
 
     struct BypassSelect {
-        valid: logic,
+        valid: logic, // バイパスするか否か
         stg  : BypassSelectStage,
         lane : BypassLane,
     }

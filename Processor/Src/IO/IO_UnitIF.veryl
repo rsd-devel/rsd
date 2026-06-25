@@ -1,3 +1,4 @@
+// The interface of a load/store unit.
 interface IO_UnitIF {
     import BasicTypes::*;
     import LoadStoreUnitTypes::*;
@@ -10,9 +11,12 @@ interface IO_UnitIF {
     var serialWE          : logic;
     var serialWriteDataOut: SerialDataPath;
 
+    // Write request from a store qeueue
     var ioWE           : logic;
     var ioWriteDataIn  : DataPath;
     var ioWriteAddrIn  : PhyAddrPath;
+
+    // Read request from a load pipeline
     var ioReadDataOut  : DataPath;
     var ioReadAddrIn   : PhyAddrPath;
 

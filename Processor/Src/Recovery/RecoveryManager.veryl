@@ -13,34 +13,53 @@ module RecoveryManager (
     import ActiveListIndexTypes::*;
 
     struct RecoveryManagerStatePath {
+        // リカバリのフェーズ
+        // 実行ステージからリカバリがかかる場合もあるので，
+        // コミットステージのフェーズと同期しているわけではない
         phase: PipelinePhase,
 
+        // リカバリ要求
+        // これらはステージの終わりのあたりで来ることが多いので，一旦レジスタに積んで
+        // パイプライン化する
         exceptionDetectedInCommitStage: logic,
         recoveredPC_FromRwStage       : AddrPath,
         recoveredPC_FromCommitStage   : AddrPath,
 
+        // Related to CSR
+        // これらもパイプライン化のため
+        // Trap vector or xRET return target
         excptCause        : ExecutionState,
+        // fault 発生時のデータアドレス
         excptCauseDataAddr: AddrPath,
 
+        // ActiveList中のどのエントリがどのエントリまでをフラッシュするかを示すポインタ
         flushRangeHeadPtr: ActiveListIndexPath,
         flushRangeTailPtr: ActiveListIndexPath,
 
+        // 例外がどこのステージで検出されたか
         recoveryFromRwStage: logic,
+        // リフェッチのタイプ
         refetchType        : RefetchType,
     }
 
     var regState : RecoveryManagerStatePath;
     var nextState: RecoveryManagerStatePath;
 
+    // 各モジュールに送られる信号
+    // リカバリ時の動作自体は各モジュールで記述される
     var toRecoveryPhase: logic;
     var toCommitPhase  : logic;
 
+    // CSR からリフェッチするかどうか
     var refetchFromCSR: logic;
 
+    // リカバリによって回復されるPC
     var recoveredPC: PC_Path;
 
+    // 例外を起こした命令のActiveListのポインタ
     var exceptionOpPtr: ActiveListIndexPath;
 
+    // 例外が検出された後リカバリ状態に移行する
     var exceptionDetected: logic;
 
     always_ff (port.clk) {
@@ -63,6 +82,7 @@ module RecoveryManager (
     }
 
     always_comb {
+        // To Recovery 0
         toRecoveryPhase =
             port.exceptionDetectedInCommitStage ||
             port.exceptionDetectedInRwStage;
@@ -72,6 +92,7 @@ module RecoveryManager (
             nextState.recoveryFromRwStage = FALSE;
         }
 
+        // Return to COMMIT_PHASE
         toCommitPhase =
             (regState.phase == PHASE_RECOVER_1) &&
             !(port.renameLogicRecoveryRMT || port.issueQueueReturnIndex);
@@ -81,12 +102,15 @@ module RecoveryManager (
             nextState.refetchType = port.refetchTypeFromRwStage;
         }
 
+        // Trap/fault origin
+        // これらの要求は一旦レジスタに積む
         nextState.excptCause = port.recoveryCauseFromCommitStage;
         nextState.excptCauseDataAddr = port.faultingDataAddr;
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
 
+        // CSR への要求はすべて PHASE_RECOVER_0 に行う
         refetchFromCSR =
             (regState.refetchType == REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET) ||
             (regState.refetchType == REFETCH_TYPE_THIS_PC_TO_CSR_TARGET);
@@ -95,6 +119,7 @@ module RecoveryManager (
         csrUnit.excptCause = regState.excptCause;
         csrUnit.excptCauseDataAddr = regState.excptCauseDataAddr;
 
+        // Recovered PC
         if regState.phase == PHASE_RECOVER_0 {
             if refetchFromCSR {
                 recoveredPC = ToPC_FromAddr(csrUnit.excptTargetAddr);
@@ -113,6 +138,7 @@ module RecoveryManager (
                         recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromRwStage) + INSN_BYTE_WIDTH;
                     }
                 } else {
+                    // REFETCH_TYPE_BRANCH_TARGET
                     if regState.exceptionDetectedInCommitStage {
                         recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
                     } else {
@@ -144,14 +170,18 @@ module RecoveryManager (
 
         port.phase = regState.phase;
 
+        // Update a PC in a fetcher if branch misprediction occurs.
         port.recoveredPC_FromRwCommit = recoveredPC;
         port.toCommitPhase = toCommitPhase;
 
+        // To each logic to be recovered.
         port.toRecoveryPhase = regState.phase == PHASE_RECOVER_0;
         port.recoveryFromRwStage = regState.recoveryFromRwStage;
 
+        // 選択的フラッシュにおいても，フロントエンドは全てフラッシュされる
         ctrl.cmStageFlushUpper = regState.phase == PHASE_RECOVER_0;
 
+        // フラッシュする命令の範囲の管理
         exceptionDetected = port.exceptionDetectedInCommitStage || port.exceptionDetectedInRwStage;
         exceptionOpPtr = activeList.exceptionOpPtr;
 
@@ -172,6 +202,7 @@ module RecoveryManager (
         port.flushRangeHeadPtr = regState.flushRangeHeadPtr;
         port.flushRangeTailPtr = regState.flushRangeTailPtr;
 
+        //
         port.unableToStartRecovery =
             (regState.phase != PHASE_COMMIT) ||
             port.renameLogicRecoveryRMT ||
@@ -179,6 +210,7 @@ module RecoveryManager (
             port.replayQueueFlushedOpExist ||
             port.wakeupPipelineRegFlushedOpExist;
 
+        // Hardware Counter
         perfCounter.storeLoadForwardingFail =
             regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
         perfCounter.memDepPredMiss =

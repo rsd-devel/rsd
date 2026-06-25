@@ -30,6 +30,7 @@ package FPUTypes {
     }
 
     struct FMulDataPath {
+        // sign   : logic    ,
         expo  : logic<8> ,
         v_expo: logic<10>,
         mant  : logic<23>,

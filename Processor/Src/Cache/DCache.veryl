@@ -1,8 +1,28 @@
+//
+// 2-read/write set-associative data cache
+//
+//
+// --- Uncachable load/store
+// Uncachable loads always receive data from a data bus. They never update cache.
+// Uncachable stores always write data directly to memory.
+// They first receive data from the data bus in a cache line granularity,
+// update the cache line, and then send it back to the data bus. They never update cache.
+//
+// MSHRs play a key role as below:
+// Every uncachable load/store misses in cache and allocates an MSHR.
+// The MSHR issues a memory read request to the data bus in a cache line granularity.
+// A load receives data from the MSHR and deallocates it.
+// A store merges its data and the loaded cache line, and then the MSHR sends the merged data to the data bus.
+//
+// Uncachable stores must firstly load data from a data bus for simplicity of the current implementation,
+// in which the current implementation always send a write request to the AXI data bus in cache line granularity.
+
 package DCacheFunctions {
     import BasicTypes::*;
     import CacheSystemTypes::*;
     import MemoryMapTypes::*;
 
+    // Merge stored data and fetched line.
     function MergeStoreDataToLine (
         fetchedLine: input DCacheLinePath,
         storedLine : input DCacheLinePath,
@@ -22,30 +42,35 @@ package DCacheFunctions {
         return dstLine;
     }
 
+    // To a line address (index+tag) from a full address.
     function ToLineAddrFromFullAddr (
         addr: input PhyAddrPath,
     ) -> PhyAddrPath {
         return {addr[PHY_ADDR_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH], 1'b0 repeat DCACHE_LINE_BYTE_NUM_BIT_WIDTH};
     }
 
+    // To a line address (index+tag) part from a full address.
     function ToLinePartFromFullAddr (
         addr: input PhyAddrPath,
     ) -> DCacheLineAddr {
         return addr[PHY_ADDR_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
     }
 
+    // To a line index from a full address.
     function ToIndexPartFromFullAddr (
         addr: input PhyAddrPath,
     ) -> DCacheIndexPath {
         return addr[PHY_ADDR_WIDTH - DCACHE_TAG_BIT_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
     }
 
+    // To a line tag from a full address.
     function ToTagPartFromFullAddr (
         addr: input PhyAddrPath,
     ) -> DCacheTagPath {
         return addr[PHY_ADDR_WIDTH - 1:PHY_ADDR_WIDTH - DCACHE_TAG_BIT_WIDTH];
     }
 
+    // Build a full address from index and tag parts.
     function BuildFullAddr (
         index: input DCacheIndexPath,
         tag  : input DCacheTagPath,
@@ -53,43 +78,53 @@ package DCacheFunctions {
         return {tag, index, 1'b0 repeat DCACHE_LINE_BYTE_NUM_BIT_WIDTH};
     }
 
+    // To a part of a line index from a full address.
     function ToIndexSubsetPartFromFullAddr (
         addr: input PhyAddrPath,
     ) -> DCacheIndexSubsetPath {
         return addr[DCACHE_LINE_BYTE_NUM_BIT_WIDTH + DCACHE_INDEX_SUBSET_BIT_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
     }
 
+    // 0-cleared MSHR entry.
     function ClearedMSHR () -> MissStatusHandlingRegister {
         var mshr: MissStatusHandlingRegister;
         mshr = '0;
         return mshr;
     }
 
+    //
+    // Tree-LRU replacement
+    // https://en.wikipedia.org/wiki/Pseudo-LRU
+    //
+
+    // Calculate an evicted way based on the current state.
     function TreeLRU_CalcEvictedWay (
         state: input DCacheTreeLRU_StatePath,
     ) -> DCacheWayPath {
         var evicted: DCacheWayPath;
         var pos: u32;
-        evicted = 0;
-        pos = 0;
+        evicted = 0;  // An evicted way number
+        pos = 0;      // A head position of the current level
         for i in 0..DCACHE_WAY_BIT_NUM {
             if state[pos + evicted] {
                 evicted = evicted << 1;
             } else {
                 evicted = (evicted << 1) + 1;
             }
-            pos = pos + (1 << i);
+            pos = pos + (1 << i);  // Each level has (1<<i) bits
         }
         return evicted;
     }
 
+    // Calculate an updated bit vector that represents a binary tree of tree-LRU
     function TreeLRU_CalcUpdatedState (
         way: input DCacheWayPath,
     ) -> DCacheTreeLRU_StatePath {
         var next: DCacheTreeLRU_StatePath;
         var pos: u32;
         next = 0;
-        pos = 0;
+        pos = 0;  // A head position of the current level
+        // A way number bits are scanned from the MSB
         for i in 0..DCACHE_WAY_BIT_NUM {
             for j in 0..(1 << i) {
                 next[pos + j] = way[DCACHE_WAY_BIT_NUM - 1 - i];
@@ -99,6 +134,7 @@ package DCacheFunctions {
         return next;
     }
 
+    // Calculate a bit vector that represents write enable signals
     function TreeLRU_CalcWriteEnable (
         weIn: input logic,
         way : input DCacheWayPath,
@@ -107,8 +143,9 @@ package DCacheFunctions {
         var c: u32;
         var we: DCacheTreeLRU_StatePath;
         pos = 0;
-        c = 0;
+        c = 0;  // The next updated pos
         we = '0;
+        // A way number bits are scanned from the MSB
         for i in 0..DCACHE_WAY_BIT_NUM {
             we[pos + c] = weIn;
             c = (c << 1) + (way[DCACHE_WAY_BIT_NUM - 1 - i] as u32);
@@ -118,20 +155,26 @@ package DCacheFunctions {
     }
 }
 
+//
+// Controller to handle the state of DCache.
+//
 module DCacheController (
     port: modport DCacheIF::DCacheController,
 ) {
     import BasicTypes::*;
     import CacheSystemTypes::*;
 
+    // DCache state
     var regPhase : DCachePhase;
     var nextPhase: DCachePhase;
 
+    // For flush
     var dcFlushReqAck  : logic;
     var dcFlushComplete: logic;
     var mshrBusy       : logic;
     var loadStoreBusy  : logic;
 
+    // DCache phase
     always_ff (port.clk) {
         if port.rst {
             regPhase = DCACHE_PHASE_NORMAL;
@@ -154,15 +197,20 @@ module DCacheController (
             DCachePhase::DCACHE_PHASE_NORMAL: {
                 for i in 0..MSHR_NUM {
                     if port.mshrPhase[i] != MSHR_PHASE_INVALID {
+                        // MSHRs are not free
                         mshrBusy = TRUE;
                     }
                 }
                 for i in 0..DCACHE_LSU_PORT_NUM {
                     if port.lsuCacheGrtReg[i] || port.lsuCacheGrt[i] {
+                        // Load or store inflight
                         loadStoreBusy = TRUE;
                     }
                 }
 
+                // DCache can enter the flush phase when MSHRs are free.
+                // MSHR can be busy when a preceding load of fence.i allocated the MSHR
+                // but was subsequently flushed.
                 dcFlushReqAck = !mshrBusy;
                 if port.dcFlushReq && dcFlushReqAck {
                     nextPhase = DCACHE_PHASE_FLUSH_PROCESSING;
@@ -181,8 +229,10 @@ module DCacheController (
             }
         }
 
+        // DCache -> cacheFlushManagemer
         port.dcFlushReqAck = dcFlushReqAck;
         port.dcFlushComplete = dcFlushComplete;
+        // DCache controller -> DCache submodules
         port.dcFlushing = regPhase == DCACHE_PHASE_FLUSH_PROCESSING;
     }
 
@@ -190,6 +240,9 @@ module DCacheController (
     // `RSD_ASSERT_CLK(port.clk, !(loadStoreBusy && port.dcFlushReq && dcFlushReqAck), "Inflight load or store is found on DC flush request acquirement.")
 }
 
+//
+// The arbiter of the ports of the main memory.
+//
 module DCacheMemoryReqPortArbiter (
     port: modport DCacheIF::DCacheMemoryReqPortArbiter,
 ) {
@@ -202,11 +255,13 @@ module DCacheMemoryReqPortArbiter (
     var memValid: logic;
 
     always_comb {
+        // Clear
         for r in 0..MSHR_NUM {
             grant[r] = FALSE;
             req[r] = port.mshrMemReq[r];
         }
 
+        // Arbitrate
         memInSel = '0;
         memValid = FALSE;
 
@@ -221,6 +276,7 @@ module DCacheMemoryReqPortArbiter (
             }
         }
 
+        // Outputs
         port.memInSel = memInSel;
         port.memValid = memValid;
         for r in 0..MSHR_NUM {
@@ -229,6 +285,9 @@ module DCacheMemoryReqPortArbiter (
     }
 }
 
+//
+// Multiplexer for a memory signals
+//
 module DCacheMemoryReqPortMultiplexer (
     port: modport DCacheIF::DCacheMemoryReqPortMultiplexer,
 ) {
@@ -251,6 +310,9 @@ module DCacheMemoryReqPortMultiplexer (
     }
 }
 
+//
+// An arbiter of the ports of the tag/data array.
+//
 module DCacheArrayPortArbiter (
     port: modport DCacheIF::DCacheArrayPortArbiter,
 ) {
@@ -265,14 +327,17 @@ module DCacheArrayPortArbiter (
     var cacheArrayInGrant: logic [DCACHE_ARRAY_PORT_NUM];
 
     always_comb {
+        // Clear
         for r in 0..DCACHE_MUX_PORT_NUM {
             cacheArrayOutSel[r] = '0;
             grant[r] = FALSE;
             req[r] = FALSE;
         }
 
+        // Merge inputs.
         for r in 0..DCACHE_LSU_PORT_NUM {
             if port.dcFlushing {
+                // Only MSHRs can be processed during flush.
                 req[r] = FALSE;
             } else {
                 req[r] = port.lsuCacheReq[r];
@@ -282,6 +347,7 @@ module DCacheArrayPortArbiter (
             req[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheReq[r];
         }
 
+        // Arbitrate
         for p in 0..DCACHE_ARRAY_PORT_NUM {
             cacheArrayInGrant[p] = FALSE;
             cacheArrayInSel[p] = '0;
@@ -300,6 +366,7 @@ module DCacheArrayPortArbiter (
             }
         }
 
+        // Outputs
         port.cacheArrayInSel = cacheArrayInSel;
         port.cacheArrayInGrant = cacheArrayInGrant;
         port.cacheArrayOutSel = cacheArrayOutSel;
@@ -313,6 +380,9 @@ module DCacheArrayPortArbiter (
     }
 }
 
+//
+// Multiplexer for d-cache signals
+//
 module DCacheArrayPortMultiplexer (
     port: modport DCacheIF::DCacheArrayPortMultiplexer,
 ) {
@@ -327,7 +397,10 @@ module DCacheArrayPortMultiplexer (
     var portOutRegTagStg : DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
     var portOutRegDataStg: DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
 
+    // アドレスステージで LRU/MSHR から入力された要求をマージしたもの
     var muxIn      : DCachePortMultiplexerIn [DCACHE_MUX_PORT_NUM];
+    // ADDR<>TAG の間にあるレジスタ
+    // マージした要求をアービトレーションして選んだ結果
     var muxInReg   : DCachePortMultiplexerIn [DCACHE_ARRAY_PORT_NUM];
     var muxTagOut  : DCachePortMultiplexerTagOut [DCACHE_MUX_PORT_NUM];
     var muxDataOut : DCachePortMultiplexerDataOut [DCACHE_MUX_PORT_NUM];
@@ -350,6 +423,7 @@ module DCacheArrayPortMultiplexer (
     var dataArrayDataOutTmp: DCacheLinePath [DCACHE_ARRAY_PORT_NUM];
     var replArrayDataOutTmp: DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
 
+    // 置き換え情報のインデクスが被ってるかどうか
     var isReplSameIndex: logic [DCACHE_ARRAY_PORT_NUM];
 
     always_ff (port.clk) {
@@ -377,6 +451,7 @@ module DCacheArrayPortMultiplexer (
     }
 
     always_comb {
+        // Merge inputs.
         for r in 0..DCACHE_LSU_PORT_NUM {
             muxIn[r] = port.lsuMuxIn[r];
         }
@@ -387,6 +462,20 @@ module DCacheArrayPortMultiplexer (
             portMSHRData[r] = port.mshrData[r];
         }
 
+        //
+        // stage:   | ADDR    | D$TAG    | D$DATA   |
+        // process: | arbiter |          |          |
+        //          | tag-in  | tag-out  |          |
+        //          |         | hit/miss |          |
+        //          |         | data-in  | data-out |
+        //          |         | repl-in  | repl-out |
+        //
+        // Pipeline regs between ADDR<>D$TAG:   portInRegTagStg, portOutRegTagStg, muxInReg
+        // Pipeline regs between D$TAG<>D$DATA: portOutRegDataStg
+        //
+
+        // --- Address calculation stage (ADDR, MemoryExecutionStage).
+        // Tag array inputs
         for p in 0..DCACHE_ARRAY_PORT_NUM {
             portIn = port.cacheArrayInSel[p];
             port.tagArrayWE[p] = muxIn[portIn].tagWE;
@@ -396,9 +485,11 @@ module DCacheArrayPortMultiplexer (
             port.tagArrayValidIn[p] = muxIn[portIn].tagValidIn;
         }
 
+        // --- Tag access stage (D$TAG, MemoryTagAccessStage).
         tagArrayDataOutTmp = port.tagArrayDataOut;
         tagArrayValidOutTmp = port.tagArrayValidOut;
 
+        // Hit/miss detection
         for p in 0..DCACHE_ARRAY_PORT_NUM {
             mshrConflict[p] = FALSE;
             mshrReadHit[p] = FALSE;
@@ -411,7 +502,11 @@ module DCacheArrayPortMultiplexer (
                    muxInReg[p].indexIn == ToIndexPartFromFullAddr(port.mshrAddr[m]) {
                     mshrConflict[p] = TRUE;
 
+                    // When request addr hits mshr,
+                    // 1. the mshr allocator load must bypass data from MSHR,
+                    // 2. other loads can bypass data from MSHR if possible.
                     if muxInReg[p].tagDataIn == ToTagPartFromFullAddr(port.mshrAddr[m]) {
+                        // To bypass data from MSHR.
                         if port.mshrPhase[m] >: MSHR_PHASE_MISS_WRITE_CACHE_REQUEST ||
                            port.mshrPhase[m] == MSHR_PHASE_MISS_WRITE_CACHE_REQUEST {
                             mshrReadHit[p] = TRUE;
@@ -437,6 +532,7 @@ module DCacheArrayPortMultiplexer (
             }
         }
 
+        // Tag array outputs
         for r in 0..DCACHE_MUX_PORT_NUM {
             for w in 0..DCACHE_WAY_NUM {
                 muxTagOut[r].tagDataOut[w] = tagArrayDataOutTmp[w][portOutRegTagStg[r]];
@@ -450,6 +546,7 @@ module DCacheArrayPortMultiplexer (
             muxTagOut[r].mshrReadData = mshrReadData[portOutRegTagStg[r]];
         }
 
+        // Data array inputs
         for p in 0..DCACHE_ARRAY_PORT_NUM {
             port.dataArrayDataIn[p] = muxInReg[p].dataDataIn;
             port.dataArrayDirtyIn[p] = muxInReg[p].dataDirtyIn;
@@ -458,6 +555,8 @@ module DCacheArrayPortMultiplexer (
             } else {
                 port.dataArrayWriteWay[p] = repHitWay[p];
             }
+            // If dataArrayDoesReadEvictedWay is valid, instead of a way of dataArrayReadWay,
+            // a way specified by a replacement algorithm is read for eviction.
             port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isVictimEviction;
             port.dataArrayReadWay[p] = repHitWay[p];
             port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
@@ -466,6 +565,7 @@ module DCacheArrayPortMultiplexer (
             port.dataArrayIndexIn[p] = muxInReg[p].indexIn;
         }
 
+        // 置き換え情報の更新
         for p in 0..DCACHE_ARRAY_PORT_NUM {
             isReplSameIndex[p] = FALSE;
             for i in 0..DCACHE_ARRAY_PORT_NUM {
@@ -479,16 +579,21 @@ module DCacheArrayPortMultiplexer (
             if isReplSameIndex[p] {
                 port.replArrayWE[p] = FALSE;
             } else if muxInReg[p].tagWE {
+                // 書き込み時は追い出し対象のウェイを渡す
                 port.replArrayWE[p] = TRUE;
                 port.replArrayDataIn[p] = muxInReg[p].evictWay;
             } else if muxInReg[p].isVictimEviction {
+                // MSHR からの victim 読み出し時は，置き換え情報の読み出し
                 port.replArrayWE[p] = FALSE;
             } else {
+                // ヒット時はヒットしたウェイを渡す
                 port.replArrayWE[p] = repIsHit[p];
                 port.replArrayDataIn[p] = repHitWay[p];
             }
         }
 
+        // ---Data array access stage (D$DATA, MemoryAccessStage).
+        // Data array outputs
         dataArrayDataOutTmp = port.dataArrayDataOut;
         dataArrayDirtyOutTmp = port.dataArrayDirtyOut;
         replArrayDataOutTmp = port.replArrayDataOut;
@@ -500,6 +605,7 @@ module DCacheArrayPortMultiplexer (
         }
     }
 
+    // Output to each port.
     always_comb {
         for r in 0..DCACHE_LSU_PORT_NUM {
             port.lsuMuxTagOut[r] = muxTagOut[r];
@@ -512,6 +618,9 @@ module DCacheArrayPortMultiplexer (
     }
 }
 
+//
+// Tag/data/dirty bits array.
+//
 module DCacheArray (
     port: modport DCacheIF::DCacheArray,
 ) {
@@ -568,9 +677,19 @@ module DCache (
         recovery: recovery,
     );
 
+    // Stored data
     var storedLineData  : DCacheLinePath;
     var storedLineByteWE: DCacheByteEnablePath;
 
+    // Pipeline registers
+    //
+    // ----------------------------->
+    // ADDR  | D$TAG | D$DATA  | WB
+    //       |       | D$REP-U |
+    //       |  LSQ  |         |
+    // Addresses are input to the tag array in the ADDR stage (MemoryExecutionStage).
+    // D$REP-W is replacement information update
+    //
     var dcReadAddrRegTagStg   : PhyAddrPath [DCACHE_LSU_READ_PORT_NUM];
     var dcReadAddrRegDataStg  : PhyAddrPath [DCACHE_LSU_READ_PORT_NUM];
     var dcReadReqReg          : logic [DCACHE_LSU_READ_PORT_NUM];
@@ -587,11 +706,13 @@ module DCache (
     var lsuStoreHasAllocatedMSHR: logic [DCACHE_LSU_WRITE_PORT_NUM];
     var lsuStoreMSHRID          : MSHR_IndexPath [DCACHE_LSU_WRITE_PORT_NUM];
 
+    // MSHRからのLoad
     var lsuMSHRAddrHit      : logic [DCACHE_LSU_READ_PORT_NUM];
     var lsuMSHRAddrHitMSHRID: MSHR_IndexPath [DCACHE_LSU_READ_PORT_NUM];
     var lsuMSHRReadHit      : logic [DCACHE_LSU_READ_PORT_NUM];
     var lsuMSHRReadData     : DCacheLinePath [DCACHE_LSU_READ_PORT_NUM];
 
+    //
     var lsuMakeMSHRCanBeInvalidDirect: logic [MSHR_NUM];
 
     // NOT_TRANSPILED_TO_VERYL
@@ -628,6 +749,8 @@ module DCache (
     // `RSD_STATIC_ASSERT($bits(LSQ_BlockDataPath) <= $bits(DCacheLinePath), "The width of a DCache line must be same or greater than that of an LSQ block.")
 
     always_comb {
+        // --- In the address execution stage (MemoryExecutionStage)
+        // Load request
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             port.lsuCacheReq[i + DCACHE_LSU_READ_PORT_BEGIN] = lsu.dcReadReq[i];
             port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].tagWE = FALSE;
@@ -644,6 +767,8 @@ module DCache (
             port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].isFlushReq = FALSE;
         }
 
+        // --- In the tag access stage (MemoryTagAccessStage)
+        // Hit/miss detection
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             hit[i] = FALSE;
             if port.lsuMuxTagOut[i + DCACHE_LSU_READ_PORT_BEGIN].tagHit &&
@@ -652,20 +777,28 @@ module DCache (
             }
         }
 
+        //
+        // --- In the data array access stage.
+        // Load data from a cache line.
+        //
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            // Read data address is aligned to word boundary in ReadDataFromLine.
             lsu.dcReadData[i] = port.lsuMuxDataOut[i].dataDataOut;
             lsu.dcReadHit[i] = hit[i];
         }
 
+        // --- In the first stage of the commit stages.
+        // Write request
         for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
             // NOT_TRANSPILED_TO_VERYL
             // assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
 
+            // Write data is not aligned?
             storedLineData = lsu.dcWriteData;
             storedLineByteWE = lsu.dcWriteByteWE;
 
             port.lsuCacheReq[i + DCACHE_LSU_WRITE_PORT_BEGIN] = lsu.dcWriteReq;
-            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagWE = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagWE = FALSE;  // First, stores read tag.
             port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].indexIn = ToIndexPartFromFullAddr(lsu.dcWriteAddr);
             port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagDataIn = ToTagPartFromFullAddr(lsu.dcWriteAddr);
             port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagValidIn = TRUE;
@@ -681,6 +814,8 @@ module DCache (
             lsu.dcWriteReqAck = port.lsuCacheGrt[i + DCACHE_LSU_WRITE_PORT_BEGIN];
         }
 
+        // --- In the first stage of the commit stages.
+        // Hit/miss detection
         for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
             // NOT_TRANSPILED_TO_VERYL
             // assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
@@ -700,7 +835,11 @@ module DCache (
         port.storedLineByteWE = storedLineByteWE;
     }
 
+    // --- Miss requests.
+    // In the tag access stage/second commit stage.
+    //
     always_comb {
+        // Read requests from a memory execution stage.
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             missReq[i] =
                 !hit[i] &&
@@ -712,6 +851,7 @@ module DCache (
             missActiveListPtr[i] = dcReadActiveListPtrReg[i];
         }
 
+        // Write requests from a store queue committer.
         for i in 0..DCACHE_LSU_PORT_NUM {
             if i >= DCACHE_LSU_WRITE_PORT_BEGIN {
                 // NOT_TRANSPILED_TO_VERYL
@@ -727,6 +867,7 @@ module DCache (
     var loadMSHRConflict : logic;
     var storeMSHRConflict: logic;
 
+    // Miss handler
     var portInitMSHR              : logic [MSHR_NUM];
     var portInitMSHR_Addr         : PhyAddrPath [MSHR_NUM];
     var portInitMSHR_ActiveListPtr: ActiveListIndexPath [MSHR_NUM];
@@ -734,16 +875,19 @@ module DCache (
     var portIsUncachable          : logic [MSHR_NUM];
 
     always_comb {
+        // MSHR allocation signals for ReplayQueue
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             lsuLoadHasAllocatedMSHR[i] = FALSE;
             lsuLoadMSHRID[i] = '0;
         }
 
+        // MSHR allocation signals for storeCommitter
         for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
             lsuStoreHasAllocatedMSHR[i] = FALSE;
             lsuStoreMSHRID[i] = '0;
         }
 
+        // MSHR addr/data hit and data signals for MemoryAccessBackend
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             lsuMSHRAddrHit[i] = port.lsuMuxTagOut[i].mshrAddrHit;
             lsuMSHRAddrHitMSHRID[i] = port.lsuMuxTagOut[i].mshrAddrHitMSHRID;
@@ -780,6 +924,7 @@ module DCache (
         storeAllocated = FALSE;
         loadAllocatedMSHRID = '0;
 
+        // Search free MSHR entry and allocate.
         if missReq[DCACHE_LSU_READ_PORT_BEGIN] && !loadMSHRConflict {
             for m in 0..MSHR_NUM {
                 if !loadAllocated && !port.mshrValid[m] {
@@ -819,11 +964,14 @@ module DCache (
             port.isUncachable[i] = portIsUncachable[i];
         }
 
+        // DCache top -> DCache controller
         port.lsuCacheGrtReg = lsuCacheGrtReg;
 
+        // Output control signals
         lsu.dcReadBusy[0] = loadMSHRConflict;
         lsu.dcWriteBusy = storeMSHRConflict;
 
+        // MSHR addr/data hit and data signals for MemoryAccessBackend
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             lsu.mshrAddrHit[i] = lsuMSHRAddrHit[i];
             lsu.mshrAddrHitMSHRID[i] = lsuMSHRAddrHitMSHRID[i];
@@ -831,11 +979,13 @@ module DCache (
             lsu.mshrReadData[i] = lsuMSHRReadData[i];
         }
 
+        // MSHR allocation signals for ReplayQueue
         for i in 0..DCACHE_LSU_READ_PORT_NUM {
             lsu.loadHasAllocatedMSHR[i] = lsuLoadHasAllocatedMSHR[i];
             lsu.loadMSHRID[i] = lsuLoadMSHRID[i];
         }
 
+        // MSHR allocation signals for storeCommitter
         for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
             lsu.storeHasAllocatedMSHR[i] = lsuStoreHasAllocatedMSHR[i];
             lsu.storeMSHRID[i] = lsuStoreMSHRID[i];
@@ -852,11 +1002,15 @@ module DCache (
     }
 
     always_comb {
+        //
+        // Main memory
+        //
         cacheSystem.dcMemAccessReq.valid = port.memValid;
         cacheSystem.dcMemAccessReq.we = port.memWE;
         cacheSystem.dcMemAccessReq.addr = port.memAddr;
         cacheSystem.dcMemAccessReq.data = port.memData;
 
+        // To notice mshr phases and addr subset to ReplayQueue.
         for i in 0..MSHR_NUM {
             lsu.mshrPhase[i] = port.mshrPhase[i];
             lsu.mshrValid[i] = port.mshrValid[i];
@@ -870,9 +1024,14 @@ module DCache (
     }
 
     always_comb {
+        //
+        // CacheFlushManager
+        //
+        // DCache -> cacheFlushManagemer
         cacheSystem.dcFlushReqAck = port.dcFlushReqAck;
         cacheSystem.dcFlushComplete = port.dcFlushComplete;
 
+        // cacheFlushManagemer -> DCache
         port.dcFlushReq = cacheSystem.dcFlushReq;
         port.flushComplete = cacheSystem.flushComplete;
     }
@@ -900,6 +1059,7 @@ module DCacheMissHandler (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial block for Questa X avoidance was omitted.
 
+    // MSHR
     always_ff (port.clk) {
         if port.rst {
             for i in 0..MSHR_NUM {
@@ -916,12 +1076,16 @@ module DCacheMissHandler (
 
     always_comb {
         for i in 0..MSHR_NUM {
+            // To notice mshr phases to ReplayQueue.
             port.mshrPhase[i] = mshr[i].phase;
+            // To bypass mshr data to load instructions.
             port.mshrData[i] = mshr[i].line;
             port.mshrValid[i] = mshr[i].valid;
             port.mshrAddr[i] = mshr[i].newAddr;
         }
 
+        // Flush operation uses MSHR[0];
+        // therefore the complete signal comes from MSHR[0].
         port.mshrFlushComplete = mshrFlushComplete[0];
     }
 
@@ -942,9 +1106,14 @@ module DCacheMissHandler (
             nextMSHR[i] = mshr[i];
 
             if port.mshrCanBeInvalidDirect[i] {
+                // its allocator load has received data in the RW stage.
+                // Note that a load that has allocated MSHR releases its
+                // allocated MSHR entry even if it receives a value through
+                // store-load forwarding.
                 nextMSHR[i].canBeInvalid = TRUE;
             }
 
+            // Cancel MSHR allocation on pipeline flush
             flushMSHR_Allocation[i] = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -952,6 +1121,7 @@ module DCacheMissHandler (
                 recovery.flushAllInsns,
                 port.initMSHR_ActiveListPtr[i]
             );
+            // Release MSHR entry
             flushMSHR_Entry[i] = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -960,16 +1130,25 @@ module DCacheMissHandler (
                 mshr[i].activeListPtr
             );
             if flushMSHR_Entry[i] && !mshr[i].isAllocatedByStore {
+                // Its allocator load is flushed.
+                // When an allocator load is flushed, the allocated entry must be
+                // flushed without filling a fetched line to avoid a live lock to
+                // acquire cache ports between active loads and a dead MSHR entry.
                 nextMSHR[i].isAllocatorLoadFlushed = TRUE;
                 nextMSHR[i].canBeInvalid = TRUE;
             }
 
+            // Both MSHR_PHASE_VICTIM_READ_FROM_CACHE & MSHR_PHASE_MISS_WRITE_CACHE_REQUEST phases
+            // use newAddr for a cache index.
+            // The other phases do not use an index.
             port.mshrCacheMuxIn[i].indexIn = ToIndexPartFromFullAddr(mshr[i].newAddr);
+            // Only MSHR_PHASE_MISS_WRITE_CACHE_REQUEST uses tagDataIn, dataByteWE and dataDataIn.
             port.mshrCacheMuxIn[i].tagDataIn = ToTagPartFromFullAddr(mshr[i].newAddr);
             port.mshrCacheMuxIn[i].dataDataIn = mshr[i].line;
             port.mshrCacheMuxIn[i].dataByteWE = {1'b1 repeat DCACHE_LINE_BYTE_NUM};
-            port.mshrCacheMuxIn[i].tagValidIn = TRUE;
+            port.mshrCacheMuxIn[i].tagValidIn = TRUE;  // Don't care for the other phases.
 
+            // Other cache request signals.
             port.mshrCacheReq[i] = FALSE;
             port.mshrCacheMuxIn[i].tagWE = FALSE;
             port.mshrCacheMuxIn[i].dataWE = FALSE;
@@ -979,17 +1158,23 @@ module DCacheMissHandler (
             port.mshrCacheMuxIn[i].isVictimEviction = FALSE;
             port.mshrCacheMuxIn[i].isFlushReq = FALSE;
 
+            // Memory request signals
             port.mshrMemReq[i] = FALSE;
             port.mshrMemMuxIn[i].data = mshr[i].line;
+            // Don't care
             port.mshrMemMuxIn[i].we = FALSE;
             port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
 
+            // For flush
             mshrFlushComplete[i] = FALSE;
+            // For data merging
             mergedLine[i] = '0;
 
             case mshr[i].phase {
                 default: {
                     if port.initMSHR[i] && !flushMSHR_Allocation[i] {
+                        // 1. MSHR 登録
+                        // Initial phase
                         nextMSHR[i].valid = TRUE;
                         nextMSHR[i].newAddr = port.initMSHR_Addr[i];
                         nextMSHR[i].newValid = FALSE;
@@ -1003,15 +1188,19 @@ module DCacheMissHandler (
                         nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
                         nextMSHR[i].isUncachable = port.isUncachable[i];
                         nextMSHR[i].evictWay = '0;
+                        // Don't care
                         nextMSHR[i].flushIndex = '0;
 
                         if port.isUncachable[i] {
+                            // Uncachable access does not update cache;
+                            // therefore phases for evicting a victim are skipped.
                             nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
                         } else {
                             nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQUEST;
                         }
                         nextMSHR[i].activeListPtr = port.initMSHR_ActiveListPtr[i];
                     } else if port.dcFlushing && (i == 0) {
+                        // MSHR[0] is used to flush DCache.
                         nextMSHR[i].valid = TRUE;
                         nextMSHR[i].newAddr = '0;
                         nextMSHR[i].newValid = FALSE;
@@ -1031,6 +1220,7 @@ module DCacheMissHandler (
                     }
                 }
                 MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_REQEUST: {
+                    // Access the cache array.
                     port.mshrCacheReq[i] = TRUE;
                     port.mshrCacheMuxIn[i].indexIn = mshr[i].flushIndex;
                     port.mshrCacheMuxIn[i].tagValidIn = FALSE;
@@ -1048,6 +1238,7 @@ module DCacheMissHandler (
                 }
                 MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG: {
                     if |port.mshrCacheMuxTagOut[i].tagValidOut {
+                        // Read a victim line.
                         nextMSHR[i].victimAddr = BuildFullAddr(
                             mshr[i].flushIndex,
                             port.mshrCacheMuxTagOut[i].tagDataOut[0]
@@ -1056,15 +1247,18 @@ module DCacheMissHandler (
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA;
                     } else {
                         nextMSHR[i].victimValid = FALSE;
+                        // Skip receiving data and writing back.
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
                     }
                 }
                 MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA: {
+                    // Receive cache data.
                     nextMSHR[i].victimReceived = TRUE;
                     nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
                     nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
 
                     if nextMSHR[i].victimDirty {
+                        // Write back dirty data
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
                     } else {
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
@@ -1079,6 +1273,7 @@ module DCacheMissHandler (
                         nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
                     } else {
+                        // Waiting until the request is accepted.
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
                     }
                 }
@@ -1087,6 +1282,7 @@ module DCacheMissHandler (
                     if mshr[i].victimValid &&
                        mshr[i].victimDirty &&
                        !(port.memAccessResponse.valid && mshr[i].memWSerial == port.memAccessResponse.serial) {
+                        // Wait MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE.
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
                     } else {
                         nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;

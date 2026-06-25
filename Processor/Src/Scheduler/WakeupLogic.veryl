@@ -4,17 +4,22 @@ module WakeupLogic (
     import BasicTypes::*;
     import SchedulerTypes::*;
 
+    // Source status of dispatched instructions.
     var dispatchedSrcRegValid: logic [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
     var dispatchedSrcRegNum  : PRegNumPath [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
 
+    // Destination status of dispatched instructions.
     var dispatchedDstRegValid: logic [DISPATCH_WIDTH];
     var dispatchedDstRegNum  : PRegNumPath [DISPATCH_WIDTH];
 
+    // Destination status of wokeup instructions.
     var wakeupDstRegValid: logic [WAKEUP_WIDTH];
     var wakeupDstRegNum  : PRegNumPath [WAKEUP_WIDTH];
 
+    // Connection between srcCAM and readyBitTbl
     var dispatchedSrcRegReady: logic [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
 
+    // Dependency matrix.
     var wakeupDstVector: IssueQueueOneHotPath [WAKEUP_WIDTH];
     var dispatchedSrcRegPtr: logic<DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM, ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH>;
     var opMatrixReady: logic [ISSUE_QUEUE_ENTRY_NUM];
@@ -29,6 +34,7 @@ module WakeupLogic (
 
     var memDependencyPred: logic [DISPATCH_WIDTH];
 
+    // Ready bit tables.
     inst regReadyBitTbl: ReadyBitTable #(
         SRC_OP_NUM       : ISSUE_QUEUE_SRC_REG_NUM,
         REG_NUM_BIT_WIDTH: PREG_NUM_BIT_WIDTH,
@@ -49,6 +55,7 @@ module WakeupLogic (
     );
 
     always_comb {
+        // Dispatch
         for i in 0..DISPATCH_WIDTH {
             dispatchedDstRegValid[i] = port.writeDstTag[i].regTag.valid;
             dispatchedDstRegNum[i] = port.writeDstTag[i].regTag.num;
@@ -61,12 +68,16 @@ module WakeupLogic (
             dispatchedSrcRegValid[i][2] = port.writeSrcTag[i].regTag[2].valid;
         }
 
+        // Wake up
         for i in 0..WAKEUP_WIDTH {
             wakeupDstRegValid[i] = port.wakeupDstTag[i].regTag.valid;
             wakeupDstRegNum[i] = port.wakeupDstTag[i].regTag.num;
         }
     }
 
+    // Wakeup Matrix.
+
+    // Wakeup dst valid は，無条件でビットを下ろしておけば良いのでいらない．
     inst producerMatrix: ProducerMatrix (
         clk                  : port.clk,
         dispatch             : port.write,
@@ -79,6 +90,7 @@ module WakeupLogic (
     );
 
     always_ff (port.clk) {
+        // Update store bit vector register.
         if port.rst {
             storeBitVectorReg = 0;
         } else {
@@ -87,36 +99,47 @@ module WakeupLogic (
     }
 
     always_comb {
+        // Get logic from IF
         dispatchStore = port.dispatchStore;
         dispatchLoad = port.dispatchLoad;
         notIssued = port.notIssued;
 
+        // Wakeup
         for w in 0..WAKEUP_WIDTH {
             wakeupDstVector[w] = port.wakeupVector[w];
         }
 
+        // Dispatch
         for i in 0..DISPATCH_WIDTH {
             dispatchedSrcRegPtr[i][0] = port.writeSrcTag[i].regPtr[0].ptr;
             dispatchedSrcRegPtr[i][1] = port.writeSrcTag[i].regPtr[1].ptr;
             dispatchedSrcRegPtr[i][2] = port.writeSrcTag[i].regPtr[2].ptr;
         }
 
+        // Update store bit vector according to information about getting out from IQ.
         storeBitVector = storeBitVectorReg & notIssued;
+        // Memory dependent prediction
         memDependencyPred = port.memDependencyPred;
 
         for i in 0..DISPATCH_WIDTH {
             if dispatchStore[i] {
+                // Update store bit vector (Set the corresponding bit).
                 dependStoreBitVector[i] = 0;
                 storeBitVector[port.writePtr[i]] = TRUE;
             } else if dispatchLoad[i] && memDependencyPred[i] {
+                // Issue load inst speculatively according to memory dependent prediction.
+                // Add store bit vector to the dependency destination bit.
+                // This will be processed in Producer Matrix.
                 dependStoreBitVector[i] = storeBitVector;
             } else {
+                // Reset store bit vector for which add dependency destination bit.
                 dependStoreBitVector[i] = 0;
             }
         }
     }
 
     always_comb {
+        // Ready of each instruction
         for i in 0..ISSUE_QUEUE_ENTRY_NUM {
             port.opReady[i] = opMatrixReady[i];
         }

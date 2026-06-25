@@ -5,6 +5,18 @@ interface ControllerIF {
     var clk: clock;
     var rst: logic;
 
+    //
+    // Pipeline
+    //
+    // PipelineControll::stall は，そのステージの頭にあるパイプラインレジスタの
+    // 書き込み制御を行う．たとえば ifStage であれば PC の，idStage であれば，
+    // if/id ステージ間のパイプラインレジスタの WE に接続される．
+    //
+    // PipelineControll::clear は，有効な場合，そのステージの次のステージに送り
+    // 込む命令の valid を強制的に落とす（次のステージにNOPを送る）．
+    // これは，そのサイクルにそのステージにいる命令を無効化し，
+    // 次のステージにNOP を送り込むことを意味する．
+    //
     var npStage : PipelineControll;
     var ifStage : PipelineControll;
     var pdStage : PipelineControll;
@@ -16,6 +28,7 @@ interface ControllerIF {
     var backEnd : PipelineControll;
     var cmStage : PipelineControll;
 
+    // 生きた命令がいるかどうか
     var ifStageEmpty      : logic;
     var pdStageEmpty      : logic;
     var idStageEmpty      : logic;
@@ -23,6 +36,9 @@ interface ControllerIF {
     var activeListEmpty   : logic;
     var wholePipelineEmpty: logic;
 
+    //
+    // --- Requests from pipeline stages.
+    //
     var npStageSendBubbleLower            : logic;
     var npStageSendBubbleLowerForInterrupt: logic;
     var ifStageSendBubbleLower            : logic;
@@ -32,6 +48,9 @@ interface ControllerIF {
     var cmStageFlushUpper                 : logic;
     var isStageStallUpper                 : logic;
 
+    //
+    // --- Special signals
+    //
     var stallByDecodeStage: logic;
 
     modport Controller {

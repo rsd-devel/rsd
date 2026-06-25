@@ -1,6 +1,9 @@
 module RetirementRMT (
     port: modport RenameLogicIF::RetirementRMT,
 ) {
+    //
+    // --- RMT for general registers
+    //
     import BasicTypes::*;
     import RenameLogicTypes::*;
 
@@ -31,16 +34,19 @@ module RetirementRMT (
     always_comb {
         for i in 0..COMMIT_WIDTH {
             if !port.rst {
+                // Write data
                 writeLogRegNum[i] = port.retRMT_WriteReg_LogRegNum[i];
                 writePhyRegNum[i] = port.retRMT_WriteReg_PhyRegNum[i].regNum;
                 we[i] = port.retRMT_WriteReg[i];
 
+                // Write to Write Bypass
                 for j in 0..i {
                     if we[i] && (writeLogRegNum[i] == writeLogRegNum[j]) {
                         we[j] = FALSE;
                     }
                 }
             } else {
+                // Reset RMT
                 writeLogRegNum[i] = rstWriteLogRegNum[i];
                 writePhyRegNum[i] = rstWritePhyRegNum[i];
                 if i == 0 {
@@ -51,13 +57,17 @@ module RetirementRMT (
             }
         }
 
+        // Read data
         for i in 0..RENAME_WIDTH {
             readLogRegNum[i] = port.retRMT_ReadReg_LogRegNum[i];
             port.retRMT_ReadReg_PhyRegNum[i].regNum = readPhyRegNum[i];
             port.retRMT_ReadReg_PhyRegNum[i].isFP = port.retRMT_ReadReg_LogRegNum[i].isFP;
+            // Retirement RMT is used for recovery, thus it does not require a
+            // bypass logic.
         }
     }
 
+    // - Initialization logic
     always_ff (port.clk) {
         for i in 0..COMMIT_WIDTH {
             if port.rstStart {
@@ -68,6 +78,8 @@ module RetirementRMT (
         }
     }
 
+    // フリーリストには0からREG_FREE_LIST_ENTRY_NUM-1が入っているので、
+    // RMTの初期値はREG_FREE_LIST_ENTRY_NUM以上の値を使う
     always_comb {
         for i in 0..COMMIT_WIDTH {
             if !rstWriteLogRegNum[i].isFP {

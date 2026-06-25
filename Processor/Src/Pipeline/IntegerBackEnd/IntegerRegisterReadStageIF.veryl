@@ -5,6 +5,7 @@ interface IntegerRegisterReadStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: IntegerExecutionStageRegPath [INT_ISSUE_WIDTH];
 
     modport ThisStage {

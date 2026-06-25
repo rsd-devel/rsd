@@ -13,11 +13,18 @@ package MemoryTypes {
     const PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE: u32 = 6;
     const PS_PL_CTRL_QUEUE_SIZE         : u32 = 1 << PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE;
 
+    //
+    // Size of Main Memory
+    //
     const MEMORY_ADDR_BIT_SIZE: u32 = 25;
     const MEMORY_BYTE_SIZE    : u32 = 1 << MEMORY_ADDR_BIT_SIZE;
 
+    // Specify the number of rows of the dummy data (one row corresponds to one entry in the memory)
+    // for initializing the memory.
+    // If the memory entry is larger than this value, the dummy data is repeatedly read and initialized.
     const DUMMY_HEX_ENTRY_NUM: u32 = 256;
 
+    // Memory Entry Size
     const MEMORY_ENTRY_BIT_NUM : u32 = 64;
     const MEMORY_ENTRY_BYTE_NUM: u32 = MEMORY_ENTRY_BIT_NUM / BYTE_WIDTH;
     const MEMORY_ADDR_MSB      : u32 = MEMORY_ADDR_BIT_SIZE - 1;
@@ -26,16 +33,30 @@ package MemoryTypes {
     const MEMORY_ENTRY_NUM     : u32 = 1 << MEMORY_INDEX_BIT_WIDTH;
     type MemoryEntryDataPath = logic<MEMORY_ENTRY_BIT_NUM>;
 
+    // Latency
+
+    // The pipeline length of memory read processing
     const MEMORY_READ_PIPELINE_DEPTH : u32 = 5;
+
+    // The latency of memory write process
     const MEMORY_WRITE_PROCESS_LATENCY: u32 = 2;
+
+    // The latency of memory read process.
+    // This value indicates # of cycles from the read access
+    // to the next read/write access.
+    // Note that this value is not # of cycles to read data.
     const MEMORY_READ_PROCESS_LATENCY : u32 = 2;
+
+    // For counting the latency of memory read/write accrss
     type MemoryProcessLatencyCount = logic<2>;
 
     struct MemoryReadReq {
+        // Request id for AXI4
         id  : logic<MEMORY_AXI4_READ_ID_WIDTH>,
         addr: logic<MEMORY_AXI4_ADDR_BIT_SIZE>,
     }
 
+    // To simulate variable latency memory access
     const MEM_LATENCY_SIM_QUEUE_SIZE               : u32 = 128;
     const MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE: u32 = 10;
     const MEM_LATENCY_SIM_RAND_BIT_WIDTH           : u32 = 32;
@@ -48,7 +69,9 @@ package MemoryTypes {
         isWrite               : logic,
         memAccessAddr         : AddrPath,
         memAccessWriteData    : MemoryEntryDataPath,
+        // Serial ID assigned to the next read request
         nextMemReadSerial     : MemAccessSerial,
+        // Serial ID assigned to the next write request
         nextMemWriteSerial    : MemWriteSerial,
         wr                    : logic,
     }

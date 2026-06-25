@@ -14,6 +14,7 @@ module MemoryDependencyPredictor (
 
     var prediction: logic [RENAME_WIDTH];
 
+    // NOTE: Need to implement write request queue when increase STORE_ISSUE_WIDTH
     inst mdt: BlockMultiBankRAM #(
         ENTRY_NUM     : MDT_ENTRY_NUM,
         ENTRY_BIT_SIZE: $bits(MDT_Entry),
@@ -28,6 +29,7 @@ module MemoryDependencyPredictor (
         rv : mdtRV,
     );
 
+    // Counter for reset sequence.
     var resetIndex: MDT_IndexPath;
 
     always_ff (port.clk) {
@@ -39,22 +41,32 @@ module MemoryDependencyPredictor (
     }
 
     always_comb {
+        // Process read request
         for i in 0..RENAME_WIDTH {
+            // convert PC_Path to MDT_IndexPath
             mdtRA[i] = ToMDT_Index(port.pc[0] + i * INSN_BYTE_WIDTH);
         }
 
+        // Decide whether issue speculatively
         for i in 0..RENAME_WIDTH {
+            // Predict according to mdt entry
             prediction[i] = mdtRV[i].counter;
         }
 
+        // Connect to IF.
         port.memDependencyPred = prediction;
 
+        // Process write request
         for i in 0..STORE_ISSUE_WIDTH {
+            // Make write request when store detect conflict with load
             mdtWE[i] = loadStoreUnit.memAccessOrderViolation[i];
+            // Learn memory order violation
             mdtWA[i] = ToMDT_Index(loadStoreUnit.conflictLoadPC[i]);
             mdtWV[i].counter = TRUE;
         }
 
+        // In reset sequence, the write port 0 is used for initializing, and
+        // the other write ports are disabled.
         if port.rst {
             for i in 0..STORE_ISSUE_WIDTH {
                 mdtWE[i] = i == 0;
@@ -62,6 +74,7 @@ module MemoryDependencyPredictor (
                 mdtWV[i].counter = FALSE;
             }
 
+            // To avoid writing to the same bank (avoid error message)
             for i in 0..RENAME_WIDTH {
                 mdtRA[i] = i;
             }

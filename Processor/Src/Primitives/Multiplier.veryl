@@ -49,7 +49,7 @@ module PipelinedMultiplier #(
     const RESULT_PIPELINE_DEPTH: u32 = PIPELINE_DEPTH - 2;
 
     #[sv("syn_pipeline=1")]
-    var pipeReg   : signed logic<2 * BIT_WIDTH + 2> [RESULT_PIPELINE_DEPTH];
+    var pipeReg   : signed logic<2 * BIT_WIDTH + 2> [RESULT_PIPELINE_DEPTH]; // synthesis syn_pipeline = 1
     var mulResult : signed logic<2 * BIT_WIDTH + 2>                        ;
     var exSrcA    : signed logic<BIT_WIDTH + 1>                            ;
     var exSrcB    : signed logic<BIT_WIDTH + 1>                            ;

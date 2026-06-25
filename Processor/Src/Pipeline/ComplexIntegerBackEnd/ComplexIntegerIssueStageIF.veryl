@@ -1,9 +1,11 @@
+// --- ComplexIntegerIssueStageIF
 interface ComplexIntegerIssueStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: ComplexIntegerRegisterReadStageRegPath [COMPLEX_ISSUE_WIDTH];
 
     modport ThisStage {

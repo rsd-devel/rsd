@@ -15,8 +15,12 @@ module ActiveList (
     import DebugTypes::*;
     import OpFormatTypes::*;
 
+    //
+    // --- Pointers
+    //
     var headPtr: ActiveListIndexPath;
     var headPtrList: ActiveListIndexPath [COMMIT_WIDTH];
+    // 次に割り当てを行うエントリを指す
     var tailPtr: ActiveListIndexPath;
     var tailPtrList: ActiveListIndexPath [COMMIT_WIDTH];
     var readPtrList: ActiveListIndexPath [COMMIT_WIDTH];
@@ -24,6 +28,7 @@ module ActiveList (
     var count: ActiveListCountPath;
     var pushNum: RenameLaneCountPath;
 
+    // Parameter: Size, Initial head pos., Initial tail pos., Initial count
     inst activeListPointer: BiTailMultiWidthQueuePointer #(
         SIZE            : ACTIVE_LIST_ENTRY_NUM,
         INITIAL_HEAD_PTR: 0,
@@ -46,6 +51,8 @@ module ActiveList (
     );
 
     always_comb {
+        // In the active list, recovery and allocation can be simultaneously carried out,
+        // thus allocation is decided by its current count without its phase.
         if count <= ACTIVE_LIST_ENTRY_NUM - RENAME_WIDTH {
             port.allocatable = TRUE;
         } else {
@@ -70,6 +77,7 @@ module ActiveList (
             }
         }
         for i in 0..COMMIT_WIDTH {
+            //Actually limited to RENAME_WIDTH
             if tailPtr - 1 - i >= ACTIVE_LIST_ENTRY_NUM {
                 tailPtrList[i] = tailPtr - 1 - i + ACTIVE_LIST_ENTRY_NUM;
             } else {
@@ -88,10 +96,14 @@ module ActiveList (
 
         ctrl.activeListEmpty = count == 0;
 
+        // Debug Register
         debug.activeListHeadPtr = headPtr;
         debug.activeListCount = count;
     }
 
+    //
+    // --- Active List
+    //
     var pushTail: logic [RENAME_WIDTH];
     var pushedTailData: ActiveListEntry [RENAME_WIDTH];
     var readData: ActiveListEntry [COMMIT_WIDTH];
@@ -116,6 +128,9 @@ module ActiveList (
         port.readData = readData;
     }
 
+    //
+    // --- Execution result write
+    //
     const EXEC_RESULT_WRITE_NUM: u32 = ISSUE_WIDTH + MULDIV_ISSUE_WIDTH;
 
     var we: logic [EXEC_RESULT_WRITE_NUM];
@@ -144,6 +159,8 @@ module ActiveList (
         }
     }
 
+    // Recovery register.
+    // Record the oldest recovery point of an op that occurs misprediction.
     struct RecoveryRegPath {
         pc              : PC_Path,
         faultingDataAddr: AddrPath,
@@ -168,12 +185,17 @@ module ActiveList (
 
     always_ff (port.clk) {
         if port.rst || ((recovery.toRecoveryPhase && !exceptionDetected) && !startRecoveryAtCommit) {
+            // Reset recoveryReg
+            // But, to handle exceptions correctly, do not reset the recoveryReg in the following cases:
+            //   1) another exception occurs when starting recovery
+            //   2) need to start recovery at commit time
             recoveryReg = '0;
         } else {
             recoveryReg = nextRecoveryReg;
         }
     }
 
+    // One cycle delay for RenameLogicCommitter.
     always_ff (port.clk) {
         if port.rst {
             recoveryEntryNum = '0;
@@ -207,6 +229,7 @@ module ActiveList (
                     nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
                     nextRecoveryReg.state = writeData[i].state;
 
+                    // Need to update the recovery register when handling exceptions at commit time
                     if writeData[i].state == EXEC_STATE_REFETCH_NEXT ||
                        writeData[i].state == EXEC_STATE_REFETCH_THIS {
                         exceptionDetected = TRUE;
@@ -218,6 +241,9 @@ module ActiveList (
                         startRecoveryAtCommit = TRUE;
                     }
 
+                    // refetchTypeはflushOpのheadPtrを決めるためとrecoveredPCを確定するために使う
+                    // Int命令の例外は分岐命令なので分岐ターゲットに飛ぶ
+                    // Mem命令のREFETCH_NEXTは順序違反検出なので次のPCに飛ぶ
                     if writeData[i].state == EXEC_STATE_REFETCH_NEXT {
                         if writeData[i].isBranch {
                             refetchType = REFETCH_TYPE_BRANCH_TARGET;
@@ -237,17 +263,25 @@ module ActiveList (
             }
         }
 
+        //PCのリカバリに用いる
+        //これらのPCはRecoveryManagerのRecoveryRegisterを経由してFetchStageに送られる
         recovery.recoveredPC_FromCommitStage = ToAddrFromPC(recoveryReg.pc);
         recovery.recoveredPC_FromRwStage = ToAddrFromPC(nextRecoveryReg.pc);
+        // Fault handling
         recovery.faultingDataAddr = recoveryReg.faultingDataAddr;
 
+        //LSQのリカバリに用いる
         port.loadQueueRecoveryTailPtr = recoveryReg.loadQueuePtr;
         port.storeQueueRecoveryTailPtr = recoveryReg.storeQueuePtr;
 
+        //リカバリをしなければならない命令はアクティブリストのtailからリカバリを起こした命令(またはその命令の後ろ)までのエントリにあたる
         flushRangeHeadPtr = recovery.flushRangeHeadPtr;
         flushRangeTailPtr = recovery.flushRangeTailPtr;
 
         if flushRangeHeadPtr == flushRangeTailPtr && count == ACTIVE_LIST_ENTRY_NUM {
+            // Flush all insts in ActiveList
+            // Because head and tail pointers match when ActiveList is full or empty,
+            // flushAllInsns is needed to distinguish between them
             nextRecoveryEntryNum = ACTIVE_LIST_ENTRY_NUM;
             recovery.flushAllInsns = TRUE;
         } else {
@@ -259,12 +293,20 @@ module ActiveList (
             recovery.flushAllInsns = FALSE;
         }
 
+        // RenameLogicCommitterにtoRecoveryPhase信号が
+        // 届いた次のサイクルに信号を送る必要があるので,1サイクルの遅延を入れている
         port.recoveryEntryNum = recoveryEntryNum;
+        // RecoveryManagerに例外が検出されたことを知らせる信号
+        // 先行してRwステージリカバリを行っていた場合は, コミット時まで待つ
         recovery.exceptionDetectedInRwStage = exceptionDetected && !recovery.unableToStartRecovery;
         recovery.refetchTypeFromRwStage = refetchType;
+        // flushRangeHeadPtrを保存するために用いる
         port.exceptionOpPtr = nextRecoveryReg.ptr;
     }
 
+    //
+    // --- ExecutionState
+    //
     const EXEC_STATE_WRITE_NUM: u32 = RENAME_WIDTH + EXEC_RESULT_WRITE_NUM;
 
     var esWE: logic [EXEC_STATE_WRITE_NUM];
@@ -290,6 +332,7 @@ module ActiveList (
 
     always_comb {
         if port.rst {
+            // Head entries are initialized.
             for i in 0..EXEC_STATE_WRITE_NUM {
                 esWE[i] = FALSE;
                 esWA[i] = i;
@@ -305,6 +348,8 @@ module ActiveList (
             for i in 0..EXEC_RESULT_WRITE_NUM {
                 esWE[i + RENAME_WIDTH] = we[i];
                 esWA[i + RENAME_WIDTH] = writeData[i].ptr;
+                //Rwステージで検出された例外はコミットステージで再度検出されないようにExecStateをEXEC_STATE_SUCCESSにしておく必要がある
+                //exceptionIndexは例外を起こした命令の場所を示す
                 esWV[i + RENAME_WIDTH] = writeData[i].state != EXEC_STATE_NOT_FINISHED;
             }
         }
@@ -324,6 +369,9 @@ module ActiveList (
         port.headExecState = headExecState;
     }
 
+    //
+    // --- FFLAGS state
+    //
     const FFLAGS_STATE_WRITE_NUM: u32 = RENAME_WIDTH + FP_ISSUE_WIDTH;
 
     var ffsWE: logic [FFLAGS_STATE_WRITE_NUM];
@@ -348,6 +396,7 @@ module ActiveList (
 
     always_comb {
         if port.rst {
+            // Head entries are initialized.
             for i in 0..FFLAGS_STATE_WRITE_NUM {
                 ffsWE[i] = FALSE;
                 ffsWA[i] = i;

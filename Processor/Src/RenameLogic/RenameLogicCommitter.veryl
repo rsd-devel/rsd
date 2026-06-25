@@ -8,6 +8,7 @@ module RenameLogicCommitter (
     import SchedulerTypes::*;
     import ActiveListIndexTypes::*;
 
+    // State machine
     enum Phase: logic<2> {
         PHASE_COMMIT    = 0,
         PHASE_RECOVER_0 = 1,
@@ -31,17 +32,21 @@ module RenameLogicCommitter (
     // NOT_TRANSPILED_TO_VERYL
     // `RSD_ASSERT_CLK(port.clk, !(recovery.toRecoveryPhase && phase != PHASE_COMMIT), "");
 
+    // State machine
     always_comb {
         if port.rst {
             nextPhase = PHASE_COMMIT;
             nextRecoveryCount = 0;
         } else if recovery.toRecoveryPhase {
+            // Trigger a recovery mode.
             nextPhase = PHASE_RECOVER_0;
             nextRecoveryCount = 0;
         } else if phase == PHASE_RECOVER_0 {
+            // In the first step of recovery, count the number of ops in the active list.
             nextPhase = PHASE_RECOVER_1;
             nextRecoveryCount = activeList.recoveryEntryNum;
         } else if phase == PHASE_RECOVER_1 {
+            // Release all entries in a mispredicted path, move to a normal phase.
             if recoveryCount == 0 {
                 nextPhase = PHASE_COMMIT;
             } else {
@@ -59,6 +64,9 @@ module RenameLogicCommitter (
         }
     }
 
+    //
+    // Pipeline registers for released physical registers.
+    //
     struct ReleasedRegister {
         releaseReg    : logic,
         phyReleasedReg: PRegNumPath,
@@ -83,18 +91,27 @@ module RenameLogicCommitter (
         }
     }
 
+    //
+    // Commitment/recovery
+    //
     var alReadData: ActiveListEntry [COMMIT_WIDTH];
     var releaseNum: CommitLaneCountPath;
     var flushNum  : CommitLaneCountPath;
 
     always_comb {
+        // The head and tail entries of an active list.
         alReadData = activeList.readData;
         releaseNum = '0;
         flushNum = '0;
 
+        // Update control signals for the active list and the free lists in
+        //  a rename logic.
         if phase == PHASE_COMMIT {
+            // Commit mode.
             activeList.popTailNum = 0;
 
+            // Pop the head entries of the active list and release registers
+            // to the free lists in the rename logic.
             if port.commit {
                 activeList.popHeadNum = port.commitNum;
             } else {
@@ -103,11 +120,16 @@ module RenameLogicCommitter (
 
             for i in 0..COMMIT_WIDTH {
                 if port.commit && i <: port.commitNum {
+                    // A head op can commit.
+                    // Release registers to the free lists.
                     nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
                 } else {
+                    // A head op cannot commit.
+                    // The active list and the free lists are not updated.
                     nextReleasedReg[i].releaseReg = FALSE;
                 }
 
+                // Released registers are set from the head entry of the active list.
                 nextReleasedReg[i].phyReleasedReg = alReadData[i].phyPrevDstRegNum;
             }
 
@@ -134,11 +156,16 @@ module RenameLogicCommitter (
 
                 for i in 0..COMMIT_WIDTH {
                     if i <: releaseNum {
+                        // A head op can commit.
+                        // Release registers to the free lists.
                         nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
                     } else {
+                        // A head op cannot commit.
+                        // The active list and the free lists are not updated.
                         nextReleasedReg[i].releaseReg = FALSE;
                     }
 
+                    // Released registers are set from the head entry of the active list.
                     nextReleasedReg[i].phyReleasedReg = alReadData[i].phyDstRegNum;
                 }
 
@@ -154,11 +181,16 @@ module RenameLogicCommitter (
 
                 for i in 0..COMMIT_WIDTH {
                     if i <: releaseNum {
+                        // A head op can commit.
+                        // Release registers to the free lists.
                         nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
                     } else {
+                        // A head op cannot commit.
+                        // The active list and the free lists are not updated.
                         nextReleasedReg[i].releaseReg = FALSE;
                     }
 
+                    // Released registers are set from the tail entry of the active list.
                     nextReleasedReg[i].phyReleasedReg = alReadData[i].phyDstRegNum;
                 }
 

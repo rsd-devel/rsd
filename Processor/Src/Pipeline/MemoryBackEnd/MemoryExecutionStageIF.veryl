@@ -1,3 +1,6 @@
+//
+// --- MemoryExecutionStageIF
+//
 interface MemoryExecutionStageIF {
     import BasicTypes::*;
     import BypassTypes::*;
@@ -6,6 +9,7 @@ interface MemoryExecutionStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: MemoryTagAccessStageRegPath [MEM_ISSUE_WIDTH];
 
     modport ThisStage {

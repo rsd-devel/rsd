@@ -33,6 +33,7 @@ package IntegerExecutionStageFunctions {
                 return opA >= opB;
             }
             COND_AL: {
+                // AL 常時（無条件） -
                 return 1'b1;
             }
             default: {
@@ -68,6 +69,7 @@ module IntegerExecutionStage (
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
 
+    // --- Pipeline registers
     always_ff (port.clk) {
         if port.rst {
             for i in 0..INT_ISSUE_WIDTH {
@@ -150,6 +152,7 @@ module IntegerExecutionStage (
                 iqDataValue.activeListPtr
             );
 
+            // オペランド
             if pipeReg[i].bCtrl.rA.valid {
                 fuOpA[i] = bypass.intSrcRegDataOutA[i];
             } else {
@@ -162,13 +165,17 @@ module IntegerExecutionStage (
                 fuOpB[i] = pipeReg[i].operandB;
             }
 
+            // Condition
             isCondEnabledValue = IsConditionEnabledInt(iqDataValue.cond, fuOpA[i].data, fuOpB[i].data);
 
+            // Shifter
             shiftOperandType[i] = intSubInfoValue.shiftType;
             shiftImmIn[i] = intSubInfoValue.shiftIn;
 
+            // ALU
             aluCode[i] = intSubInfoValue.aluCode;
 
+            // データアウト
             case iqDataValue.opType {
                 INT_MOP_TYPE_ALU: {
                     dataOutValue.data = aluDataOut[i];
@@ -188,14 +195,17 @@ module IntegerExecutionStage (
                 }
             }
 
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValidValue =
                 (intSubInfoValue.operandTypeA != OOT_REG || fuOpA[i].valid) &&
                 (intSubInfoValue.operandTypeB != OOT_REG || fuOpB[i].valid);
             dataOutValue.valid = regValidValue;
 
+            // --- Bypass
             bypass.intCtrlIn[i] = pipeReg[i].bCtrl;
             bypass.intDstRegDataOut[i] = dataOutValue;
 
+            // --- 分岐
             bPredValue = brSubInfoValue.bPred;
             isBranchValue =
                 iqDataValue.opType == INT_MOP_TYPE_BR ||
@@ -204,11 +214,16 @@ module IntegerExecutionStage (
                 (iqDataValue.opType == INT_MOP_TYPE_BR && iqDataValue.cond == COND_AL) ||
                 iqDataValue.opType == INT_MOP_TYPE_RIJ;
 
+            // 分岐orレジスタ間接分岐で，条件が有効ならTaken
             brTakenValue = pipeReg[i].valid && isBranchValue && isCondEnabledValue;
 
+            // Whether this branch is conditional one or not.
             brResultValue.isCondBr = !isJumpValue;
+
+            // The address of a branch.
             brResultValue.brAddr = ToPC_FromAddr(pcValue);
 
+            // ターゲットアドレスの計算
             if brTakenValue {
                 if iqDataValue.opType == INT_MOP_TYPE_BR {
                     brResultValue.nextAddr = ToPC_FromAddr(pcValue + ExtendBranchDisplacement(brSubInfoValue.brDisp));
@@ -225,6 +240,7 @@ module IntegerExecutionStage (
             brResultValue.globalHistory = bPredValue.globalHistory;
             brResultValue.phtPrevValue = bPredValue.phtPrevValue;
 
+            // 予測ミス判定
             predMissValue =
                 brResultValue.valid &&
                 (
@@ -238,6 +254,7 @@ module IntegerExecutionStage (
             nextStage[i].intQueueData = pipeReg[i].intQueueData;
 
             if stall || clear || port.rst || flushValue {
+                // リセットorフラッシュ時はNOP
                 nextStage[i].valid = FALSE;
             } else {
                 nextStage[i].valid = pipeReg[i].valid;
@@ -248,6 +265,7 @@ module IntegerExecutionStage (
             nextStage[i].brResult = brResultValue;
             nextStage[i].brMissPred = predMissValue;
 
+            // Debug Register
             debug.intExReg[i].valid = pipeReg[i].valid;
             debug.intExReg[i].flush = flushValue;
             debug.intExReg[i].opId = pipeReg[i].opId;
@@ -259,6 +277,7 @@ module IntegerExecutionStage (
             debug.intExReg[i].brPredMiss = predMissValue;
         }
 
+        // Output
         port.nextStage = nextStage;
     }
 }

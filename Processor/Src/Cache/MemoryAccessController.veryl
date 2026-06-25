@@ -1,11 +1,17 @@
+//
+// Memory Access Controller
+// キャッシュとメモリの間に存在し、
+// メモリアクセス要求の形式を変換する。
+// ICacheとDCacheからのアクセスの調停も行う。
+//
 module MemoryAccessController (
     port                : modport CacheSystemIF::MemoryAccessController,
-    nextMemReadSerial   : input  MemAccessSerial                       ,
-    nextMemWriteSerial  : input  MemWriteSerial                        ,
+    nextMemReadSerial   : input  MemAccessSerial                       , // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    nextMemWriteSerial  : input  MemWriteSerial                        , // RSDの次の書き込み要求に割り当てられるシリアル(id)
     memReadData         : input  MemoryTypes::MemoryEntryDataPath       ,
     memReadDataReady    : input  logic                                  ,
-    memReadSerial       : input  MemAccessSerial                       ,
-    memAccessResponse   : input  MemAccessResponse                     ,
+    memReadSerial       : input  MemAccessSerial                       , // メモリの読み出しデータのシリアル
+    memAccessResponse   : input  MemAccessResponse                     , // メモリ書き込み完了通知
     memAccessReadBusy   : input  logic                                  ,
     memAccessWriteBusy  : input  logic                                  ,
     memAccessAddr       : output MemoryMapTypes::PhyAddrPath            ,
@@ -18,9 +24,12 @@ module MemoryAccessController (
     import MemoryTypes::*;
     import MemoryMapTypes::*;
 
+    // ICache/DCacheからの要求を受理するか否か
     var icAck: logic;
     var dcAck: logic;
 
+    // メモリアクセスのシリアル番号を保持するカウンタ
+    // 現在の実装では、読出し
     var reqSerial       : MemAccessSerial;
     var nextReqSerial   : MemAccessSerial;
     var resultSerial    : MemAccessSerial;
@@ -36,7 +45,9 @@ module MemoryAccessController (
         }
     }
 
+    // メモリへのアクセス要求
     always_comb {
+        // ICache/DCacheの要求を受けるor何もしない を決定
         icAck = FALSE;
         dcAck = FALSE;
 
@@ -48,6 +59,8 @@ module MemoryAccessController (
             dcAck = TRUE;
         }
 
+        // ICache/DCacheの要求を受ける場合、
+        // それに従ってメモリへリクエストを送る
         if icAck {
             memAccessAddr = port.icMemAccessReq.addr;
             memAccessWriteData = '0;
@@ -70,13 +83,16 @@ module MemoryAccessController (
             memAccessWE = FALSE;
         }
 
+        // Ack for Request
         port.icMemAccessReqAck.ack = icAck;
         port.icMemAccessReqAck.serial = nextMemReadSerial;
         port.dcMemAccessReqAck.ack = dcAck;
+        // D-Cacheの要求は書き込みと読み出しの2種類あり，シリアルは独立に管理されている
         port.dcMemAccessReqAck.serial = nextMemReadSerial;
         port.dcMemAccessReqAck.wserial = nextMemWriteSerial;
     }
 
+    // メモリの読出し結果
     always_comb {
         port.icMemAccessResult.valid = memReadDataReady;
         port.icMemAccessResult.serial = memReadSerial;
@@ -87,19 +103,24 @@ module MemoryAccessController (
         port.dcMemAccessResponse = memAccessResponse;
     }
 
+    // MemAccessSerial
     always_comb {
         nextReqSerial = reqSerial;
         nextResultSerial = resultSerial;
 
+        // 読出要求が来たら、reqSerialをインクリメント
         if icAck || (dcAck && port.dcMemAccessReq.we == FALSE) {
             nextReqSerial = reqSerial + 1;
         }
 
+        // 読出結果が来たら、resultSerialをインクリメント
         if memReadDataReady {
             nextResultSerial = resultSerial + 1;
         }
     }
 
+    // 現在の実装では、キャッシュラインのデータ幅とメモリの入出力データ幅は
+    // 同じである必要がある。
     // NOT_TRANSPILED_TO_VERYL
     // `RSD_STATIC_ASSERT(
     //     $bits(ICacheLinePath) == $bits(MemoryEntryDataPath),

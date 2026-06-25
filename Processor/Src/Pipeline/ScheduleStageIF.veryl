@@ -4,6 +4,8 @@ interface ScheduleStageIF {
 
     var clk             : clock;
     var rst             : logic;
+
+    // Pipeline register
     var intNextStage    : IssueStageRegPath [INT_ISSUE_WIDTH];
     var complexNextStage: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
     var memNextStage    : IssueStageRegPath [MEM_ISSUE_WIDTH];

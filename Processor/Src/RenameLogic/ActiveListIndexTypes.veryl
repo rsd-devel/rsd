@@ -1,3 +1,9 @@
+//
+// Active list related types
+// RSD partially flushes the pipeline using active list pointers over
+// a wide area within the processor. To avoid circular references, the related
+// types/functions are defined in this file.
+//
 package ActiveListIndexTypes {
     import BasicTypes::*;
     import MicroArchConf::*;
@@ -19,14 +25,17 @@ package ActiveListIndexTypes {
         } else if flushAllInsns {
             return TRUE;
         } else if detectRange && tailPtr >= headPtr {
+            //  |---h***i***t-------|
             if opPtr >= headPtr && opPtr <: tailPtr {
                 return TRUE;
             } else {
                 return FALSE;
             }
         } else if detectRange && tailPtr <: headPtr {
+            //  |*****t----h***i****|
             if opPtr >= headPtr && opPtr >: tailPtr {
                 return TRUE;
+            //  |**i***t----h*******|
             } else if opPtr <: headPtr && opPtr <: tailPtr {
                 return TRUE;
             } else {

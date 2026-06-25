@@ -1,3 +1,13 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Complex Integer Execution stage
+//
+// 乗算/SIMD 命令の演算を行う
+// COMPLEX_EXEC_STAGE_DEPTH 段にパイプライン化されている
+//
+
 interface MulDivUnitIF {
     import BasicTypes::*;
     import OpFormatTypes::*;
@@ -6,6 +16,8 @@ interface MulDivUnitIF {
 
     var clk  : clock;
     var rst  : logic;
+
+    // dummy signal to prevent that some modports become empty
     var dummy: logic;
     var stall: logic;
 
@@ -24,6 +36,7 @@ interface MulDivUnitIF {
 
     var divAcquire: logic [MULDIV_ISSUE_WIDTH];
 
+    // ActiveListへの書き込み用
     var acquireData: MulDivAcquireData [MULDIV_ISSUE_WIDTH];
 
     modport MulDivUnit {

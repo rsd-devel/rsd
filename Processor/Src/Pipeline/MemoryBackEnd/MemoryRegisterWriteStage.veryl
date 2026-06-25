@@ -1,3 +1,6 @@
+//
+// Memory Write back stage
+//
 module MemoryRegisterWriteStage (
     prev        : modport MemoryAccessStageIF::NextStage,
     loadStoreUnit: modport LoadStoreUnitIF::MemoryRegisterWriteStage,
@@ -22,7 +25,7 @@ module MemoryRegisterWriteStage (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
-
+    // --- Pipeline registers
     always_ff (ctrl.clk) {
         if ctrl.rst {
             for i in 0..MEM_ISSUE_WIDTH {
@@ -40,9 +43,15 @@ module MemoryRegisterWriteStage (
     var valid: logic [MEM_ISSUE_WIDTH];
 
     always_comb {
+        // Pipeline controll
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
+        // 以下のいずれかの場合，握っている MSHR を解放する
+        // 1. MSHR を確保した命令がライトバックまで達した場合
+        // 2. MSHR を確保した命令が後から SQ からのフォワードミスが発生した場合
+        //      フォワード元のストアがミスしていた場合，MSHR をてばなさいとデッドロックする
+        // 3. Zaamo拡張の命令でロードが完了したとき (ストア時はMSHRをつかんでいない)
         for j in 0..MSHR_NUM {
             loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
             for i in 0..LOAD_ISSUE_WIDTH {
@@ -71,6 +80,9 @@ module MemoryRegisterWriteStage (
             updateValue = !stall && !clear && valid[i] && !flush[i];
             update[i] = updateValue;
 
+            //
+            // Active list
+            //
             alWriteDataValue.ptr = pipeReg[i].activeListPtr;
             alWriteDataValue.loadQueuePtr = pipeReg[i].loadQueueRecoveryPtr;
             alWriteDataValue.storeQueuePtr = pipeReg[i].storeQueueRecoveryPtr;
@@ -78,6 +90,7 @@ module MemoryRegisterWriteStage (
             alWriteDataValue.isBranch = FALSE;
             alWriteDataValue.isStore = pipeReg[i].isStore;
 
+            // ExecState
             if updateValue {
                 alWriteDataValue.state = pipeReg[i].execState;
             } else {
@@ -87,13 +100,18 @@ module MemoryRegisterWriteStage (
             alWriteDataValue.pc = pipeReg[i].pc;
             alWriteDataValue.dataAddr = pipeReg[i].addrOut;
 
+            // div result is directly written by MulDivUnit
             activeList.memWrite[i] = updateValue && !pipeReg[i].isDiv;
             activeList.memWriteData[i] = alWriteDataValue;
 
+            //
+            // Register file
+            //
             registerFile.memDstRegWE[i] = updateValue && pipeReg[i].opDst.writeReg;
             registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
             registerFile.memDstRegData[i] = pipeReg[i].dataOut;
 
+            // Debug Register
             debug.memRwReg[i].valid = valid[i];
             debug.memRwReg[i].flush = flush[i];
             debug.memRwReg[i].opId = pipeReg[i].opId;

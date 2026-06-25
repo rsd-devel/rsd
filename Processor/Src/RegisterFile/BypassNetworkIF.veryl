@@ -6,6 +6,7 @@ interface BypassNetworkIF {
     var rst     : logic;
     var rstStart: logic;
 
+    // Register read stage
     var intPhySrcRegNumA: PRegNumPath [INT_ISSUE_WIDTH];
     var intPhySrcRegNumB: PRegNumPath [INT_ISSUE_WIDTH];
     var intPhyDstRegNum : PRegNumPath [INT_ISSUE_WIDTH];
@@ -13,11 +14,13 @@ interface BypassNetworkIF {
     var intReadRegB     : logic [INT_ISSUE_WIDTH];
     var intWriteReg     : logic [INT_ISSUE_WIDTH];
     var intCtrlOut      : BypassControll [INT_ISSUE_WIDTH];
+    // Execution stage
     var intCtrlIn       : BypassControll [INT_ISSUE_WIDTH];
     var intSrcRegDataOutA: PRegDataPath [INT_ISSUE_WIDTH];
     var intSrcRegDataOutB: PRegDataPath [INT_ISSUE_WIDTH];
     var intDstRegDataOut : PRegDataPath [INT_ISSUE_WIDTH];
 
+    // Register read stage
     var complexPhySrcRegNumA: PRegNumPath [COMPLEX_ISSUE_WIDTH];
     var complexPhySrcRegNumB: PRegNumPath [COMPLEX_ISSUE_WIDTH];
     var complexPhyDstRegNum : PRegNumPath [COMPLEX_ISSUE_WIDTH];
@@ -25,11 +28,13 @@ interface BypassNetworkIF {
     var complexReadRegB     : logic [COMPLEX_ISSUE_WIDTH];
     var complexWriteReg     : logic [COMPLEX_ISSUE_WIDTH];
     var complexCtrlOut      : BypassControll [COMPLEX_ISSUE_WIDTH];
+    // Execution stage
     var complexCtrlIn       : BypassControll [COMPLEX_ISSUE_WIDTH];
     var complexSrcRegDataOutA: PRegDataPath [COMPLEX_ISSUE_WIDTH];
     var complexSrcRegDataOutB: PRegDataPath [COMPLEX_ISSUE_WIDTH];
     var complexDstRegDataOut : PRegDataPath [COMPLEX_ISSUE_WIDTH];
 
+    // Register read stage
     var memPhySrcRegNumA: PRegNumPath [MEM_ISSUE_WIDTH];
     var memPhySrcRegNumB: PRegNumPath [MEM_ISSUE_WIDTH];
     var memPhyDstRegNum : PRegNumPath [MEM_ISSUE_WIDTH];
@@ -37,11 +42,13 @@ interface BypassNetworkIF {
     var memReadRegB     : logic [MEM_ISSUE_WIDTH];
     var memWriteReg     : logic [MEM_ISSUE_WIDTH];
     var memCtrlOut      : BypassControll [MEM_ISSUE_WIDTH];
+    // Execution stage
     var memCtrlIn       : BypassControll [MEM_ISSUE_WIDTH];
     var memSrcRegDataOutA: PRegDataPath [MEM_ISSUE_WIDTH];
     var memSrcRegDataOutB: PRegDataPath [MEM_ISSUE_WIDTH];
     var memDstRegDataOut : PRegDataPath [MEM_ISSUE_WIDTH];
 
+    // Register read stage
     var fpPhySrcRegNumA: PRegNumPath [FP_ISSUE_WIDTH];
     var fpPhySrcRegNumB: PRegNumPath [FP_ISSUE_WIDTH];
     var fpPhySrcRegNumC: PRegNumPath [FP_ISSUE_WIDTH];
@@ -51,6 +58,7 @@ interface BypassNetworkIF {
     var fpReadRegC     : logic [FP_ISSUE_WIDTH];
     var fpWriteReg     : logic [FP_ISSUE_WIDTH];
     var fpCtrlOut      : BypassControll [FP_ISSUE_WIDTH];
+    // Execution stage
     var fpCtrlIn       : BypassControll [FP_ISSUE_WIDTH];
     var fpSrcRegDataOutA: PRegDataPath [FP_ISSUE_WIDTH];
     var fpSrcRegDataOutB: PRegDataPath [FP_ISSUE_WIDTH];

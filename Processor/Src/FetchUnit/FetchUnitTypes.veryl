@@ -3,8 +3,14 @@ package FetchUnitTypes {
     import BasicTypes::*;
     import MemoryMapTypes::*;
 
+    //
+    // BTB
+    //
+
     const BTB_ENTRY_NUM: u32 = CONF_BTB_ENTRY_NUM;
+    // Tag width, only lower bits are checked and the results of the BTB may incorrect.
     const BTB_TAG_WIDTH: u32 = 4;
+    // BTB have bits with BTB_CONTENTS_ADDR_WIDTH. The remaining address bits are made from the PC.
     const BTB_CONTENTS_ADDR_WIDTH: u32 = 13;
     const BTB_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(BTB_ENTRY_NUM);
     type BTB_IndexPath = logic<BTB_ENTRY_NUM_BIT_WIDTH>;
@@ -23,7 +29,9 @@ package FetchUnitTypes {
     }
 
     struct BTBQueueEntry {
+        // Write Address
         btbWA: AddrPath,
+        // result of bpred
         btbWV: BTB_Entry,
     }
 
@@ -55,8 +63,16 @@ package FetchUnitTypes {
         return {pc[PC_WIDTH - 1:BTB_CONTENTS_ADDR_WIDTH + 2], addr[BTB_CONTENTS_ADDR_WIDTH - 1:0], 2'b0};
     }
 
+    //
+    // GShare
+    //
+
     const BRANCH_GLOBAL_HISTORY_BIT_WIDTH: u32 = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
     type BranchGlobalHistoryPath = logic<BRANCH_GLOBAL_HISTORY_BIT_WIDTH>;
+
+    //
+    // PHT
+    //
 
     const PHT_ENTRY_NUM: u32 = CONF_PHT_ENTRY_NUM;
     const PHT_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(PHT_ENTRY_NUM);
@@ -71,26 +87,45 @@ package FetchUnitTypes {
     type PhtQueuePointerPath = logic<PHT_QUEUE_SIZE_BIT_WIDTH>;
 
     struct PhtQueueEntry {
+        // Write Address
         phtWA: AddrPath,
+        // result of bpred
         phtWV: PHT_EntryPath,
     }
 
+    //
+    // Result/prediction
+    //
+
     struct BranchResult {
+        // The address of a executed branch.
         brAddr       : PC_Path,
+        // The next address of a executed branch.
         nextAddr     : PC_Path,
+        // The execution result of a branch's direction.
         execTaken    : logic,
+        // The prediction result of a branch's direction.
         predTaken    : logic,
+        // Whether this branch is conditional one or not.
         isCondBr     : logic,
+        // Whether the prediction result of this branch is incorrect.
         mispred      : logic,
+        // Whether this result is valid or not.
         valid        : logic,
+        // The global history of branches.
         globalHistory: BranchGlobalHistoryPath,
+        // PHT's counter value
         phtPrevValue : PHT_EntryPath,
     }
 
     struct BranchPred {
+        // Predicted address
         predAddr     : PC_Path,
+        // result of bpred
         predTaken    : logic,
+        // The global history of branches.
         globalHistory: BranchGlobalHistoryPath,
+        // PHT's counter value
         phtPrevValue : PHT_EntryPath,
     }
 }

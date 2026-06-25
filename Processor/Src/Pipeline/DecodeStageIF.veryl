@@ -1,3 +1,5 @@
+// --- FetchPipe
+//
 interface DecodeStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
@@ -5,6 +7,7 @@ interface DecodeStageIF {
 
     var clk            : clock;
     var rst            : logic;
+    // Pipeline registers
     var nextStage      : RenameStageRegPath [DECODE_WIDTH];
     var nextFlush      : logic;
     var nextRecoveredPC: AddrPath;

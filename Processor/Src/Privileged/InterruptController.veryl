@@ -1,3 +1,7 @@
+//
+// CSR Unit
+//
+
 module InterruptController (
     csrUnit        : modport CSR_UnitIF::InterruptController,
     ctrl           : modport ControllerIF::InterruptController,
@@ -24,14 +28,18 @@ module InterruptController (
     always_comb {
         csrReg = csrUnit.csrWholeOut;
 
+        // priority order is
+        // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
         reqInterrupt = 0;
         interruptCode = 0;
 
+        // Machine timer interrupt
         if csrReg.mie.MTIE && csrReg.mip.MTIP {
             reqInterrupt = 1;
             interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
         }
 
+        // Custom Interrupt
         for i in 16..32 {
             if csrReg.mie.CUSTOM[i - 16] && csrReg.mip.CUSTOM[i - 16] {
                 reqInterrupt = 1;
@@ -39,12 +47,20 @@ module InterruptController (
             }
         }
 
+        // check global mask
         reqInterrupt = reqInterrupt && (
             (csrUnit.privilegeLevel <: PRIVILEGE_LEVEL_M) || csrReg.mstatus.MIE
         );
 
+        // パイプライン全体が空になるまでフェッチをとめる
         ctrl.npStageSendBubbleLowerForInterrupt = reqInterrupt;
 
+        // * パイプライン全体が空になったら割り込みをかける
+        // * パイプラインが空でもリカバリマネージャが PC を書き換えている途中の
+        //   可能性があるため，きちんと待つ必要がある
+        // * reqInterrupt は csrReg のみをみて決定しているので，
+        //   要求を出したことによって，CSR 内で MIE が落とされてループするということは
+        //   ないはず
         triggerInterrupt =
             ctrl.wholePipelineEmpty &&
             !recoveryManager.unableToStartRecovery &&

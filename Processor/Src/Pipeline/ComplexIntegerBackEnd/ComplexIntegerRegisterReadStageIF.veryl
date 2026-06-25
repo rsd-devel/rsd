@@ -4,6 +4,7 @@ interface ComplexIntegerRegisterReadStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: ComplexIntegerExecutionStageRegPath [COMPLEX_ISSUE_WIDTH];
 
     modport ThisStage {

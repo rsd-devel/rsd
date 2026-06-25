@@ -13,26 +13,31 @@ interface CSR_UnitIF {
     var reqCustomInterrupt: logic;
     var customInterruptCode: CustomInterruptCodePath;
 
-    var csrWE      : logic;
-    var csrNumber  : CSR_NumberPath;
-    var csrCode    : CSR_Code;
-    var csrReadOut : DataPath;
-    var csrWriteIn : DataPath;
-    var csrWholeOut: CSR_BodyPath;
+    var csrWE      : logic; // CSR write enable
+    var csrNumber  : CSR_NumberPath; // CSR number
+    var csrCode    : CSR_Code; // CSR operation code (ex. set, clear...)
+    var csrReadOut : DataPath; // a register value read from CSR
+    var csrWriteIn : DataPath; // a value to be written to CSR
+    var csrWholeOut: CSR_BodyPath; // whole values of CSR
 
+    // Exception = trap or fault
+    // Trap request
     var triggerExcpt      : logic;
     var excptCause        : ExecutionState;
-    var excptCauseAddr    : PC_Path;
-    var excptTargetAddr   : AddrPath;
-    var excptCauseDataAddr: AddrPath;
-    var csrUnitTriggerExcpt: logic;
+    var excptCauseAddr    : PC_Path; // EBREAK/ECALL 時の mepc
+    var excptTargetAddr   : AddrPath; // Trap vector or xRET return target
+    var excptCauseDataAddr: AddrPath; // fault 発生時のデータアドレス
+    var csrUnitTriggerExcpt: logic; // CSRへのアクセスが例外を発生させるかどうか
 
+    // Interrupt
     var triggerInterrupt: logic;
     var interruptCode   : CSR_CAUSE_InterruptCodePath;
     var interruptRetAddr: PC_Path;
 
+    // Timer interrupt request
     var reqTimerInterrupt: logic;
 
+    // Used in updating minstret
     var commitNum: CommitLaneCountPath;
 
     var privilegeLevel: PrivilegeLevelType;
@@ -60,10 +65,16 @@ interface CSR_UnitIF {
         frm: input,
     }
 
+    // 割り込みは以下の流れで要求が流れる
+    // IO_Unit -> reqTimerInterrupt ->
+    // CSR_Unit -> csrReg.mie.MTIE ->
+    // InterruptController -> triggerInterrupt ->
+    // FetchStage and CSR_Unit
     modport IO_Unit {
         reqTimerInterrupt: output,
     }
 
+    // For counter update
     modport CommitStage {
         fflags: input,
         commitNum: output,

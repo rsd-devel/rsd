@@ -176,6 +176,7 @@ module Shifter (
     import OpFormatTypes::*;
 
     var shiftAmount       : ShiftAmountPath;
+    // This shifter unit is implemented with an unified 65-to-33 right shifter.
     var unifiedShiftTmp   : logic<DATA_WIDTH * 2 + 2>;
     var unifiedShiftHighIn: DataPath;
     var unifiedShiftLowIn : DataPath;
@@ -185,10 +186,15 @@ module Shifter (
     var rorLowBit         : logic;
 
     always_comb {
+        //
+        // --- Select a shift amount.
+        //
         case shiftOperandType {
+            // Immediate shift
             default: {
                 shiftAmount = immShiftAmount;
             }
+            // Register shift
             SOT_REG_SHIFT: {
                 shiftAmount = regShiftAmount;
             }
@@ -206,21 +212,25 @@ module Shifter (
         unifiedShiftLowIn = dataIn;
 
         case shiftType {
+            // Logical shift left
             ST_LSL: {
                 unifiedShiftAmount = DATA_WIDTH - shiftAmount;
                 unifiedShiftHighIn = dataIn;
                 unifiedShiftLowIn = 0;
             }
+            // Logical shift right
             ST_LSR: {
                 unifiedShiftAmount = shiftAmount;
                 unifiedShiftHighIn = 0;
                 unifiedShiftLowIn = dataIn;
             }
+            // Arithmetic shift right
             ST_ASR: {
                 unifiedShiftAmount = shiftAmount;
                 unifiedShiftHighIn = {dataIn[DATA_WIDTH - 1] repeat DATA_WIDTH};
                 unifiedShiftLowIn = dataIn;
             }
+            // RRX/Rotate
             ST_ROR: {
                 unifiedShiftAmount = shiftAmount;
                 if isShiftZero {
@@ -233,8 +243,13 @@ module Shifter (
             }
         }
 
+        // Source of a 65-to-33 right shifter.
         unifiedShiftTmp = {carryIn, unifiedShiftHighIn, unifiedShiftLowIn, 1'b0};
 
+        // Optimized implementation of 65-to-33 right shifter.
+        // Original implementation:
+        //   unifiedShiftOut = unifiedShiftTmp >> unifiedShiftAmount;
+        // Each 4:1 selector will be synthesized to 6:1 LUT.
         case unifiedShiftAmount[5:4] {
             2'h3: { unifiedShiftTmp = 49'hx; }
             2'h2: { unifiedShiftTmp = {15'hx, unifiedShiftTmp[65:32]}; }
@@ -255,10 +270,16 @@ module Shifter (
         }
 
         unifiedShiftOut = unifiedShiftTmp;
+
+        // Output results.
         dataOut = unifiedShiftOut[DATA_WIDTH:1];
 
         case shiftType {
+            // Logical shift left
             ST_LSL : { carryOut = unifiedShiftOut[DATA_WIDTH + 1]; }
+            // Logical shift right
+            // Arithmetic shift right
+            // RRX/Rotate
             default: { carryOut = unifiedShiftOut[0]; }
         }
     }

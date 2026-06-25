@@ -12,12 +12,16 @@ module DispatchStage (
     import ActiveListIndexTypes::*;
     import DebugTypes::*;
 
+    // A pipeline stage for dispatch.
+
     // NOT_TRANSPILED_TO_VERYL
+    // パディングは IntOpSubInfo のみ行う．対応できない場合は ASSERT に引っかかる
     // `RSD_STATIC_ASSERT(
     //     INT_SUB_INFO_BIT_WIDTH <= BR_SUB_INFO_BIT_WIDTH,
     //     "Invalid padding at IntOpSubInfo"
     // );
 
+    // --- Pipeline registers
     var pipeReg: DispatchStageRegPath [DISPATCH_WIDTH];
 
     always_ff (ctrl.clk) {
@@ -30,6 +34,7 @@ module DispatchStage (
         }
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
 
@@ -67,25 +72,38 @@ module DispatchStage (
             mulSubInfoValue = '0;
             divSubInfoValue = '0;
 
+            // Dispatch an op to the shceduler.
+            // Issue queue payload RAM entry.
             intEntryValue.opId = pipeReg[i].opId;
             complexEntryValue.opId = pipeReg[i].opId;
             memEntryValue.opId = pipeReg[i].opId;
             fpEntryValue.opId = pipeReg[i].opId;
 
+            // OpSrc
             opSrcValue.phySrcRegNumA = pipeReg[i].phySrcRegNumA;
             opSrcValue.phySrcRegNumB = pipeReg[i].phySrcRegNumB;
             opSrcValue.phySrcRegNumC = pipeReg[i].phySrcRegNumC;
 
+            // OpDst
             opDstValue.writeReg = pipeReg[i].opInfo.writeReg;
             opDstValue.phyDstRegNum = pipeReg[i].phyDstRegNum;
 
+            // --- To an integer queue.
             intEntryValue.opType = opInfoValue.mopSubType.intType;
             intEntryValue.cond = opInfoValue.cond;
+
+            // OpSrc/OpDst
             intEntryValue.opSrc = opSrcValue;
             intEntryValue.opDst = opDstValue;
+
+            // ActiveListIndexPath
             intEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+
+            //LSQ Tail Pointer for one cycle recovery
             intEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
             intEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+
+            // PC
             intEntryValue.pc = pipeReg[i].pc;
 
             intSubInfoValue.operandTypeA = opInfoValue.opTypeA;
@@ -106,11 +124,19 @@ module DispatchStage (
                 intEntryValue.intOpInfo.intSubInfo = intSubInfoValue;
             }
 
+            // --- To a complex integer queue.
             complexEntryValue.opType = opInfoValue.mopSubType.complexType;
+
+            // OpSrc/OpDst
             complexEntryValue.opSrc = opSrcValue;
             complexEntryValue.opDst = opDstValue;
+
+            // ActiveListIndexPath
             complexEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+
+            // PC
             complexEntryValue.pc = pipeReg[i].pc;
+
             complexEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
             complexEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
 
@@ -122,9 +148,12 @@ module DispatchStage (
             if complexEntryValue.opType == COMPLEX_MOP_TYPE_MUL {
                 complexEntryValue.complexOpInfo.mulSubInfo = mulSubInfoValue;
             } else {
+                // 将来ComplexパイプラインにMulとDiv以外の演算器を追加する場合はここをelse if (complexEntryValue.opType == COMPLEX_MOP_TYPE_DIV)に
                 complexEntryValue.complexOpInfo.divSubInfo = divSubInfoValue;
             }
 
+            // --- To a memory queue.
+            // MemOpInfo
             memEntryValue.memOpInfo.opType = opInfoValue.mopSubType.memType;
             memEntryValue.memOpInfo.cond = opInfoValue.cond;
             memEntryValue.memOpInfo.operandTypeA = opInfoValue.opTypeA;
@@ -144,26 +173,44 @@ module DispatchStage (
             memEntryValue.hasAllocatedMSHR = FALSE;
             memEntryValue.mshrID = '0;
             memEntryValue.hasLoadedAMOCache = FALSE;
+
+            // OpSrc
             memEntryValue.opSrc = opSrcValue;
             memEntryValue.opDst = opDstValue;
+
+            // ActiveListIndexPath
             memEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+
+            //LSQ Tail Pointer for one cycle recovery
             memEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
             memEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+
+            // PC
             memEntryValue.pc = pipeReg[i].pc;
 
+            // --- To a FP queue.
             fpEntryValue.fpOpInfo.opType = opInfoValue.mopSubType.fpType;
             fpEntryValue.fpOpInfo.fpuCode = opInfoValue.operand.fpOp.fpuCode;
             fpEntryValue.fpOpInfo.rm = opInfoValue.operand.fpOp.rm;
             fpEntryValue.fpOpInfo.operandTypeA = opInfoValue.opTypeA;
             fpEntryValue.fpOpInfo.operandTypeB = opInfoValue.opTypeB;
             fpEntryValue.fpOpInfo.operandTypeC = opInfoValue.opTypeC;
+
+            // OpSrc
             fpEntryValue.opSrc = opSrcValue;
             fpEntryValue.opDst = opDstValue;
+
+            // ActiveListIndexPath
             fpEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+
+            //LSQ Tail Pointer for one cycle recovery
             fpEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueuePtr;
             fpEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueuePtr;
+
+            // PC
             fpEntryValue.pc = pipeReg[i].pc;
 
+            // Scheduler Entry
             schedulerEntryValue.opType = opInfoValue.mopType;
             schedulerEntryValue.opSubType = opInfoValue.mopSubType;
             schedulerEntryValue.srcRegValidA = opInfoValue.opTypeA == OOT_REG;
@@ -175,6 +222,7 @@ module DispatchStage (
             schedulerEntryValue.srcPtrRegB = pipeReg[i].srcIssueQueuePtrRegB;
             schedulerEntryValue.srcPtrRegC = pipeReg[i].srcIssueQueuePtrRegC;
 
+            // Output to scheduler
             scheduler.write[i] = updateValue;
             scheduler.writePtr[i] = pipeReg[i].issueQueuePtr;
             scheduler.writeAL_Ptr[i] = pipeReg[i].activeListPtr;
@@ -186,6 +234,7 @@ module DispatchStage (
             scheduler.allocated[i] = pipeReg[i].valid;
             scheduler.memDependencyPred[i] = prev.memDependencyPred[i];
 
+            // Debug Register
             debug.dsReg[i].valid = pipeReg[i].valid;
             debug.dsReg[i].opId = pipeReg[i].opId;
             debug.dsReg[i].readRegA = opInfoValue.opTypeA == OOT_REG;

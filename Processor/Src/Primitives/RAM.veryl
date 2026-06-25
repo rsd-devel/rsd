@@ -1,3 +1,10 @@
+// -- Block RAM configured for READ_FIRST mode.
+//
+// You can get a read value 1-cycle after you set a read address.
+// When you write and read simultaneously, a read value becomes
+// the written value .
+//
+// Simple Dual Port RAM ( 1-read / 1-write )
 module BlockDualPortRAM #(
     param ENTRY_NUM     : u32 = 128,
     param ENTRY_BIT_SIZE: u32 = 64 ,
@@ -22,9 +29,11 @@ module BlockDualPortRAM #(
     );
 }
 
+// True Dual Port RAM ( 2-read/write )
 module BlockTrueDualPortRAM #(
     param ENTRY_NUM     : u32 = 16,
     param ENTRY_BIT_SIZE: u32 = 1 ,
+    // Do NOT change this parameter to synthesize True Dual Port RAM
     param PORT_NUM      : u32 = 2 ,
 ) (
     clk: input  clock                            ,
@@ -45,7 +54,6 @@ module BlockTrueDualPortRAM #(
         rv : rv ,
     );
 }
-
 module BlockMultiPortRAM #(
     param ENTRY_NUM     : u32 = 4,
     param ENTRY_BIT_SIZE: u32 = 8,
@@ -74,6 +82,10 @@ module BlockMultiPortRAM #(
     );
 }
 
+//
+// BlockRAM initialized at power-on
+// Initialization is NOT performed at reset
+//
 module InitializedBlockRAM #(
     param ENTRY_NUM     : u32    = 128       ,
     param ENTRY_BIT_SIZE: u32    = 64        ,
@@ -100,6 +112,9 @@ module InitializedBlockRAM #(
     );
 }
 
+//
+// InitializedBlockRAM_SV that supports a bandwidth of 128 bits or less
+//
 module InitializedBlockRAM_ForNarrowRequest #(
     param ENTRY_NUM     : u32    = 128       ,
     param ENTRY_BIT_SIZE: u32    = 64        ,
@@ -126,6 +141,9 @@ module InitializedBlockRAM_ForNarrowRequest #(
     );
 }
 
+//
+// InitializedBlockRAM_SV that supports a bandwidth of 256 bits or more
+//
 module InitializedBlockRAM_ForWideRequest #(
     param ENTRY_NUM     : u32    = 128       ,
     param ENTRY_BIT_SIZE: u32    = 64        ,
@@ -152,6 +170,9 @@ module InitializedBlockRAM_ForWideRequest #(
     );
 }
 
+//
+// Single Port RAM using Distributed RAM
+// multi read/write
 module DistributedSinglePortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -176,6 +197,11 @@ module DistributedSinglePortRAM #(
     );
 }
 
+//
+// Multi ports RAM using Distributed RAM
+// multi read/write
+//
+// 1-read / 1-write
 module DistributedDualPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -200,6 +226,7 @@ module DistributedDualPortRAM #(
     );
 }
 
+// 1-read / 1-write
 module RegisterDualPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -224,6 +251,7 @@ module RegisterDualPortRAM #(
     );
 }
 
+// 1-read-write / (N-1)-read ports
 module DistributedSharedMultiPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -250,6 +278,7 @@ module DistributedSharedMultiPortRAM #(
     );
 }
 
+// N-read / M-write (Use Live Value Table)
 module LVT_DistributedMultiPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -278,6 +307,11 @@ module LVT_DistributedMultiPortRAM #(
     );
 }
 
+//
+// XOR based LUT RAM.
+// "Multi-ported memories for FPGAs via XOR", Laforest, Charles Eric et. al.,
+// FPGA 2012
+//
 module XOR_DistributedMultiPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -306,6 +340,7 @@ module XOR_DistributedMultiPortRAM #(
     );
 }
 
+// N-read / M-write (use Live Value Table)
 module DistributedMultiPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -334,6 +369,9 @@ module DistributedMultiPortRAM #(
     );
 }
 
+//
+// LUT+FF
+//
 module RegisterMultiPortRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 2 ,
@@ -362,6 +400,10 @@ module RegisterMultiPortRAM #(
     );
 }
 
+//
+// --- Distributed RAM consisting of multiple banks
+// In a functional simulation, a bank conflict is detected as an error
+//
 module DistributedMultiBankRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -390,6 +432,10 @@ module DistributedMultiBankRAM #(
     );
 }
 
+//
+// --- Distributed RAM consisting of multiple banks
+// Generated in DistributedMultiBankRAM_SV when the number of banks is 2 or more
+//
 module DistributedMultiBankRAM_ForGE2Banks #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -418,6 +464,10 @@ module DistributedMultiBankRAM_ForGE2Banks #(
     );
 }
 
+//
+// --- Block RAM consisting of multiple banks
+// In a functional simulation, a bank conflict is detected as an error
+//
 module BlockMultiBankRAM #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,
@@ -446,6 +496,10 @@ module BlockMultiBankRAM #(
     );
 }
 
+//
+// --- Block RAM consisting of multiple banks
+// Generated in BlockMultiBankRAM_SV when the number of banks is 2 or more
+//
 module BlockMultiBankRAM_Body #(
     param ENTRY_NUM     : u32 = 64,
     param ENTRY_BIT_SIZE: u32 = 63,

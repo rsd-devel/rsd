@@ -11,9 +11,11 @@ package DecodedBranchResolverTypes {
     import OpFormatTypes::*;
 
     enum BranchTargetType: logic<2> {
-        BTT_NEXT = 0,
-        BTT_PC_RELATIVE = 1,
-        BTT_INDIRECT_JUMP = 2,
+        BTT_NEXT = 0,         // nextPC
+        BTT_PC_RELATIVE = 1,  // BRANCH, JAL
+        BTT_INDIRECT_JUMP = 2, // JALR
+
+        // This insn is serialized, so the succeeding insns are flushed
         BTT_SERIALIZED = 3,
     }
 
@@ -36,7 +38,7 @@ module DecodedBranchResolver (
     stall              : input  logic                                        ,
     decodeComplete     : input  logic                                        ,
     insnValidIn        : input  logic                          [DECODE_WIDTH],
-    isf                : input  RISCV_ISF_Common<DECODE_WIDTH>               ,
+    isf                : input  RISCV_ISF_Common<DECODE_WIDTH>               , // Unpacked array of structure corrupts in Modelsim.
     brPredIn           : input  BranchPred      <DECODE_WIDTH>               ,
     pc                 : input  PC_Path                        [DECODE_WIDTH],
     insnInfo           : input  InsnInfo        <DECODE_WIDTH>               ,
@@ -142,7 +144,7 @@ module DecodedBranchResolver (
                     addrCheck     = TRUE;
                     addrIncorrect = TRUE; // ミスが確定
                     foundCheck    = TRUE;
-                } else if brTargetType[i] == BranchTargetType::BTT_PC_RELATIVE
+                } else if brTargetType[i] == BranchTargetType::BTT_PC_RELATIVE //JAL || ( Branch && predTaken )
                     && (isf[i].opCode == RISCV_JAL || brPredIn[i].predTaken) {
                     // Update the RAS.
                     pushRAS = insnInfo[i].isCall;
@@ -150,7 +152,7 @@ module DecodedBranchResolver (
                     addrCheckLane = i;
                     addrCheck     = TRUE;
                     foundCheck    = TRUE;
-                } else if brTargetType[i] == BranchTargetType::BTT_INDIRECT_JUMP {
+                } else if brTargetType[i] == BranchTargetType::BTT_INDIRECT_JUMP { // JALR
                     // Update theRAS.
                     pushRAS = insnInfo[i].isCall;
                     popRAS  = insnInfo[i].isReturn;

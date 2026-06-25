@@ -3,6 +3,9 @@ package MemoryRegisterReadStageFunctions {
     import OpFormatTypes::*;
     import MicroOpTypes::*;
 
+    //
+    // --- オペランドの選択
+    //
     function SelectOperand (
         opType: input OpOperandType,
         regV  : input DataPath,
@@ -23,6 +26,9 @@ package MemoryRegisterReadStageFunctions {
     }
 }
 
+//
+// --- Memory Register Read Stage
+//
 module MemoryRegisterReadStage (
     port        : modport MemoryRegisterReadStageIF::ThisStage,
     prev        : modport MemoryIssueStageIF::NextStage,
@@ -42,13 +48,14 @@ module MemoryRegisterReadStage (
     import DebugTypes::*;
     import MemoryRegisterReadStageFunctions::*;
 
+    // --- Pipeline registers
     var pipeReg: MemoryRegisterReadStageRegPath [MEM_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
 
-    always_ff (port.clk) {
+    always_ff (port.clk) { // synchronous rst
         if port.rst {
             for i in 0..MEM_ISSUE_WIDTH {
                 pipeReg[i].valid = '0;
@@ -83,9 +90,17 @@ module MemoryRegisterReadStage (
             opDstValue = iqDataValue.opDst;
             pcValue = iqDataValue.pc;
 
+            //
+            // Register file
+            //
             registerFile.memSrcRegNumA[i] = opSrcValue.phySrcRegNumA;
             registerFile.memSrcRegNumB[i] = opSrcValue.phySrcRegNumB;
 
+            //
+            // To a bypass network.
+            // ストールやフラッシュの制御は，Bypass モジュールの内部で
+            // コントローラの信号を参照して行われている
+            //
             bypass.memPhySrcRegNumA[i] = opSrcValue.phySrcRegNumA;
             bypass.memPhySrcRegNumB[i] = opSrcValue.phySrcRegNumB;
 
@@ -94,7 +109,10 @@ module MemoryRegisterReadStage (
             bypass.memReadRegA[i] = memOpInfoValue.operandTypeA == OOT_REG;
             bypass.memReadRegB[i] = memOpInfoValue.operandTypeB == OOT_REG;
 
-            immOutValue = '0;
+            //
+            // --- オペランド選択
+            //
+            immOutValue = '0; //RISCVにおいて即値をオペランドにとるようなロード/ストアはない(アドレス計算はExecutionStage)
             operandAValue.data = SelectOperand(
                 memOpInfoValue.operandTypeA,
                 registerFile.memSrcRegDataA[i].data,
@@ -112,8 +130,12 @@ module MemoryRegisterReadStage (
             operandBValue.valid =
                 memOpInfoValue.operandTypeB != OOT_REG || registerFile.memSrcRegDataB[i].valid;
 
+            //
+            // --- Pipeline ラッチ書き込み
+            //
             nextStage[i].opId = pipeReg[i].opId;
 
+            // リセットorフラッシュ時はNOP
             flushValue = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -129,12 +151,16 @@ module MemoryRegisterReadStage (
             }
 
             nextStage[i].memQueueData = pipeReg[i].memQueueData;
+            // レジスタ値&フラグ
             nextStage[i].operandA = operandAValue;
             nextStage[i].operandB = operandBValue;
+            // バイパス制御
             nextStage[i].bCtrl = bypass.memCtrlOut[i];
+            // Release the entries of the issue queue.
             nextStage[i].replay = pipeReg[i].replay && pipeReg[i].valid;
             nextStage[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
 
+            // Debug Register
             debug.memRrReg[i].valid = pipeReg[i].valid;
             debug.memRrReg[i].flush = flushValue;
             debug.memRrReg[i].opId = pipeReg[i].opId;

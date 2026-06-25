@@ -1,3 +1,6 @@
+//
+// FP Write back stage
+//
 module FPRegisterWriteStage (
     prev        : modport FPExecutionStageIF::NextStage,
     registerFile: modport RegisterFileIF::FPRegisterWriteStage,
@@ -20,6 +23,7 @@ module FPRegisterWriteStage (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial block for Questa X avoidance was omitted.
 
+    // --- Pipeline registers
     always_ff (ctrl.clk) {
         if ctrl.rst {
             for i in 0..FP_ISSUE_WIDTH {
@@ -40,6 +44,7 @@ module FPRegisterWriteStage (
     var regValid: logic [FP_ISSUE_WIDTH];
 
     always_comb {
+        // Pipeline controll
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
@@ -57,10 +62,16 @@ module FPRegisterWriteStage (
             );
             update[i] = !stall && !clear && valid[i] && !flush[i];
 
+            //
+            // Register file
+            //
             registerFile.fpDstRegWE[i] = update[i] && iqData[i].opDst.writeReg;
             registerFile.fpDstRegNum[i] = iqData[i].opDst.phyDstRegNum;
             registerFile.fpDstRegData[i] = pipeReg[i].dataOut;
 
+            //
+            // Active list
+            //
             alWriteData[i].ptr = iqData[i].activeListPtr;
             alWriteData[i].loadQueuePtr = iqData[i].loadQueueRecoveryPtr;
             alWriteData[i].storeQueuePtr = iqData[i].storeQueueRecoveryPtr;
@@ -69,6 +80,7 @@ module FPRegisterWriteStage (
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = FALSE;
 
+            // ExecState
             if update[i] && regValid[i] {
                 alWriteData[i].state = EXEC_STATE_SUCCESS;
             } else {
@@ -80,6 +92,7 @@ module FPRegisterWriteStage (
             activeList.fpFFlagsData[i] = pipeReg[i].fflagsOut;
         }
 
+        // Debug Register
         for i in 0..FP_ISSUE_WIDTH {
             debug.fpRwReg[i].valid = valid[i];
             debug.fpRwReg[i].flush = flush[i];

@@ -1,3 +1,6 @@
+//
+// A pipeline stage for fetching instructions.
+//
 module FetchStage (
     port       : modport FetchStageIF::ThisStage,
     prev       : modport NextPCStageIF::NextStage,
@@ -10,6 +13,7 @@ module FetchStage (
     import FetchUnitTypes::*;
     import MemoryMapTypes::*;
 
+    // Pipeline Control
     var stall: logic;
     var clear: logic;
     var empty: logic;
@@ -24,18 +28,33 @@ module FetchStage (
         }
     }
 
+    // --- Pipeline registers
     var pipeReg: FetchStageRegPath [FETCH_WIDTH];
     var nextStage: PreDecodeStageRegPath [FETCH_WIDTH];
+
+    // Whether instruction is invalidated by branch prediction
     var isFlushed: logic [FETCH_WIDTH];
     var brPred: BranchPred [FETCH_WIDTH];
+
+    // Record the result of branch prediction.
+    //
+    // When this stage is stalled, the next instruction's PC is input to
+    // the branch predictor and the output of the branch predictor will change
+    // in the next cycle.
+    // Hence, when stalled, the process of branch prediction must be performed at the beginning cycle of stall.
+    // And more, it is necessary to keep the branch prediction result of the stalled instruction.
     var regBrPred: BranchPred [FETCH_WIDTH];
 
     always_comb {
+        // Stall upper stages if cannot fetch valid instruction
+        // This request sends back ctrl.ifStage.stall/ctrl.ifStage.clear
         ctrl.ifStageSendBubbleLower = pipeReg[0].valid && !port.icReadHit[0];
 
+        // Control
         stall = ctrl.ifStage.stall;
         clear = ctrl.ifStage.clear;
 
+        // Check whether instructions exist in this stage
         empty = TRUE;
         for i in 0..FETCH_WIDTH {
             if pipeReg[i].valid {
@@ -44,7 +63,10 @@ module FetchStage (
         }
         ctrl.ifStageEmpty = empty;
 
+        // Detect beginning of stall
         beginStall = !regStall && stall;
+
+        // Stall can be caused by another reason from an i-cache miss.
         perfCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
     }
 
@@ -58,6 +80,8 @@ module FetchStage (
         } else {
             for i in 0..FETCH_WIDTH {
                 if isFlushed[i] {
+                    // When a branch is predicted as Taken during stall,
+                    // clear the valid bits of the subsequent lanes
                     pipeReg[i].valid = FALSE;
                 }
             }
@@ -74,7 +98,11 @@ module FetchStage (
         }
     }
 
+    //
+    // Branch Prediction
+    //
     always_comb {
+        // The result of branch prediction
         for i in 0..FETCH_WIDTH {
             if port.brPredTaken[i] {
                 brPred[i].predAddr = port.btbOut[i];
@@ -86,6 +114,7 @@ module FetchStage (
             brPred[i].phtPrevValue = port.phtPrevValue[i];
         }
 
+        // Check whether instructions are flushed by branch prediction
         for i in 0..FETCH_WIDTH {
             isFlushed[i] = FALSE;
         }
@@ -102,23 +131,35 @@ module FetchStage (
             }
         }
 
+        // Update the branch history
         for i in 0..FETCH_WIDTH {
             port.updateBrHistory[i] = !regStall && pipeReg[i].valid;
         }
     }
 
+    //
+    // I-cache Access
+    //
     var fetchAddrOut: AddrPath;
     always_comb {
+        // --- I-cache read
         port.icRE = pipeReg[0].valid;
+        // read enable: whether check hit/miss
         fetchAddrOut = ToAddrFromPC(pipeReg[0].pc);
+        // Address for comparing tag
         port.icReadAddrIn = ToPhyAddrFromLogical(fetchAddrOut);
 
+        // Send information about this stage to the previous stage for
+        // deciding the next fetch address
         for i in 0..FETCH_WIDTH {
             port.fetchStageIsValid[i] = pipeReg[i].valid;
             port.fetchStagePC[i] = pipeReg[i].pc;
         }
     }
 
+    //
+    // --- Pipeline registers
+    //
     always_comb {
         for i in 0..FETCH_WIDTH {
             if stall || clear || port.rst || isFlushed[i] {
@@ -143,12 +184,15 @@ module FetchStage (
 
         port.nextStage = nextStage;
 
+        // --- Debug Register
         for i in 0..FETCH_WIDTH {
             debug.ifReg[i].valid = pipeReg[i].valid;
             debug.ifReg[i].sid = pipeReg[i].sid;
             debug.ifReg[i].flush = isFlushed[i];
             debug.ifReg[i].icMiss = FALSE;
         }
+        // it is correct that the index of pipeReg is zero because
+        // an i-cache miss occurs at the head of the fetch group.
         debug.ifReg[0].icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
     }
 }

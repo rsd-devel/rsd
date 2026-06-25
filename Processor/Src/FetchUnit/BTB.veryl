@@ -1,3 +1,4 @@
+/// Branch target buffer
 module BTB (
     port: modport NextPCStageIF::BTB,
     next: modport FetchStageIF::BTB,
@@ -6,12 +7,14 @@ module BTB (
     import MemoryMapTypes::*;
     import FetchUnitTypes::*;
 
+    // BTB access
     var btbWE: logic [INT_ISSUE_WIDTH];
     var btbWA: BTB_IndexPath [INT_ISSUE_WIDTH];
     var btbWV: BTB_Entry [INT_ISSUE_WIDTH];
     var btbRA: BTB_IndexPath [FETCH_WIDTH];
     var btbRV: BTB_Entry [FETCH_WIDTH];
 
+    // Output
     var btbOut: PC_Path [FETCH_WIDTH];
     var btbHit: logic [FETCH_WIDTH];
     var readIsCondBr: logic [FETCH_WIDTH];
@@ -57,6 +60,7 @@ module BTB (
         tailPtr: tailPtr,
     );
 
+    // Counter for reset sequence.
     var resetIndex: BTB_IndexPath;
 
     always_ff (port.clk) {
@@ -76,6 +80,7 @@ module BTB (
     }
 
     always_ff (port.clk) {
+        // Push btb Queue
         if port.rst {
             btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWA = '0;
             btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWV = '0;
@@ -88,11 +93,13 @@ module BTB (
     always_comb {
         pcIn = port.predNextPC;
 
+        // Address inputs for read entry.
         for i in 0..FETCH_WIDTH {
             btbRA[i] = ToBTB_Index(pcIn + i * INSN_BYTE_WIDTH);
             nextTagReg[i] = pcIn + i * INSN_BYTE_WIDTH;
         }
 
+        // Make logic for using at other module.
         for i in 0..FETCH_WIDTH {
             btbHit[i] = btbRV[i].valid && (btbRV[i].tag == ToBTB_Tag(tagReg[i]));
             btbOut[i] = ToRawAddrFromBTB_Addr(btbRV[i].data, tagReg[i]);
@@ -105,7 +112,9 @@ module BTB (
         updateBtb = FALSE;
         pushBtbQueue = FALSE;
 
+        // Write to BTB.
         for i in 0..INT_ISSUE_WIDTH {
+            // Make BTB entry when branch is Taken.
             if updateBtb {
                 pushBtbQueue = port.brResult[i].valid && port.brResult[i].execTaken;
             } else {
@@ -120,6 +129,7 @@ module BTB (
             btbWV[i].isCondBr = port.brResult[i].isCondBr;
         }
 
+        // Pop btb Queue
         if !empty && !updateBtb {
             popBtbQueue = TRUE;
             btbWE[0] = TRUE;
@@ -130,6 +140,8 @@ module BTB (
         }
 
         if port.rst {
+            // In reset sequence, the write port 0 is used for initializing, and
+            // the other write ports are disabled.
             for i in 0..INT_ISSUE_WIDTH {
                 if i == 0 {
                     btbWE[i] = TRUE;
@@ -143,6 +155,7 @@ module BTB (
                 btbWV[i].isCondBr = FALSE;
             }
 
+            // To avoid writing to the same bank (avoid error message)
             for i in 0..FETCH_WIDTH {
                 btbRA[i] = i;
             }

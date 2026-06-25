@@ -21,6 +21,7 @@ module Axi4LitePsToPlControlRegister (
     memory_addr: output AddrPath           ,
     memory_data: output MemoryEntryDataPath,
     memory_we  : output logic              ,
+    // program load is done
     done       : output logic              ,
 ) {
     import BasicTypes::*;

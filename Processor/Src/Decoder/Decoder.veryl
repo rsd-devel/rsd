@@ -989,6 +989,7 @@ package DecoderFunctions {
     // コードの設定
         case opFunct3 {
             default: {
+    // SYSTEM_FUNCT3_PRIV or unknown
                 memOp.csrCtrl.code = CSR_WRITE;
             }
             SYSTEM_FUNCT3_CSR_RW, SYSTEM_FUNCT3_CSR_RW_I: {
@@ -1085,6 +1086,7 @@ package DecoderFunctions {
                     systemOp.envCode = ENV_MRET;
                 }
                 default: {
+    // Unknown
                     systemOp.envCode = ENV_BREAK;
                     undefined = TRUE;
                 }
@@ -1675,10 +1677,10 @@ package DecoderFunctions {
 }
 
 module Decoder (
-    insn     : input  InsnPath,
+    insn     : input  InsnPath, // Input instruction
     illegalPC: input  logic,
-    microOps : output OpInfo [MICRO_OP_MAX_NUM],
-    insnInfo : output InsnInfo,
+    microOps : output OpInfo [MICRO_OP_MAX_NUM], // Outputed micro ops
+    insnInfo : output InsnInfo, // Whether this instruction is branch or not.
 ) {
     import BasicTypes::*;
     import MicroOpTypes::*;

@@ -1,3 +1,7 @@
+//
+// Branch predictor
+//
+
 module BranchPredictor (
     port: modport NextPCStageIF::BranchPredictor,
     next: modport FetchStageIF::BranchPredictor,

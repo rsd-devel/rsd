@@ -2,12 +2,14 @@ module IO_Unit (
     port   : modport IO_UnitIF::IO_Unit,
     csrUnit: modport CSR_UnitIF::IO_Unit,
 ) {
+    // UI Unit
     import BasicTypes::*;
     import LoadStoreUnitTypes::*;
     import MemoryMapTypes::*;
     import IO_UnitTypes::*;
     import DebugTypes::*;
 
+    // Timer register
     var tmReg: TimerRegsters;
     var tmNext: TimerRegsters;
 
@@ -26,15 +28,18 @@ module IO_Unit (
         phyRawReadAddr = port.ioReadAddrIn.addr;
         phyRawWriteAddr = port.ioWriteAddrIn.addr;
 
+        // Update timer
         tmNext = tmReg;
         tmNext.mtime.raw = tmNext.mtime.raw + 1;
 
+        // Generate a timer interrupt signal
         if tmNext.mtime.raw >= tmNext.mtimecmp.raw {
             csrUnit.reqTimerInterrupt = TRUE;
         } else {
             csrUnit.reqTimerInterrupt = FALSE;
         }
 
+        // Write a timer regsiter
         if port.ioWE {
             if phyRawWriteAddr == PHY_ADDR_TIMER_LOW {
                 tmNext.mtime.split.low = port.ioWriteDataIn;
@@ -47,6 +52,7 @@ module IO_Unit (
             }
         }
 
+        // Read a timer rigister
         if phyRawReadAddr == PHY_ADDR_TIMER_LOW {
             port.ioReadDataOut = tmReg.mtime.split.low;
         } else if phyRawReadAddr == PHY_ADDR_TIMER_HI {
@@ -59,6 +65,7 @@ module IO_Unit (
     }
 
     always_comb {
+        // Serial IO
         port.serialWE = FALSE;
         port.serialWriteDataOut = port.ioWriteDataIn[SERIAL_OUTPUT_WIDTH - 1:0];
         if port.ioWE && phyRawWriteAddr == PHY_ADDR_SERIAL_OUTPUT {

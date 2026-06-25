@@ -1,9 +1,11 @@
+// --- IntegerIssueStageIF
 interface IntegerIssueStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: IntegerRegisterReadStageRegPath [INT_ISSUE_WIDTH];
 
     modport ThisStage {

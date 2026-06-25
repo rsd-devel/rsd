@@ -1,7 +1,14 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// The interface of a cache flush management unit.
+//
 interface CacheFlushManagerIF {
     var clk: clock;
     var rst: logic;
 
+    // CacheFlushManagement
     var cacheFlushReq     : logic;
     var cacheFlushComplete: logic;
 

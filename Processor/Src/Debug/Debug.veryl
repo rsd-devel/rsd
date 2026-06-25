@@ -2,6 +2,8 @@ module Debug (
     port           : modport DebugIF::Debug,
     lastCommittedPC: output  PC_Path       ,
 ) {
+    // Debug
+
     import BasicTypes::*;
     import MemoryMapTypes::*;
     import RenameLogicTypes::*;
@@ -14,6 +16,7 @@ module Debug (
     var next: DebugRegister;
 
     always_comb {
+        // Signal from each stage
         for i in 0..FETCH_WIDTH {
             next.npReg[i] = port.npReg[i];
             next.ifReg[i] = port.ifReg[i];
@@ -66,6 +69,7 @@ module Debug (
         next.activeListHeadPtr = port.activeListHeadPtr;
         next.activeListCount = port.activeListCount;
 
+        // PipelineControl
         next.npStagePipeCtrl = port.npStagePipeCtrl;
         next.ifStagePipeCtrl = port.ifStagePipeCtrl;
         next.pdStagePipeCtrl = port.pdStagePipeCtrl;
@@ -76,13 +80,16 @@ module Debug (
         next.cmStagePipeCtrl = port.cmStagePipeCtrl;
         next.stallByDecodeStage = port.stallByDecodeStage;
 
+        // last committed PC
         lastCommittedPC = port.lastCommittedPC;
 
+        // Others
         next.loadStoreUnitAllocatable = port.loadStoreUnitAllocatable;
         next.storeCommitterPhase = port.storeCommitterPhase;
         next.storeQueueCount = port.storeQueueCount;
         next.busyInRecovery = port.busyInRecovery;
         next.storeQueueEmpty = port.storeQueueEmpty;
+        // Performance monitoring counters are exported to DebugRegister only on simulation.
         next.perfCounter = port.perfCounter;
     }
 

@@ -8,32 +8,39 @@ interface RenameLogicIF {
     var rst     : logic;
     var rstStart: logic;
 
+    // Logical register numbers.
     var logSrcRegA: LRegNumPath [RENAME_WIDTH];
     var logSrcRegB: LRegNumPath [RENAME_WIDTH];
     var logSrcRegC: LRegNumPath [RENAME_WIDTH];
     var logDstReg : LRegNumPath [RENAME_WIDTH];
 
+    // Renamed physical register numbers.
     var phySrcRegA    : PRegNumPath [RENAME_WIDTH];
     var phySrcRegB    : PRegNumPath [RENAME_WIDTH];
     var phySrcRegC    : PRegNumPath [RENAME_WIDTH];
     var phyDstReg     : PRegNumPath [RENAME_WIDTH];
-    var phyPrevDstReg : PRegNumPath [RENAME_WIDTH];
+    var phyPrevDstReg : PRegNumPath [RENAME_WIDTH];  // For releasing a register.
 
+    // Read/Write control
     var updateRMT: logic<RENAME_WIDTH>;
     var readRegA : logic [RENAME_WIDTH];
     var readRegB : logic [RENAME_WIDTH];
     var readRegC : logic [RENAME_WIDTH];
     var writeReg : logic [RENAME_WIDTH];
 
+    // Release registers on retirement and recovery.
     var releaseReg    : logic [COMMIT_WIDTH];
     var phyReleasedReg: PRegNumPath [COMMIT_WIDTH];
 
+    // There are enough resources to rename.
     var allocatable: logic;
 
+    // RMT control signals, which are generated in RenameLogic.
     var rmtWriteReg           : logic<COMMIT_WIDTH>;
     var rmtWriteReg_PhyRegNum : PRegNumPath [COMMIT_WIDTH];
     var rmtWriteReg_LogRegNum : LRegNumPath [COMMIT_WIDTH];
 
+    // Retirement RMT control signals, which are generated in CommitStage.
     var retRMT_WriteReg           : logic<COMMIT_WIDTH>;
     var retRMT_WriteReg_PhyRegNum : PRegNumPath [COMMIT_WIDTH];
     var retRMT_WriteReg_LogRegNum : LRegNumPath [COMMIT_WIDTH];
@@ -41,22 +48,27 @@ interface RenameLogicIF {
     var retRMT_ReadReg_PhyRegNum: PRegNumPath [RENAME_WIDTH];
     var retRMT_ReadReg_LogRegNum: LRegNumPath [RENAME_WIDTH];
 
+    // WAT control signals, which are generated in RenameLogic.
     var watWriteRegFromPipeReg          : logic<RENAME_WIDTH>;
     var watWriteIssueQueuePtrFromPipeReg: IssueQueueIndexPath [RENAME_WIDTH];
     var srcIssueQueuePtrRegA            : IssueQueueIndexPath [RENAME_WIDTH];
     var srcIssueQueuePtrRegB            : IssueQueueIndexPath [RENAME_WIDTH];
     var srcIssueQueuePtrRegC            : IssueQueueIndexPath [RENAME_WIDTH];
 
+    // For Recover WAT from Activelist
     var prevDependIssueQueuePtr: IssueQueueIndexPath [RENAME_WIDTH];
 
+    // Write port for WAT
     var watWriteReg          : logic [COMMIT_WIDTH];
     var watWriteLogRegNum    : LRegNumPath [COMMIT_WIDTH];
     var watWriteIssueQueuePtr: IssueQueueIndexPath [COMMIT_WIDTH];
 
+    // Commitment/recovery
     var commit   : logic;
     var commitNum: CommitLaneCountPath;
     var flushNum : CommitLaneCountPath;
 
+    // To a rename logic
     modport RenameLogic {
         clk: input,
         rst: input,

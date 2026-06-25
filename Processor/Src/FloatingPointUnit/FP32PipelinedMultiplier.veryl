@@ -117,16 +117,16 @@ module FMulStage0 (
         // Preparation
         result_sign = lhs_sign ^ rhs_sign;
         if lhs_expo == 0 {
-            v_lhs_expo = 0 - leading_zeros_count(lhs_mant);
+            v_lhs_expo = 0 - leading_zeros_count(lhs_mant); // virtual exponent (ignores subnormals, but is biased)
         } else {
-            v_lhs_expo = {2'b0, lhs_expo};
+            v_lhs_expo = {2'b0, lhs_expo}; // virtual exponent (ignores subnormals, but is biased)
         }
         if rhs_expo == 0 {
-            v_rhs_expo = 0 - leading_zeros_count(rhs_mant);
+            v_rhs_expo = 0 - leading_zeros_count(rhs_mant); // virtual exponent (ignores subnormals, but is biased)
         } else {
-            v_rhs_expo = {2'b0, rhs_expo};
+            v_rhs_expo = {2'b0, rhs_expo}; // virtual exponent (ignores subnormals, but is biased)
         }
-        virtual_expo = v_lhs_expo + v_rhs_expo - 127;
+        virtual_expo = v_lhs_expo + v_rhs_expo - 127; // new biased exponent (ignores subnormals)
         subnormal    = $signed(virtual_expo) <= 0;
         res_is_zero  = ($signed(virtual_expo) <= -25) | lhs_is_zero | rhs_is_zero;
         res_is_inf   = ($signed(virtual_expo) >= 255) | lhs_is_inf | rhs_is_inf;
@@ -191,16 +191,16 @@ module FMulStage1 (
         nan          = pipeReg.nan;
 
         // Determine shift amount
-        generate_subnormal       = subnormal & (lhs_expo != 0) & (rhs_expo != 0);
-        remaining_subnormal      = subnormal & ((lhs_expo == 0) | (rhs_expo == 0));
-        escape_subnormal         = !subnormal & ((lhs_expo == 0) | (rhs_expo == 0));
-        generate_subnormal_shift = 0 - virtual_expo;
+        generate_subnormal       = subnormal & (lhs_expo != 0) & (rhs_expo != 0); // normal * normal -> subnormal
+        remaining_subnormal      = subnormal & ((lhs_expo == 0) | (rhs_expo == 0)); // subnormal * normal -> subnormal
+        escape_subnormal         = !subnormal & ((lhs_expo == 0) | (rhs_expo == 0)); // subnormal * normal -> normal
+        generate_subnormal_shift = 0 - virtual_expo; // right shift
         if lhs_expo == 0 {
-            remaining_subnormal_shift = 126 - rhs_expo;
-            escape_subnormal_shift    = 1 - v_lhs_expo;
+            remaining_subnormal_shift = 126 - rhs_expo; // right shift
+            escape_subnormal_shift    = 1 - v_lhs_expo; // left shift
         } else {
-            remaining_subnormal_shift = 126 - lhs_expo;
-            escape_subnormal_shift    = 1 - v_rhs_expo;
+            remaining_subnormal_shift = 126 - lhs_expo; // right shift
+            escape_subnormal_shift    = 1 - v_rhs_expo; // left shift
         }
         if generate_subnormal {
             subnormal_shift = 23 + generate_subnormal_shift;
@@ -213,8 +213,8 @@ module FMulStage1 (
         }
 
         // Multiplier
-        multiplier_lhs    = {24'h0, lhs_expo != 8'h00, lhs_mant};
-        multiplier_rhs    = {24'h0, rhs_expo != 8'h00, rhs_mant};
+        multiplier_lhs    = {24'h0, lhs_expo != 8'h00, lhs_mant}; // lhs_expo != 8'h00 is the hidden bit of a normalized number
+        multiplier_rhs    = {24'h0, rhs_expo != 8'h00, rhs_mant}; // rhs_expo != 8'h00 is the hidden bit of a normalized number
         multiplier_result = multiplier_lhs * multiplier_rhs;
 
         stg1Out = {
@@ -268,16 +268,16 @@ module FMulStage2 (
         nan               = pipeReg.nan;
 
         shifter_result = {multiplier_result, 1'b0} >> subnormal_shift;
-        sticky         = (multiplier_result << (49 - subnormal_shift)) != 0;
+        sticky         = (multiplier_result << (49 - subnormal_shift)) != 0; // the part shifted out above
         if subnormal | shifter_result[25] {
             round_to_away = shifter_result[1] & (shifter_result[2] | shifter_result[0] | sticky);
         } else {
-            round_to_away = shifter_result[0] & (shifter_result[1] | sticky);
+            round_to_away = shifter_result[0] & (shifter_result[1] | sticky); // round to nearest, ties to even
         }
         if subnormal {
             exp_plus_one = shifter_result >= 26'h1fffffe;
         } else {
-            exp_plus_one = shifter_result >= 26'h1ffffff;
+            exp_plus_one = shifter_result >= 26'h1ffffff; // carry is generated with rounding taken into account
         }
 
         if subnormal | shifter_result[25] {

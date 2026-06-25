@@ -25,6 +25,9 @@ module RenameLogic (
 
     var alReadData: ActiveListEntry [COMMIT_WIDTH];
 
+    //
+    // --- Free lists for registers.
+    //
     inst scalarFreeList: MultiWidthFreeList #(
         SIZE          : SCALAR_FREE_LIST_ENTRY_NUM,
         ENTRY_BIT_SIZE: PSCALAR_NUM_BIT_WIDTH,
@@ -59,6 +62,7 @@ module RenameLogic (
         pushedData: releasedPhyScalarFPRegNum,
     );
 
+    // Index address for recoverying the RMT by copying from the retirement RMT.
     var rmtRecoveryIndex: LRegNumPath;
     var rmtRecoveryCount: logic<LREG_NUM_BIT_WIDTH + 1>;
     var inRecoveryRMT: logic;
@@ -85,10 +89,12 @@ module RenameLogic (
         }
     }
 
+    // RMT control signals, which are generated in RenameLogic.
     var rmtWriteReg: logic<COMMIT_WIDTH>;
     var rmtWriteReg_PhyRegNum: PRegNumPath [COMMIT_WIDTH];
     var rmtWriteReg_LogRegNum: LRegNumPath [COMMIT_WIDTH];
 
+    // Write port for WAT
     var watWriteReg: logic [COMMIT_WIDTH];
     var watWriteLogRegNum: LRegNumPath [COMMIT_WIDTH];
     var watWriteIssueQueuePtr: IssueQueueIndexPath [COMMIT_WIDTH];
@@ -101,11 +107,13 @@ module RenameLogic (
         }
 
         for i in 0..COMMIT_WIDTH {
+            // Don't care
             rmtWriteReg[i] = FALSE;
             rmtWriteReg_PhyRegNum[i] = '0;
             rmtWriteReg_LogRegNum[i] = '0;
         }
 
+        // Destinations.
         for i in 0..RENAME_WIDTH {
             allocatedPhyRegNum[i].isFP = port.logDstReg[i].isFP;
             if port.logDstReg[i].isFP {
@@ -117,25 +125,29 @@ module RenameLogic (
 
         port.phyDstReg = allocatedPhyRegNum;
 
+        // Whether rmt is in a recovery phase or not.
         if RECOVERY_FROM_RRMT != 0 {
             inRecoveryRMT = rmtRecoveryCount != 0;
         } else {
             inRecoveryRMT = recovery.inRecoveryAL;
         }
         recovery.renameLogicRecoveryRMT = inRecoveryRMT;
-        alReadData = activeList.readData;
+        alReadData = activeList.readData;  //for RECOVERY_FROM_ACTIVE_LIST mode
 
+        // Empty flag.
         port.allocatable =
             !inRecoveryRMT &&
             (scalarFreeListCount >= RENAME_WIDTH) &&
             (scalarFPFreeListCount >= RENAME_WIDTH);
 
+        // Allocation from the free lists.
         for i in 0..RENAME_WIDTH {
             allocatePhyReg[i] = port.updateRMT[i] && port.writeReg[i];
             allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isFP;
             allocatePhyScalarFPReg[i] = allocatePhyReg[i] && port.logDstReg[i].isFP;
         }
 
+        // Release to the free lists.
         for i in 0..COMMIT_WIDTH {
             releasePhyScalarReg[i] = port.releaseReg[i] && !port.phyReleasedReg[i].isFP;
             releasePhyScalarFPReg[i] = port.releaseReg[i] && port.phyReleasedReg[i].isFP;
@@ -143,18 +155,22 @@ module RenameLogic (
             releasedPhyScalarFPRegNum[i] = port.phyReleasedReg[i].regNum;
         }
 
+        // Write control of RMTs.
         if port.updateRMT != 0 {
+            // Update the RMT.
             for i in 0..RENAME_WIDTH {
                 rmtWriteReg[i] = port.updateRMT[i] && port.writeReg[i];
                 rmtWriteReg_PhyRegNum[i] = allocatedPhyRegNum[i];
                 rmtWriteReg_LogRegNum[i] = port.logDstReg[i];
             }
 
+            //Recovery-only write port
             for i in RENAME_WIDTH..COMMIT_WIDTH {
                 rmtWriteReg[i] = FALSE;
             }
         } else if inRecoveryRMT {
             if RECOVERY_FROM_RRMT != 0 {
+                // Copy from the retirement RMT in a recovery mode.
                 for i in 0..RENAME_WIDTH {
                     rmtWriteReg[i] = TRUE;
                     rmtWriteReg_PhyRegNum[i] = port.retRMT_ReadReg_PhyRegNum[i];
@@ -162,6 +178,9 @@ module RenameLogic (
                     retRMT_ReadReg_LogRegNum[i] = rmtRecoveryIndex + i;
                 }
 
+                // RMTの書き込みポート数はコミット幅であるが，RRMTの読み出しポート数はリネーム幅のため，
+                // RMTの巻き戻しは１サイクルにつきリネーム幅しか行えない．
+                // したがって，RMTの空いた書き込みポートを落としておく．
                 for i in RENAME_WIDTH..COMMIT_WIDTH {
                     rmtWriteReg[i] = FALSE;
                     rmtWriteReg_PhyRegNum[i] = '0;
@@ -180,25 +199,32 @@ module RenameLogic (
             }
         }
 
+        // WAT
+        // Not support for recovering from RRMT
         if !inRecoveryRMT {
+            // Get dependent instruction's issue queue pointer
             for i in 0..RENAME_WIDTH {
                 watWriteReg[i] = port.watWriteRegFromPipeReg[i];
                 watWriteLogRegNum[i] = port.logDstReg[i];
                 watWriteIssueQueuePtr[i] = port.watWriteIssueQueuePtrFromPipeReg[i];
             }
 
+            // This is recovery dedicated port so fixed at NEGATIVE
             for i in RENAME_WIDTH..COMMIT_WIDTH {
                 watWriteReg[i] = '0;
                 watWriteLogRegNum[i] = '0;
                 watWriteIssueQueuePtr[i] = '0;
             }
         } else {
+            // Recovery WAT from activelist
             for i in 0..COMMIT_WIDTH {
+                // Whether recovery WAT (whether this instruction would write register)
                 if i <: activeList.popTailNum {
                     watWriteReg[i] = alReadData[i].writeReg;
                 } else {
                     watWriteReg[i] = FALSE;
                 }
+                // Information for recovering WAT
                 watWriteLogRegNum[i] = alReadData[i].logDstRegNum;
                 watWriteIssueQueuePtr[i] = alReadData[i].prevDependIssueQueuePtr;
             }

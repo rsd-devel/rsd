@@ -10,8 +10,11 @@ module Scheduler (
     import SchedulerTypes::*;
     import MicroOpTypes::*;
 
+    // A flag that indicates a not-issued state.
+    // This flag contains the validness of each entry.
     var notIssued: logic<ISSUE_QUEUE_ENTRY_NUM>;
 
+    // The type of an op in each entry.
     var isInt      : logic<ISSUE_QUEUE_ENTRY_NUM>;
     var isComplex  : logic<ISSUE_QUEUE_ENTRY_NUM>;
     var isDiv      : logic<ISSUE_QUEUE_ENTRY_NUM>;
@@ -34,16 +37,19 @@ module Scheduler (
 
     always_ff (port.clk) {
         if port.rst {
+            // Reset or recovery is necessary only for notIssued flags.
             for i in 0..ISSUE_QUEUE_ENTRY_NUM {
                 notIssued[i] = FALSE;
             }
         } else {
+            // Dispatch
             for i in 0..DISPATCH_WIDTH {
                 if port.write[i] {
                     notIssued[port.writePtr[i]] = TRUE;
 
                     if port.writeSchedulerData[i].opType == MOP_TYPE_MEM {
                         if port.writeSchedulerData[i].opSubType.memType == MEM_MOP_TYPE_STORE {
+                            // This port cannot access the data cache.
                             isLoad[port.writePtr[i]] = FALSE;
                             isStore[port.writePtr[i]] = TRUE;
                             isComplex[port.writePtr[i]] = FALSE;
@@ -109,6 +115,7 @@ module Scheduler (
                 }
             }
 
+            // Select & issue & flush at recovery
             for i in 0..ISSUE_QUEUE_ENTRY_NUM {
                 if selectedVector[i] || flushIQ_Entry[i] {
                     notIssued[i] = FALSE;
@@ -118,31 +125,40 @@ module Scheduler (
     }
 
     always_comb {
+        // Generate ld/st inst dispatch information for making store bit vector at producer.
         for i in 0..DISPATCH_WIDTH {
             if port.write[i] {
                 if port.writeSchedulerData[i].opType == MOP_TYPE_MEM {
                     if port.writeSchedulerData[i].opSubType.memType == MEM_MOP_TYPE_STORE {
+                        // Dispatch store
                         dispatchStore[i] = TRUE;
                         dispatchLoad[i] = FALSE;
                     } else {
+                        // Dispatch load
                         dispatchStore[i] = FALSE;
                         dispatchLoad[i] = TRUE;
                     }
                 } else {
+                    // Not dispatch ld/st inst.
                     dispatchStore[i] = FALSE;
                     dispatchLoad[i] = FALSE;
                 }
             } else {
+                // Not dispatch inst.
                 dispatchStore[i] = FALSE;
                 dispatchLoad[i] = FALSE;
             }
         }
 
+        // Connect dispatch/IQ info to IF
         wakeupSelect.dispatchStore = dispatchStore;
         wakeupSelect.dispatchLoad = dispatchLoad;
         wakeupSelect.notIssued = notIssued;
 
+        // Controll logic
         wakeupSelect.stall = port.stall;
+
+        // Dispatch
         wakeupSelect.write = port.write;
         wakeupSelect.writePtr = port.writePtr;
         wakeupSelect.memDependencyPred = port.memDependencyPred;
@@ -151,6 +167,7 @@ module Scheduler (
         recovery.notIssued = notIssued;
 
         for i in 0..DISPATCH_WIDTH {
+            // wakeupSelect.writeSrcTag
             wakeupSelect.writeSrcTag[i].regTag[0].valid = port.writeSchedulerData[i].srcRegValidA;
             wakeupSelect.writeSrcTag[i].regTag[1].valid = port.writeSchedulerData[i].srcRegValidB;
             wakeupSelect.writeSrcTag[i].regTag[2].valid = port.writeSchedulerData[i].srcRegValidC;
@@ -162,6 +179,7 @@ module Scheduler (
             wakeupSelect.writeDstTag[i].regTag.valid = port.writeSchedulerData[i].opDst.writeReg;
             wakeupSelect.writeDstTag[i].regTag.num = port.writeSchedulerData[i].opDst.phyDstRegNum;
 
+            // Source pointers to a matrix.
             wakeupSelect.writeSrcTag[i].regPtr[0].valid = port.writeSchedulerData[i].srcRegValidA;
             wakeupSelect.writeSrcTag[i].regPtr[1].valid = port.writeSchedulerData[i].srcRegValidB;
             wakeupSelect.writeSrcTag[i].regPtr[2].valid = port.writeSchedulerData[i].srcRegValidC;
@@ -171,20 +189,23 @@ module Scheduler (
             wakeupSelect.writeSrcTag[i].regPtr[2].ptr = port.writeSchedulerData[i].srcPtrRegC;
         }
 
+        // Check whether div can be issued
+        // For stop issuing div according to the status of the divider
         canIssueDiv = TRUE;
         for i in 0..MULDIV_ISSUE_WIDTH {
             if !mulDivUnit.divFree[i] {
-                canIssueDiv = FALSE;
+                canIssueDiv = FALSE;    // Currently, only a single div can be issued
             }
         }
 
         canIssueFPDivSqrt = TRUE;
         for i in 0..FP_ISSUE_WIDTH {
             if !fpDivSqrtUnit.Free[i] {
-                canIssueFPDivSqrt = FALSE;
+                canIssueFPDivSqrt = FALSE;    // Currently, only a single div/sqrt can be issued
             }
         }
 
+        // Select
         for i in 0..ISSUE_QUEUE_ENTRY_NUM {
             wakeupSelect.intIssueReq[i] = notIssued[i] && isInt[i];
             wakeupSelect.loadIssueReq[i] = notIssued[i] && isLoad[i];
@@ -207,6 +228,7 @@ module Scheduler (
             }
         }
 
+        // Debug Register
         for i in 0..ISSUE_QUEUE_ENTRY_NUM {
             debug.scheduler[i].valid =
                 notIssued[i] && (isInt[i] || isComplex[i] || isLoad[i] || isStore[i] || isFP[i]);

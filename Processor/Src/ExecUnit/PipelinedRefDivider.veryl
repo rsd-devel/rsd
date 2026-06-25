@@ -10,12 +10,13 @@ package PipelinedRefDividerTypes {
     import BasicTypes::*;
 
     enum RefDividerPhase: logic<2> {
-        PHASE_FINISHED = 0,
-        PHASE_PROCESSING = 1,
-        PHASE_COMPENSATING = 2,
+        PHASE_FINISHED = 0, // Division is finished. It outputs results to quotient, remainder
+        PHASE_PROCESSING = 1, // In processing
+        PHASE_COMPENSATING = 2, // In processing for compensating results
         PHASE_NOTHING_TO_DO = 3,
     }
 
+    // PipeReg
     struct RefDividerPipeReg {
         dividend : DataPath       ,
         divisor  : DataPath       ,

@@ -4,6 +4,7 @@ interface FPRegisterReadStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: FPExecutionStageRegPath [FP_ISSUE_WIDTH];
 
     modport ThisStage {

@@ -19,23 +19,32 @@ module Divider (
 ) {
     import BasicTypes::*;
 
+    // 演算幅
+    // 符号なしを，符号付きに拡張するので +1 する
+    // 32-bit 符号なしは，33ビット符号付きの正の値とする
     const LOOP_COUNT   : u32                           = DATA_WIDTH + 1;
+
+    // 演算はさらに +1 ビットの幅で行う
+    // これは左シフト時に，符号ビットが上位に追い出されて消滅してしまうのをふせぐため
+    // 1ビット余計に持っておけば，必ず符号は残る
     const DIVIDER_WIDTH: u32                           = LOOP_COUNT + 1;
     type DividerPath   = logic<DIVIDER_WIDTH>         ;
     type CounterPath   = logic<$clog2(LOOP_COUNT + 1)>;
 
+    // オーバーフロー判定用定数
     const DATA_MINUS_ONE: u32 = (1 << DATA_WIDTH) - 1;
     const DATA_MINIMUM  : u32 = (1 << (DATA_WIDTH - 1));
 
-    var regZ       : DividerPath;
+    // Internal registers
+    var regZ       : DividerPath; // dividend
     var nextZ      : DividerPath;
-    var regD       : DividerPath;
+    var regD       : DividerPath; // divisor
     var nextD      : DividerPath;
-    var regQ       : DividerPath;
+    var regQ       : DividerPath; // quotient
     var nextQ      : DividerPath;
-    var regR       : DividerPath;
+    var regR       : DividerPath; // remainder
     var nextR      : DividerPath;
-    var regSigned  : logic      ;
+    var regSigned  : logic      ; // signed or unsigned
     var nextSigned : logic      ;
     var regCounter : CounterPath;
     var nextCounter: CounterPath;
@@ -44,9 +53,9 @@ module Divider (
     var compQ      : DividerPath;
 
     enum Phase: logic<2> {
-        PHASE_FINISHED = 0,
-        PHASE_PROCESSING = 1,
-        PHASE_COMPENSATING = 2,
+        PHASE_FINISHED = 0,     // Division is finished. It outputs results to quotient, remainder
+        PHASE_PROCESSING = 1,   // In processing
+        PHASE_COMPENSATING = 2, // In processing for compensating results
     }
     var regPhase : Phase;
     var nextPhase: Phase;
@@ -106,6 +115,7 @@ module Divider (
             }
 
             nextQ = 0;
+            // not DATA_WIDTH-1!
             if nextZ[DIVIDER_WIDTH - 1] {
                 nextR = -1;
             } else {
@@ -116,7 +126,13 @@ module Divider (
             nextPhase   = Phase::PHASE_PROCESSING;
             nextCounter = 0;
         } else {
+            // Sign
+            //signZ = regZ[DATA_WIDTH - 1];
+            //signD = regD[DATA_WIDTH - 1];
             if regPhase == Phase::PHASE_PROCESSING {
+                // 左に桁上げ
+                // op_mask の幅が +1 されているのは，このとき符号ビットが消滅しないように
+                // するため
                 stepR = (regR << 1) | regZ[LOOP_COUNT - 1 - regCounter];
 
                 if stepR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
@@ -134,20 +150,25 @@ module Divider (
                     nextPhase = Phase::PHASE_PROCESSING;
                 }
             } else if regPhase == Phase::PHASE_COMPENSATING {
+                // -1,1 から通常のバイナリへのデコード
                 compQ = (regQ << 1) + 1;
                 compR = regR;
 
                 if regR[DATA_WIDTH + 1 - 1:0] == 0 {
+                    // 余りが 0 の時は補正はいらない
                     compQ = compQ;
                     compR = compR;
                 } else {
                     if regR[DATA_WIDTH + 1 - 1:0] == regD[DATA_WIDTH + 1 - 1:0] {
+                        // 余りが序数と一致した場合，戻す
                         compR = compR - regD;
                         compQ = compQ + 1;
                     } else if (regR[DATA_WIDTH + 1 - 1:0] + regD[DATA_WIDTH + 1 - 1:0]) == 0 {
+                        // 余りが序数の反転と一致した場合，戻す
                         compR = compR + regD;
                         compQ = compQ - 1;
                     } else if regZ[DATA_WIDTH + 1 - 1] != regR[DATA_WIDTH + 1 - 1] {
+                        // 序数と余りの符号が一致しない場合，補正する
                         if regR[DATA_WIDTH + 1 - 1] != regD[DATA_WIDTH + 1 - 1] {
                             compR = compR + regD;
                             compQ = compQ - 1;
@@ -157,10 +178,16 @@ module Divider (
                         }
                     }
 
+                    // Results on division by zero or overflow are difined by
+                    // RISC-V specification.
                     if regD == 0 {
+                        // Division by zero
                         compQ = -1;
                         compR = regZ;
                     } else if regSigned && (regZ == DATA_MINIMUM) && (regD == DATA_MINUS_ONE) {
+                        // Sigined division can cause overflow
+                        // ex. 8 bits signed division "-0x80 / -1 = 0x80"
+                        // causes overflow because the resulst 0x80 > 0x7f
                         compQ = regZ;
                         compR = 0;
                     }
@@ -173,6 +200,7 @@ module Divider (
             }
         }
 
+        // Output results
         quotient  = regQ;
         remainder = regR;
     }
@@ -191,6 +219,9 @@ module QuickDivider (
 ) {
     import BasicTypes::*;
 
+    // 演算幅
+    // 符号なしを，符号付きに拡張するので +1 する
+    // 32-bit 符号なしは，33-bit 符号付きの正の値とする
     const DIVIDER_WIDTH : u32                               = DATA_WIDTH + 1;
     type DividerPath    = logic<DIVIDER_WIDTH>             ;
     const MAX_LOOP_COUNT: u32                               = DATA_WIDTH + 1;
@@ -199,6 +230,9 @@ module QuickDivider (
     function CountSignificantBits (
         dividend: input DividerPath,
     ) -> CounterPath {
+        // 1 <= CountSignificantBits <= 33
+
+        // CountSignificantBits == 1 if dividend == 0 or dividend == -1
         var count: CounterPath;
         var found: logic      ;
         count = 1;
@@ -212,18 +246,20 @@ module QuickDivider (
         return count;
     }
 
+    // オーバーフロー判定用定数
     const DATA_MINUS_ONE: u32 = (1 << DATA_WIDTH) - 1;
     const DATA_MINIMUM  : u32 = (1 << (DATA_WIDTH - 1));
 
-    var regZ       : DividerPath;
+    // Internal registers
+    var regZ       : DividerPath; // dividend
     var nextZ      : DividerPath;
-    var regD       : DividerPath;
+    var regD       : DividerPath; // divisor
     var nextD      : DividerPath;
-    var regQ       : DividerPath;
+    var regQ       : DividerPath; // quotient
     var nextQ      : DividerPath;
-    var regR       : DividerPath;
+    var regR       : DividerPath; // remainder
     var nextR      : DividerPath;
-    var regSigned  : logic      ;
+    var regSigned  : logic      ; // signed or unsigned
     var nextSigned : logic      ;
     var regCounter : CounterPath;
     var nextCounter: CounterPath;
@@ -232,10 +268,10 @@ module QuickDivider (
     var compQ      : DividerPath;
 
     enum QuickPhase: logic<2> {
-        PHASE_FINISHED = 0,
-        PHASE_FIRSTBIT = 1,
-        PHASE_PROCESSING = 2,
-        PHASE_COMPENSATING = 3,
+        PHASE_FINISHED = 0,     // Division is finished. It outputs results to quotient, remainder
+        PHASE_FIRSTBIT = 1,     // In processing first bit
+        PHASE_PROCESSING = 2,   // In processing
+        PHASE_COMPENSATING = 3, // In processing for compensating results
     }
     var regPhase : QuickPhase;
     var nextPhase: QuickPhase;
@@ -275,6 +311,8 @@ module QuickDivider (
         compQ       = regQ;
 
         if req {
+            // 入力を演算幅である 33-bit 符号付き整数に変換
+
             // A request is accepted regardless of the current phase
             if isSigned {
                 // Sign extend
@@ -294,7 +332,9 @@ module QuickDivider (
                 nextD = {1'b0, divisor};
             }
 
+            // nextQ は次のサイクルで埋められるので↓は意味なし
             nextQ = 0;
+            // nextR は符号拡張して埋めておく
             if nextZ[DIVIDER_WIDTH - 1] {
                 nextR = -1;
             } else {
@@ -303,16 +343,35 @@ module QuickDivider (
 
             nextSigned  = isSigned;
             nextPhase   = QuickPhase::PHASE_FIRSTBIT;
+            // 被除数の絶対値が小さいとき 32+α サイクルも計算する必要はない
+            // 商の立ち方は -1 を T と書くことにして
+            // その場合商が正の時 1TTTTTT... 商が負の時 T111111... となる
+            // 先頭の 0 を許せば  000001T...            000001T というような
+            // 商を立てることができ，無駄を省くことができる
+            // 除数のことを考慮せず，保守的に0でない商が立つビット幅を求める
+            // （除数の絶対値が大きい場合は，商の長さをさらに短くできる）
+            // 商は最大でも CountSiginificatntBits(nextZ) ビットで表せる
             nextCounter = CountSignificantBits(nextZ);
         } else {
+            // Sign
+            //signZ = regZ[DATA_WIDTH - 1];
+            //signD = regD[DATA_WIDTH - 1];
             if regPhase == QuickPhase::PHASE_FIRSTBIT {
+                // 左に桁上げ
                 stepR = (regR << 1) | regZ[regCounter - 1];
 
                 if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
                     nextR = stepR + regD;
+                    // 実際に立つ商は T だが，最上位ビットは追い出し，
+                    // 最終的な結果に表れないようにしている
+                    // ただし商の符号を決めるために使われる
+                    // 補正前商の先頭が T ということはデコード後は負の値
+                    // よって符号拡張を見越して事前に埋めておく
                     nextQ = -1;
                 } else {
                     nextR = stepR - regD;
+                    // 実際に立つ商は 1 でありそれ以外は同上
+                    // 補正前商の先頭が 1 ということはデコード後は正の値
                     nextQ = 0;
                 }
 
@@ -323,8 +382,12 @@ module QuickDivider (
                     nextPhase = QuickPhase::PHASE_PROCESSING;
                 }
             } else if regPhase == QuickPhase::PHASE_PROCESSING {
+                // 左に桁上げ
                 stepR = (regR << 1) | regZ[regCounter - 1];
 
+                // signR = regR[DIVIDER_WIDTH-1]
+                // 桁上げしたものではなく元の値を参照することで
+                // 符号ビットが追い出される問題が発生しなくなる
                 if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
                     nextR = stepR + regD;
                     nextQ = regQ << 1;
@@ -340,20 +403,31 @@ module QuickDivider (
                     nextPhase = QuickPhase::PHASE_PROCESSING;
                 }
             } else if regPhase == QuickPhase::PHASE_COMPENSATING {
+                // -1(T),1 から通常のバイナリへのデコード
+                // q の中では T は 0，1 は 1 として表現されている
+                // 前者の寄与は-(~q) ，後者の寄与は q
+                // 足し合わせると q + (-(~q)) == q + (q+1)
+                // よって以下の式になる
                 compQ = (regQ << 1) + 1;
                 compR = regR;
 
                 if regR == 0 {
+                    // 余りが 0 の時は補正はいらない
                     compQ = compQ;
                     compR = compR;
                 } else {
                     if regR == regD {
+                        // 余りが除数と一致した場合，戻す
+                        // 割り切れて真の商が偶数かつ除数が負の時に発生
                         compR = compR - regD;
                         compQ = compQ + 1;
                     } else if regR == (0 - regD) {
+                        // 余りが除数の反転と一致した場合，戻す
+                        // 割り切れて真の商が偶数かつ除数が正の時に発生
                         compR = compR + regD;
                         compQ = compQ - 1;
                     } else if regR[DIVIDER_WIDTH - 1] != regZ[DIVIDER_WIDTH - 1] {
+                        // 除数と余りの符号が一致しない場合，補正する
                         if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
                             compR = compR + regD;
                             compQ = compQ - 1;
@@ -364,10 +438,16 @@ module QuickDivider (
                     }
                 }
 
+                // Results on division by zero or overflow are difined by
+                // RISC-V specification.
                 if regD == 0 {
+                    // Division by zero
                     compQ = -1;
                     compR = regZ;
                 } else if regSigned && (regZ == DATA_MINIMUM) && (regD == DATA_MINUS_ONE) {
+                    // Sigined division can cause overflow
+                    // ex. 8 bits signed division "-0x80 / -1 = 0x80"
+                    // causes overflow because the resulst 0x80 > 0x7f
                     compQ = regZ;
                     compR = 0;
                 }
@@ -380,6 +460,7 @@ module QuickDivider (
             }
         }
 
+        // Output results
         quotient  = regQ;
         remainder = regR;
     }

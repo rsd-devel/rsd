@@ -1,9 +1,11 @@
+// --- FPIssueStageIF
 interface FPIssueStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: FPRegisterReadStageRegPath [FP_ISSUE_WIDTH];
 
     modport ThisStage {

@@ -1,3 +1,4 @@
+// A pipeline stage for issuing ops.
 module FPIssueStage (
     port         : modport FPIssueStageIF::ThisStage,
     prev         : modport ScheduleStageIF::FPNextStage,
@@ -14,9 +15,11 @@ module FPIssueStage (
     import ActiveListIndexTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg    : IssueStageRegPath [FP_ISSUE_WIDTH];
     var nextPipeReg: IssueStageRegPath [FP_ISSUE_WIDTH];
 
+    // synchronous rst
     always_ff (port.clk) {
         if port.rst {
             for i in 0..FP_ISSUE_WIDTH {
@@ -48,6 +51,7 @@ module FPIssueStage (
         }
     }
 
+    // Pipeline control
     var stall: logic;
     var clear: logic;
     var flush: logic [FP_ISSUE_WIDTH];
@@ -62,9 +66,11 @@ module FPIssueStage (
 
         for i in 0..FP_ISSUE_WIDTH {
             if scheduler.replay {
+                // In this cycle, the pipeline replays ops.
                 issuedData[i] = scheduler.fpReplayData[i];
                 valid[i] = scheduler.fpReplayEntry[i];
             } else {
+                // In this cycle, the pipeline issues ops.
                 issuedData[i] = scheduler.fpIssuedData[i];
                 valid[i] = !stall && pipeReg[i].valid;
             }
@@ -79,9 +85,11 @@ module FPIssueStage (
                 issuedData[i].activeListPtr
             );
 
+            // Issue.
             scheduler.fpIssue[i] = !clear && valid[i] && !flush[i];
             scheduler.fpIssuePtr[i] = issueQueuePtr[i];
 
+            // Lock div units
             fpDivSqrtUnit.Acquire[i] =
                 !clear && valid[i] && !flush[i] &&
                 (
@@ -91,6 +99,8 @@ module FPIssueStage (
             scheduler.fpDivSqrtIsIssued[i] = fpDivSqrtUnit.Acquire[i];
             fpDivSqrtUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
 
+            // --- Pipeline ラッチ書き込み
+            // リセットorフラッシュ時はNOP
             if clear || port.rst || flush[i] {
                 nextStage[i].valid = FALSE;
             } else {
@@ -103,6 +113,7 @@ module FPIssueStage (
 
         port.nextStage = nextStage;
 
+        // Debug Register
         for i in 0..FP_ISSUE_WIDTH {
             debug.fpIsReg[i].valid = valid[i];
             debug.fpIsReg[i].flush = flush[i];

@@ -41,6 +41,7 @@ package MultiplierUnitTypes {
     import BasicTypes::*;
     import OpFormatTypes::*;
 
+    // PipeReg
     struct MultiplierUnitPipeReg {
         getUpper  : logic      ,
         mulCode   : IntMUL_Code,

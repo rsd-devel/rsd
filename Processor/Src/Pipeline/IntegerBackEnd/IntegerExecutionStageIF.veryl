@@ -1,3 +1,10 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- IntegerExecutionStageIF
+//
+
 interface IntegerExecutionStageIF {
     import BasicTypes::*;
     import BypassTypes::*;
@@ -6,6 +13,7 @@ interface IntegerExecutionStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: IntegerRegisterWriteStageRegPath [INT_ISSUE_WIDTH];
 
     modport ThisStage {

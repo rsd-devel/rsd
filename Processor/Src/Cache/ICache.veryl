@@ -31,6 +31,7 @@ module ICacheArray (
     var readWayData  : ICacheWayData  ;
     var writeWayData : ICacheWayData  ;
 
+    // tag + instruction array
     inst tagValidArray: BlockDualPortRAM #(
         ENTRY_NUM     : ICACHE_INDEX_NUM    ,
         ENTRY_BIT_SIZE: $bits(ICacheWayData),
@@ -44,6 +45,7 @@ module ICacheArray (
     );
 
     always_comb {
+        // ICacheTagPath-array write
         if rst {
             weWay = TRUE;
             writeWayIndex = rstIndex;
@@ -57,10 +59,12 @@ module ICacheArray (
         writeWayData.meta.tag = writeTag;
         writeWayData.data = writeLineData;
         readLineData = readWayData.data;
+        // Result of tag-array read
         valid = readWayData.meta.valid;
         hit = valid && (readWayData.meta.tag == readTag);
     }
 
+    // Reset Index
     always_ff (clk) {
         if rstStart {
             rstIndex = '0;
@@ -89,6 +93,7 @@ module ICacheNRUStateArray (
     var writeNRUStateIndex: ICacheIndexPath   ;
     var writeNRUStateData : NRUAccessStatePath;
 
+    // NRUStateArray array
     inst nruStateArray: BlockDualPortRAM #(
         ENTRY_NUM     : ICACHE_INDEX_NUM          ,
         ENTRY_BIT_SIZE: $bits(NRUAccessStatePath),
@@ -113,6 +118,7 @@ module ICacheNRUStateArray (
         }
     }
 
+    // Reset Index
     always_ff (clk) {
         if rstStart {
             rstIndex = '0;
@@ -136,6 +142,8 @@ module ICacheHitLogic (
         for i in 0..FETCH_WIDTH {
             wordPtr[i] = headWordPtr + i;
             if wordPtr[i][$clog2(ICACHE_LINE_INSN_NUM)] {
+                // If this condition is satisfied, word[i] is not on the same line as word[0].
+                // It means cache-miss.
                 hitOut[i] = FALSE;
             } else {
                 hitOut[i] = hitIn;
@@ -201,8 +209,10 @@ package ICacheFunctions {
         way     : input ICacheWayPath,
     ) -> NRUAccessStatePath {
         if (NRUState | (1 << way)) == (1 << ICACHE_WAY_NUM) - 1 {
+            // if all NRU state bits are high, NRU state needs to clear
             return 1 << way;
         } else {
+            // Update indicated NRU state bit
             return NRUState | (1 << way);
         }
     }
@@ -210,6 +220,8 @@ package ICacheFunctions {
     function DecideWayToEvictByNRUState (
         NRUState: input NRUAccessStatePath,
     ) -> NRUAccessStatePath {
+        // return the position of the rightmost 0-bit
+        // e.g. NRUState = 10011 -> return 00100
         return (NRUState | (NRUState + 1)) ^ NRUState;
     }
 }
@@ -226,11 +238,17 @@ module ICache (
 
     enum ICachePhase: logic<3> {
         ICACHE_PHASE_READ_CACHE = 0,
+        // Read from a main memory to a cache.
         ICACHE_PHASE_MISS_READ_MEM_REQUEST = 1,
+        // Read from a main memory to a cache.
         ICACHE_PHASE_MISS_READ_MEM_RECEIVE = 2,
+        // Write data to a cache.
         ICACHE_PHASE_MISS_WRITE_CACHE = 3,
+        // Prepare for ICache flush.
         ICACHE_PHASE_FLUSH_PREPARE = 4,
+        // ICache flush is processing.
         ICACHE_PHASE_FLUSH_PROCESSING = 5,
+        // ICache flush is completed.
         ICACHE_PHASE_FLUSH_COMPLETE = 6,
     }
 
@@ -285,15 +303,18 @@ module ICache (
     var foundHit: logic;
 
     always_comb {
+        // Set signal about read address.
         readIndex = GetICacheIndex(next.icReadAddrIn);
         readTag = GetICacheTag(next.icReadAddrIn);
         nextReadIndex = GetICacheIndex(port.icNextReadAddrIn);
 
+        // Check cache hit
         hit = |hitArray;
         hitWay = '0;
         foundHit = FALSE;
         for i in 0..ICACHE_WAY_NUM {
             if !foundHit && hitArray[i] {
+                // Detect which way is hit
                 hitWay = i;
                 foundHit = TRUE;
             }
@@ -349,6 +370,7 @@ module ICache (
             wordPtr[i] = wordPtr[0] + i;
         }
 
+        // Send i-cache read data to FetchStage
         for i in 0..FETCH_WIDTH {
             next.icReadDataOut[i] = readLineInsnList[hitWay][wordPtr[i]];
         }
@@ -380,27 +402,34 @@ module ICache (
         nextFlushReqAck = regFlushReqAck;
         flushComplete = FALSE;
 
+        // Non-blocking i-cache state machine
         case regPhase {
             default: {
                 nextPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
             }
             ICachePhase::ICACHE_PHASE_READ_CACHE: {
+                // Not processing cache miss now
                 if cacheSystem.icFlushReq {
                     nextPhase = ICachePhase::ICACHE_PHASE_FLUSH_PREPARE;
                     nextFlushStart = TRUE;
                     nextFlush = TRUE;
                     nextFlushReqAck = FALSE;
                 } else if next.icRE && !hit {
+                    // Read request -> i-cache miss:
+                    // Change state to process a cache miss
                     nextPhase = ICachePhase::ICACHE_PHASE_MISS_READ_MEM_REQUEST;
                     nextMissValid = TRUE;
                     nextMissIndex = readIndex;
                     nextMissTag = readTag;
                     nextFlushReqAck = FALSE;
                 } else if next.icRE {
+                    // Read request -> i-cache hit:
+                    // Update nru state
                     nruStateWE = TRUE;
                 }
             }
             ICachePhase::ICACHE_PHASE_MISS_READ_MEM_REQUEST: {
+                // Send read request to lower level memory
                 if cacheSystem.icMemAccessReqAck.ack {
                     nextPhase = ICachePhase::ICACHE_PHASE_MISS_READ_MEM_RECEIVE;
                     nextMissValid = FALSE;
@@ -408,17 +437,22 @@ module ICache (
                 }
             }
             ICachePhase::ICACHE_PHASE_MISS_READ_MEM_RECEIVE: {
+                // Read response has come
                 if cacheSystem.icMemAccessResult.valid &&
                    cacheSystem.icMemAccessResult.serial == regSerial {
+                    // Receive memory read data and write it to i-cache
                     nextPhase = ICachePhase::ICACHE_PHASE_MISS_WRITE_CACHE;
                     we[wayToEvict] = TRUE;
                 }
             }
             ICachePhase::ICACHE_PHASE_MISS_WRITE_CACHE: {
+                // Cannot read the write data in the same cycle,
+                // therefore wait 1-cycle
                 nextFlushReqAck = TRUE;
                 nextPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
             }
             ICachePhase::ICACHE_PHASE_FLUSH_PREPARE: {
+                // 1 cycle to reset rstIndex.
                 nextFlushStart = FALSE;
                 nextMissTag = '0;
                 nextPhase = ICachePhase::ICACHE_PHASE_FLUSH_PROCESSING;

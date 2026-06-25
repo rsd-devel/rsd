@@ -1,3 +1,4 @@
+// A pipeline stage for register read.
 module FPRegisterReadStage (
     port        : modport FPRegisterReadStageIF::ThisStage,
     prev        : modport FPIssueStageIF::NextStage,
@@ -15,12 +16,13 @@ module FPRegisterReadStage (
     import PipelineTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: FPRegisterReadStageRegPath [FP_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial block for Questa X avoidance was omitted.
 
-    always_ff (port.clk) {
+    always_ff (port.clk) { // synchronous rst
         if port.rst {
             for i in 0..FP_ISSUE_WIDTH {
                 pipeReg[i].valid = '0;
@@ -30,6 +32,7 @@ module FPRegisterReadStage (
         }
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var flush: logic [FP_ISSUE_WIDTH];
@@ -53,10 +56,14 @@ module FPRegisterReadStage (
             opSrc[i] = iqData[i].opSrc;
             opDst[i] = iqData[i].opDst;
 
+            // To the register file.
             registerFile.fpSrcRegNumA[i] = opSrc[i].phySrcRegNumA;
             registerFile.fpSrcRegNumB[i] = opSrc[i].phySrcRegNumB;
             registerFile.fpSrcRegNumC[i] = opSrc[i].phySrcRegNumC;
 
+            // To the bypass network.
+            // ストールやフラッシュの制御は，Bypass モジュールの内部で
+            // コントローラの信号を参照して行われている
             bypass.fpPhySrcRegNumA[i] = opSrc[i].phySrcRegNumA;
             bypass.fpPhySrcRegNumB[i] = opSrc[i].phySrcRegNumB;
             bypass.fpPhySrcRegNumC[i] = opSrc[i].phySrcRegNumC;
@@ -75,8 +82,10 @@ module FPRegisterReadStage (
             operandB[i].valid = (fpOpInfo[i].operandTypeB != OOT_REG) || registerFile.fpSrcRegDataB[i].valid;
             operandC[i].valid = (fpOpInfo[i].operandTypeC != OOT_REG) || registerFile.fpSrcRegDataC[i].valid;
 
+            // --- Pipeline ラッチ書き込み
             nextStage[i].opId = pipeReg[i].opId;
 
+            // リセットorフラッシュ時はNOP
             flush[i] = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -92,6 +101,9 @@ module FPRegisterReadStage (
 
             nextStage[i].replay = pipeReg[i].replay;
 
+            // divがこのステージ内でフラッシュされた場合：
+            // Dividerへの要求予約を取り消し，
+            // IQからdivを発行できるようにする
             if (iqData[i].fpOpInfo.opType == FP_MOP_TYPE_DIV) ||
                (iqData[i].fpOpInfo.opType == FP_MOP_TYPE_SQRT) {
                 nextStage[i].isFlushed = pipeReg[i].valid && flush[i];
@@ -99,15 +111,21 @@ module FPRegisterReadStage (
                 nextStage[i].isFlushed = FALSE;
             }
 
+            // レジスタ値&フラグ
             nextStage[i].operandA = operandA[i];
             nextStage[i].operandB = operandB[i];
             nextStage[i].operandC = operandC[i];
+
+            // Issue queue data
             nextStage[i].fpQueueData = pipeReg[i].fpQueueData;
+
+            // バイパス制御
             nextStage[i].bCtrl = bypass.fpCtrlOut[i];
         }
 
         port.nextStage = nextStage;
 
+        // Debug Register
         for i in 0..FP_ISSUE_WIDTH {
             debug.fpRrReg[i].valid = pipeReg[i].valid;
             debug.fpRrReg[i].flush = flush[i];

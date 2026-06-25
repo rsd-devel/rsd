@@ -7,23 +7,28 @@ interface FetchStageIF {
     var clk     : clock;
     var rst     : logic;
 
+    // This Stage
     var fetchStageIsValid: logic   [FETCH_WIDTH];
     var fetchStagePC     : PC_Path [FETCH_WIDTH];
 
+    // BTB
     var btbOut      : PC_Path [FETCH_WIDTH];
     var btbHit      : logic   [FETCH_WIDTH];
     var readIsCondBr: logic   [FETCH_WIDTH];
 
+    // BranchPredictor
     var updateBrHistory: logic                   [FETCH_WIDTH];
     var brPredTaken    : logic                   [FETCH_WIDTH];
     var brGlobalHistory: BranchGlobalHistoryPath [FETCH_WIDTH];
     var phtPrevValue   : PHT_EntryPath           [FETCH_WIDTH];
 
+    // I-Cache
     var icReadHit    : logic       [FETCH_WIDTH];
     var icRE         : logic;
     var icReadDataOut: InsnPath    [FETCH_WIDTH];
-    var icReadAddrIn : PhyAddrPath;
+    var icReadAddrIn : PhyAddrPath; // Head addr to fetch
 
+    // Pipeline register
     var nextStage: PreDecodeStageRegPath [FETCH_WIDTH];
 
     modport ThisStage {
@@ -56,7 +61,7 @@ interface FetchStageIF {
     }
 
     modport ICache {
-        icRE         : input ,
+        icRE         : input , // Read Enable
         icReadAddrIn : input ,
         icReadHit    : output,
         icReadDataOut: output,

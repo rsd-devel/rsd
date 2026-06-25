@@ -117,8 +117,8 @@ module FAddStage0 (
         } else {
             s_rhs_offs = s_rhs_expo;
         }
-        s_lhs_mant = {s_lhs_expo != 8'h00, s_lhs[22:0]};
-        s_rhs_mant = {s_rhs_expo != 8'h00, s_rhs[22:0]};
+        s_lhs_mant = {s_lhs_expo != 8'h00, s_lhs[22:0]}; // s_lhs_expo != 8'h00 is the hidden bit of a normalized number
+        s_rhs_mant = {s_rhs_expo != 8'h00, s_rhs[22:0]}; // s_rhs_expo != 8'h00 is the hidden bit of a normalized number
         prec_loss  = is_subtraction & ((s_lhs_expo - s_rhs_expo) <= 1) & (s_lhs_expo != 8'hff);
 
         // to next stage
@@ -204,11 +204,11 @@ module FAddStage1 (
             offs_diff = lhs.offs[4:0] - rhs.offs[4:0];
         }
         shifted_rhs = ({rhs.mant, 25'h0} >> offs_diff) >> !is_subtraction;
-        adder_rhs   = {shifted_rhs[48:24], shifted_rhs[23], shifted_rhs[22:0] != 0};
+        adder_rhs   = {shifted_rhs[48:24], shifted_rhs[23], shifted_rhs[22:0] != 0}; // Last 2 bits are the guard bit and the sticky bit.
 
         // When precision loss occurs
         suber_lhs    = {lhs.mant, 1'b0};
-        suber_rhs    = {rhs.mant, 1'b0} >> (lhs.offs[0] != rhs.offs[0]);
+        suber_rhs    = {rhs.mant, 1'b0} >> (lhs.offs[0] != rhs.offs[0]); // s_lhs_offs[0] != s_rhs_offs[0] is equal to s_lhs_expo - s_rhs_expo because s_lhs_expo - s_rhs_expo <= 1.
         suber_result = suber_lhs - suber_rhs;
         lz_count     = LeadingZeroCounter(suber_result);
 
@@ -289,16 +289,16 @@ module FAddStage2 (
         if adder_result[26] {
             round_to_away = adder_result[2] & (adder_result[3] | adder_result[1] | adder_result[0]);
         } else {
-            round_to_away = adder_result[1] & (adder_result[2] | adder_result[0]);
+            round_to_away = adder_result[1] & (adder_result[2] | adder_result[0]); // round to nearest, ties to even
         }
-        exp_plus_one = ((lhs_expo == 8'h00) & adder_result[25]) | (adder_result >= 27'h3fffffe);
+        exp_plus_one = ((lhs_expo == 8'h00) & adder_result[25]) | (adder_result >= 27'h3fffffe); // when the sum of two subnormal number is a normal number or a carry is generated with rounding taken into account
 
         if adder_result[26] {
-            final_mant_a = adder_result[25:3] + {22'h0, round_to_away};
+            final_mant_a = adder_result[25:3] + {22'h0, round_to_away}; // No special treatment is required even if a overflow occurs since the answer will be 0 and it will be correct.
         } else {
-            final_mant_a = adder_result[24:2] + {22'h0, round_to_away};
+            final_mant_a = adder_result[24:2] + {22'h0, round_to_away}; // No special treatment is required even if a overflow occurs since the answer will be 0 and it will be correct.
         }
-        final_expo_a = lhs_expo + {7'h0, exp_plus_one} - {7'h0, is_subtraction};
+        final_expo_a = lhs_expo + {7'h0, exp_plus_one} - {7'h0, is_subtraction}; // No overflow occurs because 2 <= s_lhs_expo <= 254.
         res_is_inf   = (lhs_expo == 8'hff) | (final_expo_a == 8'hff);
         inf          = {lhs_sign, 8'hff, 23'h0};
 
@@ -309,7 +309,7 @@ module FAddStage2 (
         }
 
         // When precision loss occurs
-        round_away = suber_result[1] & suber_result[0];
+        round_away = suber_result[1] & suber_result[0]; // round to nearest, ties to even
         subnormal  = {3'b0, lz_count} >= lhs_offs;
 
         if lhs_offs == 1 {

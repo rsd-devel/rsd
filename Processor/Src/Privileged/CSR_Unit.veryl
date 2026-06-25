@@ -85,6 +85,7 @@ module CSR_Unit (
 
         privilegeLevelNext = privilegeLevel;
 
+        // Read a CSR value
         case port.csrNumber {
             CSR_NUM_MSTATUS: {
                 var value: CSR_MSTATUS_Path;
@@ -143,15 +144,19 @@ module CSR_Unit (
             }
         }
 
+        // check csr read/write permission
         port.csrUnitTriggerExcpt = port.csrWE && (privilegeLevel <: port.csrNumber[9:8]);
 
+        // Writeback
         csrNext = csrReg;
+        // Update Cycles
         csrNext.mcycle = csrNext.mcycle + 1;
         csrNext.minstret = csrNext.minstret + regCommitNum;
 
         wv = '0;
 
         if port.triggerInterrupt {
+            // Interrupt
             if privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S || !IsMidelegSet(csrReg.mideleg, port.interruptCode) {
                 privilegeLevelNext = PRIVILEGE_LEVEL_M;
             } else {
@@ -159,17 +164,25 @@ module CSR_Unit (
             }
 
             if privilegeLevelNext == PRIVILEGE_LEVEL_M {
+                // MIE の古い値
                 csrNext.mstatus.MPIE = csrNext.mstatus.MIE;
+                // グローバル割り込み許可を落とす
                 csrNext.mstatus.MIE = 0;
+                // トラップ前の特権レベル
                 csrNext.mstatus.MPP = privilegeLevel;
+                // 割り込み発生時の PC
                 csrNext.mepc = ToAddrFromPC(port.interruptRetAddr);
                 csrNext.mtval = 0;
                 csrNext.mcause.isInterrupt = TRUE;
                 csrNext.mcause.code.interruptCode = port.interruptCode;
             } else if privilegeLevelNext == PRIVILEGE_LEVEL_S {
+                // SIE の古い値
                 csrNext.mstatus.SPIE = csrNext.mstatus.SIE;
+                // グローバル割り込み許可を落とす
                 csrNext.mstatus.SIE = 0;
+                // トラップ前の特権レベル
                 csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel);
+                // 割り込み発生時の PC
                 csrNext.sepc = ToAddrFromPC(port.interruptRetAddr);
                 csrNext.stval = 0;
                 csrNext.scause.isInterrupt = TRUE;
@@ -177,26 +190,37 @@ module CSR_Unit (
             }
         } else if port.triggerExcpt {
             if port.excptCause == EXEC_STATE_TRAP_MRET {
+                // MRET
                 if csrReg.misa.EXTENSIONS.U {
                     privilegeLevelNext = csrReg.mstatus.MPP;
                 } else {
                     privilegeLevelNext = PRIVILEGE_LEVEL_M;
                 }
+                // MIE の古い値に戻す
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE;
+                // MPIE = 1
                 csrNext.mstatus.MPIE = 1;
+                // 最小の特権レベル
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U;
+                // > If y≠M, xRET also sets MPRV=0.
                 if privilegeLevelNext != PRIVILEGE_LEVEL_M {
                     csrNext.mstatus.MPRV = 0;
                 }
             } else if port.excptCause == EXEC_STATE_TRAP_SRET {
+                // SRET
                 privilegeLevelNext = ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
+                // SIE の古い値に戻す
                 csrNext.mstatus.SIE = csrNext.mstatus.SPIE;
+                // SPIE = 1
                 csrNext.mstatus.SPIE = 1;
+                // 最小の特権レベル
                 csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(PRIVILEGE_LEVEL_U);
+                // > If y≠M, xRET also sets MPRV=0.
                 if privilegeLevelNext != PRIVILEGE_LEVEL_M {
                     csrNext.mstatus.MPRV = 0;
                 }
             } else {
+                // Exception
                 if privilegeLevel == PRIVILEGE_LEVEL_M ||
                    !csrReg.misa.EXTENSIONS.S ||
                    !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)] {
@@ -206,24 +230,35 @@ module CSR_Unit (
                 }
 
                 if privilegeLevelNext == PRIVILEGE_LEVEL_M {
+                    // MIE の古い値
                     csrNext.mstatus.MPIE = csrNext.mstatus.MIE;
+                    // グローバル割り込み許可を落とす
                     csrNext.mstatus.MIE = 0;
+                    // トラップ前の特権レベル
                     csrNext.mstatus.MPP = privilegeLevel;
+                    // 例外の発生元 PC を書き込む
                     csrNext.mepc = ToAddrFromPC(port.excptCauseAddr);
+                    // ECALL/EBREAK の場合は PC?
                     csrNext.mtval = port.excptCauseDataAddr;
                     csrNext.mcause.isInterrupt = FALSE;
                     csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 } else if privilegeLevelNext == PRIVILEGE_LEVEL_S {
+                    // MIE の古い値
                     csrNext.mstatus.SPIE = csrNext.mstatus.SIE;
+                    // グローバル割り込み許可を落とす
                     csrNext.mstatus.SIE = 0;
+                    // トラップ前の特権レベル
                     csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel);
+                    // 例外の発生元 PC を書き込む
                     csrNext.sepc = ToAddrFromPC(port.excptCauseAddr);
+                    // ECALL/EBREAK の場合は PC?
                     csrNext.stval = port.excptCauseDataAddr;
                     csrNext.scause.isInterrupt = FALSE;
                     csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 }
             }
         } else if port.csrWE && !port.csrUnitTriggerExcpt {
+            // Operation
             case port.csrCode {
                 CSR_WRITE: { wv = port.csrWriteIn; }
                 CSR_SET  : { wv = rv | port.csrWriteIn; }
@@ -259,11 +294,18 @@ module CSR_Unit (
                     } else if csrReg.misa.EXTENSIONS.S {
                         csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
                     }
+                    // check MPP is supported Level
                     if !IsSupportedPrivilegeLevel(csrNext.mstatus.MPP, csrNext.misa) {
+                        // fallback
                         csrNext.mstatus.MPP = csrReg.mstatus.MPP;
                     }
                 }
                 CSR_NUM_MIP: {
+                    // MIP
+                    // > Only the bits corresponding to lower-privilege
+                    // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
+                    // > STIP), and external interrupts (UEIP, SEIP) in mip are writable
+                    // > through this CSR address; the remaining bits are read-only.
                     csrNext.mip.CUSTOM = wv.mip.CUSTOM;
                     if csrReg.misa.EXTENSIONS.S {
                         csrNext.mip.SEIP = wv.mip.SEIP;
@@ -275,6 +317,8 @@ module CSR_Unit (
                 CSR_NUM_MCAUSE: { csrNext.mcause = wv; }
                 CSR_NUM_MTVEC : { csrNext.mtvec = wv; }
                 CSR_NUM_MTVAL : { csrNext.mtval = wv; }
+                // The low bit of mepc is always zero,
+                // as described in Chapter 3.1.19 of RISC-V Privileged Architectures.
                 CSR_NUM_MEPC  : { csrNext.mepc = {wv[31:1], 1'b0}; }
                 CSR_NUM_MSCRATCH: { csrNext.mscratch = wv; }
                 CSR_NUM_MCYCLE  : { csrNext.mcycle = wv; }
@@ -293,7 +337,9 @@ module CSR_Unit (
                             CSR_NUM_STVAL: { csrNext.stval = wv; }
                             CSR_NUM_MEDELEG: {
                                 csrNext.medeleg = wv;
+                                // can't delegate double trap
                                 csrNext.medeleg[CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP] = 0;
+                                // can't delegate ECALL from M-mode
                                 csrNext.medeleg[CSR_CAUSE_TRAP_CODE_MCALL] = 0;
                             }
                             CSR_NUM_MEDELEGH: { csrNext.medelegh = wv; }
@@ -309,13 +355,16 @@ module CSR_Unit (
                 }
             }
         } else if port.fflagsWE {
+            // write to fflags from FP-CM and Mem-EX(CSR) shouldn't occur at the same time.
             csrNext.fcsr.fflags = port.fflagsData;
         }
 
         port.fflags = csrReg.fcsr.fflags;
         port.frm = csrReg.fcsr.frm;
 
+        // Timer interrupt request
         csrNext.mip.MTIP = port.reqTimerInterrupt;
+        // Custom interrupt request
         csrNext.mip.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;
 
         port.csrReadOut = rv;

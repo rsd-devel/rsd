@@ -1,9 +1,13 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
 interface MemoryAccessStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: MemoryRegisterWriteStageRegPath [MEM_ISSUE_WIDTH];
 
     modport ThisStage {

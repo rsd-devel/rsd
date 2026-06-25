@@ -4,23 +4,28 @@ package BasicTypes {
     const TRUE : u32 = 1'b1;
     const FALSE: u32 = 1'b0;
 
+    // SID
     const OP_SERIAL_WIDTH: u32 = 10;
     type OpSerial = logic<OP_SERIAL_WIDTH>;
 
+    // Byte
     const BYTE_WIDTH: u32 = 8;
     type BytePath = logic<BYTE_WIDTH>;
 
+    // Instruction width
     const INSN_WIDTH: u32 = 32;
     type InsnPath = logic<INSN_WIDTH>;
 
     const INSN_BYTE_WIDTH    : u32 = INSN_WIDTH / BYTE_WIDTH;
     const INSN_ADDR_BIT_WIDTH: u32 = $clog2(INSN_BYTE_WIDTH);
 
+    // Address
     const ADDR_WIDTH         : u32 = 32;
     const ADDR_WIDTH_BIT_SIZE: u32 = $clog2(ADDR_WIDTH);
     const ADDR_BYTE_WIDTH    : u32 = ADDR_WIDTH / BYTE_WIDTH;
     type AddrPath = logic<ADDR_WIDTH>;
 
+    // Data width
     const DATA_WIDTH              : u32 = 32;
     const DATA_BYTE_WIDTH         : u32 = DATA_WIDTH / BYTE_WIDTH;
     const DATA_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(DATA_BYTE_WIDTH);
@@ -29,60 +34,83 @@ package BasicTypes {
     const DATA_MASK: u32 = 32'hffffffff;
     const DATA_ZERO: u32 = 32'h00000000;
 
+    // Vector Data width
     const VEC_WIDTH              : u32 = 128;
     const VEC_WORD_WIDTH         : u32 = VEC_WIDTH / DATA_WIDTH;
     const VEC_BYTE_WIDTH         : u32 = VEC_WIDTH / BYTE_WIDTH;
     const VEC_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(VEC_BYTE_WIDTH);
+    // 下位VEC_BYTE_WIDTH_BIT_SIZEビットが0
     const VEC_ADDR_MASK          : u32 = 32'hfffffff0;
     type VectorPath = logic<VEC_WIDTH>;
 
+    //
+    // --- Register File
+    //
+
+    // Logical register number width
     const LSCALAR_NUM          : u32 = 32;
     const LSCALAR_NUM_BIT_WIDTH: u32 = $clog2(LSCALAR_NUM);
     type LScalarRegNumPath = logic<LSCALAR_NUM_BIT_WIDTH>;
 
+    // Physical register number width
     const PSCALAR_NUM          : u32 = CONF_PSCALAR_NUM;
     const PSCALAR_NUM_BIT_WIDTH: u32 = $clog2(PSCALAR_NUM);
     type PScalarRegNumPath = logic<PSCALAR_NUM_BIT_WIDTH>;
 
+    // Logical fp register number width
     const LSCALAR_FP_NUM          : u32 = 32;
     const LSCALAR_FP_NUM_BIT_WIDTH: u32 = $clog2(LSCALAR_FP_NUM);
     type LScalarFPRegNumPath = logic<LSCALAR_FP_NUM_BIT_WIDTH>;
 
+    // Physical fp register number width
     const PSCALAR_FP_NUM          : u32 = CONF_PSCALAR_FP_NUM;
     const PSCALAR_FP_NUM_BIT_WIDTH: u32 = $clog2(PSCALAR_FP_NUM);
     type PScalarFPRegNumPath = logic<PSCALAR_FP_NUM_BIT_WIDTH>;
 
+    // Logical general register ( scalar int register + fp register) number width
     const LREG_NUM          : u32 = LSCALAR_NUM + LSCALAR_FP_NUM;
     const LREG_NUM_BIT_WIDTH: u32 = $clog2(LREG_NUM);
     struct LRegNumPath {
+        // If TRUE, the register is for FP.
         isFP  : logic,
         regNum: logic<LREG_NUM_BIT_WIDTH - 1>,
     }
 
+    // Physical general register ( scalar int register + fp register ) number width
     const PREG_NUM          : u32 = PSCALAR_NUM + PSCALAR_FP_NUM;
     const PREG_NUM_BIT_WIDTH: u32 = $clog2(PREG_NUM);
     struct PRegNumPath {
+        // If TRUE, the register is for FP.
         isFP  : logic,
         regNum: logic<PREG_NUM_BIT_WIDTH - 1>,
     }
 
+    //
+    // --- Pipeline
+    //
+
+    // Fetch width
     const FETCH_WIDTH         : u32 = CONF_FETCH_WIDTH;
     const FETCH_WIDTH_BIT_SIZE: u32 = $clog2(FETCH_WIDTH);
     type FetchLaneIndexPath = logic<FETCH_WIDTH_BIT_SIZE>;
 
+    // Decode width
     const DECODE_WIDTH         : u32 = FETCH_WIDTH;
     const DECODE_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
     type DecodeLaneIndexPath = logic<DECODE_WIDTH_BIT_SIZE>;
 
+    // Rename width
     const RENAME_WIDTH         : u32 = FETCH_WIDTH;
     const RENAME_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
     type RenameLaneIndexPath = logic<RENAME_WIDTH_BIT_SIZE>;
     type RenameLaneCountPath = logic<$clog2(RENAME_WIDTH) + 1>;
 
+    // Dispatch width
     const DISPATCH_WIDTH         : u32 = FETCH_WIDTH;
     const DISPATCH_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
     type DispatchLaneIndexPath = logic<DISPATCH_WIDTH_BIT_SIZE>;
 
+    // Issue width
     const INT_ISSUE_WIDTH         : u32 = CONF_INT_ISSUE_WIDTH;
     const INT_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
     type IntIssueLaneIndexPath = logic<INT_ISSUE_WIDTH_BIT_SIZE>;
@@ -99,6 +127,7 @@ package BasicTypes {
     const LOAD_ISSUE_WIDTH      : u32 = CONF_LOAD_ISSUE_WIDTH;
     const STORE_ISSUE_WIDTH     : u32 = CONF_STORE_ISSUE_WIDTH;
     const MEM_ISSUE_WIDTH       : u32 = CONF_MEM_ISSUE_WIDTH;
+    // Load and store share the same lanes
     const STORE_ISSUE_LANE_BEGIN: u32 = CONF_STORE_ISSUE_LANE_BEGIN;
 
     const MEM_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
@@ -116,14 +145,21 @@ package BasicTypes {
     type IssueLaneIndexPath = logic<ISSUE_WIDTH_BIT_SIZE>;
     type IssueLaneCountPath = logic<ISSUE_WIDTH_BIT_SIZE + 1>;
 
+    // Commit width
+    // must be more than RENAME_WIDTH for recovery
     const COMMIT_WIDTH         : u32 = CONF_COMMIT_WIDTH;
     const COMMIT_WIDTH_BIT_SIZE: u32 = $clog2(COMMIT_WIDTH);
     type CommitLaneIndexPath = logic<COMMIT_WIDTH_BIT_SIZE>;
     type CommitLaneCountPath = logic<COMMIT_WIDTH_BIT_SIZE + 1>;
 
+    // Complex Pipeline depth
     const COMPLEX_EXEC_STAGE_DEPTH: u32 = 3;
+    // FP Pipeline depth
     const FP_EXEC_STAGE_DEPTH     : u32 = 5;
 
+    //
+    // --- Op
+    //
     struct OpSrc {
         phySrcRegNumA: PRegNumPath,
         phySrcRegNumB: PRegNumPath,
@@ -135,12 +171,19 @@ package BasicTypes {
         phyDstRegNum: PRegNumPath,
     }
 
+    //
+    // --- Physical register data
+    //
+    // +1 is for a valid flag.
     const PREG_DATA_WIDTH: u32 = DATA_WIDTH + 1;
     struct PRegDataPath {
         valid: logic,
         data : DataPath,
     }
 
+    //
+    // --- Shifter
+    //
     const SHIFTER_WIDTH      : u32 = 12;
     const RISCV_SHIFTER_WIDTH: u32 = 30;
     type ShifterPath = logic<RISCV_SHIFTER_WIDTH>;
@@ -148,9 +191,13 @@ package BasicTypes {
     const SHIFT_AMOUNT_BIT_SIZE: u32 = 5;
     type ShiftAmountPath = logic<SHIFT_AMOUNT_BIT_SIZE>;
 
+    //
+    // --- Interrupt
+    //
     const RSD_CUSTOM_INTERRUPT_CODE_WIDTH: u32 = 4;
     type CustomInterruptCodePath = logic<RSD_CUSTOM_INTERRUPT_CODE_WIDTH>;
 
+    // XLEN
     enum EncodedXLENSizeType: logic<2> {
         ENCODED_XLEN_UNKNOWN = 2'b00,
         ENCODED_XLEN_32      = 2'b01,

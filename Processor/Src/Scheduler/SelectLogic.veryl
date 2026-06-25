@@ -1,3 +1,4 @@
+// Select logic
 module SelectLogic (
     port    : modport WakeupSelectIF::SelectLogic,
     recovery: modport RecoveryManagerIF::SelectLogic,
@@ -29,13 +30,21 @@ module SelectLogic (
     var fpSelected  : logic [FP_ISSUE_WIDTH];
     var fpSelectedPtr: IssueQueueIndexPath [FP_ISSUE_WIDTH];
 
+    // SelectLogic -> WakeupPipelineRegister
     var portSelected      : logic [ISSUE_WIDTH];
     var portSelectedPtr   : IssueQueueIndexPath [ISSUE_WIDTH];
     var portSelectedVector: IssueQueueOneHotPath [ISSUE_WIDTH];
 
+    // For Recovery Maneger IF
     var recoverySelected   : logic [ISSUE_WIDTH];
     var recoverySelectedPtr: IssueQueueIndexPath [ISSUE_WIDTH];
 
+    // Requests are interleaved.
+    // ex. ENTRY_NUM = 4, GRANT_NUM = 2 case:
+    //   granted[0] = pick(req[0], req[2]);
+    //   granted[0] = pick(req[1], req[3]);
+    //
+    // This makes its performance slightly worse, but reduces its complexity.
     inst intPicker: InterleavedPicker #(
         ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
         GRANT_NUM: INT_ISSUE_WIDTH,

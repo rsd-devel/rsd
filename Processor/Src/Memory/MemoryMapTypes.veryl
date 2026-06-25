@@ -2,24 +2,28 @@ package MemoryMapTypes {
     import BasicTypes::*;
 
     const INSN_RESET_VECTOR: AddrPath = 32'h00001000;
+    // The processor stops when it reaches PC_GOAL
     const PC_GOAL          : AddrPath = 32'h80001004;
 
     const PC_WIDTH: u32 = 19;
     const PC_TAG  : u32 = ADDR_WIDTH - PC_WIDTH;
     type PC_Path = logic<PC_WIDTH>;
 
+    // 圧縮されたPCを32ビットアドレスに変換する
     function ToAddrFromPC (
         pc: input PC_Path,
     ) -> AddrPath {
         return {pc[PC_WIDTH - 1], 1'b0 repeat PC_TAG, pc[PC_WIDTH - 2:0]};
     }
 
+    // 32ビットアドレスを圧縮する
     function ToPC_FromAddr (
         addr: input AddrPath,
     ) -> PC_Path {
         return {addr[ADDR_WIDTH - 1], addr[PC_WIDTH - 2:0]};
     }
 
+    // Logical address memory type
     enum MemoryMapType: logic<2> {
         MMT_MEMORY  = 2'b00,
         MMT_IO      = 2'b01,
@@ -29,39 +33,51 @@ package MemoryMapTypes {
     const MMT_IO     : MemoryMapType = MemoryMapType::MMT_IO;
     const MMT_ILLEGAL: MemoryMapType = MemoryMapType::MMT_ILLEGAL;
 
+    // The most significant two bits of the physical memory address is used distinguish between
+    // accesses to a normal memory region, memory-mapped IO region, and uncachable region.
+    // 22 bits: 1bit uncachable flag + 1bit IO flag + 1MB memory space
     const PHY_ADDR_WIDTH         : u32 = 22;
     const PHY_ADDR_WIDTH_BIT_SIZE: u32 = $clog2(PHY_ADDR_WIDTH);
     const PHY_ADDR_BYTE_WIDTH    : u32 = PHY_ADDR_WIDTH / BYTE_WIDTH;
 
+    // 20 + isIO (1 bit) + isUncachable (1 bit)
     const PHY_RAW_ADDR_WIDTH         : u32 = PHY_ADDR_WIDTH - 2;
     const PHY_RAW_ADDR_WIDTH_BIT_SIZE: u32 = $clog2(PHY_RAW_ADDR_WIDTH);
     const PHY_RAW_ADDR_BYTE_WIDTH    : u32 = PHY_RAW_ADDR_WIDTH / BYTE_WIDTH;
 
     type PhyRawAddrPath = logic<PHY_RAW_ADDR_WIDTH>;
     struct PhyAddrPath {
-        isUncachable: logic,
-        isIO        : logic,
+        isUncachable: logic, // True if address points to an uncachable address space.
+        isIO        : logic, // True if address points to a memory-mapped IO.
         addr        : PhyRawAddrPath,
     }
 
+    // logical [0x0000_1000 - 0x0000_ffff] -> physical [0x0_1000 - 0x0_ffff]
     const LOG_ADDR_SECTION_0_BEGIN         : AddrPath = 32'h0000_1000;
     const LOG_ADDR_SECTION_0_END           : AddrPath = 32'h0001_0000;
     const LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH: u32 = 16;
+    // Ignore 0x1000 so that the lower address bits can be added as it is
     const PHY_ADDR_SECTION_0_BASE          : PhyRawAddrPath = 20'h0_0000;
 
+    // logical [0x8000_0000 - 0x8003_ffff] -> physical [0x1_0000 - 0x4_ffff]
     const LOG_ADDR_SECTION_1_BEGIN         : AddrPath = 32'h8000_0000;
     const LOG_ADDR_SECTION_1_END           : AddrPath = 32'h8004_0000;
     const LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH: u32 = 18;
     const PHY_ADDR_SECTION_1_BASE          : PhyRawAddrPath = 20'h1_0000;
 
+    // logical [0x8004_0000 - 0x8004_ffff] -> uncachable [0x5_0000 -> 0x5_ffff]
     const LOG_ADDR_UNCACHABLE_BEGIN         : AddrPath = 32'h8004_0000;
     const LOG_ADDR_UNCACHABLE_END           : AddrPath = 32'h8005_0000;
     const LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH: u32 = 19;
+    // Ignore 0x1000 so that the lower address bits can be added as it is
     const PHY_ADDR_UNCACHABLE_BASE          : PhyRawAddrPath = 20'h1_0000;
 
+    // logical [0x4000_2000] -> io [0x2000]
     const LOG_ADDR_SERIAL_OUTPUT: AddrPath = 32'h4000_2000;
     const PHY_ADDR_SERIAL_OUTPUT: PhyRawAddrPath = 20'h0_2000;
 
+    // Logical addresses for Timer IO
+    // 0x4000_0000 - 0x4000_000F
     const LOG_ADDR_TIMER_BASE   : AddrPath = 32'h4000_0000;
     const LOG_ADDR_TIMER_LOW    : AddrPath = LOG_ADDR_TIMER_BASE + 0;
     const LOG_ADDR_TIMER_HI     : AddrPath = LOG_ADDR_TIMER_BASE + 4;
@@ -71,6 +87,8 @@ package MemoryMapTypes {
     const LOG_ADDR_TIMER_BEGIN: AddrPath = LOG_ADDR_TIMER_BASE;
     const LOG_ADDR_TIMER_END  : AddrPath = LOG_ADDR_TIMER_BASE + 16;
 
+    // Physical addresses for Timer IO
+    // 0x0_0000 - 0x0_000F
     const PHY_ADDR_TIMER_BASE   : PhyRawAddrPath = 20'h0_0000;
     const PHY_ADDR_TIMER_LOW    : PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 0;
     const PHY_ADDR_TIMER_HI     : PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 4;
@@ -79,6 +97,7 @@ package MemoryMapTypes {
 
     const PHY_ADDR_TIMER_ZONE_BIT_WIDTH: u32 = 4;
 
+    // Get a memory type from a logical address
     function GetMemoryMapType (
         addr: input AddrPath,
     ) -> MemoryMapType {
@@ -97,6 +116,7 @@ package MemoryMapTypes {
         }
     }
 
+    // Convert a logical address to a physical address
     function ToPhyAddrFromLogical (
         logAddr: input AddrPath,
     ) -> PhyAddrPath {
@@ -111,18 +131,22 @@ package MemoryMapTypes {
             phyAddr.isIO = TRUE;
             phyAddr.addr = PHY_ADDR_TIMER_BASE + logAddr[PHY_ADDR_TIMER_ZONE_BIT_WIDTH - 1:0];
         } else if LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr <: LOG_ADDR_UNCACHABLE_END {
+            // Uncachable region (RAM?)
             phyAddr.isUncachable = TRUE;
             phyAddr.isIO = FALSE;
             phyAddr.addr = PHY_ADDR_UNCACHABLE_BASE + logAddr[LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH - 1:0];
         } else if LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr <: LOG_ADDR_SECTION_0_END {
+            // Section 0 (ROM?)
             phyAddr.isUncachable = FALSE;
             phyAddr.isIO = FALSE;
             phyAddr.addr = PHY_ADDR_SECTION_0_BASE + logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH:0];
         } else if LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr <: LOG_ADDR_SECTION_1_END {
+            // Section 1 (RAM?)
             phyAddr.isUncachable = FALSE;
             phyAddr.isIO = FALSE;
             phyAddr.addr = PHY_ADDR_SECTION_1_BASE + logAddr[LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH - 1:0];
         } else {
+            // Invalid
             phyAddr.isUncachable = FALSE;
             phyAddr.isIO = FALSE;
             phyAddr.addr = 20'hc_cccc;

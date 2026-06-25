@@ -12,6 +12,7 @@ module PreDecodeStage (
     import DebugTypes::*;
     import FetchUnitTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: PreDecodeStageRegPath [DECODE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
@@ -24,6 +25,7 @@ module PreDecodeStage (
                 pipeReg[i].valid = FALSE;
             }
         } else if !ctrl.pdStage.stall {
+            // write data
             pipeReg = prev.nextStage;
         }
     }
@@ -42,7 +44,10 @@ module PreDecodeStage (
         }
     }
 
+    // Micro op decoder
+    // Decoded micro ops
     var microOps: MicroOpInfoArray [DECODE_WIDTH];
+    // Whether a decoded instruction is branch or not.
     var insnInfo: InsnInfo [DECODE_WIDTH];
 
     for i in 0..DECODE_WIDTH : BlockDecoder {
@@ -54,6 +59,7 @@ module PreDecodeStage (
         );
     }
 
+    // Pipeline control
     var stall: logic;
     var clear: logic;
     var empty: logic;
@@ -71,6 +77,7 @@ module PreDecodeStage (
                 nextStage[i].valid = pipeReg[i].valid;
             }
 
+            // Decoded micro-op and context.
             nextStage[i].insn = pipeReg[i].insn;
             nextStage[i].pc = pipeReg[i].pc;
             nextStage[i].brPred = pipeReg[i].brPred;
@@ -85,6 +92,8 @@ module PreDecodeStage (
 
             nextStage[i].sid = pipeReg[i].sid;
 
+            // Debug Register
+            // 先頭が次に送られたら，デコード元は消える．
             debug.pdReg[i].valid = pipeReg[i].valid;
             debug.pdReg[i].sid = pipeReg[i].sid;
             debug.pdReg[i].aluCode = microOps[i][1].operand.intOp.aluCode;

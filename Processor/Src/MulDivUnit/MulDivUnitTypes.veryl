@@ -4,7 +4,7 @@ package MulDivUnitTypes {
     import ActiveListIndexTypes::*;
     import LoadStoreUnitTypes::*;
 
-    struct MulDivAcquireData {
+    struct MulDivAcquireData { // MulDivAcquireData
         activeListPtr: ActiveListIndexPath,
         opDst        : OpDst,
     }

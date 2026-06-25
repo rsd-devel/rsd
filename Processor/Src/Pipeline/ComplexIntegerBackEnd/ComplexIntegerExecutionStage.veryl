@@ -1,3 +1,8 @@
+// Complex Integer Execution stage
+//
+// 乗算/SIMD 命令の演算を行う
+// COMPLEX_EXEC_STAGE_DEPTH 段にパイプライン化されている
+//
 module ComplexIntegerExecutionStage (
     port      : modport ComplexIntegerExecutionStageIF::ThisStage,
     prev      : modport ComplexIntegerRegisterReadStageIF::NextStage,
@@ -24,9 +29,13 @@ module ComplexIntegerExecutionStage (
     // NOT_TRANSPILED_TO_VERYL
     // `RSD_STATIC_ASSERT(COMPLEX_EXEC_STAGE_DEPTH == MULDIV_STAGE_DEPTH, "These muse be same");
 
+    // 複数サイクルにわたる ComplexIntegerExecutionStage 内で
+    // 使用するパイプラインレジスタ
     struct LocalPipeReg {
         opId            : OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid           : logic,
+        // Valid flag of a destination register.
         regValid        : logic,
         complexQueueData: ComplexIssueQueueEntry,
     }
@@ -51,6 +60,7 @@ module ComplexIntegerExecutionStage (
         }
     }
 
+    // ComplexIntegerRegisterReadStage との境界にあるパイプラインレジスタ
     var pipeReg: ComplexIntegerExecutionStageRegPath [COMPLEX_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
@@ -108,6 +118,11 @@ module ComplexIntegerExecutionStage (
             mulDivUnit.mulCode[i] = mulSubInfoValue.mulCode;
 
             isDivValue = pipeReg[i].complexQueueData.opType == COMPLEX_MOP_TYPE_DIV;
+            // Request to the divider
+            // NOT make a request when below situation
+            // 1) When any operands of inst. are invalid
+            // 2) When the divider is waiting for the instruction
+            //    to receive the result of the divider
             mulDivUnit.divReq[i] =
                 mulDivUnit.divReserved[i] &&
                 pipeReg[i].valid &&
@@ -123,6 +138,7 @@ module ComplexIntegerExecutionStage (
                 pipeReg[i].complexQueueData.activeListPtr
             );
 
+            // From local pipeline
             for j in 1..COMPLEX_EXEC_STAGE_DEPTH {
                 flushValue[j] = SelectiveFlushDetector(
                     recovery.toRecoveryPhase,
@@ -133,8 +149,13 @@ module ComplexIntegerExecutionStage (
                 );
             }
 
+            // オペランド
+            //
+            // If invalid registers are read, regValid is negated and this op must be replayed.
+            // ベクタ以外の演算
             regValidValue = fuOpAValue.valid && fuOpBValue.valid;
 
+            // div result is directly written by MulDivUnit
             dataOutValue.valid = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].regValid;
             case localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].complexQueueData.opType {
                 COMPLEX_MOP_TYPE_DIV: {
@@ -146,9 +167,13 @@ module ComplexIntegerExecutionStage (
                 }
             }
 
+            // 最初のステージで出力
             bypass.complexCtrlIn[i] = pipeReg[i].bCtrl;
+            // 最後のステージで出力
             bypass.complexDstRegDataOut[i] = dataOutValue;
 
+            // ISから3ステージ後=EX1ステージでReplayを出力
+            // このとき、localPipeReg[lane][0]のデータを使う
             scheduler.complexRecordEntry[i] =
                 !stall &&
                 !clear &&
@@ -171,6 +196,7 @@ module ComplexIntegerExecutionStage (
                 nextLocalPipeReg[i][0].valid = pipeReg[i].valid;
             }
             nextLocalPipeReg[i][0].complexQueueData = pipeReg[i].complexQueueData;
+            // Reg valid of local pipeline
             nextLocalPipeReg[i][0].regValid = regValidValue;
 
             for j in 1..COMPLEX_EXEC_STAGE_DEPTH - 1 {
@@ -187,6 +213,7 @@ module ComplexIntegerExecutionStage (
             nextStage[i].opId = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].opId;
             nextStage[i].complexQueueData = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].complexQueueData;
 
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || flushValue[COMPLEX_EXEC_STAGE_DEPTH - 1] {
                 nextStage[i].valid = FALSE;
             } else {

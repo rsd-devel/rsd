@@ -1,3 +1,4 @@
+// A pipeline stage for issuing ops.
 module IntegerIssueStage (
     port     : modport IntegerIssueStageIF::ThisStage,
     prev     : modport ScheduleStageIF::IntNextStage,
@@ -13,10 +14,11 @@ module IntegerIssueStage (
     import ActiveListIndexTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: IssueStageRegPath [INT_ISSUE_WIDTH];
     var nextPipeReg: IssueStageRegPath [INT_ISSUE_WIDTH];
 
-    always_ff (port.clk) {
+    always_ff (port.clk) { // synchronous rst
         if port.rst {
             for i in 0..INT_ISSUE_WIDTH {
                 pipeReg[i] = '0;
@@ -47,6 +49,7 @@ module IntegerIssueStage (
         }
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var valid: logic [INT_ISSUE_WIDTH];
@@ -62,9 +65,11 @@ module IntegerIssueStage (
             var flushValue: logic;
 
             if scheduler.replay {
+                // In this cycle, the pipeline replays ops.
                 issuedData[i] = scheduler.intReplayData[i];
                 valid[i] = scheduler.intReplayEntry[i];
             } else {
+                // In this cycle, the pipeline issues ops.
                 issuedData[i] = scheduler.intIssuedData[i];
                 valid[i] = !stall && pipeReg[i].valid;
             }
@@ -79,9 +84,12 @@ module IntegerIssueStage (
                 issuedData[i].activeListPtr
             );
 
+            // Issue.
             scheduler.intIssue[i] = !clear && valid[i] && !flushValue;
             scheduler.intIssuePtr[i] = issueQueuePtr[i];
 
+            // --- Pipeline ラッチ書き込み
+            // リセットorフラッシュ時はNOP
             if clear || port.rst || flushValue {
                 nextStage[i].valid = FALSE;
             } else {

@@ -1,3 +1,7 @@
+//
+// --- FetchPipeIF
+//
+
 interface MemoryRegisterReadStageIF {
     import BasicTypes::*;
     import BypassTypes::*;
@@ -5,6 +9,7 @@ interface MemoryRegisterReadStageIF {
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: MemoryExecutionStageRegPath [MEM_ISSUE_WIDTH];
 
     modport ThisStage {

@@ -24,6 +24,7 @@ module ProducerMatrix (
     var matrix    : logic<ISSUE_QUEUE_ENTRY_NUM, ISSUE_QUEUE_ENTRY_NUM>; // Don't care.
 
     // NOT_TRANSPILED_TO_VERYL
+    // Don't care these values, but avoiding undefined status in Questa.
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
 

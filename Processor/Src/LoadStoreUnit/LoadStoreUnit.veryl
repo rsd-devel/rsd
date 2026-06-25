@@ -5,6 +5,8 @@ package LoadStoreUnitFunctions {
     import MemoryMapTypes::*;
     import CacheSystemTypes::*;
 
+    // DCache/MSHR のラインとして読んだロードデータを、
+    // アドレスのオフセットに合わせてシフト
     function ShiftCacheLineData (
         srcLine: input DCacheLinePath,
         addr   : input PhyAddrPath,
@@ -23,6 +25,7 @@ package LoadStoreUnitFunctions {
         return data;
     }
 
+    // ゼロ拡張or符号拡張
     function ExtendLoadData (
         loadData: input DataPath,
         mode    : input MemAccessMode,
@@ -43,6 +46,7 @@ package LoadStoreUnitFunctions {
                 }
             }
             default: {
+                // MEM_ACCESS_SIZE_WORD,MEM_ACCESS_SIZE_VEC
                 return loadData;
             }
         }
@@ -61,8 +65,16 @@ module LoadStoreUnit (
     import CacheSystemTypes::*;
     import LoadStoreUnitFunctions::*;
 
+    // Pipeline:
+    // ----------------------------->
+    // ADDR  | D$TAG | D$DATA | WB
+    //       |  LSQ  |        |
+    //
+    // LSQ is accessed in the D$TAG stage (MemoryTagAccessStage) and D$DATA is accessed
+    // after this stage, thus forwarded results must be latched.
     var storeLoadForwardedReg: logic [LOAD_ISSUE_WIDTH];
     var forwardedLoadDataReg: LSQ_BlockDataPath [LOAD_ISSUE_WIDTH];
+    // MSHRからのLoad
     var mshrReadHitReg: logic [LOAD_ISSUE_WIDTH];
     var mshrReadDataReg: DCacheLinePath [LOAD_ISSUE_WIDTH];
 
@@ -121,6 +133,7 @@ module LoadStoreUnit (
         port.executedLoadData = extendedLoadData;
     }
 
+    // From the rename stage.
     always_comb {
         port.allocatable =
             port.loadQueueAllocatable &&

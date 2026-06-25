@@ -1,4 +1,28 @@
 package VerilatorHelper {
+    // Parameters defined in SV are exported from VerilatorHelper package.
+    //
+    // Members in packed struct cannot be accessed from cpp test bench,
+    // so we use proxy functions defined by several macros to access the members.
+    //
+    // * VerilatorHelper.sv
+    //   RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName)
+    //   This macros defines the following function
+    //      memberTypeName typeName_memberName(o) begin
+    //         return o.memberName
+    //      end
+    //
+    // * VerilatorHelper.h
+    //    #define RSD_MAKE_STRUCT_ACCESSOR(typeName, memberTypeName, memberName) \
+    //        d->memberName = h->DebugRegister_##memberName(r); \
+    //    This macro extracts a member value by using the macros defined in VerilatorHelper.sv
+    //
+    //    GetDebugRegister function copies all the members in DebugRegister using the
+    //    above macros.
+    //
+    // * TestMain.cpp
+    //    It calls GetDebugRegister and extracts values in DebugRegister.
+    //    The extracted values are passed to Dumper.
+
     import DebugTypes::*;
     import BasicTypes::*;
     import OpFormatTypes::*;
@@ -1247,6 +1271,7 @@ package VerilatorHelper {
         return e.perfCounter.numBranchPredMissDetectedOnDecode;
     }
 
+    // Output only the first execution stage of a complex pipeline
     function DebugRegister_complexExReg_valid (
         e: input DebugRegister,
         i: input i32,
@@ -1263,6 +1288,7 @@ package VerilatorHelper {
         return e.complexExReg[i].opId[0];
     }
 
+    // Output only the first execution stage of a fp pipeline
     function DebugRegister_fpExReg_valid (
         e: input DebugRegister,
         i: input i32,

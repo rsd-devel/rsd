@@ -28,6 +28,7 @@ module MemoryTagAccessStage (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
+    // --- Pipeline registers
     always_ff (port.clk) {
         if port.rst {
             for i in 0..MEM_ISSUE_WIDTH {
@@ -45,6 +46,7 @@ module MemoryTagAccessStage (
     var stIqData: MemIssueQueueEntry [STORE_ISSUE_WIDTH];
 
     always_comb {
+        // Pipeline control
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
@@ -65,6 +67,7 @@ module MemoryTagAccessStage (
     var last_reserved_addr: PhyAddrPath;
     var prev_reserved_addr: PhyAddrPath;
 
+    // LR SC
     always_ff (port.clk) {
         if port.rst {
             prev_is_reserved = FALSE;
@@ -91,6 +94,7 @@ module MemoryTagAccessStage (
     var executedLoadQueuePtrByStore: LoadQueueIndexPath [STORE_ISSUE_WIDTH + 1];
     var executedStoreQueuePtrByStore: StoreQueueIndexPath [STORE_ISSUE_WIDTH + 1];
 
+    // load store unit
     always_comb {
         for i in 0..STORE_ISSUE_WIDTH {
             if i == 0 && replaceStoreByLoad {
@@ -130,6 +134,7 @@ module MemoryTagAccessStage (
     var amoCacheHit: logic [LOAD_ISSUE_WIDTH];
     var storeForwardMiss: logic [LOAD_ISSUE_WIDTH];
     var ldNextStage: MemoryAccessStageRegPath [LOAD_ISSUE_WIDTH];
+    // for ReplayQueue
     var ldRecordData: MemIssueQueueEntry [LOAD_ISSUE_WIDTH];
 
     var ldMSHR_Allocated: logic [LOAD_ISSUE_WIDTH];
@@ -159,6 +164,7 @@ module MemoryTagAccessStage (
             isZaamo[i] = ldIqData[i].memOpInfo.opType == MEM_MOP_TYPE_ZAAMO;
             amoCacheHit[i] = amoCache.cached && amoCache.readAddr == ldPipeReg[i].phyAddrOut;
 
+            // Load store unit
             loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
@@ -167,6 +173,8 @@ module MemoryTagAccessStage (
             loadStoreUnit.executedStoreQueuePtrByLoad[i] = ldIqData[i].storeQueuePtr;
             loadStoreUnit.executedLoadQueuePtrByLoad[i] = ldIqData[i].loadQueuePtr;
 
+            // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
+            // whether missed loads have allocated MSHRs or not.
             ldRecordData[i].opId = ldIqData[i].opId;
             ldRecordData[i].activeListPtr = ldIqData[i].activeListPtr;
             ldRecordData[i].opSrc = ldIqData[i].opSrc;
@@ -184,10 +192,14 @@ module MemoryTagAccessStage (
             ldMSHR_EntryID[i] = 0;
             storeForwardMiss[i] = FALSE;
 
+            // Set MSHR id if the load instruction allocated a MSHR entry.
             if ldIqData[i].hasAllocatedMSHR {
                 ldRecordData[i].hasAllocatedMSHR = ldIqData[i].hasAllocatedMSHR;
                 ldRecordData[i].mshrID = ldIqData[i].mshrID;
 
+                // 前回実行時に MSHR を確保したがリプレイ時に SQ からのフォワードミスが発生した場合
+                // MSHR を手放さないと先行するストアがコミットできずデッドロックする
+                // storeForwardMiss を後段に伝えて RW ステージで MSHR を解放し，MSHR を確保したフラグをここで落とす
                 if loadStoreUnit.storeLoadForwarded[i] && loadStoreUnit.forwardMiss[i] {
                     storeForwardMiss[i] = TRUE;
                     ldRecordData[i].hasAllocatedMSHR = FALSE;
@@ -196,10 +208,12 @@ module MemoryTagAccessStage (
                 ldRecordData[i].hasAllocatedMSHR = loadStoreUnit.loadHasAllocatedMSHR[i];
                 if loadStoreUnit.loadHasAllocatedMSHR[i] {
                     ldRecordData[i].mshrID = loadStoreUnit.loadMSHRID[i];
+                    // MSHR allocation is performed
                     ldMSHR_Allocated[i] = TRUE;
                     ldMSHR_EntryID[i] = loadStoreUnit.loadMSHRID[i];
                 } else if loadStoreUnit.mshrAddrHit[i] {
                     ldRecordData[i].mshrID = loadStoreUnit.mshrAddrHitMSHRID[i];
+                    // MSHR Hit?
                     ldMSHR_Hit[i] = loadStoreUnit.mshrReadHit[i];
                     ldMSHR_EntryID[i] = loadStoreUnit.mshrAddrHitMSHRID[i];
                 } else {
@@ -209,10 +223,13 @@ module MemoryTagAccessStage (
 
             if isLoad[i] || isZaamo[i] {
                 if isZaamo[i] && amoCacheHit[i] {
+                    // When AMO cache hit, the data comes from AMO cache.
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 } else if loadStoreUnit.storeLoadForwarded[i] {
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 } else if ldRecordData[i].hasAllocatedMSHR {
+                    // When the load has allocated an MSHR entry,
+                    // The data will come from MSHR.
                     if loadStoreUnit.mshrReadHit[i] {
                         ldRegValid[i] = ldPipeReg[i].regValid;
                     } else {
@@ -221,6 +238,7 @@ module MemoryTagAccessStage (
                 } else if loadStoreUnit.mshrReadHit[i] {
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 } else {
+                    // The consumers of a missed load is invalidate.
                     if loadStoreUnit.dcReadHit[i] {
                         ldRegValid[i] = ldPipeReg[i].regValid;
                     } else {
@@ -228,6 +246,8 @@ module MemoryTagAccessStage (
                     }
                 }
             } else if ldRecordData[i].hasAllocatedMSHR {
+                // When the prefetch load has allocated an MSHR entry,
+                // The data will come from MSHR.
                 if loadStoreUnit.mshrReadHit[i] {
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 } else {
@@ -237,8 +257,10 @@ module MemoryTagAccessStage (
                 ldRegValid[i] = ldPipeReg[i].regValid;
             }
 
+            // Sends to the load queue whether the load executed in this cycle is valid.
             loadStoreUnit.executedLoadRegValid[i] = ldRegValid[i];
 
+            // Pipeline レジスタ書き込み
             ldNextStage[i].regValid = ldRegValid[i];
             ldNextStage[i].addrOut = ldPipeReg[i].addrOut;
             ldNextStage[i].memMapType = ldPipeReg[i].memMapType;
@@ -267,10 +289,15 @@ module MemoryTagAccessStage (
             ldNextStage[i].amoCacheHit = amoCacheHit[i];
             ldNextStage[i].writeAMOCache = FALSE;
 
+            // ExecState
+            // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
             if !ldUpdate[i] || (ldUpdate[i] && !ldRegValid[i]) {
                 ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
             } else if isLoad[i] || (isZaamo[i] && !amoCacheHit[i]) {
                 if loadStoreUnit.storeLoadForwarded[i] {
+                    // フォワードされた場合
+                    // A load instruction that caused a store-load forwarding miss is not replayed but flushed to prevent a deadlock due to replay.
+                    // To wait for the commit of the dependent store instruction, The flush is performed in commit stage.
                     if loadStoreUnit.forwardMiss[i] {
                         ldNextStage[i].execState = EXEC_STATE_STORE_LOAD_FORWARDING_MISS;
                     } else {
@@ -285,6 +312,7 @@ module MemoryTagAccessStage (
                 } else if loadStoreUnit.mshrReadHit[i] {
                     ldNextStage[i].execState = EXEC_STATE_SUCCESS;
                 } else {
+                    // DCache
                     if loadStoreUnit.dcReadHit[i] {
                         ldNextStage[i].execState = EXEC_STATE_SUCCESS;
                     } else {
@@ -300,6 +328,7 @@ module MemoryTagAccessStage (
                     ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
                 }
             } else if isENV[i] {
+                // EBREAK/ECALL/MRET/SRET はトラップ扱い
                 case ldIqData[i].memOpInfo.envCode {
                     ENV_BREAK: {
                         ldNextStage[i].execState = EXEC_STATE_TRAP_EBREAK;
@@ -324,11 +353,15 @@ module MemoryTagAccessStage (
                     }
                 }
             } else if isFenceI[i] {
+                // FENCE.I flush all following ops when it is committed
+                // not to use the expired data from ICache.
                 ldNextStage[i].execState = EXEC_STATE_REFETCH_NEXT;
             } else {
                 ldNextStage[i].execState = EXEC_STATE_SUCCESS;
             }
 
+            // 実行が正しく終了してる場合，フォールト判定を行う
+            // ストアの依存予測ではこちらの方が優先される
             if ldNextStage[i].execState == EXEC_STATE_SUCCESS || ldNextStage[i].execState == EXEC_STATE_REFETCH_NEXT {
                 if isLoad[i] {
                     if ldPipeReg[i].memMapType == MMT_ILLEGAL {
@@ -347,7 +380,9 @@ module MemoryTagAccessStage (
                 }
             }
 
+            // RVA LR
             if ldNextStage[i].execState == EXEC_STATE_SUCCESS {
+                // LR
                 if i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc {
                     update_is_reserved_byLR = TRUE;
                     last_is_reserved = TRUE;
@@ -355,8 +390,10 @@ module MemoryTagAccessStage (
                 }
             }
 
+            // Zaamoのとき、AmoCacheにロードできるか確認する
             if isZaamo[i] && !amoCacheHit[i] {
                 if ldNextStage[i].execState == EXEC_STATE_SUCCESS {
+                    // AMOCacheにロードして、ストアをやり直す
                     ldRegValid[i] = FALSE;
                     ldRecordData[i].hasLoadedAMOCache = TRUE;
                     ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
@@ -364,6 +401,7 @@ module MemoryTagAccessStage (
                 }
             }
 
+            // Zaamoのストア
             if i == 0 {
                 replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i];
                 executeStore[STORE_ISSUE_WIDTH] = TRUE;
@@ -377,6 +415,7 @@ module MemoryTagAccessStage (
                 executedStoreQueuePtrByStore[STORE_ISSUE_WIDTH] = ldIqData[i].storeQueuePtr;
             }
 
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || ldFlush[i] {
                 ldNextStage[i].valid = FALSE;
             } else {
@@ -392,8 +431,10 @@ module MemoryTagAccessStage (
     var stRegValid: logic [STORE_ISSUE_WIDTH];
     var stFlush: logic [STORE_ISSUE_WIDTH];
     var stNextStage: MemoryAccessStageRegPath [STORE_ISSUE_WIDTH];
+    // for ReplayQueue
     var stRecordData: MemIssueQueueEntry [STORE_ISSUE_WIDTH];
     var isScFail: logic [STORE_ISSUE_WIDTH];
+    // For memory dependency prediction (only for STORE)
     var memAccessOrderViolation: logic [STORE_ISSUE_WIDTH];
 
     always_comb {
@@ -412,6 +453,7 @@ module MemoryTagAccessStage (
             isStore[i] = stIqData[i].memOpInfo.opType == MEM_MOP_TYPE_STORE;
             isScFail[i] = isStore[i] && stIqData[i].memOpInfo.isZalrsc && (!prev_is_reserved || stPipeReg[i].phyAddrOut != prev_reserved_addr);
 
+            // Load store unit
             executeStore[i] = stUpdate[i] && isStore[i];
             executedStoreData[i] = stPipeReg[i].dataIn;
             executedStoreVectorData[i] = '0;
@@ -422,6 +464,8 @@ module MemoryTagAccessStage (
             executedLoadQueuePtrByStore[i] = stIqData[i].loadQueuePtr;
             executedStoreQueuePtrByStore[i] = stIqData[i].storeQueuePtr;
 
+            // Set hasAllocatedMSHR and mshrID info to notice ReplayQueue
+            // whether missed loads have allocated MSHRs or not.
             stRecordData[i].opId = stIqData[i].opId;
             stRecordData[i].activeListPtr = stIqData[i].activeListPtr;
             stRecordData[i].opSrc = stIqData[i].opSrc;
@@ -438,6 +482,7 @@ module MemoryTagAccessStage (
 
             stRegValid[i] = stPipeReg[i].regValid;
 
+            // Pipeline レジスタ書き込み
             stNextStage[i].regValid = stRegValid[i];
             stNextStage[i].addrOut = stPipeReg[i].addrOut;
             stNextStage[i].memMapType = stPipeReg[i].memMapType;
@@ -466,15 +511,23 @@ module MemoryTagAccessStage (
             stNextStage[i].amoCacheHit = FALSE;
             stNextStage[i].writeAMOCache = FALSE;
 
+            // ExecState
+            // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
             if !stUpdate[i] || (stUpdate[i] && !stRegValid[i]) {
                 stNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
             } else if isStore[i] && loadStoreUnit.conflict[i] {
+                // memAccessOrderViolation
+                // ストア命令自身は正しく実行できているため、
+                // 次の命令からやり直す
                 stNextStage[i].execState = EXEC_STATE_REFETCH_NEXT;
+                // Make request for studying violation instruction to Memory dependent predictor.
                 memAccessOrderViolation[i] = TRUE;
             } else {
                 stNextStage[i].execState = EXEC_STATE_SUCCESS;
             }
 
+            // 実行が正しく終了してる場合，フォールト判定を行う
+            // ストアの依存予測ではこちらの方が優先される
             if stNextStage[i].execState == EXEC_STATE_SUCCESS || stNextStage[i].execState == EXEC_STATE_REFETCH_NEXT {
                 if isStore[i] {
                     if stPipeReg[i].memMapType == MMT_ILLEGAL {
@@ -485,10 +538,12 @@ module MemoryTagAccessStage (
                 }
             }
 
+            // RVA SC
             if i == 0 && isStore[i] && stIqData[i].memOpInfo.isZalrsc {
                 update_is_reserved_bySC = stUpdate[i] && stRegValid[i];
             }
 
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || stFlush[i] {
                 stNextStage[i].valid = FALSE;
             } else {
@@ -506,12 +561,14 @@ module MemoryTagAccessStage (
         loadStoreUnit.memAccessOrderViolation = memAccessOrderViolation;
 
         for i in 0..LOAD_ISSUE_WIDTH {
+            // Record instructions to the replay queue.
             scheduler.memRecordEntry[i] = ldUpdate[i] && !ldRegValid[i];
             scheduler.memRecordData[i] = ldRecordData[i];
             nextStage[i] = ldNextStage[i];
             flush[i] = ldFlush[i];
         }
         for i in 0..STORE_ISSUE_WIDTH {
+            // Record instructions to the replay queue.
             scheduler.memRecordEntry[i + STORE_ISSUE_LANE_BEGIN] = stUpdate[i] && !stRegValid[i];
             scheduler.memRecordData[i + STORE_ISSUE_LANE_BEGIN] = stRecordData[i];
             nextStage[i + STORE_ISSUE_LANE_BEGIN] = stNextStage[i];
@@ -523,6 +580,7 @@ module MemoryTagAccessStage (
 
     always_comb {
         for i in 0..LOAD_ISSUE_WIDTH {
+            // Record misses only when a MSHR entry is allocated.
             perfCounter.loadMiss[i] = ldUpdate[i] && isLoad[i] && ldMSHR_Allocated[i];
         }
 

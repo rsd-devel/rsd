@@ -11,19 +11,31 @@ interface ActiveListIF {
     var clk: clock;
     var rst: logic;
 
+    // Push 'pushedValue' on dispatch if this is true.
     var pushTail     : logic [RENAME_WIDTH];
+    // This value is pushed to an active list on dispatch.
     var pushedTailData: ActiveListEntry [RENAME_WIDTH];
+    // This pointer is send to an issue queue on dispatch.
+    // Execution state is written to an entry corresponding to an pointer.
     var pushedTailPtr : ActiveListIndexPath [RENAME_WIDTH];
 
+    // Pop the head entry in an active list on commitment.
     var popHeadNum: CommitLaneCountPath;
+    // Pop the Tail entry in an active list on retire.
     var popTailNum: CommitLaneCountPath;
 
+    // In RRMT recovery mode, readData become the front entries data in an active list.
+    // Otherwise, readData become the tail entries data in an active list.
     var readData     : ActiveListEntry [COMMIT_WIDTH];
+    // The front entries data in an active list.
+    // This is used for commitment desicion.
     var headExecState: ExecutionState [COMMIT_WIDTH];
     var validEntryNum: ActiveListCountPath;
 
+    // The count of entries from exception op to tail
     var recoveryEntryNum: ActiveListCountPath;
 
+    // 'execState' is updated on execution.
     var intWrite    : logic [INT_ISSUE_WIDTH];
     var intWriteData: ActiveListWriteData [INT_ISSUE_WIDTH];
 
@@ -41,14 +53,18 @@ interface ActiveListIF {
     var divWrite    : logic [MULDIV_ISSUE_WIDTH];
     var divWriteData: ActiveListWriteData [MULDIV_ISSUE_WIDTH];
 
+    // Status of an active list.
     var allocatable: logic;
 
+    // ActiveList/LSQ TailPtr for recovery
     var loadQueueRecoveryTailPtr : LoadQueueIndexPath;
     var storeQueueRecoveryTailPtr: StoreQueueIndexPath;
 
     var detectedFlushRangeTailPtr: ActiveListIndexPath;
+    // Exception op's ActiveListPtr
     var exceptionOpPtr           : ActiveListIndexPath;
 
+    // To active list
     modport ActiveList {
         clk: input,
         rst: input,
@@ -80,6 +96,9 @@ interface ActiveListIF {
         recoveryEntryNum: output,
     }
 
+    // 'pushedTailPtr' is set to an entry in issue queue.
+    // 'pushTail' is push request to an active list.
+    // 'pushedTailData' is pushed data.
     modport RenameStage {
         allocatable: input,
         pushedTailPtr: input,

@@ -1,3 +1,4 @@
+// --- DebugIF
 interface DebugIF {
     import BasicTypes::*;
     import MemoryMapTypes::*;
@@ -11,8 +12,11 @@ interface DebugIF {
     var clk: clock;
     var rst: logic;
 
+    // Mainモジュール外部へ出力する信号群
     var debugRegister: DebugRegister;
 
+    // debugRegisterの入力となる信号群
+    // 各ステージからデータを集める
     var npReg: NextPCStageDebugRegister [FETCH_WIDTH];
     var ifReg: FetchStageDebugRegister [FETCH_WIDTH];
     var pdReg: PreDecodeStageDebugRegister [DECODE_WIDTH];
@@ -53,6 +57,8 @@ interface DebugIF {
     var activeListHeadPtr: ActiveListIndexPath;
     var activeListCount: ActiveListCountPath;
 
+    // debugRegisterの入力となる信号群
+    // パイプラインコントローラからデータを集める
     var npStagePipeCtrl: PipelineControll;
     var ifStagePipeCtrl: PipelineControll;
     var pdStagePipeCtrl: PipelineControll;

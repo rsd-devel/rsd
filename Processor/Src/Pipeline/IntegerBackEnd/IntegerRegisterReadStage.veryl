@@ -3,6 +3,7 @@ package IntegerRegisterReadStageFunctions {
     import OpFormatTypes::*;
     import MicroOpTypes::*;
 
+    // --- Immediate
     function RISCV_OpImm (
         intOperandImm: input RISCV_IntOperandImmShift,
     ) -> DataPath {
@@ -11,11 +12,13 @@ package IntegerRegisterReadStageFunctions {
                 return {intOperandImm.imm, 12'h0};
             }
             default: {
+                // Todo: optimize
                 return {intOperandImm.imm[19] repeat 12, intOperandImm.imm};
             }
         }
     }
 
+    // --- オペランドの選択
     function SelectOperandIntReg (
         opType: input OpOperandType,
         regV  : input DataPath,
@@ -55,6 +58,7 @@ module IntegerRegisterReadStage (
     import DebugTypes::*;
     import IntegerRegisterReadStageFunctions::*;
 
+    // --- Pipeline registers
     var pipeReg: IntegerRegisterReadStageRegPath [INT_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
@@ -67,15 +71,18 @@ module IntegerRegisterReadStage (
                 pipeReg[i].valid = FALSE;
             }
         } else if !ctrl.backEnd.stall {
+            // write data
             pipeReg = prev.nextStage;
         }
     }
 
+    // Operand
     var immOut: DataPath [INT_ISSUE_WIDTH];
     var pc: AddrPath [INT_ISSUE_WIDTH];
     var operandA: PRegDataPath [INT_ISSUE_WIDTH];
     var operandB: PRegDataPath [INT_ISSUE_WIDTH];
 
+    // Pipeline control
     var stall: logic;
     var clear: logic;
     var iqData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
@@ -97,9 +104,13 @@ module IntegerRegisterReadStage (
             opDst[i] = iqData[i].opDst;
             pc[i] = ToAddrFromPC(iqData[i].pc);
 
+            // To the register file.
             registerFile.intSrcRegNumA[i] = opSrc[i].phySrcRegNumA;
             registerFile.intSrcRegNumB[i] = opSrc[i].phySrcRegNumB;
 
+            // To the bypass network.
+            // ストールやフラッシュの制御は，Bypass モジュールの内部で
+            // コントローラの信号を参照して行われている
             bypass.intPhySrcRegNumA[i] = opSrc[i].phySrcRegNumA;
             bypass.intPhySrcRegNumB[i] = opSrc[i].phySrcRegNumB;
 
@@ -108,6 +119,7 @@ module IntegerRegisterReadStage (
             bypass.intReadRegA[i] = intSubInfo[i].operandTypeA == OOT_REG;
             bypass.intReadRegB[i] = intSubInfo[i].operandTypeB == OOT_REG;
 
+            // --- オペランド選択
             immOut[i] = RISCV_OpImm(intSubInfo[i].shiftIn);
             operandA[i].data = SelectOperandIntReg(
                 intSubInfo[i].operandTypeA,
@@ -126,8 +138,10 @@ module IntegerRegisterReadStage (
             operandB[i].valid =
                 (intSubInfo[i].operandTypeB != OOT_REG) || registerFile.intSrcRegDataB[i].valid;
 
+            // --- Pipeline ラッチ書き込み
             nextStage[i].opId = pipeReg[i].opId;
 
+            // リセットorフラッシュ時はNOP
             flushValue = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -142,11 +156,17 @@ module IntegerRegisterReadStage (
                 nextStage[i].valid = pipeReg[i].valid;
             }
 
+            // レジスタ値&フラグ
             nextStage[i].operandA = operandA[i];
             nextStage[i].operandB = operandB[i];
+
+            // Issue queue data
             nextStage[i].intQueueData = pipeReg[i].intQueueData;
+
+            // バイパス制御
             nextStage[i].bCtrl = bypass.intCtrlOut[i];
 
+            // Debug Register
             debug.intRrReg[i].valid = pipeReg[i].valid;
             debug.intRrReg[i].flush = flushValue;
             debug.intRrReg[i].opId = pipeReg[i].opId;

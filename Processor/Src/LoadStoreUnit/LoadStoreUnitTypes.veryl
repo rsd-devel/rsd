@@ -6,14 +6,18 @@ package LoadStoreUnitTypes {
     import OpFormatTypes::*;
     import MicroOpTypes::*;
 
+    // LSQ 内部の処理は，現在は物理アドレス幅に揃える
     const LSQ_ADDR_MSB: u32 = PHY_ADDR_WIDTH;
     const LSQ_ADDR_UPPER_PADDING_BIT_SIZE: u32 = PHY_ADDR_WIDTH - LSQ_ADDR_MSB;
 
+    // LSQ 内部のデータ幅
     const LSQ_BLOCK_WIDTH: u32 = 32;
     const LSQ_BLOCK_WORD_WIDTH: u32 = LSQ_BLOCK_WIDTH / DATA_WIDTH;
     const LSQ_BLOCK_BYTE_WIDTH: u32 = LSQ_BLOCK_WIDTH / BYTE_WIDTH;
     const LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(LSQ_BLOCK_BYTE_WIDTH);
     type LSQ_BlockDataPath = logic<LSQ_BLOCK_WIDTH>;
+
+    // LSQ 内部データ幅単位のアドレス
     type LSQ_BlockAddrPath = logic<LSQ_ADDR_MSB - LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE>;
 
     function LSQ_ToRawAddr (
@@ -46,22 +50,26 @@ package LoadStoreUnitTypes {
         return LSQ_ToPhyAddr({blockAddr, 1'b0 repeat LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE});
     }
 
+    // Load queue
     const LOAD_QUEUE_ENTRY_NUM: u32 = CONF_LOAD_QUEUE_ENTRY_NUM;
     const LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(LOAD_QUEUE_ENTRY_NUM);
     type LoadQueueIndexPath = logic<LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH>;
     type LoadQueueCountPath = logic<LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH + 1>;
     type LoadQueueOneHotPath = logic<(1 << LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH)>;
 
+    // Store queue
     const STORE_QUEUE_ENTRY_NUM: u32 = CONF_STORE_QUEUE_ENTRY_NUM;
     const STORE_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(STORE_QUEUE_ENTRY_NUM);
     type StoreQueueIndexPath = logic<STORE_QUEUE_ENTRY_NUM_BIT_WIDTH>;
     type StoreQueueCountPath = logic<STORE_QUEUE_ENTRY_NUM_BIT_WIDTH + 1>;
     type StoreQueueOneHotPath = logic<(1 << STORE_QUEUE_ENTRY_NUM_BIT_WIDTH)>;
 
+    // Read enable signals per word.
     type LSQ_BlockWordEnablePath = logic<LSQ_BLOCK_WORD_WIDTH>;
     type LSQ_BlockByteEnablePath = logic<LSQ_BLOCK_BYTE_WIDTH>;
     type LSQ_WordByteEnablePath = logic<DATA_BYTE_WIDTH>;
 
+    // width が 0 の場合は 0 を返す
     function LSQ_SelectBits (
         data  : input i32,
         offset: input i32,
@@ -75,6 +83,8 @@ package LoadStoreUnitTypes {
         return ret;
     }
 
+    // Generate read / write enable signals for each word
+    // from a memory address and an access size.
     function LSQ_ToBlockWordEnable (
         addr: input PhyAddrPath,
         mode: input MemAccessMode,
@@ -93,6 +103,8 @@ package LoadStoreUnitTypes {
         return wordEnable;
     }
 
+    // Generate read / write enable signals for each byte
+    // from a memory address and an access size.
     function LSQ_ToWordByteEnable (
         addr: input PhyAddrPath,
         mode: input MemAccessMode,
@@ -142,18 +154,31 @@ package LoadStoreUnitTypes {
         return ret;
     }
 
+    // Entries of LSQ
     struct LoadQueueEntry {
+        // Whether the load was executed using the correct source operand
         regValid: logic,
+        // This flag indicate whether a load is finished or not.
         finished: logic,
+
+        // The address of a load.
         address : LSQ_BlockAddrPath,
+        // Read enable signals.
         wordRE  : LSQ_BlockWordEnablePath,
+        // Addr for memory dependent predictor.
         pc      : PC_Path,
     }
 
     struct StoreQueueAddrEntry {
+        // Whether the store was executed using the correct source operand
         regValid: logic,
+        // This flag indicate whether a load is finished or not.
         finished: logic,
+
+        // The address of a store.
         address : LSQ_BlockAddrPath,
+
+        // Write enable signals.
         wordWE  : LSQ_BlockWordEnablePath,
         byteWE  : LSQ_WordByteEnablePath,
     }
@@ -161,6 +186,8 @@ package LoadStoreUnitTypes {
     struct StoreQueueDataEntry {
         condEnabled: logic,
         data       : LSQ_BlockDataPath,
+
+        // Write enable signals.
         wordWE     : LSQ_BlockWordEnablePath,
         byteWE     : LSQ_WordByteEnablePath,
     }

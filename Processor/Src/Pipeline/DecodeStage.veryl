@@ -1,3 +1,4 @@
+// Pick micro ops for feeding to a next stage from all decoded micro ops.
 module MicroOpPicker (
     req        : input AllDecodedMicroOpPath,
     serialize  : input AllDecodedMicroOpPath,
@@ -25,10 +26,12 @@ module MicroOpPicker (
 
             for mn in 0..ALL_DECODED_MICRO_OP_WIDTH {
                 if !found && cur[mn] && !clear {
+                    // If this op is serialized one, only a single op is picked.
                     if serialize[mn] {
                         clear = TRUE;
                     }
 
+                    // 既に通常命令を送っている場合，このシリアライズ命令はピックしない
                     if clear && sent {
                         found = TRUE;
                     } else {
@@ -82,6 +85,7 @@ module DecodeStage (
     var empty: logic;
     var nextStage: RenameStageRegPath [DECODE_WIDTH];
 
+    // Micro-op decoder
     var microOps: OpInfo [ALL_DECODED_MICRO_OP_WIDTH];
     var insnInfo: InsnInfo<DECODE_WIDTH>;
 
@@ -105,6 +109,7 @@ module DecodeStage (
     var initiate: logic;
     var complete: logic;
 
+    // Early branch misprediction detection.
     var isfIn: RISCV_ISF_Common<DECODE_WIDTH>;
     var stallBranchResolver: logic;
     var insnValidIn: logic [DECODE_WIDTH];
@@ -173,6 +178,9 @@ module DecodeStage (
     }
 
     always_comb {
+        //
+        // Setup current valid bits(=un-decoded bits).
+        //
         if initiate {
             for i in 0..ALL_DECODED_MICRO_OP_WIDTH {
                 curValidMOps[i] = microOps[i].valid;
@@ -181,6 +189,7 @@ module DecodeStage (
             curValidMOps = remainingValidMOps;
         }
 
+        // Set a "serialized" flag for each micro op.
         for i in 0..ALL_DECODED_MICRO_OP_WIDTH {
             serializedMOps[i] = microOps[i].serialized;
         }
@@ -195,6 +204,9 @@ module DecodeStage (
     );
 
     always_comb {
+        // --- The picker picks micro ops
+
+        // Set picked results.
         nextValidMOps = pickedValidMOps;
 
         complete = TRUE;
@@ -205,6 +217,8 @@ module DecodeStage (
                 }
             }
 
+            // "complete" does not care "insnValidOut" because "insnValidOut" is in
+            // a critical path.
             if !insnValidOut[i] {
                 for j in 0..MICRO_OP_MAX_NUM {
                     nextValidMOps[i * MICRO_OP_MAX_NUM + j] = FALSE;
@@ -212,11 +226,13 @@ module DecodeStage (
             }
         }
 
+        // Stall decision
         ctrl.idStageStallUpper = !complete;
 
         stall = ctrl.idStage.stall;
         clear = ctrl.idStage.clear;
 
+        // Pick decoded micro ops.
         for i in 0..DECODE_WIDTH {
             var orgPickedInsnLane: DecodeLaneIndexPath;
             orgPickedInsnLane = mopPickedIndex[i] / MICRO_OP_MAX_NUM;
@@ -233,7 +249,9 @@ module DecodeStage (
 
         perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
 
+        // Debug Register
         for i in 0..DECODE_WIDTH {
+            // 先頭が次に送られたら，デコード元は消える．
             debug.idReg[i].valid = pipeReg[i].valid;
             debug.idReg[i].flushed = insnFlushed[i];
             debug.idReg[i].flushTriggering = insnFlushTriggering[i];

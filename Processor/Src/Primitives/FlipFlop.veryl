@@ -2,6 +2,9 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+//
+// Usage: FlipFlop#(.FF_WIDTH(32)) ff( out, in , clk, rst );
+//
 module FlipFlop #(
     param FF_WIDTH   : u32 = 32,
     param RESET_VALUE: u32 = 0 ,
@@ -17,7 +20,9 @@ module FlipFlop #(
 
     // rst or write
     always_ff (clk) {
+        // synchronous rst
         if rst == 1 {
+            // rst
             body = RESET_VALUE;
         } else {
             body = r#in;
@@ -43,9 +48,12 @@ module FlipFlopWE #(
 
     // rst or write
     always_ff (clk) {
+        // synchronous rst
         if rst == 1 {
+            // rst
             body = RESET_VALUE;
         } else if we {
+            // write data
             body = r#in;
         } else {
             body = body;

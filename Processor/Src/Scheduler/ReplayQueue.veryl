@@ -31,19 +31,29 @@ module ReplayQueue (
     import LoadStoreUnitTypes::*;
     import ReplayQueueFunctions::*;
 
+    // A maximum replay interval between two entries in ReplayQueue is
+    // equal to a maximum latency of all instruction.
+    // TODO: modify this when adding an instruction whose latency is larger than
+    //       memory access instructions.
     const REPLAY_QUEUE_MAX_INTERVAL: u32 = ISSUE_QUEUE_FP_LATENCY;
     const REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH: u32 = $clog2(REPLAY_QUEUE_MAX_INTERVAL + 1);
     type ReplayQueueIntervalPath = logic<REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH>;
 
+    // Body of replay queue
     struct ReplayQueueEntry {
+        // Int op data
         intValid      : logic<INT_ISSUE_WIDTH>,
         intData       : IntIssueQueueEntry<INT_ISSUE_WIDTH>,
+        // Complex op data
         complexValid  : logic<COMPLEX_ISSUE_WIDTH>,
         complexData   : ComplexIssueQueueEntry<COMPLEX_ISSUE_WIDTH>,
+        // Mem op data
         memValid      : logic<MEM_ISSUE_WIDTH>,
         memData       : MemIssueQueueEntry<MEM_ISSUE_WIDTH>,
+        // FP op data
         fpValid       : logic<FP_ISSUE_WIDTH>,
         fpData        : FPIssueQueueEntry<FP_ISSUE_WIDTH>,
+        // How many cycles to replay after waiting
         replayInterval: ReplayQueueIntervalPath,
     }
 
@@ -55,8 +65,19 @@ module ReplayQueue (
     var full   : logic;
     var empty  : logic;
 
+    // Input instructions are pushed when
+    // some of these are valid.
     var pushEntry : logic;
+    // Head instructions of ReplayQueue are poped unless
+    // some loads of these are valid,
+    // have allocated MSHR entries and
+    // these MSHR entries have not receive data yet.
     var popEntry  : logic;
+    // To accept all instructions which must be pushed to ReplayQueue,
+    // schedule and issue stage must stall when ReplayQueue is "almost" full.
+    // The threshold is REPLAY_QUEUE_ENTRY_NUM - ISSUE_QUEUE_MEM_LATENCY
+    // because ISSUE_QUEUE_MEM_LATENCY entries will pushed to ReplayQueue at most
+    // after schedule and issue stage stall.
     var almostFull: logic;
     var count     : ReplayQueueCountPath;
 
@@ -137,6 +158,7 @@ module ReplayQueue (
     var nextDivRecordValid   : logic [MULDIV_ISSUE_WIDTH];
     var nextDivRecordData    : DivRecordEntry [MULDIV_ISSUE_WIDTH];
 
+    // Valid information in replay queue
     var replayEntryValidIn : logic;
     var replayEntryValidOut: logic;
 
@@ -149,6 +171,7 @@ module ReplayQueue (
     var intervalCount    : ReplayQueueIntervalPath;
     var nextIntervalCount: ReplayQueueIntervalPath;
 
+    // Flushed Op detectihon
     var canBeFlushedEntryCount: ReplayQueueCountPath;
     var flushRangeHeadPtr     : ActiveListIndexPath;
     var flushRangeTailPtr     : ActiveListIndexPath;
@@ -160,11 +183,14 @@ module ReplayQueue (
     var flushFP     : logic [FP_ISSUE_WIDTH];
     var flushDiv    : logic [MULDIV_ISSUE_WIDTH];
 
+    // Outputs are pipelined for timing optimization.
+    // "replay" signal is in a critical path.
     var replayEntryReg : ReplayQueueEntry;
     var nextReplayEntry: ReplayQueueEntry;
     var replayReg      : logic;
     var nextReplay     : logic;
 
+    // State of MSHR
     var mshrNotReady   : logic<MEM_ISSUE_WIDTH>;
     var targetMSHRValid: logic<MEM_ISSUE_WIDTH>;
     var mshrID         : MSHR_IndexPath [MEM_ISSUE_WIDTH];
@@ -213,6 +239,7 @@ module ReplayQueue (
     }
 
     always_comb {
+        // Count how many valid instruction in replay queue
         noValidInst = validInstCount == 0;
         validInstCountNext = validInstCount;
         if pushEntry && replayEntryValidIn {
@@ -224,6 +251,7 @@ module ReplayQueue (
     }
 
     always_comb {
+        // Set MSHR state
         for i in 0..MSHR_NUM {
             mshrValid[i] = mshr.mshrValid[i];
             mshrPhase[i] = mshr.mshrPhase[i];
@@ -266,6 +294,7 @@ module ReplayQueue (
     }
 
     always_comb {
+        // To a write port.
         for i in 0..INT_ISSUE_WIDTH {
             recordData.intValid[i] = port.intRecordEntry[i];
             recordData.intData[i] = port.intRecordData[i];
@@ -338,6 +367,10 @@ module ReplayQueue (
             divRecordDataIn[i] = port.divRecordData[i];
         }
 
+        // flush detection
+        // There is a one-cycle delay for a flash range to be recorded in the registers,
+        // so it is necessary to detect flushed ops using both the range just received and
+        // the range recorded in the registers.
         for i in 0..INT_ISSUE_WIDTH {
             flushInt[i] = SelectiveFlushDetector(canBeFlushedEntryCount != 0, flushRangeHeadPtr, flushRangeTailPtr, flushAllInsns, replayEntryOut.intData[i].activeListPtr) ||
                           SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, replayEntryOut.intData[i].activeListPtr);
@@ -360,6 +393,7 @@ module ReplayQueue (
     }
 
     always_comb {
+        // To an input of ReplayQueue.
         if port.rst || full || (!replayEntryValidIn && noValidInst) {
             pushEntry = FALSE;
         } else {
@@ -386,12 +420,17 @@ module ReplayQueue (
             }
         }
 
+        // To an output of ReplayQueue
         if port.rst || empty || intervalCount <: replayEntryOut.replayInterval {
             popEntry = FALSE;
         } else if !replayEntryValidOut {
+            // RQの先頭命令が無効なら必ずpopする
             popEntry = TRUE;
         } else {
             popEntry = TRUE;
+            // MSHR/DIV は自律的にフラッシュされるため，リプレイキューの中に取り残された命令が
+            // MSHR/DIV のフラッシュされた処理を待ち続ける可能性がある
+            // これを避けるために，flush をここで見る必要がある
             for i in 0..MEM_ISSUE_WIDTH {
                 if replayEntryOut.memValid[i] && !flushMem[i] &&
                    (replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_LOAD ||
@@ -403,6 +442,7 @@ module ReplayQueue (
                 }
             }
 
+            // FENCE.I
             if replayEntryOut.memValid[0] && !flushMem[0] &&
                replayEntryOut.memData[0].memOpInfo.opType == MEM_MOP_TYPE_FENCE &&
                replayEntryOut.memData[0].memOpInfo.isFenceI &&
@@ -417,6 +457,7 @@ module ReplayQueue (
                             popEntry = FALSE;
                         }
                     }
+                    // mul inst may depend on div result
                     for j in 0..COMPLEX_ISSUE_WIDTH {
                         if replayEntryOut.complexValid[j] && !flushComplex[j] && IsSrcIncludeDst(replayEntryOut.complexData[j].opSrc, currentDivRecordData[i].opDst) {
                             popEntry = FALSE;
@@ -440,13 +481,17 @@ module ReplayQueue (
                    (replayEntryOut.fpData[i].fpOpInfo.opType == FP_MOP_TYPE_DIV ||
                     replayEntryOut.fpData[i].fpOpInfo.opType == FP_MOP_TYPE_SQRT) &&
                    fpDivSqrtUnit.Busy[i] {
+                    // Div/Sqrt interlock (stop issuing div/sqrt while there is
+                    // any div/sqrt in the fp pipeline including replay queue)
                     popEntry = FALSE;
                 }
             }
         }
 
+        // To stall upper stages.
         almostFull = count >= REPLAY_QUEUE_ENTRY_NUM - ISSUE_QUEUE_MEM_LATENCY;
 
+        // To an output register.
         for i in 0..INT_ISSUE_WIDTH {
             nextReplayEntry.intValid[i] = popEntry && replayEntryOut.intValid[i] && !flushInt[i];
             nextReplayEntry.intData[i] = replayEntryOut.intData[i];
@@ -477,6 +522,8 @@ module ReplayQueue (
 
         nextReplay = popEntry && replayEntryValidOut;
 
+        // To an issue queue.
+        // These ops are flushed in the issue stage modules
         for i in 0..INT_ISSUE_WIDTH {
             port.intReplayEntry[i] = replayEntryReg.intValid[i];
             port.intReplayData[i] = replayEntryReg.intData[i];
@@ -494,6 +541,9 @@ module ReplayQueue (
             port.fpReplayData[i] = replayEntryReg.fpData[i];
         }
 
+        // Stall issue and schedule stages
+        // when ReplayQueue issues or
+        // its #entries exceeds the threshold.
         ctrl.isStageStallUpper = replayReg || almostFull;
         port.replay = replayReg;
     }

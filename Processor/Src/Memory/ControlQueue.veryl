@@ -1,3 +1,7 @@
+//
+// ControlQueue
+//
+
 module ControlQueue (
     clk       : input  clock                             ,
     rst       : input  logic                             ,

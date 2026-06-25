@@ -47,7 +47,7 @@ module PerformanceCounter (
             next.numBranchPredMissDetectedOnDecode = next.numBranchPredMissDetectedOnDecode + 1;
         }
 
-        port.perfCounter = cur;
-        debug.perfCounter = next;
+        port.perfCounter = cur;  // Export current values
+        debug.perfCounter = next;  // Export next values for updating registers in debug
     }
 }

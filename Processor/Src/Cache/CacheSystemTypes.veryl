@@ -4,25 +4,38 @@ package CacheSystemTypes {
     import MemoryMapTypes::*;
     import ActiveListIndexTypes::*;
 
+    //
+    // --- DCache
+    //
+
+    // Main cache parameters.
+    // The remaining cache parameters must be fixed or calculated by the following
+    // parameters.
     const DCACHE_WAY_NUM        : u32 = CONF_DCACHE_WAY_NUM;
     const DCACHE_INDEX_BIT_WIDTH: u32 = CONF_DCACHE_INDEX_BIT_WIDTH;
     const DCACHE_LINE_BYTE_NUM  : u32 = CONF_DCACHE_LINE_BYTE_NUM;
     const MSHR_NUM              : u32 = CONF_DCACHE_MSHR_NUM;
 
+    // Index bits
     const DCACHE_INDEX_NUM: u32 = 1 << DCACHE_INDEX_BIT_WIDTH;
     type DCacheIndexPath = logic<DCACHE_INDEX_BIT_WIDTH>;
 
+    // The number of the ports of tag/data array.
     const DCACHE_ARRAY_PORT_NUM          : u32 = 2;
     const DCACHE_ARRAY_PORT_NUM_BIT_WIDTH: u32 = $clog2(DCACHE_ARRAY_PORT_NUM);
     type DCacheArrayPortIndex = logic<DCACHE_ARRAY_PORT_NUM_BIT_WIDTH>;
 
+    // Line size
     const DCACHE_LINE_BYTE_NUM_BIT_WIDTH: u32 = $clog2(DCACHE_LINE_BYTE_NUM);
     const DCACHE_LINE_BIT_WIDTH         : u32 = DCACHE_LINE_BYTE_NUM * 8;
     type DCacheLinePath = logic<DCACHE_LINE_BIT_WIDTH>;
     type DCacheByteEnablePath = logic<DCACHE_LINE_BYTE_NUM>;
 
+    // Tag bits
     const DCACHE_TAG_BIT_WIDTH: u32 = PHY_ADDR_WIDTH - DCACHE_INDEX_BIT_WIDTH - DCACHE_LINE_BYTE_NUM_BIT_WIDTH;
     type DCacheTagPath = logic<DCACHE_TAG_BIT_WIDTH>;
+
+    // Tag+Index bits
     type DCacheLineAddr = logic<PHY_ADDR_WIDTH - DCACHE_LINE_BYTE_NUM_BIT_WIDTH>;
     type DCacheTagWayPath = logic<DCACHE_WAY_NUM, DCACHE_TAG_BIT_WIDTH>;
 
@@ -31,52 +44,96 @@ package CacheSystemTypes {
         tag  : DCacheTagPath,
     }
 
+    // A signal path for a way number
     const DCACHE_WAY_BIT_NUM: u32 = 1;
     type DCacheWayPath = logic<DCACHE_WAY_BIT_NUM>;
 
+    // Tree LRU information
+    // Each bit represents a node in a binary tree
+    // (DCACHE_WAY_NUM - 1) bits are necessary.
+    // DCACHE_TREE_LRU_STATE_BIT_NUM = sum(1+2+4...W/2) = W-1
     const DCACHE_TREE_LRU_STATE_BIT_NUM: u32 = DCACHE_WAY_NUM - 1;
     type DCacheTreeLRU_StatePath = logic<DCACHE_TREE_LRU_STATE_BIT_NUM>;
 
+    // Subset of index for MSHR identifier in ReplayQueue
+    // This value MUST be less than or equal to DCACHE_INDEX_BIT_WIDTH.
     const DCACHE_INDEX_SUBSET_BIT_WIDTH: u32 = DCACHE_INDEX_BIT_WIDTH;
     type DCacheIndexSubsetPath = logic<DCACHE_INDEX_SUBSET_BIT_WIDTH>;
 
+    // Memory Access Serial
+    // 同時にoutstanding可能なリードトランザクションの最大数を決める
+    // D-Cacheからの要求の最大数はMSHR_NUM，I-Cacheからの要求は1，最大要求数はMSHR_NUM+1となる
+    // 今後I-Cacheからの同時発行可能な要求数を増やすのであればここを変更
+    // NOTE: if you modify this value, you need to modify
+    // MEMORY_AXI4_READ_ID_WIDTH in SysDeps/XilinxMacros.vh
     const MEM_ACCESS_SERIAL_BIT_SIZE: u32 = $clog2(MSHR_NUM + 1);
     type MemAccessSerial = logic<MEM_ACCESS_SERIAL_BIT_SIZE>;
 
+    // 同時にoutstanding可能なライトトランザクションの最大数を決める
+    // D-Cacheからの要求の最大数はMSHR_NUMなので，最大要求数もMSHR_NUMとなる
+    // NOTE: if you modify this value, you need to modify
+    // MEMORY_AXI4_WRITE_ID_WIDTH in SysDeps/XilinxMacros.vh
     const MEM_WRITE_SERIAL_BIT_SIZE: u32 = $clog2(MSHR_NUM);
     type MemWriteSerial = logic<MEM_WRITE_SERIAL_BIT_SIZE>;
 
+    //
+    // Phase of DCache
+    //
     enum DCachePhase: logic<2> {
+        // DCache is operating normally.
         DCACHE_PHASE_NORMAL           = 2'd0,
+        // DCache is flushing.
         DCACHE_PHASE_FLUSH_PROCESSING = 2'd1,
+        // DCache flush is completed, waiting for a completion signal from a manager.
         DCACHE_PHASE_FLUSH_COMPLETE   = 2'd2,
     }
     const DCACHE_PHASE_NORMAL          : DCachePhase = DCachePhase::DCACHE_PHASE_NORMAL;
     const DCACHE_PHASE_FLUSH_PROCESSING: DCachePhase = DCachePhase::DCACHE_PHASE_FLUSH_PROCESSING;
     const DCACHE_PHASE_FLUSH_COMPLETE  : DCachePhase = DCachePhase::DCACHE_PHASE_FLUSH_COMPLETE;
 
+    //
+    // MSHR
+    //
     const MSHR_NUM_BIT_WIDTH: u32 = $clog2(MSHR_NUM);
     type MSHR_IndexPath = logic<MSHR_NUM_BIT_WIDTH>;
     type MSHR_CountPath = logic<MSHR_NUM_BIT_WIDTH + 1>;
 
     enum MSHR_Phase: logic<5> {
+        // This entry is invalid
         MSHR_PHASE_INVALID                    = 5'd0,
+        // For flush
         MSHR_PHASE_FLUSH_VICTIM_REQEUST       = 5'd1,
         MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG   = 5'd2,
+        // Receive dirty data.
         MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA  = 5'd3,
+        // Victim is written to a main memory.
         MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM  = 5'd4,
+        // Wait until victim writeback is complete.
         MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE= 5'd5,
+        // Check if flush is completed.
         MSHR_PHASE_FLUSH_CHECK                = 5'd6,
+        // Victim is read from the cache.
         MSHR_PHASE_VICTIM_REQUEST             = 5'd7,
         MSHR_PHASE_VICTIM_RECEIVE_TAG         = 5'd8,
+        // Receive dirty data.
         MSHR_PHASE_VICTIM_RECEIVE_DATA        = 5'd9,
+        // Victim is written to a main memory.
         MSHR_PHASE_VICTIM_WRITE_TO_MEM        = 5'd10,
+        // Wait until victim writeback is complete.
         MSHR_PHASE_VICTIM_WRITE_COMPLETE      = 5'd11,
+        // Merge the allocator store's data and the fetched line.
         MSHR_PHASE_MISS_MERGE_STORE_DATA      = 5'd12,
+        // Read from a main memory to a cache.
         MSHR_PHASE_MISS_READ_MEM_REQUEST      = 5'd13,
+        // Read from a main memory to a cache.
         MSHR_PHASE_MISS_READ_MEM_RECEIVE      = 5'd14,
+        // (Uncachable store) Write data to a main memory.
         MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM    = 5'd15,
+        // (Uncachable store) Write data to a main memory.
         MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE  = 5'd16,
+        // MSHR_PHASE_MISS_WRITE_CACHE_REQUEST and MSHR_PHASE_MISS_HANDLING_COMPLETE
+        // must be the highest numbers in the following order.
+        // (Cachable load/store) Write data to a cache.
         MSHR_PHASE_MISS_WRITE_CACHE_REQUEST   = 5'd17,
         MSHR_PHASE_MISS_HANDLING_COMPLETE     = 5'd18,
     }
@@ -107,19 +164,32 @@ package CacheSystemTypes {
         victimValid            : logic,
         victimReceived         : logic,
         victimAddr             : PhyAddrPath,
+        // タグアレイからタグがよめたタイミングではまだ追い出すウェイの確定ができないため
+        // 全て持っておく
         tagDataOut             : DCacheTagWayPath,
         tagValidOut            : logic<DCACHE_WAY_NUM>,
         newValid               : logic,
         newAddr                : PhyAddrPath,
+        // Read request serial
         memSerial              : MemAccessSerial,
+        // Write request serial
         memWSerial             : MemWriteSerial,
+        // Line data is shared by "new" and "victim".
         line                   : DCacheLinePath,
+        // An MSHR entry can be invalid when
+        // its allocator is load and has bypassed data.
         canBeInvalid           : logic,
+        // A load that allocates n MSHR entry is flushed.
         isAllocatorLoadFlushed : logic,
+        // An MSHR entry which has been allocated by store must integrate the store's data into a fetched cache line.
         isAllocatedByStore     : logic,
+        // TRUE if this is uncachable access.
         isUncachable           : logic,
+        // An MSHR entry which is indicating the way to be evicted in DCache.
         evictWay               : DCacheWayPath,
+        // For flush
         flushIndex             : DCacheIndexPath,
+        // AL Ptr info to release MSHR entry when allocator load is flushed
         activeListPtr          : ActiveListIndexPath,
     }
 
@@ -133,8 +203,11 @@ package CacheSystemTypes {
         dataDataIn      : DCacheLinePath,
         dataByteWE      : DCacheByteEnablePath,
         dataDirtyIn     : logic,
+        // To notify DCache which way will be evicted.
         evictWay        : DCacheWayPath,
+        // If this signal is asserted, this request is one from MSHR to evict a line.
         isVictimEviction: logic,
+        // For flush
         isFlushReq      : logic,
     }
 
@@ -152,6 +225,8 @@ package CacheSystemTypes {
     struct DCachePortMultiplexerDataOut {
         dataDataOut: DCacheLinePath,
         dataDirtyOut: logic,
+        // Data Array 読み出しと同じタイミングで置き換え対象が取れるので
+        // マルチプレクサで選択するためにここで出しておく
         replDataOut: DCacheTreeLRU_StatePath,
     }
 
@@ -162,11 +237,17 @@ package CacheSystemTypes {
     }
 
     struct MemoryPortMultiplexerOut {
+        // Request is accepted or not.
         ack    : logic,
+        // Request serial
         serial : MemAccessSerial,
+        // Request serial
         wserial: MemWriteSerial,
     }
 
+    // ports
+    // Read: for load[LOAD_ISSUE_WIDTH], for store(commit), read victim[MSHR_NUM]
+    // Write: WriteNew[MSHR_NUM];
     const DCACHE_LSU_READ_PORT_NUM  : u32 = LOAD_ISSUE_WIDTH;
     const DCACHE_LSU_WRITE_PORT_NUM : u32 = 1;
     const DCACHE_LSU_PORT_NUM       : u32 = DCACHE_LSU_READ_PORT_NUM + DCACHE_LSU_WRITE_PORT_NUM;
@@ -175,24 +256,37 @@ package CacheSystemTypes {
     const DCACHE_MUX_PORT_NUM       : u32 = DCACHE_LSU_PORT_NUM + MSHR_NUM;
     type DCacheMuxPortIndexPath = logic<$clog2(DCACHE_MUX_PORT_NUM)>;
 
+    //
+    // --- ICache
+    //
+
+    // Main cache parameters.
+    // The remaining cache parameters must be fixed or calculated by the following
+    // parameters.
     const ICACHE_WAY_NUM        : u32 = CONF_ICACHE_WAY_NUM;
     const ICACHE_INDEX_BIT_WIDTH: u32 = CONF_ICACHE_INDEX_BIT_WIDTH;
     const ICACHE_LINE_BYTE_NUM  : u32 = CONF_ICACHE_LINE_BYTE_NUM;
 
+    // Index bits
     const ICACHE_INDEX_NUM: u32 = 1 << ICACHE_INDEX_BIT_WIDTH;
     type ICacheIndexPath = logic<ICACHE_INDEX_BIT_WIDTH>;
 
+    // Line size
     const ICACHE_LINE_BYTE_NUM_BIT_WIDTH: u32 = $clog2(ICACHE_LINE_BYTE_NUM);
     const ICACHE_LINE_BIT_WIDTH         : u32 = ICACHE_LINE_BYTE_NUM * 8;
     type ICacheLinePath = logic<ICACHE_LINE_BIT_WIDTH>;
 
+    // Line as insn list
     const ICACHE_LINE_INSN_NUM: u32 = ICACHE_LINE_BYTE_NUM / INSN_BYTE_WIDTH;
     type ICacheLineInsnIndexPath = logic<$clog2(ICACHE_LINE_INSN_NUM)>;
     type ICacheLineInsnCountPath = logic<$clog2(ICACHE_LINE_INSN_NUM) + 1>;
     type ICacheLineInsnPath = logic<ICACHE_LINE_INSN_NUM, INSN_WIDTH>;
 
+    // Tag bits
     const ICACHE_TAG_BIT_WIDTH: u32 = PHY_ADDR_WIDTH - ICACHE_INDEX_BIT_WIDTH - ICACHE_LINE_BYTE_NUM_BIT_WIDTH;
     type ICacheTagPath = logic<ICACHE_TAG_BIT_WIDTH>;
+
+    // Tag+Index bits
     type ICacheLineAddr = logic<PHY_ADDR_WIDTH - ICACHE_LINE_BYTE_NUM_BIT_WIDTH>;
 
     struct ICacheTagValidPath {
@@ -200,12 +294,24 @@ package CacheSystemTypes {
         tag  : ICacheTagPath,
     }
 
+    // Way bits
     type ICacheWayPath = logic<$clog2(ICACHE_WAY_NUM)>;
+
+    // NRU Access state bits
+    // (N-way NRU -> N bits)
+    // These bits correspond to the cache way:
+    //   if bit[way] == 1 then the way is referenced recently
     type NRUAccessStatePath = logic<ICACHE_WAY_NUM>;
 
+    //
+    // --- Memory Access
+    //
     struct MemAccessReqAck {
+        // Request is accepted or not.
         ack    : logic,
+        // Read request serial
         serial : MemAccessSerial,
+        // Write request serial
         wserial: MemWriteSerial,
     }
 

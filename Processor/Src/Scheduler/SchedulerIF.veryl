@@ -11,10 +11,12 @@ interface SchedulerIF {
     var rst     : logic;
     var rstStart: logic;
 
+    // Allocation
     var allocate    : logic [RENAME_WIDTH];
     var allocatedPtr: IssueQueueIndexPath [RENAME_WIDTH];
     var allocatable : logic;
 
+    // Dispatch
     var write             : logic [DISPATCH_WIDTH];
     var writePtr          : IssueQueueIndexPath [DISPATCH_WIDTH];
     var writeAL_Ptr       : ActiveListIndexPath [DISPATCH_WIDTH];
@@ -22,9 +24,11 @@ interface SchedulerIF {
     var memWriteData      : MemIssueQueueEntry [DISPATCH_WIDTH];
     var writeSchedulerData: SchedulerEntry [DISPATCH_WIDTH];
 
+    // Schedule
     var selected   : logic [ISSUE_WIDTH];
     var selectedPtr: IssueQueueIndexPath [ISSUE_WIDTH];
 
+    // Issue
     var intIssue     : logic [INT_ISSUE_WIDTH];
     var intIssuePtr  : IssueQueueIndexPath [INT_ISSUE_WIDTH];
     var intIssuedData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
@@ -33,6 +37,8 @@ interface SchedulerIF {
     var memIssuePtr  : IssueQueueIndexPath [MEM_ISSUE_WIDTH];
     var memIssuedData: MemIssueQueueEntry [MEM_ISSUE_WIDTH];
 
+    // Release
+    // Issued entries are flushed.
     var intRecordEntry: logic [INT_ISSUE_WIDTH];
     var intReplayEntry: logic [INT_ISSUE_WIDTH];
     var intRecordData : IntIssueQueueEntry [INT_ISSUE_WIDTH];
@@ -46,6 +52,7 @@ interface SchedulerIF {
     var complexReplayEntry: logic [COMPLEX_ISSUE_WIDTH];
     var complexRecordData : ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
     var complexReplayData : ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
+    // Reserve to use divider
     var divIsIssued       : logic [COMPLEX_ISSUE_WIDTH];
 
     var fpWriteData : FPIssueQueueEntry [DISPATCH_WIDTH];
@@ -56,6 +63,7 @@ interface SchedulerIF {
     var fpReplayEntry: logic [FP_ISSUE_WIDTH];
     var fpRecordData : FPIssueQueueEntry [FP_ISSUE_WIDTH];
     var fpReplayData : FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    // Reserve to use divider/sqrter
     var fpDivSqrtIsIssued: logic [FP_ISSUE_WIDTH];
 
     var memRecordEntry : logic [MEM_ISSUE_WIDTH];
@@ -67,12 +75,16 @@ interface SchedulerIF {
     var divRecordEntry: logic [MULDIV_ISSUE_WIDTH];
     var divRecordData : DivRecordEntry [MULDIV_ISSUE_WIDTH];
 
+    // Stall scheduling
     var stall: logic;
 
+    // For issue queue flush of dispatch stage ops ( already allocate issue queue entry )
     var allocated: logic [DISPATCH_WIDTH];
 
+    // Memory dependency prediction
     var memDependencyPred: logic [DISPATCH_WIDTH];
 
+    // To an issue queue payload RAM
     modport IssueQueue {
         clk: input,
         rst: input,
@@ -102,6 +114,7 @@ interface SchedulerIF {
         fpIssuedData: output,
     }
 
+    // To a scheduler (wakeup/select logic)
     modport Scheduler {
         clk: input,
         rst: input,

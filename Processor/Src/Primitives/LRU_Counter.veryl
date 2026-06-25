@@ -22,7 +22,7 @@ module LRU_Counter #(
     type LRU_RankArray = logic<WAY_NUM, $clog2(WAY_NUM)>;
 
     struct LRU_Entry {
-        rank: LRU_RankArray,
+        rank: LRU_RankArray, // larger value means more recently accessd
     }
 
     var body      : LRU_Entry [ENTRY_NUM] ;

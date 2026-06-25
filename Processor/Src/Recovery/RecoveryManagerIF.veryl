@@ -1,3 +1,4 @@
+// --- RecoveryManagerIF
 interface RecoveryManagerIF {
     import BasicTypes::*;
     import PipelineTypes::*;
@@ -9,52 +10,79 @@ interface RecoveryManagerIF {
     var clk: clock;
     var rst: logic;
 
+    // Phase of a pipeline
     var phase: PipelinePhase;
 
+    // A type of exception from CommitStage
     var refetchTypeFromCommitStage: RefetchType;
+    // A type of exception from CommitStage
     var refetchTypeFromRwStage    : RefetchType;
+    // Index of detected exception op in CommitStage
     var recoveryOpIndex           : CommitLaneIndexPath;
+    // Exception detected in CommitStage
     var exceptionDetectedInCommitStage: logic;
+    // Exception detected in RwStage
     var exceptionDetectedInRwStage    : logic;
 
+    // PC control
     var toCommitPhase              : logic;
     var recoveredPC_FromCommitStage: AddrPath;
     var recoveredPC_FromRwStage    : AddrPath;
+    // Correct PC
     var recoveredPC_FromRwCommit   : AddrPath;
 
+    // For fault handling
     var faultingDataAddr: AddrPath;
 
+    //　Miss prediction detected in RenameStage
     var recoverFromRename    : logic;
     var recoveredPC_FromRename: AddrPath;
 
+    // Trigger recovery of each module
     var toRecoveryPhase: logic;
 
+    // Flush range to broadcast
     var flushRangeHeadPtr: ActiveListIndexPath;
     var flushRangeTailPtr: ActiveListIndexPath;
+    // Whether flush all instructions in ActiveList
+    // This is necessary to distinguish when ActiveList is full or empty,
     var flushAllInsns    : logic;
 
+    // ActiveList/LSQ TailPtr for recovery
     var loadQueueRecoveryTailPtr : LoadQueueIndexPath;
     var loadQueueHeadPtr         : LoadQueueIndexPath;
     var storeQueueRecoveryTailPtr: StoreQueueIndexPath;
     var storeQueueHeadPtr        : StoreQueueIndexPath;
 
+    // IssueQueueEntryPtr to be flushed at recovery
     var flushIQ_Entry        : IssueQueueOneHotPath;
+    // In IQ returning index to freelist
     var issueQueueReturnIndex: logic;
+    // In AL recovery
     var inRecoveryAL         : logic;
+    // In RMT recovery
     var renameLogicRecoveryRMT: logic;
 
+    // In ReplayQueue flushing
     var replayQueueFlushedOpExist       : logic;
+    // In wakeupPipelineReg flushing
     var wakeupPipelineRegFlushedOpExist : logic;
+    // Unable to detect exception and start recovery
     var unableToStartRecovery           : logic;
 
+    // IssueQueueのflushが必要なエントリかどうかの判定に使う
     var notIssued: IssueQueueOneHotPath;
 
+    // wakeupPipelineRegister内の命令のフラッシュに使う
     var selected             : logic [ISSUE_WIDTH];
     var selectedPtr          : IssueQueueIndexPath [ISSUE_WIDTH];
     var selectedActiveListPtr: ActiveListIndexPath [ISSUE_WIDTH];
 
+    // RwStageからのリカバリかどうか
+    // toRecoveryPhaseと同時に立ちTrueでないときCommitStageからのリカバリ
     var recoveryFromRwStage: logic;
 
+    // Why recovery is caused
     var recoveryCauseFromCommitStage: ExecutionState;
 
     modport RecoveryManager {

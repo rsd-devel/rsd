@@ -34,7 +34,7 @@ package FP32PipelinedOtherTypes {
         var lhs_is_neg  : logic    ;
         var lzc         : logic<6> ;
         var abs_lhs     : logic<32>;
-        var shifted_lhs : logic<32>;
+        var shifted_lhs : logic<32>; // hidden 1(1) + mantissa(23) + lower_bits(8)
         var expo        : logic<8> ;
         var mant        : logic<23>;
         var round_up    : logic    ;
@@ -82,7 +82,7 @@ package FP32PipelinedOtherTypes {
             }
         }
 
-        exp_plus_one = round_up & (&mant);
+        exp_plus_one = round_up & (&mant); // 1.111111.. + round_up
         expo         = expo + {7'h0, exp_plus_one};
         mant         = mant + {22'h0, round_up};
         result       = {lhs_is_neg, expo, mant};
@@ -122,7 +122,7 @@ package FP32PipelinedOtherTypes {
         lhs_is_neg   = sign;
         lhs_is_nan   = (expo == 8'hff) & (mant != 0);
 
-        if expo <= 126 {
+        if expo <= 126 { // e < 0
             int_result = 0;
             lsb_bit    = 0;
             if expo == 126 {
@@ -136,12 +136,12 @@ package FP32PipelinedOtherTypes {
                 sticky = 1;
             }
             lower_bits = '0;
-        } else if expo <= 157 {
+        } else if expo <= 157 { // 0 <= e <= 30
             {int_result, lower_bits} = {1'b1, mant, 31'h0} >> shift_amount;
             lsb_bit                  = int_result[0];
             guard                    = lower_bits[22];
             sticky                   = |lower_bits[21:0];
-        } else if expo == 158 {
+        } else if expo == 158 { // e = 31
             if fmt_unsigned {
                 if lhs_is_neg {
                     int_result = 32'h00000000;
@@ -159,7 +159,7 @@ package FP32PipelinedOtherTypes {
             guard      = 0;
             sticky     = 0;
             lower_bits = '0;
-        } else {
+        } else { // e > 31(overflow)
             if fmt_unsigned {
                 if (~lhs_is_nan & lhs_is_neg) {
                     int_result = 32'h00000000;
@@ -179,6 +179,7 @@ package FP32PipelinedOtherTypes {
             lower_bits = '0;
         }
 
+        // rounding
         case rm {
             RM_RNE: {
                 round_up = guard & (lsb_bit | sticky);
@@ -212,10 +213,12 @@ package FP32PipelinedOtherTypes {
                 result = int_result;
             }
         } else {
+            //result = (fmt_unsigned & lhs_is_neg & ~lhs_is_nan) ? 32'h0 : int_result;
             result = int_result;
         }
 
         fflags     = '0;
+        // fflag update
         is_invalid = (expo >= 159) | ((~fmt_unsigned) & (expo == 158) & ((~lhs_is_neg) | (lhs_is_neg & (mant != 0))))
             | (fmt_unsigned & lhs_is_neg & ((expo >= 127) | round_up));
         if is_invalid {
@@ -377,6 +380,7 @@ module FP32PipelinedOther #(
                 } else {
                     resultOut = lhs_equal_rhs;
                 }
+                // quiet comparsion
                 if lhs_is_snan || rhs_is_snan {
                     fflagsOut.NV = TRUE;
                 }
@@ -386,6 +390,7 @@ module FP32PipelinedOther #(
                     resultOut    = 0;
                     fflagsOut.NV = TRUE;
                 } else {
+                    //flt.s -0, +0 = 0
                     resultOut = lhs_is_smaller & ~lhs_equal_rhs;
                 }
             }
@@ -398,6 +403,16 @@ module FP32PipelinedOther #(
                 }
             }
             FC_FCLASS: {
+                // quiet NaN
+                // signaling NaN
+                // +inf
+                // +subnormal
+                // +normal
+                // +0
+                // -0
+                // -subnormal
+                // -normal
+                // -inf
                 resultOut = {
                     22'h0, lhs_is_nan & ~lhs_is_snan, lhs_is_snan, ~lhs_sign & lhs_is_inf, ~lhs_sign & lhs_is_normal,
                     ~lhs_sign & lhs_is_subnormal, ~lhs_sign & lhs_is_zero, lhs_sign & lhs_is_zero,

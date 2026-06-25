@@ -11,6 +11,7 @@ package SchedulerTypes {
     import FetchUnitTypes::*;
     import ActiveListIndexTypes::*;
 
+    // Issue queue
     const ISSUE_QUEUE_ENTRY_NUM: u32 = CONF_ISSUE_QUEUE_ENTRY_NUM;
 
     const ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(ISSUE_QUEUE_ENTRY_NUM);
@@ -33,33 +34,43 @@ package SchedulerTypes {
 
     const WAKEUP_WIDTH: u32 = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
 
+    // --- Issue queue flush count
+    // - 例外発生時に、発行キューは例外命令より後方の命令が選択的にフラッシュされる。
+    //   その際、フリーリストへのインデックスの返却は専用のポートを介して複数サイクルで行われる。
+    //   ISSUE_QUEUE_RESET_CYCLE はそのサイクル数を表す。
     const ISSUE_QUEUE_RETURN_INDEX_WIDTH: u32 = 2;
 
+    // 割り算して切り上げ
     const ISSUE_QUEUE_RETURN_INDEX_CYCLE: u32 = (ISSUE_QUEUE_ENTRY_NUM-1) / ISSUE_QUEUE_RETURN_INDEX_WIDTH + 1;
 
     const ISSUE_QUEUE_RETURN_INDEX_CYCLE_BIT_SIZE: u32 = $clog2( ISSUE_QUEUE_RETURN_INDEX_CYCLE );
 
+    // --- Issue queue reset count
+    // 割り算して切り上げ
     const ISSUE_QUEUE_RESET_CYCLE: u32 = (ISSUE_QUEUE_ENTRY_NUM-1) / (ISSUE_WIDTH+ISSUE_QUEUE_RETURN_INDEX_WIDTH) + 1;
 
     const ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE: u32 = $clog2( ISSUE_QUEUE_RESET_CYCLE );
 
+    // Information about the execution of an op.
     enum ExecutionState: logic<4> {
         EXEC_STATE_NOT_FINISHED = 4'b0000,
-        EXEC_STATE_SUCCESS = 4'b0001,
-        EXEC_STATE_REFETCH_THIS = 4'b0010,
-        EXEC_STATE_REFETCH_NEXT = 4'b0011,
-        EXEC_STATE_TRAP_ECALL = 4'b0100,
-        EXEC_STATE_TRAP_EBREAK = 4'b0101,
-        EXEC_STATE_TRAP_SRET = 4'b0110,
-        EXEC_STATE_TRAP_MRET = 4'b0111,
-        EXEC_STATE_FAULT_LOAD_MISALIGNED = 4'b1000,
-        EXEC_STATE_FAULT_LOAD_VIOLATION = 4'b1001,
-        EXEC_STATE_FAULT_STORE_MISALIGNED = 4'b1010,
-        EXEC_STATE_FAULT_STORE_VIOLATION = 4'b1011,
-        EXEC_STATE_STORE_LOAD_FORWARDING_MISS = 4'b1111,
-        EXEC_STATE_FAULT_INSN_ILLEGAL = 4'b1100,
-        EXEC_STATE_FAULT_INSN_VIOLATION = 4'b1101,
-        EXEC_STATE_FAULT_INSN_MISALIGNED = 4'b1110,
+        EXEC_STATE_SUCCESS = 4'b0001,  // Execution is successfully finished.
+        EXEC_STATE_REFETCH_THIS = 4'b0010,  // Execution is failed.
+                                           // It must be refetch from this op.
+        EXEC_STATE_REFETCH_NEXT = 4'b0011,  // Execution is successfully finished,
+                                           // but it must be refetch from next op.
+        EXEC_STATE_TRAP_ECALL = 4'b0100,  // Execution causes a trap (ECALL)
+        EXEC_STATE_TRAP_EBREAK = 4'b0101,  // Execution causes a trap (EBREAK)
+        EXEC_STATE_TRAP_SRET = 4'b0110,  // Execution causes a SRET
+        EXEC_STATE_TRAP_MRET = 4'b0111,  // Execution causes a MRET
+        EXEC_STATE_FAULT_LOAD_MISALIGNED = 4'b1000,  // Misaligned load is executed
+        EXEC_STATE_FAULT_LOAD_VIOLATION = 4'b1001,  // Load access violation
+        EXEC_STATE_FAULT_STORE_MISALIGNED = 4'b1010,  // Misaligned store is executed
+        EXEC_STATE_FAULT_STORE_VIOLATION = 4'b1011,  // Store access violation
+        EXEC_STATE_STORE_LOAD_FORWARDING_MISS = 4'b1111,  // Store load forwarding miss
+        EXEC_STATE_FAULT_INSN_ILLEGAL = 4'b1100,  // Illegal instruction
+        EXEC_STATE_FAULT_INSN_VIOLATION = 4'b1101,  // Illegal instruction
+        EXEC_STATE_FAULT_INSN_MISALIGNED = 4'b1110,  // Misaligned instruction address
     }
     const EXEC_STATE_NOT_FINISHED: ExecutionState = ExecutionState::EXEC_STATE_NOT_FINISHED;
     const EXEC_STATE_SUCCESS: ExecutionState = ExecutionState::EXEC_STATE_SUCCESS;
@@ -88,11 +99,14 @@ package SchedulerTypes {
         isLoad: logic,
         isStore: logic,
         isZaamo: logic,
-        isBranch: logic,
-        isEnv: logic,
-        last: logic,
+        isBranch: logic,  // TRUE if the op is BR or RIJ
+        isEnv: logic,  // TRUE if the op is ECALL/EBREAK
+        last: logic,  // TRUE if this micro-op is the last micro-op in an instruction
         undefined: logic,
+        // For releasing a register to a free list on recovery.
         phyDstRegNum: PRegNumPath,
+        // For releasing a register to a free list on commitment.
+        // and recovering a RMT.
         phyPrevDstRegNum: PRegNumPath,
         prevDependIssueQueuePtr: IssueQueueIndexPath,
     }
@@ -108,7 +122,8 @@ package SchedulerTypes {
         isStore: logic,
     }
 
-
+    // Convert a pointer of an active list to an "age."
+    // An "age" can be directly compared with a comparator.
     function ActiveListPtrToAge (
         ptr : input ActiveListIndexPath,
         head: input ActiveListIndexPath,
@@ -116,11 +131,13 @@ package SchedulerTypes {
         var age: ActiveListCountPath;
         age = ptr;
         if ptr <: head {
+            // Wrap around.
             return age + ACTIVE_LIST_ENTRY_NUM;
         } else {
             return age;
         }
     }
+    // IntOpSubInfo と BrOpSubInfo のビット幅を合わせるための　padding の計算をする
     const INT_SUB_INFO_BIT_WIDTH: u32 = $bits(OpOperandType) * 2 + $bits(IntALU_Code) + $bits(ShiftOperandType) + $bits(ShifterPath);
 
     const BR_SUB_INFO_BIT_WIDTH: u32 = $bits(OpOperandType) * 2 + $bits(BranchPred) + $bits(BranchDisplacement);
@@ -128,19 +145,23 @@ package SchedulerTypes {
     const INT_SUB_INFO_PADDING_BIT_WIDTH: u32 = BR_SUB_INFO_BIT_WIDTH - INT_SUB_INFO_BIT_WIDTH;
 
     struct IntOpSubInfo {
+        // 論理レジスタを読むかどうか
         operandTypeA: OpOperandType,
         operandTypeB: OpOperandType,
         aluCode: IntALU_Code,
+        // 即値
         shiftType: ShiftOperandType,
         shiftIn: ShifterPath,
+        // BrOpSubInfo とビット幅を合わせるための padding
         padding: logic<INT_SUB_INFO_PADDING_BIT_WIDTH>,
     }
 
     struct BrOpSubInfo {
+        // 論理レジスタを読むかどうか
         operandTypeA: OpOperandType,
         operandTypeB: OpOperandType,
         bPred: BranchPred,
-        brDisp: BranchDisplacement,
+        brDisp: BranchDisplacement,  // 分岐ターゲット
     }
 
     union IntOpInfo {
@@ -150,19 +171,20 @@ package SchedulerTypes {
 
     struct IntIssueQueueEntry {
         opId: OpId,
+        // Decoded op information
         intOpInfo: IntOpInfo,
         opType: IntMicroOpSubType,
         cond: CondCode,
         activeListPtr: ActiveListIndexPath,
-        loadQueueRecoveryPtr: LoadQueueIndexPath,
-        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,  //for recovery
+        storeQueueRecoveryPtr: StoreQueueIndexPath,  //for recovery
         opSrc: OpSrc,
         opDst: OpDst,
         pc: PC_Path,
     }
 
     struct MulOpSubInfo {
-        mulGetUpper: logic,
+        mulGetUpper: logic,  // 乗算で33-64bit目を結果とするか否か
         mulCode: IntMUL_Code,
     }
 
@@ -178,11 +200,12 @@ package SchedulerTypes {
 
     struct ComplexIssueQueueEntry {
         opId: OpId,
+        // Decoded op information
         complexOpInfo: ComplexOpInfo,
         opType: ComplexMicroOpSubType,
         activeListPtr: ActiveListIndexPath,
-        loadQueueRecoveryPtr: LoadQueueIndexPath,
-        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,  //for recovery
+        storeQueueRecoveryPtr: StoreQueueIndexPath,  //for recovery
         opSrc: OpSrc,
         opDst: OpDst,
         pc: PC_Path,
@@ -190,31 +213,40 @@ package SchedulerTypes {
 
     struct MemOpInfo {
         opType: MemMicroOpSubType,
+        // 条件コード
         cond: CondCode,
+        // 論理レジスタを読むかどうか
         operandTypeA: OpOperandType,
         operandTypeB: OpOperandType,
+        // アドレッシング
         addrIn: AddrOperandImm,
-        isAddAddr: logic,
-        isRegAddr: logic,
-        memAccessMode: MemAccessMode,
+        isAddAddr: logic,  // オフセット加算
+        isRegAddr: logic,  // レジスタアドレッシング
+        memAccessMode: MemAccessMode,  // signed/unsigned and access size
+        // CSR
         csrCtrl: CSR_CtrlPath,
         envCode: ENV_Code,
+        // Aext
         isZalrsc: logic,
         amoCode: MemZaamo_Code,
+        // FENCE.I
         isFenceI: logic,
     }
 
     struct MemIssueQueueEntry {
         opId: OpId,
+        // Decoded op information
         memOpInfo: MemOpInfo,
+        // Pointer of LSQ
         loadQueuePtr: LoadQueueIndexPath,
         storeQueuePtr: StoreQueueIndexPath,
+        // Whether this load has allocated MSHR or not
         hasAllocatedMSHR: logic,
         mshrID: MSHR_IndexPath,
         hasLoadedAMOCache: logic,
         activeListPtr: ActiveListIndexPath,
-        loadQueueRecoveryPtr: LoadQueueIndexPath,
-        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,  //for recovery
+        storeQueueRecoveryPtr: StoreQueueIndexPath,  //for recovery
         opSrc: OpSrc,
         opDst: OpDst,
         pc: PC_Path,
@@ -229,6 +261,7 @@ package SchedulerTypes {
         opType: FPMicroOpSubType,
         fpuCode: FPU_Code,
         rm: Rounding_Mode,
+        // 論理レジスタを読むかどうか
         operandTypeA: OpOperandType,
         operandTypeB: OpOperandType,
         operandTypeC: OpOperandType,
@@ -238,13 +271,14 @@ package SchedulerTypes {
         opId: OpId,
         fpOpInfo: FPOpInfo,
         activeListPtr: ActiveListIndexPath,
-        loadQueueRecoveryPtr: LoadQueueIndexPath,
-        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,  //for recovery
+        storeQueueRecoveryPtr: StoreQueueIndexPath,  //for recovery
         opSrc: OpSrc,
         opDst: OpDst,
         pc: PC_Path,
     }
 
+    // Entry of Scheduler
     struct SchedulerEntry {
         opType: MicroOpType,
         opSubType: MicroOpSubType,
@@ -253,21 +287,29 @@ package SchedulerTypes {
         srcRegValidC: logic,
         opSrc: OpSrc,
         opDst: OpDst,
+        // Pointer to producers in an issue queue.
         srcPtrRegA: IssueQueueIndexPath,
         srcPtrRegB: IssueQueueIndexPath,
         srcPtrRegC: IssueQueueIndexPath,
     }
 
+    // A tag for a source CAM and a ready bit table.
+    // These tags are used for a ready bit table, thus they are necessary in
+    // matrix based implementation.
+    // For a physic's register.
     struct SchedulerRegTag {
         num: PRegNumPath,
         valid: logic,
     }
 
+    // A pointer for a producer matrix.
+    // For a physical register.
     struct SchedulerRegPtr {
         ptr: IssueQueueIndexPath,
         valid: logic,
     }
 
+    // For the destination operand of an op.
     struct SchedulerDstTag {
         regTag: SchedulerRegTag,
     }
@@ -275,11 +317,13 @@ package SchedulerTypes {
     type SchedulerRegTagArray = SchedulerRegTag<ISSUE_QUEUE_SRC_REG_NUM>;
     type SchedulerRegPtrArray = SchedulerRegPtr<ISSUE_QUEUE_SRC_REG_NUM>;
 
+    // For the source operands of an op.
     struct SchedulerSrcTag {
         regTag: SchedulerRegTagArray,
         regPtr: SchedulerRegPtrArray,
     }
 
+    // Replay queue
     const REPLAY_QUEUE_ENTRY_NUM: u32 = CONF_REPLAY_QUEUE_ENTRY_NUM;
 
     const REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(REPLAY_QUEUE_ENTRY_NUM);
@@ -288,6 +332,7 @@ package SchedulerTypes {
 
     type ReplayQueueCountPath = logic<(REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH) + 1>;
 
+    // Memory Dependent Predictor
     const MDT_ENTRY_NUM: u32 = CONF_MDT_ENTRY_NUM;
 
     const MDT_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(MDT_ENTRY_NUM);

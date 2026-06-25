@@ -1,6 +1,7 @@
 package IO_UnitTypes {
     import BasicTypes::*;
 
+    // Timer related definitions
     const TIMER_REGISTER_WIDTH: u32 = 64;
     type TimerRegisterRawPath = logic<TIMER_REGISTER_WIDTH>;
 
@@ -19,9 +20,11 @@ package IO_UnitTypes {
         mtimecmp: TimerRegisterPath,
     }
 
+    // --- LED IO
     const LED_WIDTH: u32 = 16;
     type LED_Path = logic<LED_WIDTH>;
 
+    // Serial IO
     const SERIAL_OUTPUT_WIDTH: u32 = 32;
     type SerialDataPath = logic<SERIAL_OUTPUT_WIDTH>;
 }

@@ -1,3 +1,9 @@
+//
+// Bit counter unit (Process CLZ instruction)
+//
+
+// ビット・カウンタ
+// データの上位から0が連続しているビットの数を出力
 module BitCounter (
     fuOpA_In: input BasicTypes::DataPath,
     dataOut : output BasicTypes::DataPath,
@@ -20,6 +26,8 @@ module BitCounter (
     }
 }
 
+// パイプライン化されたビット・カウンタ
+// PIPELINE_DEPTHは2以上でなければならない
 module PipelinedBitCounter #(
     param PIPELINE_DEPTH: u32 = 3,
 ) (
@@ -32,6 +40,7 @@ module PipelinedBitCounter #(
     import BasicTypes::*;
 
     #[sv("syn_pipeline=1")]
+    // synthesis syn_pipeline = 1
     var pipeReg: DataPath [PIPELINE_DEPTH - 1];
     var count: DataPath;
     var found: logic;

@@ -2,6 +2,7 @@ package NextPCStageFunctions {
     import MemoryMapTypes::*;
     import CacheSystemTypes::*;
 
+    // Detect the cache line boundary in sequential access
     function StepOverCacheLine (
         pc1: input PC_Path,
         pc2: input PC_Path,
@@ -10,6 +11,7 @@ package NextPCStageFunctions {
     }
 }
 
+// A pipeline stage for updating PC
 module NextPCStage (
     port    : modport NextPCStageIF::ThisStage,
     next    : modport FetchStageIF::NextPCStage,
@@ -24,6 +26,8 @@ module NextPCStage (
     import FetchUnitTypes::*;
     import NextPCStageFunctions::*;
 
+    // デバッグ用SID
+    // 内部事情により，1 からはじめる
     var curSID: OpSerial;
     var nextSID: OpSerial;
 
@@ -54,55 +58,84 @@ module NextPCStage (
         }
     }
 
+    // Pipeline Control
     always_comb {
+        // Control
         stall = ctrl.npStage.stall;
         clear = ctrl.npStage.clear;
         ctrl.npStageSendBubbleLower = FALSE;
 
         beginStall = !regStall && stall;
 
+        // Whether PC is written from outside
         if recovery.toRecoveryPhase || recovery.recoverFromRename || port.interruptAddrWE {
             writePC_FromOuter = TRUE;
         } else {
             writePC_FromOuter = FALSE;
         }
 
+        // Update PC if not stalled.
+        // NOTE: Update even during stall in the next cases:
+        //   1) if PC is written from outside
+        //   2) if it is beginning of stall
+        //   (see the comment of regBrPred in FetchStage.sv)
         port.pcWE = (writePC_FromOuter || !stall || beginStall) && !port.rst;
     }
 
+    // Branch Prediction
     always_comb {
         if recovery.toRecoveryPhase {
+            // Branch misprediction or an exception etc. is detected
+            // Refetch instruction specified by Rw, Cm stage
             predNextPC = recovery.recoveredPC_FromRwCommit;
         } else if recovery.recoverFromRename {
+            // Detect branch misprediction in decode stage
             predNextPC = recovery.recoveredPC_FromRename;
         } else {
+            // Use current PC
             predNextPC = port.pcOut;
 
             var foundBTB: logic;
             foundBTB = FALSE;
             for i in 0..FETCH_WIDTH {
+                // Process of branch prediction:
+                // If BTB is hit, the instruction is predicted to be a branch.
+                // In addition, if the branch is predicted as Taken,
+                // the address read from BTB is used as next PC.
                 if !foundBTB && !regStall && next.fetchStageIsValid[i] && next.btbHit[i] && next.brPredTaken[i] {
+                    // Use PC from BTB
                     predNextPC = next.btbOut[i];
                     foundBTB = TRUE;
                 }
             }
         }
 
+        // To Branch predictor
         port.predNextPC = predNextPC;
     }
 
+    // Updating PC
     always_comb {
         if port.interruptAddrWE {
+            // When an interrupt occurs, use interrupt address.
+            // NOTE: This input can be a critical path.
+            // Hence, interrupt address is input to PC first rather than
+            // input to the branch predictor directly.
             port.pcIn = port.interruptAddrIn;
         } else if beginStall {
+            // Update PC based on the branch prediction result accessed
+            // immediately before the stall if it is beginning of stall.
+            // (see the comment of regBrPred in FetchStage.sv)
             port.pcIn = predNextPC;
         } else {
+            // Increment PC
             port.pcIn = predNextPC + FETCH_WIDTH * INSN_BYTE_WIDTH;
 
             var foundBoundary: logic;
             foundBoundary = FALSE;
             for i in 1..FETCH_WIDTH {
                 if !foundBoundary && StepOverCacheLine(predNextPC, predNextPC + i * INSN_BYTE_WIDTH) {
+                    // When PC stepped over the border of cache line, stop there
                     port.pcIn = predNextPC + i * INSN_BYTE_WIDTH;
                     foundBoundary = TRUE;
                 }
@@ -110,6 +143,7 @@ module NextPCStage (
         }
 
         for i in 0..FETCH_WIDTH {
+            // Generate serial id for dumping
             nextStage[i].sid = curSID + i;
             nextStage[i].pc = predNextPC + i * INSN_BYTE_WIDTH;
             if port.interruptAddrWE || clear || StepOverCacheLine(predNextPC, nextStage[i].pc) {
@@ -122,20 +156,26 @@ module NextPCStage (
         port.nextStage = nextStage;
     }
 
+    // I-cache Access
     var fetchAddr: AddrPath;
     always_comb {
+        // Decide input address of I-cache
         if next.fetchStageIsValid[0] && stall {
+            // Use the PC of the IF stage
             fetchAddr = ToAddrFromPC(next.fetchStagePC[0]);
         } else {
+            // Use the PC of this stage
             fetchAddr = ToAddrFromPC(predNextPC);
         }
 
+        // To I-cache
         port.icNextReadAddrIn = ToPhyAddrFromLogical(fetchAddr);
     }
 
     var numValidInsns: logic<FETCH_WIDTH + 1>;
 
     always_comb {
+        // Count valid instructions in this stage
         numValidInsns = 0;
         var foundInvalid: logic;
         foundInvalid = FALSE;
@@ -149,12 +189,14 @@ module NextPCStage (
             }
         }
 
+        // Update serial ID.
         if stall || clear {
             nextSID = curSID;
         } else {
             nextSID = curSID + numValidInsns;
         }
 
+        // --- Debug Register
         for i in 0..FETCH_WIDTH {
             if stall {
                 debug.npReg[i].valid = FALSE;

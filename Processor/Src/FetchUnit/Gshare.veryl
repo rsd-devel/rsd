@@ -1,3 +1,10 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Gshare Branch Predictor
+//
+
 package GshareFunctions {
     import BasicTypes::*;
     import MemoryMapTypes::*;
@@ -33,27 +40,34 @@ module Gshare (
     var clear: logic;
     var pcIn: PC_Path;
 
+    // Logic for read/write PHT
     var phtWE: logic [INT_ISSUE_WIDTH];
     var phtWA: PHT_IndexPath [INT_ISSUE_WIDTH];
     var phtWV: PHT_EntryPath [INT_ISSUE_WIDTH];
+    // Read port need for branch predict and update counter.
     var phtRA: PHT_IndexPath [FETCH_WIDTH];
     var phtRV: PHT_EntryPath [FETCH_WIDTH];
 
+    // Branch history for using predict.
     var nextBrGlobalHistory: BranchGlobalHistoryPath;
     var regBrGlobalHistory: BranchGlobalHistoryPath;
     var brGlobalHistory: BranchGlobalHistoryPath [FETCH_WIDTH];
 
+    // assert when misprediction occured.
     var mispred: logic;
     var pushPhtQueue: logic;
     var popPhtQueue: logic;
     var full: logic;
     var empty: logic;
 
+    // Queue for multibank pht
     var phtQueue: PhtQueueEntry [PHT_QUEUE_SIZE];
     var headPtr: PhtQueuePointerPath;
     var tailPtr: PhtQueuePointerPath;
+    // Check for write number in 1cycle.
     var updatePht: logic;
 
+    // the body of PHT.
     inst pht: BlockMultiBankRAM #(
         ENTRY_NUM     : PHT_ENTRY_NUM,
         ENTRY_BIT_SIZE: $bits(PHT_EntryPath),
@@ -81,6 +95,7 @@ module Gshare (
         tailPtr: tailPtr,
     );
 
+    // Counter for reset sequence.
     var resetIndex: PHT_IndexPath;
 
     always_ff (port.clk) {
@@ -92,12 +107,14 @@ module Gshare (
     }
 
     always_ff (port.clk) {
+        // update Branch Global History.
         if port.rst {
             regBrGlobalHistory = '0;
         } else {
             regBrGlobalHistory = nextBrGlobalHistory;
         }
 
+        // Push Pht Queue
         if port.rst {
             phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWA = '0;
             phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV = PHT_ENTRY_MAX / 2 + 1;
@@ -116,6 +133,7 @@ module Gshare (
 
         for i in 0..FETCH_WIDTH {
             next.brPredTaken[i] = FALSE;
+            // Output global history to pipeline for recovery.
             brGlobalHistory[i] = regBrGlobalHistory;
         }
 
@@ -128,13 +146,17 @@ module Gshare (
             brPredTakenValue = FALSE;
             updateHistoryValue = FALSE;
             if !stopPredict {
+                // Predict directions (Check the MSB).
                 brPredTakenValue = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+                // Assert BTB is hit, ICache line is valid, and conditional branch.
                 updateHistoryValue = next.btbHit[i] && next.readIsCondBr[i] && next.updateBrHistory[i];
                 next.brPredTaken[i] = brPredTakenValue;
 
                 if updateHistoryValue {
+                    // Shift history 1 bit to the left and reflect prediction direction in LSB.
                     nextBrGlobalHistory = (nextBrGlobalHistory << 1) | brPredTakenValue;
                     if brPredTakenValue {
+                        // If brPred is taken, next instruction don't be executed.
                         stopPredict = TRUE;
                     }
                 }
@@ -144,6 +166,7 @@ module Gshare (
         next.phtPrevValue = phtRV;
         next.brGlobalHistory = brGlobalHistory;
 
+        // Discard the result of previous cycle
         for i in 0..INT_ISSUE_WIDTH {
             phtWE[i] = FALSE;
             phtWV[i] = '0;
@@ -159,7 +182,9 @@ module Gshare (
         for i in 0..INT_ISSUE_WIDTH {
             var phtPrevValueValue: PHT_EntryPath;
 
+            // Counter's value.
             phtPrevValueValue = port.brResult[i].phtPrevValue;
+            // When branch instruction is executed, update PHT.
             if updatePht {
                 pushPhtQueue = port.brResult[i].valid;
             } else {
@@ -169,6 +194,7 @@ module Gshare (
 
             mispred = port.brResult[i].mispred && port.brResult[i].valid;
 
+            // Update PHT's counter (saturated up/down counter).
             if port.brResult[i].execTaken {
                 if phtPrevValueValue == PHT_ENTRY_MAX {
                     phtWV[i] = PHT_ENTRY_MAX;
@@ -183,6 +209,7 @@ module Gshare (
                 }
             }
 
+            // When miss prediction is occured, recovory history.
             if mispred {
                 if port.brResult[i].isCondBr {
                     nextBrGlobalHistory =
@@ -194,12 +221,14 @@ module Gshare (
         }
 
         for i in 0..FETCH_WIDTH {
+            // Read PHT entry for next cycle (use PC ^ brGlobalHistory).
             phtRA[i] = ToPHT_Index_Global(
                 pcIn + i * INSN_BYTE_WIDTH,
                 nextBrGlobalHistory
             );
         }
 
+        // Pop PHT Queue
         if !empty && !updatePht {
             popPhtQueue = TRUE;
             phtWE[0] = TRUE;
@@ -209,6 +238,8 @@ module Gshare (
             popPhtQueue = FALSE;
         }
 
+        // In reset sequence, the write port 0 is used for initializing, and
+        // the other write ports are disabled.
         if port.rst {
             for i in 0..INT_ISSUE_WIDTH {
                 if i == 0 {
@@ -220,6 +251,7 @@ module Gshare (
                 phtWV[i] = PHT_ENTRY_MAX / 2 + 1;
             }
 
+            // To avoid writing to the same bank (avoid error message)
             for i in 0..FETCH_WIDTH {
                 phtRA[i] = i;
             }

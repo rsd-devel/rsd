@@ -1,4 +1,19 @@
+// Main Memory
+//
+/* メインメモリモジュール
+Spartan-6のDRAMコントローラを模している。
+読み出しはパイプライン化されていて、DRAMアクセスの遅延をシミュレートできる。
+
+memAccess**には読出/書込の要求を書き込む。
+要求が受け付けられない場合、出力memAccessBusyがTRUEになる。
+
+memRead**には、読出結果が数サイクル遅れて出てくる。
+
+読出レイテンシは、以下の式で表される。
+BlockRAMのレイテンシ + パイプラインの深さ
+*/
 module Memory #(
+    // Memory initialization file path
     param INIT_HEX_FILE: string = "",
 ) (
     clk                : input  clock               ,
@@ -7,12 +22,19 @@ module Memory #(
     memAccessWriteData : input  MemoryEntryDataPath ,
     memAccessRE        : input  logic               ,
     memAccessWE        : input  logic               ,
+    // メモリアクセス要求を受け付けられない
     memAccessBusy      : output logic               ,
+    // RSDの次の読み出し要求に割り当てられるシリアル(id)
     nextMemReadSerial  : output MemAccessSerial     ,
+    // RSDの次の書き込み要求に割り当てられるシリアル(id)
     nextMemWriteSerial : output MemWriteSerial      ,
+    // TRUEなら、メモリの読出しデータあり
     memReadDataReady   : output logic               ,
+    // メモリの読出しデータ
     memReadData        : output MemoryEntryDataPath ,
+    // メモリの読み出しデータのシリアル
     memReadSerial      : output MemAccessSerial     ,
+    // メモリ書き込み完了通知
     memAccessResponse  : output MemAccessResponse   ,
 ) {
     import BasicTypes::*;

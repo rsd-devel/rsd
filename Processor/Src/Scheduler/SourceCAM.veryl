@@ -4,6 +4,16 @@
 //
 // Source Register CAM module for Wakeup Logic
 //
+// - Written:
+// dispatch: A write enable signal for cam entries on dispatch.
+// dispatchPtr: Write pointer (one-hot).
+// dispatchedSrcRegNum: Written CAM entry data, which are physical register numbers of source operands.
+// dispatchedSrcReady: True if written source operands are already ready
+//                     or dispatch they are invalid in the instruction.
+// - Wakeup:
+// wakeupDstRegNum: A tag data for wakeup, which are physical register numbers of destination operands.
+// opReady: Bit vector corresponding to an issue queue. Each bit indicates
+// whether each entry is ready or not.
 
 module SourceCAM #(
     param SRC_OP_NUM       : u32 = 1,
@@ -98,7 +108,7 @@ module SourceCAM #(
         for i in 0..DISPATCH_WIDTH {
             for j in 0..SRC_OP_NUM {
                 if dispatch[i] {
-                    nextSrcReady[dispatchPtr[i]][j] = dispatchedSrcReady[i][j];
+                    nextSrcReady[dispatchPtr[i]][j] = dispatchedSrcReady[i][j]; // Dispatch
                 }
             }
         }

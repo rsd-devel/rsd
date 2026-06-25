@@ -3,6 +3,7 @@ package BimodalFunctions {
     import MemoryMapTypes::*;
     import FetchUnitTypes::*;
 
+    // Branch predictor -- 2bc.
     function ToPHT_Index_Local (
         addr: input PC_Path,
     ) -> PHT_IndexPath {
@@ -25,9 +26,12 @@ module Bimodal (
 
     var pcIn: PC_Path;
 
+    // PHT control logic
     var phtWE: logic [INT_ISSUE_WIDTH];
     var phtWA: PHT_IndexPath [INT_ISSUE_WIDTH];
     var phtWV: PHT_EntryPath [INT_ISSUE_WIDTH];
+
+    // Read port need for branch predict and update counter.
     var phtRA: PHT_IndexPath [FETCH_WIDTH];
     var phtRV: PHT_EntryPath [FETCH_WIDTH];
 
@@ -41,6 +45,7 @@ module Bimodal (
     var tailPtr: PhtQueuePointerPath;
     var updatePht: logic;
 
+    // the body of PHT.
     inst pht: BlockMultiBankRAM #(
         ENTRY_NUM     : PHT_ENTRY_NUM,
         ENTRY_BIT_SIZE: $bits(PHT_EntryPath),
@@ -68,6 +73,7 @@ module Bimodal (
         tailPtr: tailPtr,
     );
 
+    // Counter for reset sequence.
     var resetIndex: PHT_IndexPath;
 
     always_ff (port.clk) {
@@ -79,6 +85,7 @@ module Bimodal (
     }
 
     always_ff (port.clk) {
+        // Push Pht Queue
         if port.rst {
             phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWA = '0;
             phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV = PHT_ENTRY_MAX / 2 + 1;
@@ -97,18 +104,22 @@ module Bimodal (
             var brPredTakenValue: logic;
 
             next.phtPrevValue[i] = phtRV[i];
+
+            // Predict directions (Check the MSB).
             brPredTakenValue = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
             if stopPredict {
                 next.brPredTaken[i] = FALSE;
             } else {
                 next.brPredTaken[i] = brPredTakenValue;
                 if brPredTakenValue {
+                    // If brPred is taken, next instruction don't be executed.
                     stopPredict = TRUE;
                 }
             }
             next.brGlobalHistory[i] = '0;
         }
 
+        // Negate first. (to discard the result of previous cycle)
         for i in 0..INT_ISSUE_WIDTH {
             phtWE[i] = FALSE;
             phtWV[i] = '0;
@@ -127,6 +138,7 @@ module Bimodal (
             mispredValue = FALSE;
 
             if !stopUpdate {
+                // When branch instruction is executed, update PHT.
                 if updatePht {
                     pushPhtQueue = port.brResult[i].valid;
                 } else {
@@ -136,7 +148,9 @@ module Bimodal (
 
                 mispredValue = port.brResult[i].mispred && port.brResult[i].valid;
 
+                // Counter's value.
                 if port.brResult[i].execTaken {
+                    // Update PHT's counter (saturated up/down counter).
                     if phtPrevValueValue == PHT_ENTRY_MAX {
                         phtWV[i] = PHT_ENTRY_MAX;
                     } else {
@@ -150,6 +164,7 @@ module Bimodal (
                     }
                 }
 
+                // When miss prediction is occured, recovory history.
                 if mispredValue {
                     stopUpdate = TRUE;
                 }
@@ -157,9 +172,11 @@ module Bimodal (
         }
 
         for i in 0..FETCH_WIDTH {
+            // Read PHT entry for next cycle (use PC).
             phtRA[i] = ToPHT_Index_Local(pcIn + i * INSN_BYTE_WIDTH);
         }
 
+        // Pop PHT Queue
         if !empty && !updatePht {
             popPhtQueue = TRUE;
             phtWE[0] = TRUE;
@@ -170,6 +187,8 @@ module Bimodal (
         }
 
         if port.rst {
+            // In reset sequence, the write port 0 is used for initializing, and
+            // the other write ports are disabled.
             for i in 0..INT_ISSUE_WIDTH {
                 if i == 0 {
                     phtWE[i] = TRUE;
@@ -180,6 +199,7 @@ module Bimodal (
                 phtWV[i] = PHT_ENTRY_MAX / 2 + 1;
             }
 
+            // To avoid writing to the same bank (avoid error message)
             for i in 0..FETCH_WIDTH {
                 phtRA[i] = i;
             }

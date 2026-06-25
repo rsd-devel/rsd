@@ -1,12 +1,19 @@
 package BypassControllerTypes {
     import BasicTypes::*;
 
+    // struct BypassCtrlOperand
     struct BypassCtrlOperand {
         dstRegNum: PRegNumPath,
         writeReg : logic,
     }
 }
 
+//
+// --- Bypass controller
+//
+// BypassController outputs control information that controlls BypassNetwork.
+// BypassController is connected to a register read stage.
+//
 module BypassController (
     port: modport BypassNetworkIF::BypassController,
     ctrl: modport ControllerIF::BypassController,
@@ -33,6 +40,7 @@ module BypassController (
         ret.stg = BYPASS_STAGE_INT_EX;
         ret.lane.intLane = 0;
         ret.lane.memLane = 0;
+        // Not implemented
         ret.lane.complexLane = 0;
         ret.lane.fpLane = 0;
         foundInt = FALSE;
@@ -80,14 +88,23 @@ module BypassController (
     var memMA: BypassCtrlOperand [MEM_ISSUE_WIDTH];
     var memWB: BypassCtrlOperand [MEM_ISSUE_WIDTH];
 
+    //
+    // Back-end Pipeline Structure
+    //
+    // Int:     IS RR EX WB
+    // Complex: IS RR EX WB
+    // Mem:     IS RR EX MT MA WB
     always_ff (port.clk) {
         for i in 0..INT_ISSUE_WIDTH {
+            // synchronous rst
             if port.rst || ctrl.backEnd.clear {
+                // rst
                 intEX[i].dstRegNum = 0;
                 intEX[i].writeReg = FALSE;
                 intWB[i].dstRegNum = 0;
                 intWB[i].writeReg = FALSE;
             } else if ctrl.backEnd.stall {
+                // write data
                 intEX[i] = intEX[i];
                 intWB[i] = intWB[i];
             } else {
@@ -97,7 +114,9 @@ module BypassController (
         }
 
         for i in 0..MEM_ISSUE_WIDTH {
+            // synchronous rst
             if port.rst || ctrl.backEnd.clear {
+                // rst
                 memEX[i].dstRegNum = 0;
                 memEX[i].writeReg = FALSE;
                 memMT[i].dstRegNum = 0;
@@ -107,6 +126,7 @@ module BypassController (
                 memWB[i].dstRegNum = 0;
                 memWB[i].writeReg = FALSE;
             } else if ctrl.backEnd.stall {
+                // write data
                 memEX[i] = memEX[i];
                 memMT[i] = memMT[i];
                 memMA[i] = memMA[i];

@@ -19,9 +19,18 @@ module Controller (
     var stallByDecodeStage: logic;
 
     always_comb {
+        //
+        // See comments in ControllerIF for stall/clear
+        //
+
         stallByDecodeStage = FALSE;
 
+        //
+        // --- Front-end control
+        //
         if port.rst {
+            // リセット時にパイプラインラッチに無効化フラグを書くため，stall はFALSE に
+            //              stall/ clear
             npStage.stall = FALSE;
             npStage.clear = TRUE;
             ifStage.stall = FALSE;
@@ -35,6 +44,9 @@ module Controller (
             dsStage.stall = FALSE;
             dsStage.clear = TRUE;
         } else {
+            //
+            // 通常時
+            //              stall/ clear
             npStage.stall = FALSE;
             npStage.clear = FALSE;
             ifStage.stall = FALSE;
@@ -49,6 +61,11 @@ module Controller (
             dsStage.clear = FALSE;
 
             if port.cmStageFlushUpper {
+                //
+                // A request from lower stages has a higher priority.
+                //
+                // Clear ops not in the active list when branch misprediction is detected.
+                //              stall/ clear
                 npStage.stall = FALSE;
                 npStage.clear = FALSE;
                 ifStage.stall = FALSE;
@@ -62,6 +79,10 @@ module Controller (
                 dsStage.stall = FALSE;
                 dsStage.clear = TRUE;
             } else if port.rnStageSendBubbleLower {
+                //
+                // Stall and send a bubble to lower stages because there are not enough
+                // physical registers
+                //              stall/ clear
                 npStage.stall = TRUE;
                 npStage.clear = FALSE;
                 ifStage.stall = TRUE;
@@ -72,7 +93,11 @@ module Controller (
                 idStage.clear = FALSE;
                 rnStage.stall = TRUE;
                 rnStage.clear = TRUE;
+                // 後続ステージにバブル（NOP）を送る
             } else if port.rnStageFlushUpper {
+                //
+                // リネーマより上流をフラッシュ
+                //              stall/ clear
                 npStage.stall = FALSE;
                 npStage.clear = FALSE;
                 ifStage.stall = FALSE;
@@ -82,6 +107,11 @@ module Controller (
                 idStage.stall = FALSE;
                 idStage.clear = TRUE;
             } else if port.idStageStallUpper {
+                //
+                // デコーダより上流（フェッチャ）をストール
+                // マイクロOp デコードを行うためにとめているため，
+                // バブルは不要
+                //              stall/ clear
                 npStage.stall = TRUE;
                 npStage.clear = FALSE;
                 ifStage.stall = TRUE;
@@ -93,12 +123,19 @@ module Controller (
 
                 stallByDecodeStage = TRUE;
             } else if port.ifStageSendBubbleLower {
+                //
+                // I-Cache miss.
+                // Stop PC update and Send NOPs to the lower stages.
+                //          stall/ clear
                 npStage.stall = TRUE;
                 npStage.clear = TRUE;
                 ifStage.stall = TRUE;
                 ifStage.clear = TRUE;
             } else if port.npStageSendBubbleLower ||
                       port.npStageSendBubbleLowerForInterrupt {
+                //
+                // Interrupt
+                //
                 npStage.stall = TRUE;
                 npStage.clear = TRUE;
             }
@@ -112,7 +149,12 @@ module Controller (
         port.dsStage = dsStage;
         port.stallByDecodeStage = stallByDecodeStage;
 
+        //
+        // --- Back-end control
+        //
         if port.rst {
+            // リセット時にパイプラインラッチに無効化フラグを書くため，stall はFALSE に
+            //              stall/ clear
             scStage.stall = FALSE;
             scStage.clear = TRUE;
             isStage.stall = FALSE;
@@ -123,6 +165,10 @@ module Controller (
             cmStage.clear = TRUE;
         } else {
             if port.isStageStallUpper {
+                //
+                // A request from lower stages has a higher priority.
+                //
+                // Stall scheduler
                 scStage.stall = TRUE;
                 scStage.clear = FALSE;
                 isStage.stall = TRUE;
@@ -132,6 +178,9 @@ module Controller (
                 cmStage.stall = FALSE;
                 cmStage.clear = FALSE;
             } else {
+                //
+                // 通常時
+                //              stall/ clear
                 scStage.stall = FALSE;
                 scStage.clear = FALSE;
                 isStage.stall = FALSE;
@@ -148,7 +197,9 @@ module Controller (
         port.backEnd = backEnd;
         port.cmStage = cmStage;
 
+        // パイプライン全体で生きている命令がいるかどうか
         port.wholePipelineEmpty =
+            // IF は clear されない限り何か有効な命令をフェッチする
             npStage.clear &&
             port.ifStageEmpty &&
             port.pdStageEmpty &&
@@ -156,6 +207,7 @@ module Controller (
             port.rnStageEmpty &&
             port.activeListEmpty;
 
+        // Debug Register
         debug.npStagePipeCtrl = npStage;
         debug.ifStagePipeCtrl = ifStage;
         debug.pdStagePipeCtrl = pdStage;

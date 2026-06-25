@@ -1,13 +1,22 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Core module
+//
+// プロセッサ・コアに含まれる全てのモジュールをインスタンシエートし、
+// インターフェースで接続する
+
 module Core (
     clk                : input  clock              ,
     rst                : input  logic              ,
     rstStart           : input  logic              ,
-    nextMemReadSerial  : input  MemAccessSerial    ,
-    nextMemWriteSerial : input  MemWriteSerial     ,
+    nextMemReadSerial  : input  MemAccessSerial    , // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    nextMemWriteSerial : input  MemWriteSerial     , // RSDの次の書き込み要求に割り当てられるシリアル(id)
     memReadData        : input  MemoryEntryDataPath,
     memReadDataReady   : input  logic              ,
-    memReadSerial      : input  MemAccessSerial    ,
-    memAccessResponse  : input  MemAccessResponse  ,
+    memReadSerial      : input  MemAccessSerial    , // メモリの読み出しデータのシリアル
+    memAccessResponse  : input  MemAccessResponse  , // メモリ書き込み完了通知
     memAccessReadBusy  : input  logic              ,
     memAccessWriteBusy : input  logic              ,
     reqCustomInterrupt : input  logic              ,
@@ -28,9 +37,19 @@ module Core (
     import IO_UnitTypes::*;
     import DebugTypes::*;
 
+    //
+    // --- For Debug
+    //
     inst debugIF: DebugIF;
     inst perfCounterIF: PerformanceCounterIF;
+
+    //
+    // --- Interfaces
+    //
+    // Pipeline control logic
     inst ctrlIF: ControllerIF;
+
+    // Pipeline stages
     inst npStageIF: NextPCStageIF;
     inst ifStageIF: FetchStageIF;
     inst pdStageIF: PreDecodeStageIF;
@@ -73,6 +92,7 @@ module Core (
     inst cacheFlushManagerIF: CacheFlushManagerIF;
     inst amoCacheIF: AMOCacheIF;
 
+    // Other interfaces.
     assign debugIF.clk = clk;
     assign debugIF.rst = rst;
     assign perfCounterIF.clk = clk;
@@ -174,6 +194,9 @@ module Core (
     assign serialWE = ioUnitIF.serialWE;
     assign serialWriteData = ioUnitIF.serialWriteDataOut;
 
+    //
+    // --- Modules
+    //
     inst debug: Debug (
         port           : debugIF,
         lastCommittedPC: lastCommittedPC,
@@ -549,6 +572,7 @@ module Core (
         ctrl: ctrlIF,
     );
 
+    // A commitment stage generates a flush signal and this is send to scheduler.
     inst cmStage: CommitStage (
         port         : cmStageIF,
         renameLogic  : renameLogicIF,

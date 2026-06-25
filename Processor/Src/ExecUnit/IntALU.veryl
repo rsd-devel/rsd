@@ -7,6 +7,8 @@ package IntALUTypes {
     }
 }
 
+// 加算機
+// inv がアサートされたオペランドはビット反転を行う
 module IntAdder (
     dst        : output IntALUTypes::IntAdderResult,
     overflowOut: output logic,
@@ -81,6 +83,7 @@ module IntALU (
         overflowOut: adderOutOverflow,
     );
 
+    // Operation
     always_comb {
         opA = fuOpA_In;
         opB = fuOpB_In;
@@ -96,12 +99,16 @@ module IntALU (
         opDst.data = opA & opB;
 
         case aluCode {
+            // AND  論理積
             default: {
                 opDst.data = opA & opB;
             }
+            // EOR  排他的論理和
             AC_EOR: {
                 opDst.data = opA ^ opB;
             }
+            // SUB  減算
+            // a - b = a + ~b + 1
             AC_SUB: {
                 adderInA = opA;
                 adderInvInA = FALSE;
@@ -110,6 +117,7 @@ module IntALU (
                 adderInCarry = 1'b1;
                 opDst = adderDst;
             }
+            // ADD  加算
             AC_ADD: {
                 adderInA = opA;
                 adderInvInA = FALSE;
@@ -118,6 +126,7 @@ module IntALU (
                 adderInCarry = 1'b0;
                 opDst = adderDst;
             }
+            // SLT  比較   Rd = if Rs1 < Rs2 then 1 else 0
             AC_SLT: {
                 if signedOpA <: signedOpB {
                     opDst.data = {31'h0, 1'b1};
@@ -125,6 +134,7 @@ module IntALU (
                     opDst.data = {31'h0, 1'b0};
                 }
             }
+            // SLTU  符号なし比較
             AC_SLTU: {
                 if opA <: opB {
                     opDst.data = {31'h0, 1'b1};
@@ -132,9 +142,11 @@ module IntALU (
                     opDst.data = {31'h0, 1'b0};
                 }
             }
+            // ORR  （包含的）論理和    Rd := Rn OR shifter_operand
             AC_ORR: {
                 opDst.data = opA | opB;
             }
+            // sh1add
             AC_SH1ADD: {
                 adderInA = opA << 1;
                 adderInvInA = FALSE;
@@ -143,6 +155,7 @@ module IntALU (
                 adderInCarry = 1'b0;
                 opDst = adderDst;
             }
+            // sh2add
             AC_SH2ADD: {
                 adderInA = opA << 2;
                 adderInvInA = FALSE;
@@ -151,6 +164,7 @@ module IntALU (
                 adderInCarry = 1'b0;
                 opDst = adderDst;
             }
+            // sh3add
             AC_SH3ADD: {
                 adderInA = opA << 3;
                 adderInvInA = FALSE;
@@ -159,6 +173,7 @@ module IntALU (
                 adderInCarry = 1'b0;
                 opDst = adderDst;
             }
+            // czero.eqz
             AC_EQZ: {
                 if opB == 32'h0 {
                     opDst.data = opA;
@@ -166,6 +181,7 @@ module IntALU (
                     opDst.data = 32'h0;
                 }
             }
+            // czero.nez
             AC_NEZ: {
                 if opB != 32'h0 {
                     opDst.data = opA;

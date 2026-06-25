@@ -1,3 +1,6 @@
+//
+// --- Bypass network
+//
 module BypassNetwork (
     port: modport BypassNetworkIF::BypassNetwork,
     ctrl: modport ControllerIF::BypassNetwork,
@@ -31,14 +34,15 @@ module BypassNetwork (
     var memMA: PRegDataPath [MEM_ISSUE_WIDTH];
     var memWB: PRegDataPath [MEM_ISSUE_WIDTH];
 
-    always_ff (port.clk) {
+    always_ff (port.clk) {  // synchronous rst
         for i in 0..INT_ISSUE_WIDTH {
-            if port.rst || ctrl.backEnd.clear {
+            if port.rst || ctrl.backEnd.clear {  // rst
                 intEX[i].data = 0;
                 intEX[i].valid = 0;
                 intWB[i].data = 0;
                 intWB[i].valid = 0;
             } else if ctrl.backEnd.stall {
+                // write data
                 intEX[i] = intEX[i];
                 intWB[i] = intWB[i];
             } else {
@@ -48,12 +52,13 @@ module BypassNetwork (
         }
 
         for i in 0..MEM_ISSUE_WIDTH {
-            if port.rst || ctrl.backEnd.clear {
+            if port.rst || ctrl.backEnd.clear {  // rst
                 memMA[i].data = 0;
                 memMA[i].valid = 0;
                 memWB[i].data = 0;
                 memWB[i].valid = 0;
             } else if ctrl.backEnd.stall {
+                // write data
                 memMA[i] = memMA[i];
                 memWB[i] = memWB[i];
             } else {

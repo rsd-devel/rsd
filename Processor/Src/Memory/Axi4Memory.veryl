@@ -4,14 +4,14 @@ module Axi4Memory (
     memAccessWriteData : input  MemoryEntryDataPath ,
     memAccessRE        : input  logic               ,
     memAccessWE        : input  logic               ,
-    memAccessReadBusy  : output logic               ,
-    memAccessWriteBusy : output logic               ,
-    nextMemReadSerial  : output MemAccessSerial     ,
-    nextMemWriteSerial : output MemWriteSerial      ,
-    memReadDataReady   : output logic               ,
-    memReadData        : output MemoryEntryDataPath ,
-    memReadSerial      : output MemAccessSerial     ,
-    memAccessResponse  : output MemAccessResponse   ,
+    memAccessReadBusy  : output logic               , // メモリリードアクセス要求を受け付けられない
+    memAccessWriteBusy : output logic               , // メモリライトアクセス要求を受け付けられない
+    nextMemReadSerial  : output MemAccessSerial     , // RSDの次の読み出し要求に割り当てられるシリアル(id)
+    nextMemWriteSerial : output MemWriteSerial      , // RSDの次の書き込み要求に割り当てられるシリアル(id)
+    memReadDataReady   : output logic               , // TRUEなら、メモリの読出しデータあり
+    memReadData        : output MemoryEntryDataPath , // メモリの読出しデータ
+    memReadSerial      : output MemAccessSerial     , // メモリの読み出しデータのシリアル
+    memAccessResponse  : output MemAccessResponse   , // メモリ書き込み完了通知
 ) {
     import BasicTypes::*;
     import MemoryTypes::*;

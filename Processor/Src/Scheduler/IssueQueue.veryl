@@ -11,17 +11,30 @@ module IssueQueue (
     import ActiveListIndexTypes::*;
     import RenameLogicTypes::*;
 
+    //
+    // Issue queue allocator
+    //
+
+    // A free list for an issue queue entries.
+    // Both its index and values have the same bit width, because
+    // the sizes of an issue queue and its free list are same.
     var releaseEntry: logic [ISSUE_WIDTH + ISSUE_QUEUE_RETURN_INDEX_WIDTH];
     var releasePtr  : IssueQueueIndexPath [ISSUE_WIDTH + ISSUE_QUEUE_RETURN_INDEX_WIDTH];
     var freeListCount: IssueQueueCountPath;
     var freeListReset: logic;
     var freeListResetCycleCount: logic<ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE>;
 
+    // 選択的フラッシュ検出
+    // IssueQueueのActivlistPtrのフィールドを複製したレジスタ
     var alPtrReg: ActiveListIndexPath [ISSUE_QUEUE_ENTRY_NUM];
+    // フラッシュされるべきエントリの信号(例外命令AL中で後方にあるエントリ)
     var flush: logic<ISSUE_QUEUE_ENTRY_NUM>;
+    // フリーリストにフラッシュされたインデックスを返却するためのレジスタ
     var prevFlushAtRecovery: logic<ISSUE_QUEUE_ENTRY_NUM>;
+    // フリーリストにインデックスを返却中かどうか
     var issueQueueReturnIndex: logic;
     var issueQueueReturnIndexCycleCount: logic<ISSUE_QUEUE_RETURN_INDEX_CYCLE_BIT_SIZE>;
+    // フラッシュの判定をした後にIQのフリーリストへの返却用インデックス
     var returnIndexOffset: IssueQueueIndexPath;
 
     var writePtr: IssueQueueIndexPath [DISPATCH_WIDTH];
@@ -45,12 +58,16 @@ module IssueQueue (
     );
 
     always_comb {
+        // Allocate
+        // freeListReset がアサートされているリセット中に，
+        // 新しくエントリを確保させるとキューがこわれるのでブロックする
         if !freeListReset && freeListCount >= RENAME_WIDTH {
             port.allocatable = TRUE;
         } else {
             port.allocatable = FALSE;
         }
 
+        // Release
         for i in 0..ISSUE_WIDTH {
             releasePtr[i] = wakeupSelect.releasePtr[i];
             releaseEntry[i] = wakeupSelect.releaseEntry[i];
@@ -66,14 +83,17 @@ module IssueQueue (
         }
     }
 
+    // Reset(when recovery at commit occurs)
     always_ff (port.clk) {
         if port.rst {
             freeListReset = FALSE;
             freeListResetCycleCount = 0;
         } else if recovery.toRecoveryPhase && !recovery.recoveryFromRwStage {
+            // Start of reset sequence
             freeListReset = TRUE;
             freeListResetCycleCount = 0;
         } else if freeListResetCycleCount == ISSUE_QUEUE_RESET_CYCLE - 1 {
+            // End of reset sequence
             freeListReset = FALSE;
             freeListResetCycleCount = 0;
         } else {
@@ -82,6 +102,9 @@ module IssueQueue (
         }
     }
 
+    //
+    // Issue queue (payload ram).
+    //
     var intIssuePtr  : IssueQueueIndexPath [INT_ISSUE_WIDTH];
     var memIssuePtr  : IssueQueueIndexPath [MEM_ISSUE_WIDTH];
     var intIssuedData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
@@ -168,10 +191,12 @@ module IssueQueue (
         }
     }
 
+    // 以下は選択的フラッシュのための機構
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
 
+    // alPtrRegにIssueQueueの各エントリのActiveListPtrを複製しておく
     always_ff (port.clk) {
         for i in 0..DISPATCH_WIDTH {
             if port.write[i] {
@@ -180,18 +205,23 @@ module IssueQueue (
         }
     }
 
+    // WakeupPipelineRegisterにおいてフラッシュされた命令が後続にブロードキャストされないための判定に使う
     always_comb {
         for i in 0..ISSUE_WIDTH {
             recovery.selectedActiveListPtr[i] = alPtrReg[selectedPtr[i]];
         }
     }
 
+    // synopsysの合成においてインターフェースの配列を直接使うのが怪しいので一度変数に落とす
     always_comb {
         writePtr = port.writePtr;
         selectedPtr = recovery.selectedPtr;
     }
 
+    // 例外が発生したとき, IssueQueueの各エントリに対してフラッシュを行うかどうかを判定する
+    // また, dispatchステージにある命令はすでにリネームステージでIssueQueueをアロケートしているのでそれもここで判定をする
     always_comb {
+        // Flush IQ Enry
         for i in 0..ISSUE_QUEUE_ENTRY_NUM {
             flush[i] = SelectiveFlushDetector(
                 recovery.toRecoveryPhase && recovery.notIssued[i],
@@ -202,6 +232,7 @@ module IssueQueue (
             );
         }
 
+        // Flush dispatched ops ( already allocate IQ Entry but not activate notIssued )
         for i in 0..DISPATCH_WIDTH {
             if port.allocated[i] {
                 flush[writePtr[i]] = SelectiveFlushDetector(
@@ -217,16 +248,19 @@ module IssueQueue (
         recovery.issueQueueReturnIndex = issueQueueReturnIndex || freeListReset;
     }
 
+    // Return index to FreeList
     always_ff (port.clk) {
         if port.rst {
             prevFlushAtRecovery = 0;
             issueQueueReturnIndex = FALSE;
             issueQueueReturnIndexCycleCount = 0;
         } else if recovery.toRecoveryPhase && recovery.recoveryFromRwStage {
+            // Start of reset sequence
             prevFlushAtRecovery = flush;
             issueQueueReturnIndex = TRUE;
             issueQueueReturnIndexCycleCount = 0;
         } else if issueQueueReturnIndexCycleCount == ISSUE_QUEUE_RETURN_INDEX_CYCLE - 1 {
+            // End of reset sequence
             issueQueueReturnIndex = FALSE;
             issueQueueReturnIndexCycleCount = 0;
         } else {
@@ -245,6 +279,9 @@ module IssueQueue (
         }
     }
 
+    //
+    // OpId for Debug
+    //
     var opId: OpId [ISSUE_QUEUE_ENTRY_NUM];
 
     always_ff (port.clk) {
@@ -254,6 +291,7 @@ module IssueQueue (
                 opId[i].mid = 0;
             }
         } else {
+            // Dispatch
             for i in 0..DISPATCH_WIDTH {
                 if port.write[i] {
                     opId[writePtr[i]] = port.intWriteData[i].opId;

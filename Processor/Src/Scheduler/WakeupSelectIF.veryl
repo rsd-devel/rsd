@@ -8,37 +8,49 @@ interface WakeupSelectIF {
 
     var stall: logic;
 
+    // write data of dispatch
     var write      : logic [DISPATCH_WIDTH];
     var writePtr   : IssueQueueIndexPath [DISPATCH_WIDTH];
     var writeSrcTag: SchedulerSrcTag [DISPATCH_WIDTH];
     var writeDstTag: SchedulerDstTag [DISPATCH_WIDTH];
 
+    // WakeupPipelineRegister -> DestinationRAM
     var wakeup      : logic [WAKEUP_WIDTH];
     var wakeupPtr   : IssueQueueIndexPath [WAKEUP_WIDTH];
     var wakeupVector: IssueQueueOneHotPath [WAKEUP_WIDTH];
 
+    // DestinationRAM -> WakeupLogic
+    // In matrix based implementation, wakeupDstTag is used only for dispatch and
+    // DestinationRAM is out of its critical path.
     var wakeupDstTag: SchedulerDstTag [WAKEUP_WIDTH];
 
+    // WakeupLogic -> SelectLogic
     var opReady: IssueQueueOneHotPath;
 
+    // SelectLogic -> WakeupPipelineRegister
     var selected      : logic [ISSUE_WIDTH];
     var selectedPtr   : IssueQueueIndexPath [ISSUE_WIDTH];
     var selectedVector: IssueQueueOneHotPath [ISSUE_WIDTH];
 
+    // Release issue queue entries.
     var releaseEntry: logic [ISSUE_WIDTH];
     var releasePtr  : IssueQueueIndexPath [ISSUE_WIDTH];
 
+    // Memory dependent predict
     var memDependencyPred: logic [DISPATCH_WIDTH];
     var notIssued        : logic<ISSUE_QUEUE_ENTRY_NUM>;
     var dispatchStore    : logic [DISPATCH_WIDTH];
     var dispatchLoad     : logic [DISPATCH_WIDTH];
 
+    // Issue requests to select logic.
+    // The select logic selects ops by this requests and readiness information.
     var intIssueReq    : logic [ISSUE_QUEUE_ENTRY_NUM];
     var complexIssueReq: logic [ISSUE_QUEUE_ENTRY_NUM];
     var loadIssueReq   : logic [ISSUE_QUEUE_ENTRY_NUM];
     var storeIssueReq  : logic [ISSUE_QUEUE_ENTRY_NUM];
     var fpIssueReq     : logic [ISSUE_QUEUE_ENTRY_NUM];
 
+    // A scheduler module is entrance of a wakeup/select logic.
     modport Scheduler {
         selected: input,
         selectedPtr: input,

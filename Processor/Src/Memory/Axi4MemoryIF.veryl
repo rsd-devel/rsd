@@ -24,49 +24,117 @@ interface Axi4MemoryIF {
     const MEMORY_AXI4_RRESP_WIDTH   : u32 = 2;
     const MEMORY_AXI4_WSTRB_WIDTH   : u32 = MEMORY_AXI4_DATA_BIT_NUM / 8;
 
+    // Global Clock Signal.
     var M_AXI_ACLK   : logic;
+    // Global Reset Singal. This Signal is Active Low
     var M_AXI_ARESETN: logic;
+    // Master Interface Write Address ID
     var M_AXI_AWID   : logic<MEMORY_AXI4_WRITE_ID_WIDTH>;
+    // Master Interface Write Address
     var M_AXI_AWADDR : logic<MEMORY_AXI4_ADDR_BIT_SIZE>;
+    // Burst length. The burst length gives the exact number of transfers in a burst
     var M_AXI_AWLEN  : logic<MEMORY_AXI4_AWLEN_WIDTH>;
+    // Burst size. This signal indicates the size of each transfer in the burst
     var M_AXI_AWSIZE : logic<MEMORY_AXI4_AWSIZE_WIDTH>;
+    // Burst type. The burst type and the size information;
+    // determine how the address for each transfer within the burst is calculated.
     var M_AXI_AWBURST: logic<MEMORY_AXI4_AWBURST_WIDTH>;
+    // Lock type. Provides additional information about the
+    // atomic characteristics of the transfer.
     var M_AXI_AWLOCK : logic;
+    // Memory type. This signal indicates how transactions
+    // are required to progress through a system.
     var M_AXI_AWCACHE: logic<MEMORY_AXI4_AWCACHE_WIDTH>;
+    // Protection type. This signal indicates the privilege
+    // and security level of the transaction; and whether
+    // the transaction is a data access or an instruction access.
     var M_AXI_AWPROT : logic<MEMORY_AXI4_AWPROT_WIDTH>;
+    // Quality of Service; QoS identifier sent for each write transaction.
     var M_AXI_AWQOS  : logic<MEMORY_AXI4_AWQOS_WIDTH>;
+    // Optional User-defined signal in the write address channel.
     var M_AXI_AWUSER : logic<MEMORY_AXI4_AWUSER_WIDTH>;
+    // Write address valid. This signal indicates that
+    // the channel is signaling valid write address and control information.
     var M_AXI_AWVALID: logic;
+    // Write address ready. This signal indicates that
+    // the slave is ready to accept an address and associated control signals
     var M_AXI_AWREADY: logic;
+    // Master Interface Write Data.
     var M_AXI_WDATA  : logic<MEMORY_AXI4_DATA_BIT_NUM>;
+    // Write strobes. This signal indicates which byte
+    // lanes hold valid data. There is one write strobe
+    // bit for each eight bits of the write data bus.
     var M_AXI_WSTRB  : logic<MEMORY_AXI4_WSTRB_WIDTH>;
+    // Write last. This signal indicates the last transfer in a write burst.
     var M_AXI_WLAST  : logic;
+    // Optional User-defined signal in the write data channel.
     var M_AXI_WUSER  : logic<MEMORY_AXI4_WUSER_WIDTH>;
+    // Write valid. This signal indicates that valid write
+    // data and strobes are available
     var M_AXI_WVALID : logic;
+    // Write ready. This signal indicates that the slave
+    // can accept the write data.
     var M_AXI_WREADY : logic;
+    // Master Interface Write Response.
     var M_AXI_BID    : logic<MEMORY_AXI4_WRITE_ID_WIDTH>;
+    // Write response. This signal indicates the status of the write transaction.
     var M_AXI_BRESP  : logic<MEMORY_AXI4_BRESP_WIDTH>;
+    // Optional User-defined signal in the write response channel
     var M_AXI_BUSER  : logic<MEMORY_AXI4_BUSER_WIDTH>;
+    // Write response valid. This signal indicates that the
+    // channel is signaling a valid write response.
     var M_AXI_BVALID : logic;
+    // Response ready. This signal indicates that the master
+    // can accept a write response.
     var M_AXI_BREADY : logic;
+    // Master Interface Read Address.
     var M_AXI_ARID   : logic<MEMORY_AXI4_READ_ID_WIDTH>;
+    // Read address. This signal indicates the initial
+    // address of a read burst transaction.
     var M_AXI_ARADDR : logic<MEMORY_AXI4_ADDR_BIT_SIZE>;
+    // Burst length. The burst length gives the exact number of transfers in a burst
     var M_AXI_ARLEN  : logic<MEMORY_AXI4_ARLEN_WIDTH>;
+    // Burst size. This signal indicates the size of each transfer in the burst
     var M_AXI_ARSIZE : logic<MEMORY_AXI4_ARSIZE_WIDTH>;
+    // Burst type. The burst type and the size information;
+    // determine how the address for each transfer within the burst is calculated.
     var M_AXI_ARBURST: logic<MEMORY_AXI4_ARBURST_WIDTH>;
+    // Lock type. Provides additional information about the
+    // atomic characteristics of the transfer.
     var M_AXI_ARLOCK : logic;
+    // Memory type. This signal indicates how transactions
+    // are required to progress through a system.
     var M_AXI_ARCACHE: logic<MEMORY_AXI4_ARCACHE_WIDTH>;
+    // Protection type. This signal indicates the privilege
+    // and security level of the transaction; and whether
+    // the transaction is a data access or an instruction access.
     var M_AXI_ARPROT : logic<MEMORY_AXI4_ARPROT_WIDTH>;
+    // Quality of Service; QoS identifier sent for each read transaction
     var M_AXI_ARQOS  : logic<MEMORY_AXI4_ARQOS_WIDTH>;
+    // Optional User-defined signal in the read address channel.
     var M_AXI_ARUSER : logic<MEMORY_AXI4_ARUSER_WIDTH>;
+    // Write address valid. This signal indicates that
+    // the channel is signaling valid read address and control information
     var M_AXI_ARVALID: logic;
+    // Read address ready. This signal indicates that
+    // the slave is ready to accept an address and associated control signals
     var M_AXI_ARREADY: logic;
+    // Read ID tag. This signal is the identification tag
+    // for the read data group of signals generated by the slave.
     var M_AXI_RID    : logic<MEMORY_AXI4_READ_ID_WIDTH>;
+    // Master Read Data
     var M_AXI_RDATA  : logic<MEMORY_AXI4_DATA_BIT_NUM>;
+    // Read response. This signal indicates the status of the read transfer
     var M_AXI_RRESP  : logic<MEMORY_AXI4_RRESP_WIDTH>;
+    // Read last. This signal indicates the last transfer in a read burst
     var M_AXI_RLAST  : logic;
+    // Optional User-defined signal in the read address channel.
     var M_AXI_RUSER  : logic<MEMORY_AXI4_RUSER_WIDTH>;
+    // Read valid. This signal indicates that the channel
+    // is signaling the required read data.
     var M_AXI_RVALID : logic;
+    // Read ready. This signal indicates that the master can
+    // accept the read data and response information.
     var M_AXI_RREADY : logic;
 
     modport Axi4 {

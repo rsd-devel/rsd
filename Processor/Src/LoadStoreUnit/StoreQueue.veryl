@@ -4,6 +4,8 @@ package StoreQueueFunctions {
     import LoadStoreUnitTypes::*;
     import MemoryMapTypes::*;
 
+    // ストアデータをアドレスのオフセットに合わせてシフト
+    // ベクトルデータの場合は、そのまま
     function GenerateStoreData (
         dataIn     : input DataPath,
         blockDataIn: input LSQ_BlockDataPath,
@@ -21,6 +23,9 @@ module StoreQueue (
     port    : modport LoadStoreUnitIF::StoreQueue,
     recovery: modport RecoveryManagerIF::StoreQueue,
 ) {
+    //
+    // Store queue
+    //
     import BasicTypes::*;
     import CacheSystemTypes::*;
     import OpFormatTypes::*;
@@ -28,17 +33,23 @@ module StoreQueue (
     import MemoryMapTypes::*;
     import StoreQueueFunctions::*;
 
+    // The content of the head of a SQ.
     var headAddrEntry: StoreQueueAddrEntry;
     var headDataEntry: StoreQueueDataEntry;
+
+    // The pointer of released entry.
     var releasedStoreQueuePtr: StoreQueueIndexPath;
 
+    // The head/tail pointers of a store queue.
     var headPtr: StoreQueueIndexPath;
     var tailPtr: StoreQueueIndexPath;
 
+    // FIFO controller.
     var pushCount: RenameLaneCountPath;
     var curCount: StoreQueueCountPath;
     var push: logic;
 
+    // Parameter: Size, Initial head pos., Initial tail pos., Initial count
     inst storeQueuePointer: SetTailMultiWidthQueuePointer #(
         SIZE            : STORE_QUEUE_ENTRY_NUM,
         INITIAL_HEAD_PTR: 0,
@@ -48,7 +59,7 @@ module StoreQueue (
         POP_WIDTH       : COMMIT_WIDTH,
     ) (
         clk        : port.clk,
-        rst        : port.rst,
+        rst        : port.rst, // On flush, pointers are recovered by the store committer.
         pop        : port.releaseStoreQueueHead,
         popCount   : port.releaseStoreQueueHeadEntryNum,
         push       : push,
@@ -66,6 +77,7 @@ module StoreQueue (
             if tailPtr + pushCount <: STORE_QUEUE_ENTRY_NUM {
                 port.allocatedStoreQueuePtr[i] = tailPtr + pushCount;
             } else {
+                // Out of range of store queue
                 port.allocatedStoreQueuePtr[i] = tailPtr + pushCount - STORE_QUEUE_ENTRY_NUM;
             }
             pushCount = pushCount + port.allocateStoreQueue[i];
@@ -83,6 +95,11 @@ module StoreQueue (
         recovery.storeQueueHeadPtr = headPtr;
     }
 
+    //
+    // SQ's address and data storage.
+    //
+
+    // The address part of a SQ.
     var storeQueue: StoreQueueAddrEntry [STORE_QUEUE_ENTRY_NUM];
 
     var executeStore: logic [STORE_ISSUE_WIDTH];
@@ -121,6 +138,7 @@ module StoreQueue (
     }
 
     always_comb {
+        // Pick store execution results.
         for i in 0..STORE_ISSUE_WIDTH {
             executeStore[i] = port.executeStore[i];
             executedStoreAddr[i] = LSQ_ToBlockAddr(port.executedStoreAddr[i]);
@@ -141,10 +159,12 @@ module StoreQueue (
         }
     }
 
+    // Forwarding from a store queue.
     var forwardedDataEntry: StoreQueueDataEntry [LOAD_ISSUE_WIDTH];
     var executedLoadWordRE: LSQ_BlockWordEnablePath [LOAD_ISSUE_WIDTH];
     var executedLoadByteRE: LSQ_WordByteEnablePath [LOAD_ISSUE_WIDTH];
 
+    // A picker of forwarded entries.
     var addrMatch: StoreQueueOneHotPath [LOAD_ISSUE_WIDTH];
     var pickedPtr: StoreQueueIndexPath [LOAD_ISSUE_WIDTH];
     var picked: logic [LOAD_ISSUE_WIDTH];
@@ -168,6 +188,7 @@ module StoreQueue (
         }
     }
 
+    // The data part of the SQ.
     var sqReadPtr: StoreQueueIndexPath [LOAD_ISSUE_WIDTH + 1];
     var sqReadData: StoreQueueDataEntry [LOAD_ISSUE_WIDTH + 1];
     var sqWE: logic [STORE_ISSUE_WIDTH];
@@ -188,6 +209,7 @@ module StoreQueue (
         rv : sqReadData,
     );
 
+    // Write
     always_comb {
         for i in 0..STORE_ISSUE_WIDTH {
             sqWriteStoreData[i] =
@@ -211,8 +233,11 @@ module StoreQueue (
     var forwardMiss: logic [LOAD_ISSUE_WIDTH];
 
     always_comb {
+        // --- Commit
+        // A read pointer is specified by a store commit unit.
         releasedStoreQueuePtr = port.retiredStoreQueuePtr;
 
+        // The last read port is used for commitment.
         sqReadPtr[LOAD_ISSUE_WIDTH] = releasedStoreQueuePtr;
         headDataEntry = sqReadData[LOAD_ISSUE_WIDTH];
         headAddrEntry = storeQueue[releasedStoreQueuePtr];
@@ -226,6 +251,7 @@ module StoreQueue (
 
         port.storeQueueHeadPtr = headPtr;
 
+        // --- Forwarding
         for i in 0..LOAD_ISSUE_WIDTH {
             if pickedPtr[i] >= STORE_QUEUE_ENTRY_NUM {
                 sqReadPtr[i] = pickedPtr[i] - STORE_QUEUE_ENTRY_NUM;
@@ -246,6 +272,8 @@ module StoreQueue (
                 );
         }
 
+        // Detect store-load forwarding between already executed stores and
+        // a currently executed load.
         for i in 0..LOAD_ISSUE_WIDTH {
             for j in 0..STORE_QUEUE_ENTRY_NUM {
                 addrMatch[i][j] =
@@ -258,6 +286,9 @@ module StoreQueue (
         }
 
         for i in 0..LOAD_ISSUE_WIDTH {
+            // ロードのフォワーディングの依存元となるストアは1つに限られる。
+            // ストアがwriteしてないバイトを、ロードがreadしようとした場合、
+            // フォワーディングは失敗となる。
             if pickedPtr[i] <: STORE_QUEUE_ENTRY_NUM {
                 forwardMiss[i] =
                     !storeQueue[pickedPtr[i]].regValid ||
@@ -265,6 +296,7 @@ module StoreQueue (
                     ((~forwardedDataEntry[i].byteWE & executedLoadByteRE[i]) != '0);
                 forwardedLoadData[i] = forwardedDataEntry[i].data;
             } else {
+                // Out of range of store queue
                 forwardMiss[i] = FALSE;
                 forwardedLoadData[i] = '0;
             }
@@ -276,13 +308,19 @@ module StoreQueue (
         port.storeLoadForwarded = storeLoadForwarded;
     }
 
+    //
+    // Assertions
+    //
     // NOT_TRANSPILED_TO_VERYL
+    //  |-L--h***S***t-------|
     // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && headPtr < tailPtr && port.executedStoreQueuePtrByLoad[i] < headPtr), "1:A load's executedStoreQueuePtr is illegal.")
 
     // NOT_TRANSPILED_TO_VERYL
+    //  |----h******t--L----|
     // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && headPtr < tailPtr && tailPtr < port.executedStoreQueuePtrByLoad[i]), "2:A load's executedStoreQueuePtr is illegal.")
 
     // NOT_TRANSPILED_TO_VERYL
+    //  |******t--L--h*******|
     // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && tailPtr <= headPtr && tailPtr < port.executedStoreQueuePtrByLoad[i] && port.executedStoreQueuePtrByLoad[i] < headPtr), "3:A load's executedStoreQueuePtr is illegal.")
 
     // NOT_TRANSPILED_TO_VERYL

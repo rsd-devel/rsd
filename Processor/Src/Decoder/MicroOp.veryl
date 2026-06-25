@@ -8,11 +8,11 @@ package MicroOpTypes {
 
     const ZERO_REGISTER: u32 = 5'h0;
 
-    const MICRO_OP_MAX_NUM: u32 = 3;
+    const MICRO_OP_MAX_NUM: u32 = 3; // An instruction is decoded to up to 3 micro ops.
 
     const MICRO_OP_INDEX_BITS: u32 = 2;
 
-    type MicroOpIndex = logic<MICRO_OP_INDEX_BITS>;
+    type MicroOpIndex = logic<MICRO_OP_INDEX_BITS>; // マイクロOp のインデックス
 
     type MicroOpCount = logic<(MICRO_OP_INDEX_BITS) + 1>;
 
@@ -28,6 +28,7 @@ package MicroOpTypes {
 
     const MICRO_OP_SOURCE_REG_NUM: u32 = 3;
 
+    // Aext
     const SC_CODE_SUCCESS: u32 = 0;
 
     const SC_CODE_FAIL: u32 = 1;
@@ -43,6 +44,7 @@ package MicroOpTypes {
     const MOP_TYPE_MEM: MicroOpType = MicroOpType::MOP_TYPE_MEM;
     const MOP_TYPE_FP: MicroOpType = MicroOpType::MOP_TYPE_FP;
 
+    // 各サブタイプは，パイプライン中で処理を見分けるために使用される
     enum IntMicroOpSubType: logic<3> {
         INT_MOP_TYPE_ALU = 3'b000,
         INT_MOP_TYPE_SHIFT = 3'b001,
@@ -56,7 +58,7 @@ package MicroOpTypes {
 
     enum ComplexMicroOpSubType: logic<3> {
         COMPLEX_MOP_TYPE_MUL = 3'b000,
-        COMPLEX_MOP_TYPE_DIV = 3'b001,
+        COMPLEX_MOP_TYPE_DIV = 3'b001, // DIV演算器を使うもの(DIVとREM)
     }
     const COMPLEX_MOP_TYPE_MUL: ComplexMicroOpSubType = ComplexMicroOpSubType::COMPLEX_MOP_TYPE_MUL;
     const COMPLEX_MOP_TYPE_DIV: ComplexMicroOpSubType = ComplexMicroOpSubType::COMPLEX_MOP_TYPE_DIV;
@@ -64,12 +66,13 @@ package MicroOpTypes {
     enum MemMicroOpSubType: logic<3> {
         MEM_MOP_TYPE_LOAD = 3'b000,
         MEM_MOP_TYPE_STORE = 3'b001,
+        // Mem パイプで乗除算をやる場合のコード
         MEM_MOP_TYPE_MUL = 3'b010,
         MEM_MOP_TYPE_DIV = 3'b011,
-        MEM_MOP_TYPE_CSR = 3'b100,
-        MEM_MOP_TYPE_FENCE = 3'b101,
-        MEM_MOP_TYPE_ENV = 3'b110,
-        MEM_MOP_TYPE_ZAAMO = 3'b111,
+        MEM_MOP_TYPE_CSR = 3'b100, // CSR access
+        MEM_MOP_TYPE_FENCE = 3'b101, // fence
+        MEM_MOP_TYPE_ENV = 3'b110, // env
+        MEM_MOP_TYPE_ZAAMO = 3'b111, // Zaamo
     }
     const MEM_MOP_TYPE_LOAD: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_LOAD;
     const MEM_MOP_TYPE_STORE: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_STORE;
@@ -107,85 +110,109 @@ package MicroOpTypes {
         mid: MicroOpIndex,
     }
 
+    // The type of operand.
     enum OpOperandType: logic<2> {
-        OOT_REG = 2'b00,
-        OOT_IMM = 2'b01,
-        OOT_PC = 2'b10,
+        OOT_REG = 2'b00, // Register
+        OOT_IMM = 2'b01, // Immediate
+        OOT_PC = 2'b10, // PC
     }
     const OOT_REG: OpOperandType = OpOperandType::OOT_REG;
     const OOT_IMM: OpOperandType = OpOperandType::OOT_IMM;
     const OOT_PC: OpOperandType = OpOperandType::OOT_PC;
 
+    //
+    // The eperands of micro-ops
+    // The order of fields is important. The order must be fixed for simplifying a decoder.
+    //
+
+    // Int: 6+6+6+ 4+ 1+ 30=53 bits
     struct IntMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
+        // ALU
         aluCode: IntALU_Code,
+        // Shift
         shiftType: ShiftOperandType,
+        // Shifter operand and imm
         shiftIn: ShifterPath,
     }
 
+    // Mem: 6+6+6 +1+1+3 +8 +1+4 +5 +12 = 18+5+8+5+5+12 = 53 bits
     struct MemMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
-        isAddAddr: logic,
-        isRegAddr: logic,
-        memAccessMode: MemAccessMode,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
+        isAddAddr: logic, // オフセット加算
+        isRegAddr: logic, // レジスタアドレッシング
+        memAccessMode: MemAccessMode, // signed/unsigned and access size
         csrCtrl: CSR_CtrlPath,
         isZalrsc: logic,
         amoCode: MemZaamo_Code,
-        padding: logic<5>,
+        padding: logic<5>, //　padding
+        // Address offset or CSR number
         addrIn: AddrOperandImm,
     }
 
+    // Branch:6+6+6 +15 +20=53 bits
     struct BrMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
-        padding: logic<15>,
-        brDisp: BranchDisplacement,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
+        padding: logic<15>, // padding
+        brDisp: BranchDisplacement, // Branch offset.
     }
 
+    // Complex Integer: 6+6+6 +1 +16 +18 = 35+18= 53 bits
     struct ComplexMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
-        mulGetUpper: logic,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
+        mulGetUpper: logic, // 乗算結果の33-64bit目を使用
         mulCode: IntMUL_Code,
         divCode: IntDIV_Code,
-        padding: logic<16>,
-        riscv_padding: logic<14>,
+        padding: logic<16>, // Padding field.
+        riscv_padding: logic<14>, // RISCV用のpadding
     }
 
+    // MiscMem: 6+6+6 +1 +16 +18 = 35+18= 53 bits
     struct MiscMemMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
         fence: logic,
         fenceI: logic,
-        padding: logic<15>,
-        riscv_padding: logic<18>,
+        padding: logic<15>, // Padding field.
+        riscv_padding: logic<18>, // RISCV用のpadding
     }
 
+    // MiscMem: 6+6+6 +3+1 +19 +12 = 18+4+19+12= 53 bits
     struct SystemMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
+        srcRegNumA: LRegNumPath, // レジスタN 相当
+        srcRegNumB: LRegNumPath, // 第2オペランド
         envCode: ENV_Code,
         isEnv: logic,
-        padding: logic<19>,
+        padding: logic<19>, // Padding field.
         imm: logic<12>,
     }
 
+    //FPMicroOpOperand: 6+6+6+6 +5+3 +21 = 53 bits
     struct FPMicroOpOperand {
+        // 論理レジスタ番号
         dstRegNum: LRegNumPath,
-        srcRegNumA: LRegNumPath,
-        srcRegNumB: LRegNumPath,
-        srcRegNumC: LRegNumPath,
+        srcRegNumA: LRegNumPath, // 第1オペランド
+        srcRegNumB: LRegNumPath, // 第2オペランド
+        srcRegNumC: LRegNumPath, // 第3オペランド
         fpuCode: FPU_Code,
         rm: Rounding_Mode,
-        padding: logic<21>,
+        padding: logic<21>, // Padding field.
     }
 
     union MicroOpOperand {
@@ -199,7 +226,9 @@ package MicroOpTypes {
     }
 
     struct OpInfo {
+        // 条件コード
         cond: CondCode,
+        // 命令の種類
         mopType: MicroOpType,
         mopSubType: MicroOpSubType,
         operand: MicroOpOperand,

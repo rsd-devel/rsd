@@ -3,21 +3,46 @@ package RenameLogicTypes {
     import BasicTypes::*;
     import LoadStoreUnitTypes::*;
 
+    //
+    // --- RMT
+    //
+
+    // RMTはint/fpで共通
     const RMT_ENTRY_NUM: u32 = LREG_NUM;
     const RMT_INDEX_BIT_SIZE: u32 = LREG_NUM_BIT_WIDTH;
     const RMT_REG_OPERAND_NUM: u32 = 4;
+    // PRegNumPathの最上位ビットはint/fpを表すが、
+    // そのビットはRMTに保存しない
     const RMT_ENTRY_BIT_SIZE: u32 = PREG_NUM_BIT_WIDTH - 1;
 
+    //
+    // --- Free list
+    //
+    // 全ての物理レジスタは
+    // - 論理レジスタに割り当てられている
+    // - フリーリストに繋がれている
+    // のどちらかの状態にあるため、
+    //
+    // 物理レジスタ数＝論理レジスタ数＋フリーリストの長さ
+    //
+    // であり、これを移項することでフリーリストの長さを求める公式が得られる
+    //
+
+    // Free list for general (scalar) registers
     const SCALAR_FREE_LIST_ENTRY_NUM: u32 = PSCALAR_NUM - LSCALAR_NUM;
     const SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(SCALAR_FREE_LIST_ENTRY_NUM);
     type ScalarFreeListIndexPath = logic<SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH>;
     type ScalarFreeListCountPath = logic<SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH + 1>;
 
+    // Free list for fp registers
     const SCALAR_FP_FREE_LIST_ENTRY_NUM: u32 = PSCALAR_FP_NUM - LSCALAR_FP_NUM;
     const SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(SCALAR_FP_FREE_LIST_ENTRY_NUM);
     type ScalarFPFreeListIndexPath = logic<SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH>;
     type ScalarFPFreeListCountPath = logic<SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH + 1>;
 
+    //
+    // -- Recovery Mode
+    //
     const RECOVERY_FROM_RRMT: u32 = FALSE;
     const RECOVERY_FROM_ACTIVE_LIST: u32 = TRUE;
 }

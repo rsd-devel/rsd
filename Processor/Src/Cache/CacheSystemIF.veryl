@@ -5,15 +5,18 @@ interface CacheSystemIF {
     var clk: clock;
     var rst: logic;
 
+    // ICache
     var icMemAccessReq   : MemReadAccessReq;
     var icMemAccessReqAck: MemAccessReqAck;
     var icMemAccessResult: MemAccessResult;
 
+    // DCache
     var dcMemAccessReq     : MemAccessReq;
     var dcMemAccessReqAck  : MemAccessReqAck;
     var dcMemAccessResult  : MemAccessResult;
     var dcMemAccessResponse: MemAccessResponse;
 
+    // CacheFlushManager
     var icFlushReqAck : logic;
     var icFlushComplete: logic;
     var icFlushReq    : logic;

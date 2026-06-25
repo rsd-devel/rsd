@@ -8,6 +8,7 @@ interface DCacheIF {
     var rst     : logic;
     var rstStart: logic;
 
+    // Tag array
     var tagArrayWE      : logic [DCACHE_ARRAY_PORT_NUM];
     var tagArrayWriteWay: DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
     var tagArrayIndexIn : DCacheIndexPath [DCACHE_ARRAY_PORT_NUM];
@@ -16,6 +17,7 @@ interface DCacheIF {
     var tagArrayDataOut : DCacheTagPath [DCACHE_WAY_NUM, DCACHE_ARRAY_PORT_NUM];
     var tagArrayValidOut: logic [DCACHE_WAY_NUM, DCACHE_ARRAY_PORT_NUM];
 
+    // Data array
     var dataArrayWE                : logic [DCACHE_ARRAY_PORT_NUM];
     var dataArrayIndexIn           : DCacheIndexPath [DCACHE_ARRAY_PORT_NUM];
     var dataArrayDataIn            : DCacheLinePath [DCACHE_ARRAY_PORT_NUM];
@@ -27,51 +29,73 @@ interface DCacheIF {
     var dataArrayDirtyIn           : logic [DCACHE_ARRAY_PORT_NUM];
     var dataArrayDirtyOut          : logic [DCACHE_ARRAY_PORT_NUM];
 
+    // Replacement
     var replArrayWE     : logic [DCACHE_ARRAY_PORT_NUM];
     var replArrayIndexIn: DCacheIndexPath [DCACHE_ARRAY_PORT_NUM];
     var replArrayDataIn : DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
     var replArrayDataOut: DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
 
+    // Port arbiter input/output
     var lsuCacheReq   : logic [DCACHE_LSU_PORT_NUM];
     var lsuCacheGrt   : logic [DCACHE_LSU_PORT_NUM];
     var lsuMuxIn      : DCachePortMultiplexerIn [DCACHE_LSU_PORT_NUM];
     var lsuMuxTagOut  : DCachePortMultiplexerTagOut [DCACHE_LSU_PORT_NUM];
     var lsuMuxDataOut : DCachePortMultiplexerDataOut [DCACHE_LSU_PORT_NUM];
+    // Data array outputs are pipelined.
 
+    // MSHR<>Array
     var mshrCacheReq       : logic [MSHR_NUM];
     var mshrCacheGrt       : logic [MSHR_NUM];
     var mshrCacheMuxIn     : DCachePortMultiplexerIn [MSHR_NUM];
     var mshrCacheMuxTagOut : DCachePortMultiplexerTagOut [MSHR_NUM];
     var mshrCacheMuxDataOut: DCachePortMultiplexerDataOut [MSHR_NUM];
+    // Data array outputs are pipelined.
 
+    // Multiplexer
+    //
+    // 以下2カ所から来る合計 R 個のアクセス要求に対して，最大 DCache のポート分だけ grant を返す
+    //   load unit/store unit: port.lsuCacheReq
+    //   mshr の全エントリ:     mshrCacheReq
+    //
+    //   cacheArrayInGrant[p]=TRUE or FALSE
+    //     割り当ての結果，キャッシュの p 番目のポートに要求が来たかどうか
+    //   cacheArrayInSel[P] = r:
+    //     上記の R 個 リクエストのうち，r 番目 が
+    //     キャッシュの p 番目のポートに割り当てられた
+    //   cacheArrayOutSel[r] = p:
+    //     上記の R 個 リクエストのうち，r 番目 が
+    //     キャッシュの p 番目のポートに割り当てられた
     var cacheArrayInGrant: logic [DCACHE_ARRAY_PORT_NUM];
     var cacheArrayInSel  : DCacheMuxPortIndexPath [DCACHE_ARRAY_PORT_NUM];
     var cacheArrayOutSel : DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
 
+    // MSHR<>Memory
     var mshrMemReq   : logic [MSHR_NUM];
     var mshrMemGrt   : logic [MSHR_NUM];
     var mshrMemMuxIn : MemoryPortMultiplexerIn [MSHR_NUM];
     var mshrMemMuxOut: MemoryPortMultiplexerOut [MSHR_NUM];
     var memInSel     : MSHR_IndexPath;
 
+    // Memory
     var memAddr          : PhyAddrPath;
     var memData          : DCacheLinePath;
     var memValid         : logic;
     var memWE            : logic;
-    var memReqAck        : logic;
-    var memSerial        : MemAccessSerial;
+    var memReqAck        : logic;           // Request is accpeted or not.
+    var memSerial        : MemAccessSerial; // Read request serial
     var memAccessResult  : MemAccessResult;
-    var memWSerial       : MemWriteSerial;
+    var memWSerial       : MemWriteSerial; // Write request serial
     var memAccessResponse: MemAccessResponse;
 
+    // Miss handler
     var initMSHR              : logic [MSHR_NUM];
     var initMSHR_Addr         : PhyAddrPath [MSHR_NUM];
     var initMSHR_ActiveListPtr: ActiveListIndexPath [MSHR_NUM];
 
     var mshrValid: logic [MSHR_NUM];
     var mshrAddr : PhyAddrPath [MSHR_NUM];
-    var mshrPhase: MSHR_Phase [MSHR_NUM];
-    var mshrData : DCacheLinePath [MSHR_NUM];
+    var mshrPhase: MSHR_Phase [MSHR_NUM]; // MSHR phase.
+    var mshrData : DCacheLinePath [MSHR_NUM]; // Data in MSHR.
 
     var mshrCanBeInvalidDirect: logic [MSHR_NUM];
     var isAllocatedByStore    : logic [MSHR_NUM];
@@ -80,6 +104,7 @@ interface DCacheIF {
     var storedLineData  : VectorPath;
     var storedLineByteWE: logic<DCACHE_LINE_BYTE_NUM>;
 
+    // Controller
     var lsuCacheGrtReg  : logic [DCACHE_LSU_PORT_NUM];
     var dcFlushing      : logic;
     var dcFlushReqAck   : logic;

@@ -12,6 +12,13 @@ module RenameStageSerializer (
     import BasicTypes::*;
     import MicroOpTypes::*;
 
+    // シリアライズ命令が送られて来た場合，パイプラインを適切にストールさせる
+    // シリアライズ命令の前の命令がコミットして ROB が空になるまで待って，
+    // さらにシリアライズ命令自身がコミットされるまで上流をストールさせ続ける
+    //
+    // DecodeStage がシリアライズ命令のみを必ず単独で送ってくるようにしているため，
+    // 先頭しかみていない
+
     // NOT_TRANSPILED_TO_VERYL
     // generate
     //     for (genvar i = 1; i < RENAME_WIDTH; i++) begin : assertionBlock
@@ -23,9 +30,10 @@ module RenameStageSerializer (
     //     end
     // endgenerate
 
+    // Serialize phase
     enum Phase: logic<2> {
-        PHASE_NORMAL = 0,
-        PHASE_WAIT_OWN = 2,
+        PHASE_NORMAL = 0,   // フェッチ継続
+        PHASE_WAIT_OWN = 2, // 自分自身のコミット待ち
     }
 
     var regPhase: Phase;
@@ -40,32 +48,42 @@ module RenameStageSerializer (
     }
 
     always_comb {
+        // multiple serialized ops must not be sent to this stage.
         serialize = FALSE;
         nextPhase = Phase::PHASE_NORMAL;
 
         if clear {
+            // force reset
             nextPhase = Phase::PHASE_NORMAL;
         }
 
         if regPhase == Phase::PHASE_NORMAL {
             if opInfo[0].serialized && valid[0] {
                 if opInfo[0].operand.miscMemOp.fence {
+                    // Fence
                     if !activeListEmpty || !storeQueueEmpty {
+                        // Fence must wait for all previous ops to be committed
+                        // AND all committed stores in SQ to be written back
                         serialize = TRUE;
                         nextPhase = Phase::PHASE_NORMAL;
                     } else {
+                        // deassert serialize" for dispatch
                         nextPhase = Phase::PHASE_WAIT_OWN;
                     }
                 } else {
+                    // Non-fence
                     if !activeListEmpty {
+                        // Wait for all previous ops to be committed
                         serialize = TRUE;
                         nextPhase = Phase::PHASE_NORMAL;
                     } else {
+                        // deassert serialize" for dispatch
                         nextPhase = Phase::PHASE_WAIT_OWN;
                     }
                 }
             }
         } else {
+            // Wait for a serialized op to be committed
             if !activeListEmpty || !storeQueueEmpty {
                 serialize = TRUE;
                 nextPhase = Phase::PHASE_WAIT_OWN;
@@ -97,6 +115,7 @@ module RenameStage (
     import LoadStoreUnitTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: RenameStageRegPath [RENAME_WIDTH];
     var regFlush: logic;
     var regRecoveredPC: PC_Path;
@@ -125,6 +144,7 @@ module RenameStage (
         ctrl.rnStageFlushUpper = regFlush;
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var empty: logic;
@@ -140,6 +160,9 @@ module RenameStage (
             opInfo[i] = pipeReg[i].opInfo;
         }
 
+        // The rename stage stalls when resources cannot be allocated.
+        // Inputs of stall/flush requests to the controller must not dependend
+        // on stall/clear signals for avoiding a race condition.
         ctrl.rnStageSendBubbleLower =
             (|valid) &&
             (
@@ -171,6 +194,9 @@ module RenameStage (
     var nextStage: DispatchStageRegPath [RENAME_WIDTH];
 
     always_comb {
+        //
+        // --- Data to Rename logic
+        //
         for i in 0..RENAME_WIDTH {
             var updateValue: logic;
             var isLoadValue: logic;
@@ -180,6 +206,7 @@ module RenameStage (
             var isZaamoValue: logic;
             var alEntryValue: ActiveListEntry;
 
+            // The rename stage stalls when resources cannot be allocated.
             updateValue = valid[i] && !stall && !clear;
             isLoadValue =
                 opInfo[i].mopType == MOP_TYPE_MEM &&
@@ -199,6 +226,7 @@ module RenameStage (
 
             renameLogic.updateRMT[i] = updateValue;
 
+            // Logical register numbers
             if isBranchValue {
                 renameLogic.logSrcRegA[i] = opInfo[i].operand.brOp.srcRegNumA;
                 renameLogic.logSrcRegB[i] = opInfo[i].operand.brOp.srcRegNumB;
@@ -210,22 +238,32 @@ module RenameStage (
             }
             renameLogic.logSrcRegC[i] = opInfo[i].operand.fpOp.srcRegNumC;
 
+            // Read/Write control
             renameLogic.readRegA[i] = opInfo[i].opTypeA == OOT_REG;
             renameLogic.readRegB[i] = opInfo[i].opTypeB == OOT_REG;
             renameLogic.readRegC[i] = opInfo[i].opTypeC == OOT_REG;
             renameLogic.writeReg[i] = opInfo[i].writeReg;
+
+            // to WAT
             renameLogic.watWriteRegFromPipeReg[i] = opInfo[i].writeReg && updateValue;
             renameLogic.watWriteIssueQueuePtrFromPipeReg[i] = scheduler.allocatedPtr[i];
 
+            // Renamed physical register numbers.
             nextStage[i].phySrcRegNumA = renameLogic.phySrcRegA[i];
             nextStage[i].phySrcRegNumB = renameLogic.phySrcRegB[i];
             nextStage[i].phySrcRegNumC = renameLogic.phySrcRegC[i];
             nextStage[i].phyDstRegNum = renameLogic.phyDstReg[i];
             nextStage[i].phyPrevDstRegNum = renameLogic.phyPrevDstReg[i];
+
+            // Source pointer for a matrix scheduler.
+            // Renamed physical register numbers.
             nextStage[i].srcIssueQueuePtrRegA = renameLogic.srcIssueQueuePtrRegA[i];
             nextStage[i].srcIssueQueuePtrRegB = renameLogic.srcIssueQueuePtrRegB[i];
             nextStage[i].srcIssueQueuePtrRegC = renameLogic.srcIssueQueuePtrRegC[i];
 
+            //
+            // Active list allocation
+            //
             activeList.pushTail[i] = updateValue;
 
             alEntryValue = '0;
@@ -247,28 +285,45 @@ module RenameStage (
 
             nextStage[i].activeListPtr = activeList.pushedTailPtr[i];
 
+            //
+            // Issue queue allocation
+            //
             scheduler.allocate[i] = updateValue;
             nextStage[i].issueQueuePtr = scheduler.allocatedPtr[i];
 
+            //
+            // Load/store unit allocation
+            //
             loadStoreUnit.allocateLoadQueue[i] = updateValue && (isLoadValue || isZaamoValue);
             loadStoreUnit.allocateStoreQueue[i] = updateValue && (isStoreValue || isZaamoValue);
             nextStage[i].loadQueuePtr = loadStoreUnit.allocatedLoadQueuePtr[i];
             nextStage[i].storeQueuePtr = loadStoreUnit.allocatedStoreQueuePtr[i];
 
+            // Make read request to Memory Dependent Prediction
             port.pc[i] = pipeReg[i].pc;
 
+            //
+            // --- Pipeline control
+            //
             nextStage[i].opId = pipeReg[i].opId;
+            // 'valid' is invalidate, if 'stall' or 'clear' or 'rst' is enabled.
+            // That is, a op is treated as a NOP.
+            // Otherwise 'valid' is set to a previous stage's 'valid.'
             if stall || clear || port.rst {
                 nextStage[i].valid = FALSE;
             } else {
                 nextStage[i].valid = valid[i];
             }
+
+            // Decoded micr-op and context.
             nextStage[i].pc = pipeReg[i].pc;
             nextStage[i].brPred = pipeReg[i].bPred;
             nextStage[i].opInfo = opInfo[i];
+            // 以下のLSQのポインタはLSQのリカバリに用いる
             nextStage[i].loadQueueRecoveryPtr = loadStoreUnit.allocatedLoadQueuePtr[i];
             nextStage[i].storeQueueRecoveryPtr = loadStoreUnit.allocatedStoreQueuePtr[i];
 
+            // Debug Register
             debug.rnReg[i].valid = valid[i];
             debug.rnReg[i].opId = pipeReg[i].opId;
         }

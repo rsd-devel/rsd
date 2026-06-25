@@ -1,6 +1,8 @@
 package LoadQueueFunctions {
     import LoadStoreUnitTypes::*;
 
+    // Convert a pointer of an active list to an "age."
+    // An "age" is directly compared with a comparator.
     function LoadQueuePtrToAge (
         ptr : input LoadQueueIndexPath,
         head: input LoadQueueIndexPath,
@@ -8,6 +10,7 @@ package LoadQueueFunctions {
         var age: LoadQueueCountPath;
         age = ptr;
         if ptr <: head {
+            // Wrap around.
             return age + LOAD_QUEUE_ENTRY_NUM;
         } else {
             return age;
@@ -26,12 +29,18 @@ module LoadQueue (
 
     var resetValue: logic;
 
+    // Head and tail pointers.
+    // This head pointer refers the next entry of the last valid entry.
     var headPtr: LoadQueueIndexPath;
     var tailPtr: LoadQueueIndexPath;
 
+    // FIFO controller.
     var push: logic;
+    // push request.
     var pushCount: RenameLaneCountPath;
+    // pushed count.
     var curCount: LoadQueueCountPath;
+    // current size.
 
     inst loadQueuePointer: SetTailMultiWidthQueuePointer #(
         SIZE            : LOAD_QUEUE_ENTRY_NUM,
@@ -55,17 +64,20 @@ module LoadQueue (
     );
 
     always_comb {
+        // Generate push signals.
         pushCount = 0;
         for i in 0..RENAME_WIDTH {
             if tailPtr + pushCount <: LOAD_QUEUE_ENTRY_NUM {
                 port.allocatedLoadQueuePtr[i] = tailPtr + pushCount;
             } else {
+                // Out of range of load queue
                 port.allocatedLoadQueuePtr[i] = tailPtr + pushCount - LOAD_QUEUE_ENTRY_NUM;
             }
             pushCount = pushCount + port.allocateLoadQueue[i];
         }
         push = pushCount >: 0;
 
+        // All entries are not used for avoiding head==tail problem.
         if curCount <= LOAD_QUEUE_ENTRY_NUM - RENAME_WIDTH - 1 {
             port.loadQueueAllocatable = TRUE;
         } else {
@@ -75,6 +87,7 @@ module LoadQueue (
         recovery.loadQueueHeadPtr = headPtr;
     }
 
+    // Address and finish flag storage.
     var loadQueue: LoadQueueEntry [LOAD_QUEUE_ENTRY_NUM];
     var executedLoadQueuePtrByLoad: LoadQueueIndexPath [LOAD_ISSUE_WIDTH];
     var executedLoadAddr: LSQ_BlockAddrPath [LOAD_ISSUE_WIDTH];
@@ -118,9 +131,14 @@ module LoadQueue (
         }
     }
 
+    // Store-load access order violation detector.
+
+    // A picker of violated entries.
     var executedLoadQueuePtrByStore: LoadQueueIndexPath [STORE_ISSUE_WIDTH];
+    // The outputs of address comparators.
     var addrMatch: LoadQueueOneHotPath [STORE_ISSUE_WIDTH];
     var pickedPtr: LoadQueueIndexPath [STORE_ISSUE_WIDTH];
+    // This flag is true if violation is detected.
     var picked: logic [STORE_ISSUE_WIDTH];
 
     for i in 0..STORE_ISSUE_WIDTH : Picker {
@@ -135,14 +153,22 @@ module LoadQueue (
         );
     }
 
+    // This flags are TRUE if violation is detected.
     var violation: logic [STORE_ISSUE_WIDTH];
+
+    // The addresses of executed stores/loads.
     var executedStoreAddr: LSQ_BlockAddrPath [STORE_ISSUE_WIDTH];
     var executedStoreWordWE: LSQ_BlockWordEnablePath [STORE_ISSUE_WIDTH];
+
+    // This is assigned with PC of load that caused a violation with store.
     var conflictLoadPC: PC_Path [STORE_ISSUE_WIDTH];
 
     always_comb {
+        // Generate a reset signal.
         resetValue = port.rst;
 
+        // Detect access order violation between already executed loads and
+        // a currently executed store.
         for si in 0..STORE_ISSUE_WIDTH {
             violation[si] = FALSE;
             conflictLoadPC[si] = '0;
@@ -155,6 +181,7 @@ module LoadQueue (
             executedLoadQueuePtrByStore[si] = port.executedLoadQueuePtrByStore[si];
         }
 
+        // Compares a stored address and already executed load addresses.
         for si in 0..STORE_ISSUE_WIDTH {
             for lqe in 0..LOAD_QUEUE_ENTRY_NUM {
                 addrMatch[si][lqe] =
@@ -165,10 +192,13 @@ module LoadQueue (
             }
         }
 
+        // Set address match results.
         for si in 0..STORE_ISSUE_WIDTH {
             if port.executeStore[si] {
                 violation[si] = picked[si];
                 if picked[si] && pickedPtr[si] <: LOAD_QUEUE_ENTRY_NUM {
+                    // Assign write address for Memory dependent predictor
+                    // with inst which caused violation inside load queue.
                     conflictLoadPC[si] = loadQueue[pickedPtr[si]].pc;
                 }
             } else {
@@ -176,11 +206,13 @@ module LoadQueue (
             }
         }
 
+        // Detect violation between executed loads and stores in this cycle.
         for si in 0..STORE_ISSUE_WIDTH {
             for li in 0..LOAD_ISSUE_WIDTH {
                 if port.executeLoad[li] &&
                    executedLoadAddr[li] == executedStoreAddr[si] &&
                    ((executedLoadWordRE[li] & executedStoreWordWE[si]) != '0) {
+                    // Violation is caused by load & store executed in this cycle.
                     if LoadQueuePtrToAge(port.executedLoadQueuePtrByLoad[li], headPtr) >=
                        LoadQueuePtrToAge(executedLoadQueuePtrByStore[si], headPtr) {
                         violation[si] = TRUE;
@@ -190,8 +222,10 @@ module LoadQueue (
             }
         }
 
+        // Send write address of Memory dependent predictor with IF.
         port.conflictLoadPC = conflictLoadPC;
 
+        // Output violation information.
         for i in 0..STORE_ISSUE_WIDTH {
             port.conflict[i] = violation[i];
         }

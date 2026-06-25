@@ -1,9 +1,11 @@
+// --- MemoryIssueStageIF
 interface MemoryIssueStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
     var clk      : clock;
     var rst      : logic;
+    // Pipeline register
     var nextStage: MemoryRegisterReadStageRegPath [MEM_ISSUE_WIDTH];
 
     modport ThisStage {

@@ -17,16 +17,19 @@ module FPExecutionStage (
     import PipelineTypes::*;
     import DebugTypes::*;
 
+    // Pipeline control
     var stall: logic;
     var clear: logic;
 
     // NOT_TRANSPILED_TO_VERYL
     // `RSD_STATIC_ASSERT(FP_ISSUE_WIDTH == FP_DIVSQRT_ISSUE_WIDTH, "These muse be same");
 
+    // 複数サイクルにわたる FPExecutionStage 内で
+    // 使用するパイプラインレジスタ
     struct LocalPipeReg {
         opId       : OpId,
-        valid      : logic,
-        regValid   : logic,
+        valid      : logic, // Valid flag. If this is 0, its op is treated as NOP.
+        regValid   : logic, // Valid flag of a destination register.
         fpQueueData: FPIssueQueueEntry,
     }
 
@@ -49,6 +52,7 @@ module FPExecutionStage (
         }
     }
 
+    // FPRegisterReadStage との境界にあるパイプラインレジスタ
     var pipeReg: FPExecutionStageRegPath [FP_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
@@ -70,6 +74,8 @@ module FPExecutionStage (
     var fmaMulRHS: DataPath [FP_ISSUE_WIDTH];
     var fmaAddend: DataPath [FP_ISSUE_WIDTH];
     var otherFFlagsOut: FFlags_Path [FP_ISSUE_WIDTH];
+
+    // Divider/Sqrt Unit
     var isDivSqrt: logic [FP_ISSUE_WIDTH];
     var fpOpInfo: FPOpInfo [FP_ISSUE_WIDTH];
     var fpuCode: FPU_Code [FP_ISSUE_WIDTH];
@@ -101,6 +107,7 @@ module FPExecutionStage (
     }
 
     always_comb {
+        // FMA Unit
         for i in 0..FP_ISSUE_WIDTH {
             if (fpuCode[i] == FC_FNMSUB) || (fpuCode[i] == FC_FNMADD) {
                 fmaMulLHS[i] = {~fuOpA[i].data[31], fuOpA[i].data[30:0]};
@@ -126,8 +133,11 @@ module FPExecutionStage (
                 fmaAddend[i] = fuOpC[i].data;
             }
 
+            // FP Div/Sqrt Unit
             fpDivSqrtUnit.dataInA[i] = fuOpA[i].data;
             fpDivSqrtUnit.dataInB[i] = fuOpB[i].data;
+
+            // DIV or SQRT
             fpDivSqrtUnit.is_divide[i] = fpOpInfo[i].fpuCode == FC_DIV;
             fpDivSqrtUnit.rm[i] = rm[i];
 
@@ -135,6 +145,11 @@ module FPExecutionStage (
                 (pipeReg[i].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_DIV) ||
                 (pipeReg[i].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_SQRT);
 
+            // Request to the divider/sqrter
+            // NOT make a request when below situation
+            // 1) When any operands of inst. are invalid
+            // 2) When the divider/sqrter is waiting for the instruction
+            //    to receive the result of the divider/sqrter
             fpDivSqrtUnit.Req[i] =
                 fpDivSqrtUnit.Reserved[i] &&
                 pipeReg[i].valid &&
@@ -149,6 +164,8 @@ module FPExecutionStage (
                    localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_SQRT
                ) &&
                localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].regValid {
+                // Div/Sqrt Unitから結果を取得できたので，
+                // IQからの発行を許可する
                 fpDivSqrtUnit.Release[i] = TRUE;
             } else {
                 fpDivSqrtUnit.Release[i] = FALSE;
@@ -199,6 +216,7 @@ module FPExecutionStage (
                 );
             }
 
+            // オペランド
             if pipeReg[i].bCtrl.rA.valid {
                 fuOpAValue = bypass.fpSrcRegDataOutA[i];
             } else {
@@ -218,11 +236,13 @@ module FPExecutionStage (
             fuOpB[i] = fuOpBValue;
             fuOpC[i] = fuOpCValue;
 
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValidValue =
                 (fpOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
                 (fpOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid) &&
                 (fpOpInfoValue.operandTypeC != OOT_REG || fuOpCValue.valid);
 
+            // TODO fflagsをちゃんと実装
             dataOutValue.valid = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].regValid;
             case localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData.fpOpInfo.opType {
                 FP_MOP_TYPE_ADD,
@@ -242,9 +262,13 @@ module FPExecutionStage (
                 }
             }
 
+            // 最初のステージで出力
             bypass.fpCtrlIn[i] = pipeReg[i].bCtrl;
+            // 最後のステージで出力
             bypass.fpDstRegDataOut[i] = dataOutValue;
 
+            // ISから3ステージ後=EX1ステージでReplayを出力
+            // このとき、localPipeReg[lane][0]のデータを使う
             scheduler.fpRecordEntry[i] =
                 !stall &&
                 !clear &&
@@ -261,6 +285,7 @@ module FPExecutionStage (
             }
             nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
 
+            // Reg valid of local pipeline
             if isDivSqrt[i] {
                 nextLocalPipeReg[i][0].regValid = pipeReg[i].replay && fpDivSqrtUnit.Finished[i];
             } else {
@@ -281,6 +306,7 @@ module FPExecutionStage (
             nextStage[i].opId = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].opId;
             nextStage[i].fpQueueData = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData;
             nextStage[i].fflagsOut = fflagsOutValue;
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || flushValue[FP_EXEC_STAGE_DEPTH - 1] {
                 nextStage[i].valid = FALSE;
             } else {

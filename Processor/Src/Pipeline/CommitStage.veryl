@@ -12,6 +12,7 @@ package CommitStageFunctions {
         recoveryCause  : ExecutionState,
     }
 
+    // 実行が終わったopの数を出力。最大でCOMMIT_WIDTH
     function GetFinishedOpNum (
         activeListCount: input ActiveListCountPath,
         execState      : input ExecutionState [COMMIT_WIDTH],
@@ -33,6 +34,8 @@ package CommitStageFunctions {
         return finishedOpNum;
     }
 
+    // 実行が終わってInsnの範囲を調べ、
+    // それがアクティブリストの先頭からop何個分に相当するかを返す
     function GetFinishedInsnRange (
         finishedOpNum: input CommitLaneCountPath,
         last         : input logic<COMMIT_WIDTH>,
@@ -53,6 +56,7 @@ package CommitStageFunctions {
         return finishedInsnRange;
     }
 
+    // そのInsnと次のInsnの最初のマイクロ命令を指すポインタを得る
     function GetHeadOfThisInsn (
         lane: input CommitLaneIndexPath,
         last: input logic<COMMIT_WIDTH>,
@@ -115,7 +119,11 @@ package CommitStageFunctions {
         var opRefetchType: RefetchType [COMMIT_WIDTH];
         var recoveryTrigger: logic;
         var recoveryStart: CommitLaneCountPath;
+        // 実行終了し、コミット可能なマイクロ命令の数
         var finishedOpNum: CommitLaneCountPath;
+        // すべてのマイクロ命令が終了したInstructionに属するマイクロ命令の数の合計。
+        // 実行終了したマイクロ命令は、Instruction単位でコミットされるため、
+        // これを計算しておくことが必要となる。
         var finishedInsnRange: CommitLaneCountPath;
 
         finishedOpNum = GetFinishedOpNum(activeListCount, execState);
@@ -160,6 +168,7 @@ package CommitStageFunctions {
                 recoveryPoint[i] = GetHeadOfThisInsn(lane, last);
                 opRefetchType[i] = REFETCH_TYPE_THIS_PC_TO_CSR_TARGET;
             } else {
+                // Set dummy values
                 recovery[i] = FALSE;
                 recoveryPoint[i] = 0;
                 opRefetchType[i] = REFETCH_TYPE_THIS_PC;
@@ -219,6 +228,7 @@ package CommitStageFunctions {
     }
 }
 
+// Commit stage
 module CommitStage (
     port         : modport CommitStageIF::ThisStage,
     renameLogic  : modport RenameLogicIF::CommitStage,
@@ -266,14 +276,17 @@ module CommitStage (
     always_comb {
         var decision: CommitDecision;
 
+        // Phase of a pipeline
         phase = recovery.phase;
 
+        // The head entries of an active list.
         for i in 0..COMMIT_WIDTH {
             last[i] = activeList.readData[i].last;
             isBranch[i] = activeList.readData[i].isBranch;
             isStore[i] = activeList.readData[i].isStore;
         }
 
+        // Decide which instructions are committed.
         decision = DecideCommit(
             phase == PHASE_COMMIT,
             activeList.validEntryNum,
@@ -290,6 +303,7 @@ module CommitStage (
         refetchType = decision.refetchType;
         recoveryCause = decision.recoveryCause;
 
+        // Count num of commit instructions.
         commitNum = 0;
         commitLoadNum = 0;
         commitStoreNum = 0;
@@ -305,6 +319,7 @@ module CommitStage (
             }
         }
 
+        // To the rename logic.
         renameLogic.commit = commit[0];
         renameLogic.commitNum = commitNum;
 
@@ -320,16 +335,19 @@ module CommitStage (
             }
         }
 
+        // Update load/store unit.
         loadStoreUnit.releaseLoadQueue = commit[0];
         loadStoreUnit.releaseLoadQueueEntryNum = commitLoadNum;
         loadStoreUnit.commitStore = commit[0];
         loadStoreUnit.commitStoreNum = commitStoreNum;
 
+        // To RecoveryManager
         recovery.exceptionDetectedInCommitStage = toRecoveryPhase;
         recovery.refetchTypeFromCommitStage = refetchType;
         recovery.recoveryOpIndex = recoveryOpIndex;
         recovery.recoveryCauseFromCommitStage = recoveryCause;
 
+        // lastCommittedPC
         lastCommittedPC = prevLastCommittedPC;
         for i in 0..COMMIT_WIDTH {
             if commit[i] {
@@ -337,8 +355,10 @@ module CommitStage (
             }
         }
 
+        // CSR Update
         csrUnit.commitNum = commitNum;
 
+        // CSR FFLAGS Update
         fflagsWE = FALSE;
         fflagsData = csrUnit.fflags;
         for i in 0..COMMIT_WIDTH {
@@ -350,6 +370,7 @@ module CommitStage (
         csrUnit.fflagsWE = fflagsWE;
         csrUnit.fflagsData = fflagsData;
 
+        // Debug Register
         debug.recover = toRecoveryPhase;
         debug.toRecoveryPhase = toRecoveryPhase;
         for i in 0..COMMIT_WIDTH {

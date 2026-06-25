@@ -93,6 +93,7 @@ package DividerUnitTypes {
     import BasicTypes::*;
     import OpFormatTypes::*;
 
+    // PipeReg
     struct DividerUnitPipeReg {
         valid   : logic      ,
         isSigned: logic      ,

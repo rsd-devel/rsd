@@ -1,16 +1,20 @@
 package OpFormatTypes {
     import BasicTypes::*;
 
+    // JAL, JALR uses PC+4 as operands
     const PC_OPERAND_OFFSET: u32 = 4;
 
+    //
+    // --- 条件コードの定義
+    //
     enum CondCode: logic<3> {
-        COND_EQ = 3'b000,
-        COND_NE = 3'b001,
-        COND_LT = 3'b100,
-        COND_GE = 3'b101,
-        COND_LTU = 3'b110,
-        COND_GEU = 3'b111,
-        COND_AL = 3'b010,
+        COND_EQ = 3'b000,  // EQ  '='
+        COND_NE = 3'b001,  // NE  '!='
+        COND_LT = 3'b100,  // LT  符号付き'<'
+        COND_GE = 3'b101,  // GE  符号付き'>'
+        COND_LTU = 3'b110, // LTU 符号なし'<'
+        COND_GEU = 3'b111, // GEU 符号なし'>'
+        COND_AL = 3'b010,  // AL 常時（無条件）
     }
     const COND_EQ: CondCode = CondCode::COND_EQ;
     const COND_NE: CondCode = CondCode::COND_NE;
@@ -20,13 +24,16 @@ package OpFormatTypes {
     const COND_GEU: CondCode = CondCode::COND_GEU;
     const COND_AL: CondCode = CondCode::COND_AL;
 
+    //
+    // 命令タイプ obsolete
+    //
     enum OpCode: logic<3> {
-        OC_INT_REG = 3'b000,
-        OC_INT_IMM = 3'b001,
-        OC_MEM_IMM = 3'b010,
-        OC_MEM_REG = 3'b011,
-        OC_MEM_MUL = 3'b100,
-        OC_BR = 3'b101,
+        OC_INT_REG = 3'b000, // 整数演算（レジスタ）
+        OC_INT_IMM = 3'b001, // 整数演算（即値）
+        OC_MEM_IMM = 3'b010, // ロード/ストア（即値オフセット・アドレッシング）
+        OC_MEM_REG = 3'b011, // ロード/ストア（レジスタオフセット・アドレッシング）
+        OC_MEM_MUL = 3'b100, // 複数ロード/ストア
+        OC_BR = 3'b101,      // 分岐
     }
     const OC_INT_REG: OpCode = OpCode::OC_INT_REG;
     const OC_INT_IMM: OpCode = OpCode::OC_INT_IMM;
@@ -35,6 +42,9 @@ package OpFormatTypes {
     const OC_MEM_MUL: OpCode = OpCode::OC_MEM_MUL;
     const OC_BR: OpCode = OpCode::OC_BR;
 
+    //
+    // Op命令とOpImm命令のfunct3
+    //
     enum OpFunct3: logic<3> {
         OP_FUNCT3_ADD_SUB = 3'b000,
         OP_FUNCT3_SLT = 3'b010,
@@ -54,6 +64,9 @@ package OpFormatTypes {
     const OP_FUNCT3_SLL: OpFunct3 = OpFunct3::OP_FUNCT3_SLL;
     const OP_FUNCT3_SRL_SRA: OpFunct3 = OpFunct3::OP_FUNCT3_SRL_SRA;
 
+    //
+    // Op命令のfunct7
+    //
     enum OpFunct7: logic<7> {
         OP_FUNCT7_ADD = 7'b0000000,
         OP_FUNCT7_SUB = 7'b0100000,
@@ -61,6 +74,9 @@ package OpFormatTypes {
     const OP_FUNCT7_ADD: OpFunct7 = OpFunct7::OP_FUNCT7_ADD;
     const OP_FUNCT7_SUB: OpFunct7 = OpFunct7::OP_FUNCT7_SUB;
 
+    //
+    // シフト命令のfunct7
+    //
     enum ShiftFunct7: logic<7> {
         SHIFT_FUNCT7_SRL = 7'b0000000,
         SHIFT_FUNCT7_SRA = 7'b0100000,
@@ -68,11 +84,17 @@ package OpFormatTypes {
     const SHIFT_FUNCT7_SRL: ShiftFunct7 = ShiftFunct7::SHIFT_FUNCT7_SRL;
     const SHIFT_FUNCT7_SRA: ShiftFunct7 = ShiftFunct7::SHIFT_FUNCT7_SRA;
 
+    //
+    // RV32Mのfunct7
+    //
     enum RV32MFunct7: logic<7> {
         RV32M_FUNCT7_ALL = 7'b0000001,
     }
     const RV32M_FUNCT7_ALL: RV32MFunct7 = RV32MFunct7::RV32M_FUNCT7_ALL;
 
+    //
+    // A extension
+    //
     enum RVAFunct5: logic<5> {
         RVA_FUNCT5_LR = 5'b00010,
         RVA_FUNCT5_SC = 5'b00011,
@@ -98,6 +120,9 @@ package OpFormatTypes {
     const RVA_FUNCT5_AMOMINU: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMINU;
     const RVA_FUNCT5_AMOMAXU: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMAXU;
 
+    //
+    // 分岐命令のfunct3
+    //
     enum BrFunct3: logic<3> {
         BRANCH_FUNCT3_BEQ = 3'b000,
         BRANCH_FUNCT3_BNE = 3'b001,
@@ -113,6 +138,9 @@ package OpFormatTypes {
     const BRANCH_FUNCT3_BLTU: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BLTU;
     const BRANCH_FUNCT3_BGEU: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BGEU;
 
+    //
+    // Mem命令のfunct3
+    //
     enum MemFunct3: logic<3> {
         MEM_FUNCT3_SIGNED_BYTE = 3'b000,
         MEM_FUNCT3_SIGNED_HALF_WORD = 3'b001,
@@ -126,6 +154,9 @@ package OpFormatTypes {
     const MEM_FUNCT3_UNSIGNED_BYTE: MemFunct3 = MemFunct3::MEM_FUNCT3_UNSIGNED_BYTE;
     const MEM_FUNCT3_UNSIGNED_HALF_WORD: MemFunct3 = MemFunct3::MEM_FUNCT3_UNSIGNED_HALF_WORD;
 
+    //
+    // RV32M(乗算・除算・剰余)命令のfunct3
+    //
     enum RV32MFunct3: logic<3> {
         RV32M_FUNCT3_MUL = 3'b000,
         RV32M_FUNCT3_MULH = 3'b001,
@@ -145,22 +176,28 @@ package OpFormatTypes {
     const RV32M_FUNCT3_REM: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_REM;
     const RV32M_FUNCT3_REMU: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_REMU;
 
+    //
+    // Misc-Mem命令のfunct3
+    //
     enum MiscMemFunct3: logic<3> {
-        MISC_MEM_FUNCT3_FENCE = 3'b000,
-        MISC_MEM_FUNCT3_FENCE_I = 3'b001,
+        MISC_MEM_FUNCT3_FENCE = 3'b000,   // FENCE
+        MISC_MEM_FUNCT3_FENCE_I = 3'b001, // FENCE.I
     }
     const MISC_MEM_FUNCT3_FENCE: MiscMemFunct3 = MiscMemFunct3::MISC_MEM_FUNCT3_FENCE;
     const MISC_MEM_FUNCT3_FENCE_I: MiscMemFunct3 = MiscMemFunct3::MISC_MEM_FUNCT3_FENCE_I;
 
+    //
+    // System 命令の funct3, funct12
+    //
     enum SystemFunct3: logic<3> {
-        SYSTEM_FUNCT3_PRIV = 3'b000,
-        SYSTEM_FUNCT3_CSR_RW = 3'b001,
-        SYSTEM_FUNCT3_CSR_RS = 3'b010,
-        SYSTEM_FUNCT3_CSR_RC = 3'b011,
-        SYSTEM_FUNCT3_UNDEFINED = 3'b100,
-        SYSTEM_FUNCT3_CSR_RW_I = 3'b101,
-        SYSTEM_FUNCT3_CSR_RS_I = 3'b110,
-        SYSTEM_FUNCT3_CSR_RC_I = 3'b111,
+        SYSTEM_FUNCT3_PRIV = 3'b000,      // Privileged (ecall/ebreak/mret/sret)
+        SYSTEM_FUNCT3_CSR_RW = 3'b001,    // CSRRW
+        SYSTEM_FUNCT3_CSR_RS = 3'b010,    // CSRRS
+        SYSTEM_FUNCT3_CSR_RC = 3'b011,    // CSRRC
+        SYSTEM_FUNCT3_UNDEFINED = 3'b100, // ???
+        SYSTEM_FUNCT3_CSR_RW_I = 3'b101,  // CSRRWI
+        SYSTEM_FUNCT3_CSR_RS_I = 3'b110,  // CSRRSI
+        SYSTEM_FUNCT3_CSR_RC_I = 3'b111,  // CSRRCI
     }
     const SYSTEM_FUNCT3_PRIV: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_PRIV;
     const SYSTEM_FUNCT3_CSR_RW: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RW;
@@ -172,11 +209,11 @@ package OpFormatTypes {
     const SYSTEM_FUNCT3_CSR_RC_I: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RC_I;
 
     enum SystemFunct12: logic<12> {
-        SYSTEM_FUNCT12_ECALL = 12'b0000_0000_0000,
-        SYSTEM_FUNCT12_EBREAK = 12'b0000_0000_0001,
-        SYSTEM_FUNCT12_SRET = 12'b0001_0000_0010,
-        SYSTEM_FUNCT12_MRET = 12'b0011_0000_0010,
-        SYSTEM_FUNCT12_WFI = 12'b0001_0000_0101,
+        SYSTEM_FUNCT12_ECALL = 12'b0000_0000_0000,  // ECALL
+        SYSTEM_FUNCT12_EBREAK = 12'b0000_0000_0001, // EBREAK
+        SYSTEM_FUNCT12_SRET = 12'b0001_0000_0010,   // SRET
+        SYSTEM_FUNCT12_MRET = 12'b0011_0000_0010,   // MRET
+        SYSTEM_FUNCT12_WFI = 12'b0001_0000_0101,    // WFI
     }
     const SYSTEM_FUNCT12_ECALL: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_ECALL;
     const SYSTEM_FUNCT12_EBREAK: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_EBREAK;
@@ -256,19 +293,23 @@ package OpFormatTypes {
         fclassfmvFunct3: FCLASSFMVFunct3,
         fcmpFunct3: FCMPFunct3,
     }
+    //
+    // --- shifter_operand の定義
+    //
 
+    // Shift operand type
     enum ShiftOperandType: logic<1> {
-        SOT_IMM_SHIFT = 1'b0,
-        SOT_REG_SHIFT = 1'b1,
+        SOT_IMM_SHIFT = 1'b0, // Immediate shift
+        SOT_REG_SHIFT = 1'b1, // Register shift
     }
     const SOT_IMM_SHIFT: ShiftOperandType = ShiftOperandType::SOT_IMM_SHIFT;
     const SOT_REG_SHIFT: ShiftOperandType = ShiftOperandType::SOT_REG_SHIFT;
 
     enum ShiftType: logic<2> {
-        ST_LSL = 2'b00,
-        ST_LSR = 2'b01,
-        ST_ASR = 2'b10,
-        ST_ROR = 2'b11,
+        ST_LSL = 2'b00, // Logical shift left
+        ST_LSR = 2'b01, // Logical shift right
+        ST_ASR = 2'b10, // Arithmetic shift right
+        ST_ROR = 2'b11, // Rotate
     }
     const ST_LSL: ShiftType = ShiftType::ST_LSL;
     const ST_LSR: ShiftType = ShiftType::ST_LSR;
@@ -286,6 +327,7 @@ package OpFormatTypes {
     const RISCV_IMM_S: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_S;
     const RISCV_IMM_U: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_U;
 
+    //即値 : 5+2+1+20+2 = 30 bit → SHIFTER_WIDTH
     struct RISCV_IntOperandImmShift {
         shift: logic<5>,
         shiftType: ShiftType,
@@ -294,14 +336,20 @@ package OpFormatTypes {
         immType: RISCV_ImmType,
     }
 
+    //
+    // --- アドレッシング
+    //
+
+    // 即値
     const ADDR_OPERAND_IMM_WIDTH: u32 = 12;
 
     const ADDR_SIGN_EXTENTION_WIDTH: u32 = ADDR_WIDTH - ADDR_OPERAND_IMM_WIDTH;
 
     struct AddrOperandImm {
-        imm: logic<12>,
+        imm: logic<12>, // [11:0] offset
     }
 
+    // Memory Access Mode (signed / access size)
     enum MemAccessSizeType: logic<2> {
         MEM_ACCESS_SIZE_BYTE = 2'b00,
         MEM_ACCESS_SIZE_HALF_WORD = 2'b01,
@@ -333,25 +381,30 @@ package OpFormatTypes {
         size: MemAccessSizeType,
     }
 
+    // ディスプレースメント幅: 各分岐命令のディスプレースメントはそれぞれ
+    // Branch: 12ビット，JAL: 20ビット， JALR: 12ビット
+    // のビット幅でエンコードされる．
     const BR_DISP_WIDTH: u32 = 20;
 
     type BranchDisplacement = logic<BR_DISP_WIDTH>;
 
+    // 符号拡張用
     const BR_DISP_SIGN_EXTENTION_WIDTH: u32 = ADDR_WIDTH - BR_DISP_WIDTH;
 
+    // ALU code
     enum IntALU_Code: logic<4> {
-        AC_ADD = 4'b0000,
-        AC_SUB = 4'b0001,
-        AC_SLT = 4'b0010,
-        AC_SLTU = 4'b0011,
-        AC_EOR = 4'b0100,
-        AC_ORR = 4'b0110,
-        AC_AND = 4'b0111,
-        AC_SH1ADD = 4'b1010,
-        AC_SH2ADD = 4'b1011,
-        AC_SH3ADD = 4'b1100,
-        AC_EQZ = 4'b1000,
-        AC_NEZ = 4'b1001,
+        AC_ADD = 4'b0000,    // ADD    加算
+        AC_SUB = 4'b0001,    // SUB    減算
+        AC_SLT = 4'b0010,    // SLT    比較 Rd = if Rs1 < Rs2 then 1 else 0
+        AC_SLTU = 4'b0011,   // SLTU   符号なし比較
+        AC_EOR = 4'b0100,    // EOR    排他的論理和
+        AC_ORR = 4'b0110,    // ORR    （包含的）論理和
+        AC_AND = 4'b0111,    // AND    論理積
+        AC_SH1ADD = 4'b1010, // Rs1 << 1 + Rs2
+        AC_SH2ADD = 4'b1011, // Rs1 << 2 + Rs2
+        AC_SH3ADD = 4'b1100, // Rs1 << 3 + Rs2
+        AC_EQZ = 4'b1000,    // Rs2 == 0
+        AC_NEZ = 4'b1001,    // Rs2 != 0
     }
     const AC_ADD: IntALU_Code = IntALU_Code::AC_ADD;
     const AC_SUB: IntALU_Code = IntALU_Code::AC_SUB;
@@ -366,33 +419,36 @@ package OpFormatTypes {
     const AC_EQZ: IntALU_Code = IntALU_Code::AC_EQZ;
     const AC_NEZ: IntALU_Code = IntALU_Code::AC_NEZ;
 
+    // IntMUL code
     enum IntMUL_Code: logic<2> {
-        AC_MUL = 2'b00,
-        AC_MULH = 2'b01,
-        AC_MULHSU = 2'b10,
-        AC_MULHU = 2'b11,
+        AC_MUL = 2'b00,    // MUL
+        AC_MULH = 2'b01,   // MULH
+        AC_MULHSU = 2'b10, // MULHSU
+        AC_MULHU = 2'b11,  // MULHU
     }
     const AC_MUL: IntMUL_Code = IntMUL_Code::AC_MUL;
     const AC_MULH: IntMUL_Code = IntMUL_Code::AC_MULH;
     const AC_MULHSU: IntMUL_Code = IntMUL_Code::AC_MULHSU;
     const AC_MULHU: IntMUL_Code = IntMUL_Code::AC_MULHU;
 
+    // IntDIV code
     enum IntDIV_Code: logic<2> {
-        AC_DIV = 2'b00,
-        AC_DIVU = 2'b01,
-        AC_REM = 2'b10,
-        AC_REMU = 2'b11,
+        AC_DIV = 2'b00,  // DIV
+        AC_DIVU = 2'b01, // DIVU
+        AC_REM = 2'b10,  // REM
+        AC_REMU = 2'b11, // REMU
     }
     const AC_DIV: IntDIV_Code = IntDIV_Code::AC_DIV;
     const AC_DIVU: IntDIV_Code = IntDIV_Code::AC_DIVU;
     const AC_REM: IntDIV_Code = IntDIV_Code::AC_REM;
     const AC_REMU: IntDIV_Code = IntDIV_Code::AC_REMU;
 
+    // CSR operation code
     enum CSR_Code: logic<2> {
-        CSR_UNKNOWN = 2'b00,
-        CSR_WRITE = 2'b01,
-        CSR_SET = 2'b10,
-        CSR_CLEAR = 2'b11,
+        CSR_UNKNOWN = 2'b00, // ???
+        CSR_WRITE = 2'b01,   // WRITE
+        CSR_SET = 2'b10,     // SET
+        CSR_CLEAR = 2'b11,   // CLEAR
     }
     const CSR_UNKNOWN: CSR_Code = CSR_Code::CSR_UNKNOWN;
     const CSR_WRITE: CSR_Code = CSR_Code::CSR_WRITE;
@@ -434,14 +490,15 @@ package OpFormatTypes {
         code: CSR_Code,
     }
 
+    // Environment operation code
     enum ENV_Code: logic<3> {
-        ENV_CALL = 3'b000,
-        ENV_BREAK = 3'b001,
-        ENV_SRET = 3'b010,
-        ENV_MRET = 3'b011,
-        ENV_INSN_ILLEGAL = 3'b100,
-        ENV_INSN_VIOLATION = 3'b101,
-        ENV_UNKNOWN = 3'b110,
+        ENV_CALL = 3'b000,           // ECALL
+        ENV_BREAK = 3'b001,          // EBREAK
+        ENV_SRET = 3'b010,           // SRET
+        ENV_MRET = 3'b011,           // MRET
+        ENV_INSN_ILLEGAL = 3'b100,   // Executes illegal insturction
+        ENV_INSN_VIOLATION = 3'b101, // Insturction access violation
+        ENV_UNKNOWN = 3'b110,        //
     }
     const ENV_CALL: ENV_Code = ENV_Code::ENV_CALL;
     const ENV_BREAK: ENV_Code = ENV_Code::ENV_BREAK;
@@ -451,6 +508,7 @@ package OpFormatTypes {
     const ENV_INSN_VIOLATION: ENV_Code = ENV_Code::ENV_INSN_VIOLATION;
     const ENV_UNKNOWN: ENV_Code = ENV_Code::ENV_UNKNOWN;
 
+    // FPU code
     enum FPU_Code: logic<5> {
         FC_ADD = 5'b00000,
         FC_SUB = 5'b00001,
@@ -502,13 +560,14 @@ package OpFormatTypes {
     const FC_FNMSUB: FPU_Code = FPU_Code::FC_FNMSUB;
     const FC_FNMADD: FPU_Code = FPU_Code::FC_FNMADD;
 
+    // Rounding mode
     enum Rounding_Mode: logic<3> {
-        RM_RNE = 3'b000,
-        RM_RTZ = 3'b001,
-        RM_RDN = 3'b010,
-        RM_RUP = 3'b011,
-        RM_RMM = 3'b100,
-        RM_DYN = 3'b111,
+        RM_RNE = 3'b000, // Round to Nearest, ties to Even
+        RM_RTZ = 3'b001, // Round towards Zero
+        RM_RDN = 3'b010, // Round Down (towards -infnity)
+        RM_RUP = 3'b011, // Round Up (towards +infnity)
+        RM_RMM = 3'b100, // Round to Nearest, ties to Max Magnitude
+        RM_DYN = 3'b111, // Dynamic Rounding Mode held in frm
     }
     const RM_RNE: Rounding_Mode = Rounding_Mode::RM_RNE;
     const RM_RTZ: Rounding_Mode = Rounding_Mode::RM_RTZ;
@@ -551,6 +610,11 @@ package OpFormatTypes {
     const CZERO_FUCNT3_EQZ: CZeroFunct3 = CZeroFunct3::CZERO_FUCNT3_EQZ;
     const CZERO_FUNCT3_NEZ: CZeroFunct3 = CZeroFunct3::CZERO_FUNCT3_NEZ;
 
+    //RISCV Instruction Format
+
+    //
+    // RISCV 命令タイプ
+    //
     enum RISCV_OpCode: logic<7> {
         RISCV_OP_IMM = 7'b0010011,
         RISCV_OP = 7'b0110011,
@@ -592,126 +656,139 @@ package OpFormatTypes {
     const RISCV_F_LD: RISCV_OpCode = RISCV_OpCode::RISCV_F_LD;
     const RISCV_F_ST: RISCV_OpCode = RISCV_OpCode::RISCV_F_ST;
 
+    // R-Type
     struct RISCV_ISF_Common {
-        funct7: logic<7>,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        funct7: logic<7>,    // [31:25] funct7
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // R-Type
     struct RISCV_ISF_R {
-        funct7: logic<7>,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        funct7: logic<7>,    // [31:25] funct7
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // Aext (R-Type)
     struct RISCV_ISF_R_A {
-        funct5: logic<5>,
-        aq: logic,
-        rl: logic,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        funct5: logic<5>,    // [31:27] funct5
+        aq: logic,           // [26:26] aq
+        rl: logic,           // [25:25] rl
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // I-Type
     struct RISCV_ISF_I {
-        imm: logic<12>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        imm: logic<12>,      // [31:20] Imm
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // S-Type
     struct RISCV_ISF_S {
-        imm2: logic<7>,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        imm1: logic<5>,
-        opCode: RISCV_OpCode,
+        imm2: logic<7>,      // [31:25] imm[11:5]
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        imm1: logic<5>,      // [11: 7] imm[4:0]
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // U-Type
     struct RISCV_ISF_U {
-        imm: logic<20>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        imm: logic<20>,      // [31:12] imm
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // B-Type
     struct RISCV_ISF_B {
-        imm12: logic,
-        imm10_5: logic<6>,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        imm4_1: logic<4>,
-        imm11: logic,
-        opCode: RISCV_OpCode,
+        imm12: logic,        // [31:31] imm[12]
+        imm10_5: logic<6>,   // [30:25] imm[10:5]
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        imm4_1: logic<4>,    // [11:8]  imm[4:1]
+        imm11: logic,        // [7:7]   imm[11]
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // J-Type
     struct RISCV_ISF_J {
-        imm20: logic,
-        imm10_1: logic<10>,
-        imm11: logic,
-        imm19_12: logic<8>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        imm20: logic,        // [31:31] imm[20]
+        imm10_1: logic<10>,  // [30:21] imm[10:1]
+        imm11: logic,        // [20:20] imm[11]
+        imm19_12: logic<8>,  // [19:12] imm[19:12]
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // MISC-MEM
     struct RISCV_ISF_MISC_MEM {
-        reserved: logic<4>,
-        pi: logic,
-        po: logic,
-        pr: logic,
-        pw: logic,
-        si: logic,
-        so: logic,
-        sr: logic,
-        sw: logic,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        reserved: logic<4>,  // [31:28] reserved
+        pi: logic,           // [27:27] pi
+        po: logic,           // [26:26] po
+        pr: logic,           // [25:25] pr
+        pw: logic,           // [24:24] pw
+        si: logic,           // [23:23] si
+        so: logic,           // [22:22] so
+        sr: logic,           // [21:21] sr
+        sw: logic,           // [20:20] sw
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
+    // SYSTEM
     struct RISCV_ISF_SYSTEM {
-        funct12: logic<12>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        funct12: logic<12>,  // [31:20] csr
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode, // [ 6: 0] 命令タイプ
     }
 
     struct RISCV_ISF_R4 {
-        rs3: logic<5>,
-        funct2: logic<2>,
-        rs2: logic<5>,
-        rs1: logic<5>,
-        funct3: logic<3>,
-        rd: logic<5>,
-        opCode: RISCV_OpCode,
+        rs3: logic<5>,       // [31:27] Rs3
+        funct2: logic<2>,    // [26:25] funct2
+        rs2: logic<5>,       // [24:20] Rs2
+        rs1: logic<5>,       // [19:15] Rs1
+        funct3: logic<3>,    // [14:12] funct3
+        rd: logic<5>,        // [11: 7] Rd
+        opCode: RISCV_OpCode,// [ 6: 0] 命令タイプ
     }
 
 
+    //
+    // ---RISCV→ALUCODE の変換
+    //
     function RISCV_DecodeOpImmFunct3 (
         aluCode: output IntALU_Code,
         funct3 : input OpFunct3,
     ) {
         case funct3 {
-            OP_FUNCT3_ADD_SUB: { aluCode = AC_ADD; }
-            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }
-            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; }
-            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }
-            OP_FUNCT3_OR     : { aluCode = AC_ORR; }
-            OP_FUNCT3_AND    : { aluCode = AC_AND; }
-            OP_FUNCT3_SLL    : { aluCode = AC_AND; }
-            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }
+            OP_FUNCT3_ADD_SUB: { aluCode = AC_ADD; }  //ADDI
+            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }  //SLTI
+            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; } //SLTUI
+            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }  //EORI
+            OP_FUNCT3_OR     : { aluCode = AC_ORR; }  //ORI
+            OP_FUNCT3_AND    : { aluCode = AC_AND; }  //ANDI
+            OP_FUNCT3_SLL    : { aluCode = AC_AND; }  //SLLI
+            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }  //SRLI, SRAI
             default          : { aluCode = AC_AND; }
         }
     }
@@ -729,58 +806,64 @@ package OpFormatTypes {
                     aluCode = AC_SUB;
                 }
             }
-            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }
-            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; }
-            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }
-            OP_FUNCT3_OR     : { aluCode = AC_ORR; }
-            OP_FUNCT3_AND    : { aluCode = AC_AND; }
-            OP_FUNCT3_SLL    : { aluCode = AC_AND; }
-            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }
+            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }  //SLT
+            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; } //SLTU
+            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }  //EOR
+            OP_FUNCT3_OR     : { aluCode = AC_ORR; }  //OR
+            OP_FUNCT3_AND    : { aluCode = AC_AND; }  //AND
+            OP_FUNCT3_SLL    : { aluCode = AC_AND; }  //SLL
+            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }  //SRL, SRA
             default          : { aluCode = AC_AND; }
         }
     }
 
+    //
+    // ---RISCV→ConditionCode の変換
+    //      ConditionCodeはARMのものを変更して使う
     function RISCV_DecodeBrFunct3 (
         condCode: output CondCode,
         funct3  : input BrFunct3,
     ) {
         case funct3 {
-            BRANCH_FUNCT3_BEQ : { condCode = COND_EQ; }
-            BRANCH_FUNCT3_BNE : { condCode = COND_NE; }
-            BRANCH_FUNCT3_BLT : { condCode = COND_LT; }
-            BRANCH_FUNCT3_BGE : { condCode = COND_GE; }
-            BRANCH_FUNCT3_BLTU: { condCode = COND_LTU; }
-            BRANCH_FUNCT3_BGEU: { condCode = COND_GEU; }
+            BRANCH_FUNCT3_BEQ : { condCode = COND_EQ; }  //BEQ
+            BRANCH_FUNCT3_BNE : { condCode = COND_NE; }  //BNE
+            BRANCH_FUNCT3_BLT : { condCode = COND_LT; }  //BLT
+            BRANCH_FUNCT3_BGE : { condCode = COND_GE; }  //BGE
+            BRANCH_FUNCT3_BLTU: { condCode = COND_LTU; } //BLTU
+            BRANCH_FUNCT3_BGEU: { condCode = COND_GEU; } //BGEU
             default           : { condCode = COND_AL; }
         }
     }
 
+    //
+    // ---LD/ST のサイズの変換
+    //
     function RISCV_DecodeMemAccessMode (
         memAccessMode: output MemAccessMode,
         funct3       : input MemFunct3,
     ) {
         case funct3 {
-            MEM_FUNCT3_SIGNED_BYTE: {
+            MEM_FUNCT3_SIGNED_BYTE: { //LB, SB
                 memAccessMode.isSigned = TRUE;
                 memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
             }
-            MEM_FUNCT3_SIGNED_HALF_WORD: {
+            MEM_FUNCT3_SIGNED_HALF_WORD: { //LH, SH
                 memAccessMode.isSigned = TRUE;
                 memAccessMode.size = MEM_ACCESS_SIZE_HALF_WORD;
             }
-            MEM_FUNCT3_WORD: {
+            MEM_FUNCT3_WORD: { //LW, SW
                 memAccessMode.isSigned = TRUE;
                 memAccessMode.size = MEM_ACCESS_SIZE_WORD;
             }
-            MEM_FUNCT3_UNSIGNED_BYTE: {
+            MEM_FUNCT3_UNSIGNED_BYTE: { //LBU
                 memAccessMode.isSigned = FALSE;
                 memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
             }
-            MEM_FUNCT3_UNSIGNED_HALF_WORD: {
+            MEM_FUNCT3_UNSIGNED_HALF_WORD: { //LHU
                 memAccessMode.isSigned = FALSE;
                 memAccessMode.size = MEM_ACCESS_SIZE_HALF_WORD;
             }
-            default: {
+            default: { //WORD
                 memAccessMode.isSigned = TRUE;
                 memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
             }
@@ -820,35 +903,35 @@ package OpFormatTypes {
         funct3 : input RV32MFunct3,
     ) {
         case funct3 {
-            RV32M_FUNCT3_MUL: {
+            RV32M_FUNCT3_MUL: { //ADD or SUB
                 mulCode = AC_MUL;
                 divCode = AC_DIV;
             }
-            RV32M_FUNCT3_MULH: {
+            RV32M_FUNCT3_MULH: { //SLT
                 mulCode = AC_MULH;
                 divCode = AC_DIV;
             }
-            RV32M_FUNCT3_MULHSU: {
+            RV32M_FUNCT3_MULHSU: { //SLTU
                 mulCode = AC_MULHSU;
                 divCode = AC_DIV;
             }
-            RV32M_FUNCT3_MULHU: {
+            RV32M_FUNCT3_MULHU: { //EOR
                 mulCode = AC_MULHU;
                 divCode = AC_DIV;
             }
-            RV32M_FUNCT3_DIV: {
+            RV32M_FUNCT3_DIV: { //OR
                 mulCode = AC_MUL;
                 divCode = AC_DIV;
             }
-            RV32M_FUNCT3_DIVU: {
+            RV32M_FUNCT3_DIVU: { //AND
                 mulCode = AC_MUL;
                 divCode = AC_DIVU;
             }
-            RV32M_FUNCT3_REM: {
+            RV32M_FUNCT3_REM: { //SLL
                 mulCode = AC_MUL;
                 divCode = AC_REM;
             }
-            RV32M_FUNCT3_REMU: {
+            RV32M_FUNCT3_REMU: { //SRL, SRA
                 mulCode = AC_MUL;
                 divCode = AC_REMU;
             }
@@ -859,24 +942,40 @@ package OpFormatTypes {
         }
     }
 
+    //
+    // brDispのデコード
+    //
     function GetBranchDisplacement (
         isfBr: input RISCV_ISF_B,
     ) -> BranchDisplacement {
+        // 9 bits sign extention
+        // 1 bits
+        // 6 bits
+        // 4 bits
         return {isfBr.imm12 repeat 9, isfBr.imm11, isfBr.imm10_5, isfBr.imm4_1};
     }
 
     function GetJAL_Target (
         isfJAL: input RISCV_ISF_J,
     ) -> BranchDisplacement {
+        //  1 bits
+        //  8 bits
+        //  1 bits
+        // 10 bits
         return {isfJAL.imm20, isfJAL.imm19_12, isfJAL.imm11, isfJAL.imm10_1};
     }
 
     function GetJALR_Target (
         isfJALR: input RISCV_ISF_I,
     ) -> BranchDisplacement {
+        // 8 bits sign extention
+        // 12 bits
         return {isfJALR.imm[11] repeat 8, isfJALR.imm};
     }
 
+    //
+    // signed extention
+    //
     function ShamtExtention (
         isfR: input RISCV_ISF_R,
     ) -> logic<20> {
@@ -907,7 +1006,7 @@ package OpFormatTypes {
     ) -> AddrPath {
         var target: AddrPath;
         target = data + ExtendJALR_Target(disp);
-        target[0] = 1'b0;
+        target[0] = 1'b0; // Mask the LSB
         return target;
     }
 
@@ -924,6 +1023,7 @@ package OpFormatTypes {
             RV32F_FUNCT7_FDIV: { fpuCode = FC_DIV; }
             RV32F_FUNCT7_FSQRT: { fpuCode = FC_SQRT; }
             RV32F_FUNCT7_FSGNJ: {
+                //Todo: ここにfpTypeの代入かけるのか
                 case rv32ffunct3.fsgnjFunct3 {
                     FSGNJ_FUNCT3_FSGNJ : { fpuCode = FC_SGNJ; }
                     FSGNJ_FUNCT3_FSGNJN: { fpuCode = FC_SGNJN; }

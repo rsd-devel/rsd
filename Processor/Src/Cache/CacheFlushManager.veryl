@@ -1,3 +1,7 @@
+//
+// Cache flush management unit
+//
+
 module CacheFlushManager (
     port       : modport CacheFlushManagerIF::CacheFlushManager,
     cacheSystem: modport CacheSystemIF::CacheFlushManager      ,
@@ -5,10 +9,10 @@ module CacheFlushManager (
     import BasicTypes::*;
 
     enum CacheFlushPhase: logic<2> {
-        PHASE_FREE         = 2'd0,
-        PHASE_SEND_REQUEST = 2'd1,
-        PHASE_PROCESSING   = 2'd2,
-        PHASE_WAITING      = 2'd3,
+        PHASE_FREE         = 2'd0, // This unit is free
+        PHASE_SEND_REQUEST = 2'd1, // This unit sends flush requests to caches
+        PHASE_PROCESSING   = 2'd2, // This unit is waiting for completion signals from caches
+        PHASE_WAITING      = 2'd3, // Wait for issuing ifence from replayqueue
     }
 
     const PHASE_FREE        : CacheFlushPhase = CacheFlushPhase::PHASE_FREE;
@@ -16,6 +20,7 @@ module CacheFlushManager (
     const PHASE_PROCESSING  : CacheFlushPhase = CacheFlushPhase::PHASE_PROCESSING;
     const PHASE_WAITING     : CacheFlushPhase = CacheFlushPhase::PHASE_WAITING;
 
+    // CacheFlushManager <-> ICache, DCache
     var icFlushReq: logic;
     var dcFlushReq: logic;
 
@@ -26,6 +31,7 @@ module CacheFlushManager (
     var regDcFlushComplete : logic;
     var nextDcFlushComplete: logic;
 
+    // CacheFlushManager <-> MemExecStage, ReplayQueue
     var cacheFlushComplete: logic;
 
     always_ff (port.clk) {
@@ -41,8 +47,11 @@ module CacheFlushManager (
         nextIcFlushComplete = regIcFlushComplete;
         nextDcFlushComplete = regDcFlushComplete;
 
+        // to ICache, DCache
         icFlushReq = FALSE;
         dcFlushReq = FALSE;
+
+        // to MemExecStage, ReplayQUeue
         cacheFlushComplete = FALSE;
 
         case regPhase {
@@ -84,13 +93,16 @@ module CacheFlushManager (
             }
         }
 
+        // to ICache, DCache
         cacheSystem.icFlushReq = icFlushReq;
         cacheSystem.dcFlushReq = dcFlushReq;
         cacheSystem.flushComplete = cacheFlushComplete;
 
+        // to MemExecStage, ReplayQUeue
         port.cacheFlushComplete = cacheFlushComplete;
     }
 
+    // Cache flush state
     always_ff (port.clk) {
         if port.rst {
             regIcFlushComplete = FALSE;

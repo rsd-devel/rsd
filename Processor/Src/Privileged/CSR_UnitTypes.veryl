@@ -1,3 +1,6 @@
+//
+// --- Types related to CSR
+//
 package CSR_UnitTypes {
     import BasicTypes::*;
     import OpFormatTypes::*;
@@ -13,41 +16,46 @@ package CSR_UnitTypes {
     const PRIVILEGE_LEVEL_S: PrivilegeLevelType = PrivilegeLevelType::PRIVILEGE_LEVEL_S;
     const PRIVILEGE_LEVEL_U: PrivilegeLevelType = PrivilegeLevelType::PRIVILEGE_LEVEL_U;
 
+    // If you add additional status bits, check CSR_Unit.sv because
+    // only valid fields are updated.
     struct CSR_MSTATUS_Path {
-        padding_7: logic<9>,
-        TSR: logic,
-        padding_6: logic,
-        TVM: logic,
-        MXR: logic,
-        SUM: logic,
-        MPRV: logic,
-        padding_5: logic<4>,
-        MPP: PrivilegeLevelType,
-        padding_4: logic<2>,
-        SPP: logic,
-        MPIE: logic,
-        padding_3: logic,
-        SPIE: logic,
-        padding_2: logic,
-        MIE: logic,
-        padding_1: logic,
-        SIE: logic,
-        padding_0: logic,
+        padding_7: logic<9>,  // 31:23
+        TSR: logic,           // 22
+        padding_6: logic,     // 21
+        TVM: logic,           // 20
+        MXR: logic,           // 19
+        SUM: logic,           // 18
+        MPRV: logic,          // 17
+        padding_5: logic<4>,  // 16:13
+        MPP: PrivilegeLevelType, // 12:11
+        padding_4: logic<2>,  // 10:9
+        SPP: logic,           // 8
+        MPIE: logic,          // 7
+        padding_3: logic,     // 6
+        SPIE: logic,          // 5
+        padding_2: logic,     // 4
+        MIE: logic,           // 3
+        padding_1: logic,     // 2
+        SIE: logic,           // 1
+        padding_0: logic,     // 0
     }
 
+    // If you add additional sstatus fields,
+    // add fields that will be copied from/to mstatus in ToSstatusFromMstatus/ToMstatusFromSstatus
     struct CSR_SSTATUS_Path {
-        padding_4: logic<12>,
-        MXR: logic,
-        SUM: logic,
-        padding_3: logic<9>,
-        SPP: logic,
-        padding_2: logic<2>,
-        SPIE: logic,
-        padding_1: logic<3>,
-        SIE: logic,
-        padding_0: logic,
+        padding_4: logic<12>, // 31:20
+        MXR: logic,           // 19
+        SUM: logic,           // 18
+        padding_3: logic<9>,  // 17:9
+        SPP: logic,           // 8
+        padding_2: logic<2>,  // 7:6
+        SPIE: logic,          // 5
+        padding_1: logic<3>,  // 4:2
+        SIE: logic,           // 1
+        padding_0: logic,     // 0
     }
 
+    // Machine ISA
     struct CSR_MISA_ExtensionsType {
         Z: logic,
         Y: logic,
@@ -78,76 +86,78 @@ package CSR_UnitTypes {
     }
 
     struct CSR_MISA_Path {
-        MXL: logic<2>,
-        padding_0: logic<4>,
-        EXTENSIONS: CSR_MISA_ExtensionsType,
+        MXL: logic<2>,                  // 31:30
+        padding_0: logic<4>,            // 29:26
+        EXTENSIONS: CSR_MISA_ExtensionsType, // 25:0
     }
 
+    // Interrupt pending?
     struct CSR_MIP_Path {
-        CUSTOM: logic<16>,
-        padding_6: logic<4>,
-        MEIP: logic,
-        padding_5: logic,
-        SEIP: logic,
-        padding_4: logic,
-        MTIP: logic,
-        padding_3: logic,
-        STIP: logic,
-        padding_2: logic,
-        MSIP: logic,
-        padding_1: logic,
-        SSIP: logic,
-        padding_0: logic,
+        CUSTOM: logic<16>,   // 31:16    designated for platform use
+        padding_6: logic<4>, // 15:12
+        MEIP: logic,         // 11:11    machine external interrupt
+        padding_5: logic,    // 10:10
+        SEIP: logic,         // 11:11    supervisor external interrupt
+        padding_4: logic,    // 8:8
+        MTIP: logic,         // 7:7      machine timer interrupt
+        padding_3: logic,    // 6:6
+        STIP: logic,         // 5:5      supervisor timer interrupt
+        padding_2: logic,    // 4:4
+        MSIP: logic,         // 3:3      machine software interrupt
+        padding_1: logic,    // 2:2
+        SSIP: logic,         // 1:1      supervisor software interrupt
+        padding_0: logic,    // 0:0
     }
 
     struct CSR_SIP_Path {
-        CUSTOM: logic<16>,
-        padding_3: logic<6>,
-        SEIP: logic,
-        padding_2: logic<3>,
-        STIP: logic,
-        padding_1: logic<3>,
-        SSIP: logic,
-        padding_0: logic,
+        CUSTOM: logic<16>,   // 31:16  designated for platform use
+        padding_3: logic<6>, // 15:10
+        SEIP: logic,         // 9:9    supervisor external interrupt
+        padding_2: logic<3>, // 8:6
+        STIP: logic,         // 5:5    supervisor timer interrupt
+        padding_1: logic<3>, // 4:2
+        SSIP: logic,         // 1:1    supervisor software interrupt
+        padding_0: logic,    // 0:0
     }
 
+    // Interrupt enable?
     struct CSR_MIE_Path {
-        CUSTOM: logic<16>,
-        padding_6: logic<4>,
-        MEIE: logic,
-        padding_5: logic,
-        SEIE: logic,
-        padding_4: logic,
-        MTIE: logic,
-        padding_3: logic,
-        STIE: logic,
-        padding_2: logic,
-        MSIE: logic,
-        padding_1: logic,
-        SSIE: logic,
-        padding_0: logic,
+        CUSTOM: logic<16>,   // 31:16  designated for platform use
+        padding_6: logic<4>, // 15:12
+        MEIE: logic,         // 11:11    machine external interrupt
+        padding_5: logic,    // 10:10
+        SEIE: logic,         // 9:9      supervisor external interrupt
+        padding_4: logic,    // 8:8
+        MTIE: logic,         // 7:7      machine timer interrupt
+        padding_3: logic,    // 6:6
+        STIE: logic,         // 5:5      supervisor timer interrupt
+        padding_2: logic,    // 4:4
+        MSIE: logic,         // 3:3      machine software interrupt
+        padding_1: logic,    // 2:2
+        SSIE: logic,         // 1:1      supervisor software interrupt
+        padding_0: logic,    // 0:0
     }
 
     struct CSR_SIE_Path {
-        CUSTOM: logic<16>,
-        padding_3: logic<6>,
-        SEIE: logic,
-        padding_2: logic<3>,
-        STIE: logic,
-        padding_1: logic<3>,
-        SSIE: logic,
-        padding_0: logic,
+        CUSTOM: logic<16>,   // 31:16  designated for platform use
+        padding_3: logic<6>, // 15:10
+        SEIE: logic,         // 9:9    supervisor external interrupt
+        padding_2: logic<3>, // 8:6
+        STIE: logic,         // 5:5    supervisor timer interrupt
+        padding_1: logic<3>, // 4:2
+        SSIE: logic,         // 1:1    supervisor software interrupt
+        padding_0: logic,    // 0:0
     }
 
     struct CSR_MIDELEG_Path {
-        CUSTOM: logic<16>,
-        padding_3: logic<6>,
-        SEI: logic,
-        padding_2: logic<3>,
-        STI: logic,
-        padding_1: logic<3>,
-        SSI: logic,
-        padding_0: logic,
+        CUSTOM: logic<16>,   // 31:16  designated for platform use
+        padding_3: logic<6>, // 15:10
+        SEI: logic,          // 9:9    supervisor external interrupt
+        padding_2: logic<3>, // 8:6
+        STI: logic,          // 5:5    supervisor timer interrupt
+        padding_1: logic<3>, // 4:2
+        SSI: logic,          // 1:1    supervisor software interrupt
+        padding_0: logic,    // 0:0
     }
 
     enum CSR_CAUSE_TrapCodePath: logic<5> {
@@ -194,9 +204,9 @@ package CSR_UnitTypes {
     }
 
     struct CSR_CAUSE_Path {
-        isInterrupt: logic,
-        padding: logic<26>,
-        code: CSR_CAUSE_CodePath,
+        isInterrupt: logic,   // 31
+        padding: logic<26>,   // 30:5
+        code: CSR_CAUSE_CodePath, //  4:0
     }
 
     enum CSR_XTVEC_ModePath: logic<2> {
@@ -207,8 +217,8 @@ package CSR_UnitTypes {
     const CSR_XTVEC_MODE_VECTORED: CSR_XTVEC_ModePath = CSR_XTVEC_ModePath::CSR_XTVEC_MODE_VECTORED;
 
     struct CSR_XTVEC_Path {
-        base: logic<30>,
-        mode: CSR_XTVEC_ModePath,
+        base: logic<30>,      // 31:2
+        mode: CSR_XTVEC_ModePath, //  1:0
     }
 
     struct CSR_FCSR_Path {
@@ -219,6 +229,7 @@ package CSR_UnitTypes {
 
     const CSR_XTVEC_BASE_PADDING: logic<2> = 2'b0;
 
+    // All members have 32bit width
     union CSR_ValuePath {
         sip: CSR_SIP_Path,
         sie: CSR_SIE_Path,
@@ -245,6 +256,7 @@ package CSR_UnitTypes {
     }
 
     struct CSR_BodyPath {
+        // Interrupt related registers
         sie: CSR_SIE_Path,
         stvec: CSR_XTVEC_Path,
         sscratch: DataPath,
@@ -268,35 +280,56 @@ package CSR_UnitTypes {
         fcsr: CSR_FCSR_Path,
     }
 
-    const CSR_NUM_SSTATUS: u32 = 12'h100;
+    //
+    // Supervisor Trap Setup
+    //
+    const CSR_NUM_SSTATUS: u32 = 12'h100; // Supervisor status register.
 
-    const CSR_NUM_SIE: u32 = 12'h104;
+    const CSR_NUM_SIE: u32 = 12'h104; // Supervisor interrupt-enable register.
 
-    const CSR_NUM_STVEC: u32 = 12'h105;
+    const CSR_NUM_STVEC: u32 = 12'h105; // Supervisor trap handler base address.
 
-    const CSR_NUM_SCOUNTEREN: u32 = 12'h106;
+    const CSR_NUM_SCOUNTEREN: u32 = 12'h106; // Supervisor counter enable.
 
-    const CSR_NUM_SENVCFG: u32 = 12'h10A;
+    //
+    // Supervisor Configuration
+    //
+    const CSR_NUM_SENVCFG: u32 = 12'h10A; // Supervisor environment configuration register.
 
-    const CSR_NUM_SCOUNTINHIBIT: u32 = 12'h120;
+    //
+    // Supervisor Counter Setup
+    //
+    const CSR_NUM_SCOUNTINHIBIT: u32 = 12'h120; // Supervisor counter-inhibit register.
 
-    const CSR_NUM_SSCRATCH: u32 = 12'h140;
+    //
+    // Supervisor Trap Handling
+    //
+    const CSR_NUM_SSCRATCH: u32 = 12'h140; // Supervisor scratch register.
 
-    const CSR_NUM_SEPC: u32 = 12'h141;
+    const CSR_NUM_SEPC: u32 = 12'h141; // Supervisor exception program counter.
 
-    const CSR_NUM_SCAUSE: u32 = 12'h142;
+    const CSR_NUM_SCAUSE: u32 = 12'h142; // Supervisor trap cause.
 
-    const CSR_NUM_STVAL: u32 = 12'h143;
+    const CSR_NUM_STVAL: u32 = 12'h143; // Supervisor trap value.
 
-    const CSR_NUM_SIP: u32 = 12'h144;
+    const CSR_NUM_SIP: u32 = 12'h144; // Supervisor interrupt pending.
 
-    const CSR_NUM_SCOUNTOVF: u32 = 12'hDA0;
+    const CSR_NUM_SCOUNTOVF: u32 = 12'hDA0; // Supervisor count overflow.
 
-    const CSR_NUM_SATP: u32 = 12'h180;
+    //
+    // Supervisor Protection and Translation
+    //
+    const CSR_NUM_SATP: u32 = 12'h180; // Supervisor address translation and protection.
 
-    const CSR_NUM_SCONTEXT: u32 = 12'h5A8;
+    //
+    // Debug/Trace Registers
+    //
+    const CSR_NUM_SCONTEXT: u32 = 12'h5A8; // Supervisor-mode context register.
 
-    const CSR_NUM_SSTATEEN0: u32 = 12'h10C;
+    //
+    // Supervisor State Enable Registers
+    //
+    const CSR_NUM_SSTATEEN0: u32 = 12'h10C; // Supervisor State Enable 0 Register.
 
     const CSR_NUM_SSTATEEN1: u32 = 12'h10D;
 
@@ -304,51 +337,63 @@ package CSR_UnitTypes {
 
     const CSR_NUM_SSTATEEN3: u32 = 12'h10F;
 
-    const CSR_NUM_MVENDORID: u32 = 12'hF11;
+    //
+    // Machine Information Registers
+    //
+    const CSR_NUM_MVENDORID: u32 = 12'hF11; // Vendor ID.
 
-    const CSR_NUM_MARCHID: u32 = 12'hF12;
+    const CSR_NUM_MARCHID: u32 = 12'hF12; // Architecture ID.
 
-    const CSR_NUM_MIMPID: u32 = 12'hF13;
+    const CSR_NUM_MIMPID: u32 = 12'hF13; // Implementation ID.
 
-    const CSR_NUM_MHARTID: u32 = 12'hF14;
+    const CSR_NUM_MHARTID: u32 = 12'hF14; // Hardware thread ID.
 
-    const CSR_NUM_MSTATUS: u32 = 12'h300;
+    //
+    // Machine Trap Setup
+    //
+    const CSR_NUM_MSTATUS: u32 = 12'h300; // Machine status register.
 
-    const CSR_NUM_MISA: u32 = 12'h301;
+    const CSR_NUM_MISA: u32 = 12'h301; // ISA and extensions
 
-    const CSR_NUM_MEDELEG: u32 = 12'h302;
+    const CSR_NUM_MEDELEG: u32 = 12'h302; // Machine exception delegation register.
 
-    const CSR_NUM_MIDELEG: u32 = 12'h303;
+    const CSR_NUM_MIDELEG: u32 = 12'h303; // Machine interrupt delegation register.
 
-    const CSR_NUM_MIE: u32 = 12'h304;
+    const CSR_NUM_MIE: u32 = 12'h304; // Machine interrupt-enable register.
 
-    const CSR_NUM_MTVEC: u32 = 12'h305;
+    const CSR_NUM_MTVEC: u32 = 12'h305; // Machine trap-handler base address.
 
-    const CSR_NUM_MCOUNTEREN: u32 = 12'h306;
+    const CSR_NUM_MCOUNTEREN: u32 = 12'h306; // Machine counter enable.
 
-    const CSR_NUM_MSTATUSH: u32 = 12'h310;
+    const CSR_NUM_MSTATUSH: u32 = 12'h310; // Additional machine status register, RV32 only.
 
-    const CSR_NUM_MEDELEGH: u32 = 12'h312;
+    const CSR_NUM_MEDELEGH: u32 = 12'h312; // Upper 32 bits of medeleg, RV32 only.
 
-    const CSR_NUM_MSCRATCH: u32 = 12'h340;
+    //
+    // Machine Trap Handling
+    //
+    const CSR_NUM_MSCRATCH: u32 = 12'h340; // Scratch register for machine trap handlers.
 
-    const CSR_NUM_MEPC: u32 = 12'h341;
+    const CSR_NUM_MEPC: u32 = 12'h341; // Machine exception program counter.
 
-    const CSR_NUM_MCAUSE: u32 = 12'h342;
+    const CSR_NUM_MCAUSE: u32 = 12'h342; // Machine trap cause.
 
-    const CSR_NUM_MTVAL: u32 = 12'h343;
+    const CSR_NUM_MTVAL: u32 = 12'h343; // Machine bad address or instruction.
 
-    const CSR_NUM_MIP: u32 = 12'h344;
+    const CSR_NUM_MIP: u32 = 12'h344; // Machine interrupt pending.
 
-    const CSR_NUM_PMPCFG0: u32 = 12'h3A0;
+    //
+    // Machine Protection and Translation
+    //
+    const CSR_NUM_PMPCFG0: u32 = 12'h3A0; // Physical memory protection configuration.
 
-    const CSR_NUM_PMPCFG1: u32 = 12'h3A1;
+    const CSR_NUM_PMPCFG1: u32 = 12'h3A1; // Physical memory protection configuration, RV32 only.
 
-    const CSR_NUM_PMPCFG2: u32 = 12'h3A2;
+    const CSR_NUM_PMPCFG2: u32 = 12'h3A2; // Physical memory protection configuration.
 
-    const CSR_NUM_PMPCFG3: u32 = 12'h3A3;
+    const CSR_NUM_PMPCFG3: u32 = 12'h3A3; // Physical memory protection configuration, RV32 only.
 
-    const CSR_NUM_PMPADDR0: u32 = 12'h3B0;
+    const CSR_NUM_PMPADDR0: u32 = 12'h3B0; // Physical memory protection address register.
 
     const CSR_NUM_PMPADDR1: u32 = 12'h3B1;
 
@@ -380,10 +425,12 @@ package CSR_UnitTypes {
 
     const CSR_NUM_PMPADDR15: u32 = 12'h3BF;
 
-    const CSR_NUM_MCYCLE: u32 = 12'hB00;
+    const CSR_NUM_MCYCLE: u32 = 12'hB00; // Machine cycle counter.
+                                         // hB01 is absence
 
-    const CSR_NUM_MINSTRET: u32 = 12'hB02;
+    const CSR_NUM_MINSTRET: u32 = 12'hB02; // Machine instructions-retired counter.
 
+    // Machine performance-monitoring counter.
     const CSR_NUM_MHPMCOUNTER3: u32 = 12'hB03;
 
     const CSR_NUM_MHPMCOUNTER4: u32 = 12'hB04;
@@ -410,12 +457,15 @@ package CSR_UnitTypes {
 
     const CSR_NUM_MHPMCOUNTER15: u32 = 12'hB0F;
 
+    // ... TODO: Define these counters
     const CSR_NUM_MHPMCOUNTER31: u32 = 12'hB1F;
 
-    const CSR_NUM_MCYCLEH: u32 = 12'hB80;
+    const CSR_NUM_MCYCLEH: u32 = 12'hB80; // Upper 32 bits of mcycle, RV32I only.
+                                          // hB81 is absence
 
-    const CSR_NUM_MINSTRETH: u32 = 12'hB82;
+    const CSR_NUM_MINSTRETH: u32 = 12'hB82; // Upper 32 bits of minstret, RV32I only.
 
+    // Upper 32 bits of mhpmcounterX, RV32I only.
     const CSR_NUM_MHPMCOUNTER3H: u32 = 12'hB83;
 
     const CSR_NUM_MHPMCOUNTER4H: u32 = 12'hB84;
@@ -442,33 +492,43 @@ package CSR_UnitTypes {
 
     const CSR_NUM_MHPMCOUNTER15H: u32 = 12'hB8F;
 
-    const CSR_NUM_MHPMCOUNTER31H: u32 = 12'hB9F;
+    // ... TODO: Define these counters
+    const CSR_NUM_MHPMCOUNTER31H: u32 = 12'hB9F; // Upper 32 bits of mhpmcounter31, RV32I only.
 
-    const CSR_NUM_MHPMEVENT3: u32 = 12'h323;
+    //
+    // Machine Counter Setup
+    //
+    const CSR_NUM_MHPMEVENT3: u32 = 12'h323; // Machine performance-monitoring event selector.
 
-    const CSR_NUM_MHPMEVENT4: u32 = 12'h324;
+    const CSR_NUM_MHPMEVENT4: u32 = 12'h324; // Machine performance-monitoring event selector.
 
-    const CSR_NUM_MHPMEVENT31: u32 = 12'h33F;
+    // ... TODO: Define these counters
+    const CSR_NUM_MHPMEVENT31: u32 = 12'h33F; // Machine performance-monitoring event selector.
 
-    const CSR_NUM_TSELECT: u32 = 12'h7A0;
+    //
+    // Debug/Trace Registers (shared with Debug Mode)
+    //
+    const CSR_NUM_TSELECT: u32 = 12'h7A0; // Debug/Trace trigger register select.
 
-    const CSR_NUM_TDATA1: u32 = 12'h7A1;
+    const CSR_NUM_TDATA1: u32 = 12'h7A1; // First Debug/Trace trigger data register.
 
-    const CSR_NUM_TDATA2: u32 = 12'h7A2;
+    const CSR_NUM_TDATA2: u32 = 12'h7A2; // Second Debug/Trace trigger data register.
 
-    const CSR_NUM_TDATA3: u32 = 12'h7A3;
+    const CSR_NUM_TDATA3: u32 = 12'h7A3; // Third Debug/Trace trigger data register.
 
-    const CSR_NUM_DCSR: u32 = 12'h7B0;
+    // Debug Mode Registers
+    const CSR_NUM_DCSR: u32 = 12'h7B0; // Debug control and status register.
 
-    const CSR_NUM_DPC: u32 = 12'h7B1;
+    const CSR_NUM_DPC: u32 = 12'h7B1; // Debug PC.
 
-    const CSR_NUM_DSCRATCH: u32 = 12'h7B2;
+    const CSR_NUM_DSCRATCH: u32 = 12'h7B2; // Debug scratch register.
 
-    const CSR_NUM_FFLAGS: u32 = 12'h001;
+    // Floating-Point CSRs
+    const CSR_NUM_FFLAGS: u32 = 12'h001; // FP accrued exceptions.
 
-    const CSR_NUM_FRM: u32 = 12'h002;
+    const CSR_NUM_FRM: u32 = 12'h002; // FP dynamic rounding mode.
 
-    const CSR_NUM_FCSR: u32 = 12'h003;
+    const CSR_NUM_FCSR: u32 = 12'h003; // FP CSR (frm + fflags)
 
 
     function ToSstatusFromMstatus (

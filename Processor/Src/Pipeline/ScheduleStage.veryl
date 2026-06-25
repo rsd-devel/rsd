@@ -1,3 +1,4 @@
+// A pipeline stage for scheduling.
 module ScheduleStage (
     port     : modport ScheduleStageIF::ThisStage,
     scheduler: modport SchedulerIF::ScheduleStage,
@@ -12,6 +13,7 @@ module ScheduleStage (
     import ActiveListIndexTypes::*;
     import DebugTypes::*;
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var flush: logic [ISSUE_WIDTH];
@@ -24,6 +26,7 @@ module ScheduleStage (
         stall = ctrl.scStage.stall;
         clear = ctrl.scStage.clear;
 
+        // Scheduling
         scheduler.stall = stall;
 
         flushIQ_Entry = recovery.flushIQ_Entry;
@@ -33,6 +36,8 @@ module ScheduleStage (
             issueQueuePtr[i] = scheduler.selectedPtr[i];
             flush[i] = flushIQ_Entry[issueQueuePtr[i]];
 
+            // --- Pipeline ラッチ書き込み
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || flush[i] {
                 nextStage[i].valid = FALSE;
             } else {

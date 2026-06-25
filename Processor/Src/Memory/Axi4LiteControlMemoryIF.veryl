@@ -2,26 +2,65 @@ interface Axi4LiteControlMemoryIF {
     const PS_PL_MEMORY_DATA_BIT_SIZE: u32 = 32;
     const PS_PL_MEMORY_ADDR_BIT_SIZE: u32 = 11;
 
+    // Global Clock Signal
     var S_AXI_ACLK   : logic;
+    // Global Reset Signal. This Signal is Active LOW
     var S_AXI_ARESETN: logic;
+    // Write address (issued by master, acceped by Slave)
     var S_AXI_AWADDR : logic<PS_PL_MEMORY_ADDR_BIT_SIZE>;
+    // Write channel Protection type. This signal indicates the
+    // privilege and security level of the transaction, and whether
+    // the transaction is a data access or an instruction access.
     var S_AXI_AWPROT : logic<3>;
+    // Write address valid. This signal indicates that the master signaling
+    // valid write address and control information.
     var S_AXI_AWVALID: logic;
+    // Write address ready. This signal indicates that the slave is ready
+    // to accept an address and associated control signals.
     var S_AXI_AWREADY: logic;
+    // Write data (issued by master, acceped by Slave)
     var S_AXI_WDATA  : logic<PS_PL_MEMORY_DATA_BIT_SIZE>;
+    // Write strobes. This signal indicates which byte lanes hold
+    // valid data. There is one write strobe bit for each eight
+    // bits of the write data bus.
     var S_AXI_WSTRB  : logic<PS_PL_MEMORY_DATA_BIT_SIZE / 8>;
+    // Write valid. This signal indicates that valid write
+    // data and strobes are available.
     var S_AXI_WVALID : logic;
+    // Write ready. This signal indicates that the slave
+    // can accept the write data.
     var S_AXI_WREADY : logic;
+    // Write response. This signal indicates the status
+    // of the write transaction.
     var S_AXI_BRESP  : logic<2>;
+    // Write response valid. This signal indicates that the channel
+    // is signaling a valid write response.
     var S_AXI_BVALID : logic;
+    // Response ready. This signal indicates that the master
+    // can accept a write response.
     var S_AXI_BREADY : logic;
+    // Read address (issued by master, acceped by Slave)
     var S_AXI_ARADDR : logic<PS_PL_MEMORY_ADDR_BIT_SIZE>;
+    // Protection type. This signal indicates the privilege
+    // and security level of the transaction, and whether the
+    // transaction is a data access or an instruction access.
     var S_AXI_ARPROT : logic<3>;
+    // Read address valid. This signal indicates that the channel
+    // is signaling valid read address and control information.
     var S_AXI_ARVALID: logic;
+    // Read address ready. This signal indicates that the slave is
+    // ready to accept an address and associated control signals.
     var S_AXI_ARREADY: logic;
+    // Read data (issued by slave)
     var S_AXI_RDATA  : logic<PS_PL_MEMORY_DATA_BIT_SIZE>;
+    // Read response. This signal indicates the status of the
+    // read transfer.
     var S_AXI_RRESP  : logic<2>;
+    // Read valid. This signal indicates that the channel is
+    // signaling the required read data.
     var S_AXI_RVALID : logic;
+    // Read ready. This signal indicates that the master can
+    // accept the read data and response information.
     var S_AXI_RREADY : logic;
 
     modport Axi4Lite {

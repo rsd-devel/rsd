@@ -1,7 +1,9 @@
+// --- ComplexIntegerExecutionStageIF
 interface ComplexIntegerExecutionStageIF {
     import BasicTypes::*;
     import PipelineTypes::*;
 
+    // Pipeline register
     var clk      : clock;
     var rst      : logic;
     var nextStage: ComplexIntegerRegisterWriteStageRegPath [COMPLEX_ISSUE_WIDTH];

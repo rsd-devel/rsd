@@ -5,16 +5,21 @@ interface PerformanceCounterIF {
     var clk: clock;
     var rst: logic;
 
+    // Hardware counter exported to CSR
     var perfCounter: PerfCounterPath;
 
+    // I Cache misses
     var icMiss: logic;
 
+    // D cache misses
     var loadMiss : logic [LOAD_ISSUE_WIDTH];
     var storeMiss: logic [STORE_ISSUE_WIDTH];
 
+    // Speculative memory access
     var storeLoadForwardingFail: logic;
     var memDepPredMiss: logic;
 
+    // Branch prediction miss
     var branchPredMiss: logic;
     var branchPredMissDetectedOnDecode: logic;
 

@@ -11,13 +11,19 @@ package PipelineTypes {
     import MemoryMapTypes::*;
     import CacheSystemTypes::*;
 
+    // Controll of a pipeline
+    // See comments in Controller
     struct PipelineControll {
         stall: logic,
         clear: logic,
     }
 
+    // For Recovery
+    // Phase of a pipeline
+    // See code of RecoveryManager.sv
     enum PipelinePhase: logic<2> {
         PHASE_COMMIT = 0,
+        // The first cycle of a recovery phase.
         PHASE_RECOVER_0 = 1,
         PHASE_RECOVER_1 = 2,
     }
@@ -25,11 +31,27 @@ package PipelineTypes {
     const PHASE_RECOVER_0: PipelinePhase = PipelinePhase::PHASE_RECOVER_0;
     const PHASE_RECOVER_1: PipelinePhase = PipelinePhase::PHASE_RECOVER_1;
 
+    // Exception Type
     enum RefetchType: logic<3> {
+        // Re-fetch starts from the PC of an instruction that causes an exception.
+        // This re-fetch occurs on store-load-forwarding miss when a load attempts
+        // to read data whose range is outside the range of the stored data.
+        // It is determined in MemoryTagAccessStage.
         REFETCH_TYPE_THIS_PC = 3'b000,
+
+        // Re-fetch starts from the next PC of an instruction that causes an exception.
+        // This re-fetch occurs on a load speculation miss when a load speculatively
+        // reads a value before the dependent store is executed (memAccessOrderViolation).
+        // Is is determined in MemoryTagAccessStage.
         REFETCH_TYPE_NEXT_PC = 3'b001,
         REFETCH_TYPE_STORE_NEXT_PC = 3'b010,
+
+        // Re-fetch from a correct branch target.
+        // This re-fetch occurs on a branch prediction miss.
         REFETCH_TYPE_BRANCH_TARGET = 3'b011,
+
+        // Re-fetch from a PC specified by CSR.
+        // This refetch occurs on a trap or an exception.
         REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET = 3'b100,
         REFETCH_TYPE_THIS_PC_TO_CSR_TARGET = 3'b101,
     }
@@ -40,6 +62,10 @@ package PipelineTypes {
     const REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET: RefetchType = RefetchType::REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET;
     const REFETCH_TYPE_THIS_PC_TO_CSR_TARGET: RefetchType = RefetchType::REFETCH_TYPE_THIS_PC_TO_CSR_TARGET;
 
+    // Pipeline registers.
+    // These registers put at the head of each stage.
+    // For example, DecodeStageRegPath is put at the head of a decode stage, and
+    // they are written by a fetch stage.
     struct FetchStageRegPath {
         sid: OpSerial,
         valid: logic,
@@ -48,7 +74,9 @@ package PipelineTypes {
 
     struct PreDecodeStageRegPath {
         sid: OpSerial,
+        // Valid flag. If this is 0, this op is treated as NOP.
         valid: logic,
+        // Instruction code
         insn: InsnPath,
         pc: PC_Path,
         brPred: BranchPred,
@@ -58,17 +86,23 @@ package PipelineTypes {
 
     struct DecodeStageRegPath {
         sid: OpSerial,
+        // Valid flag. If this is 0, this op is treated as NOP.
         valid: logic,
+        // Instruction code
         insn: InsnPath,
         pc: PC_Path,
         brPred: BranchPred,
+        // Decoded micro ops
         microOps: MicroOpInfoArray,
+        // Whether a decoded instruction is branch or not.
         insnInfo: InsnInfo,
     }
 
     struct RenameStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, this op is treated as NOP.
         valid: logic,
+        // Decoded micro op.
         opInfo: OpInfo,
         pc: PC_Path,
         bPred: BranchPred,
@@ -76,15 +110,22 @@ package PipelineTypes {
 
     struct DispatchStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, this op is treated as NOP.
         valid: logic,
+        // Decoded micro op.
         opInfo: OpInfo,
+        // Program counter
         pc: PC_Path,
+        // Branch prediction result.
         brPred: BranchPred,
+        // Renamed physical register numbers.
         phySrcRegNumA: PRegNumPath,
         phySrcRegNumB: PRegNumPath,
         phySrcRegNumC: PRegNumPath,
         phyDstRegNum: PRegNumPath,
+        // For releasing a register.
         phyPrevDstRegNum: PRegNumPath,
+        // Source pointer for a matrix scheduler.
         srcIssueQueuePtrRegA: IssueQueueIndexPath,
         srcIssueQueuePtrRegB: IssueQueueIndexPath,
         srcIssueQueuePtrRegC: IssueQueueIndexPath,
@@ -97,36 +138,47 @@ package PipelineTypes {
     }
 
     struct IssueStageRegPath {
+        // Valid flag. If this is 0, this op is treated as NOP.
         valid: logic,
         issueQueuePtr: IssueQueueIndexPath,
     }
 
+    // Integer back end
     struct IntegerRegisterReadStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         intQueueData: IntIssueQueueEntry,
     }
 
     struct IntegerExecutionStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         intQueueData: IntIssueQueueEntry,
+        // register read out
         operandA: PRegDataPath,
         operandB: PRegDataPath,
+        // Bypass control
         bCtrl: BypassControll,
     }
 
     struct IntegerRegisterWriteStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         intQueueData: IntIssueQueueEntry,
+        // Result of ALU/shifter/Load
         dataOut: PRegDataPath,
         brMissPred: logic,
+        // Result of branch
         brResult: BranchResult,
     }
 
+    // ComplexInteger back end
     struct ComplexIntegerRegisterReadStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         replay: logic,
         complexQueueData: ComplexIssueQueueEntry,
@@ -134,54 +186,73 @@ package PipelineTypes {
 
     struct ComplexIntegerExecutionStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         replay: logic,
         complexQueueData: ComplexIssueQueueEntry,
+        // register read out
         operandA: PRegDataPath,
         operandB: PRegDataPath,
+        // Bypass control
         bCtrl: BypassControll,
     }
 
     struct ComplexIntegerRegisterWriteStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         complexQueueData: ComplexIssueQueueEntry,
+        // Result of Execution
         dataOut: PRegDataPath,
     }
 
+    // Memory back end
     struct MemoryRegisterReadStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         memQueueData: MemIssueQueueEntry,
+        // For release of the entries of an issue queue. See comments in MemoryExecutionStage.
         issueQueuePtr: IssueQueueIndexPath,
         replay: logic,
     }
 
     struct MemoryExecutionStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         memQueueData: MemIssueQueueEntry,
+        // register read out
         operandA: PRegDataPath,
         operandB: PRegDataPath,
+        // Bypass control
         bCtrl: BypassControll,
+        // For release of the entries of an issue queue. See comments in MemoryExecutionStage.
         issueQueuePtr: IssueQueueIndexPath,
         replay: logic,
     }
 
     struct MemoryTagAccessStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         memQueueData: MemIssueQueueEntry,
+        // 条件コードは有効か
         condEnabled: logic,
+        // Whether source operands are valid or not.
         regValid: logic,
+        // The result of address calculation.
         addrOut: DataPath,
+        // The input data for store or CSR data out
         dataIn: DataPath,
+        // Memory map type: mem/io
         memMapType: MemoryMapType,
         phyAddrOut: PhyAddrPath,
     }
 
     struct MemoryAccessStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         isStore: logic,
         isLoad: logic,
@@ -191,26 +262,37 @@ package PipelineTypes {
         isDiv: logic,
         isMul: logic,
         opDst: OpDst,
+        // Use to write recovery reg
         activeListPtr: ActiveListIndexPath,
         loadQueueRecoveryPtr: LoadQueueIndexPath,
         storeQueueRecoveryPtr: StoreQueueIndexPath,
         pc: AddrPath,
+        // Whether source operands are valid or not.
         regValid: logic,
+        // Execution status. See RenameLogicTypes.sv
         execState: ExecutionState,
+        // The result of address calculation.
         addrOut: AddrPath,
+        // Memory map type: mem/io
         memMapType: MemoryMapType,
+        // The result of address calculation.
         phyAddrOut: PhyAddrPath,
         isScFail: logic,
         amoCacheHit: logic,
         writeAMOCache: logic,
+        // CSR data out. csrDataOut is from dataIn in MemoryTagAccessStageRegPath
+        // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
         csrDataOut: DataPath,
+        // This op allocated an MSHR entry or not
         hasAllocatedMSHR: logic,
         mshrID: MSHR_IndexPath,
+        // Store-load forwarding miss occurs
         storeForwardMiss: logic,
     }
 
     struct MemoryRegisterWriteStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         activeListPtr: ActiveListIndexPath,
         loadQueueRecoveryPtr: LoadQueueIndexPath,
@@ -218,19 +300,25 @@ package PipelineTypes {
         pc: AddrPath,
         addrOut: AddrPath,
         opDst: OpDst,
+        // Execution status. See RenameLogicTypes.sv
         execState: ExecutionState,
         isStore: logic,
         isLoad: logic,
         isDiv: logic,
         zaamoReleaseMSHR: logic,
+        // Result of Load
         dataOut: PRegDataPath,
+        // This op allocated an MSHR entry or not
         hasAllocatedMSHR: logic,
         mshrID: MSHR_IndexPath,
+        // Store-load forwarding miss occurs
         storeForwardMiss: logic,
     }
 
+    // FP back end
     struct FPRegisterReadStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         replay: logic,
         fpQueueData: FPIssueQueueEntry,
@@ -238,20 +326,25 @@ package PipelineTypes {
 
     struct FPExecutionStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         replay: logic,
         isFlushed: logic,
         fpQueueData: FPIssueQueueEntry,
+        // register read out
         operandA: PRegDataPath,
         operandB: PRegDataPath,
         operandC: PRegDataPath,
+        // Bypass control
         bCtrl: BypassControll,
     }
 
     struct FPRegisterWriteStageRegPath {
         opId: OpId,
+        // Valid flag. If this is 0, its op is treated as NOP.
         valid: logic,
         fpQueueData: FPIssueQueueEntry,
+        // Result of Execution
         dataOut: PRegDataPath,
         fflagsOut: FFlags_Path,
     }

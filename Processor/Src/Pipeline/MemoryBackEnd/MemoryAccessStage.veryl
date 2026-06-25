@@ -24,7 +24,7 @@ module MemoryAccessStage (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
-
+    // --- Pipeline registers
     always_ff (port.clk) {
         if port.rst {
             for i in 0..MEM_ISSUE_WIDTH {
@@ -43,6 +43,7 @@ module MemoryAccessStage (
     var nextStage: MemoryRegisterWriteStageRegPath [MEM_ISSUE_WIDTH];
 
     always_comb {
+        // Pipeline controll
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
@@ -112,6 +113,7 @@ module MemoryAccessStage (
             var lane: u32;
             lane = i + STORE_ISSUE_LANE_BEGIN;
 
+            // SC
             if pipeReg[lane].isStore && pipeReg[lane].isZalrsc {
                 if pipeReg[lane].isScFail {
                     stDataOut[i].data = SC_CODE_FAIL;
@@ -141,8 +143,9 @@ module MemoryAccessStage (
             updateValue = pipeReg[i].valid && !stall && !clear && !flushValue;
 
             nextStage[i].dataOut = dataOut[i];
-            bypass.memDstRegDataOut[i] = dataOut[i];
+            bypass.memDstRegDataOut[i] = dataOut[i];    // Bypass
 
+            // Pipeline レジスタ書き込み
             nextStage[i].opId = pipeReg[i].opId;
             nextStage[i].opDst = pipeReg[i].opDst;
 
@@ -160,6 +163,7 @@ module MemoryAccessStage (
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
             nextStage[i].zaamoReleaseMSHR = updateValue && pipeReg[i].isZaamo && pipeReg[i].writeAMOCache;
 
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || flushValue {
                 nextStage[i].valid = FALSE;
             } else {
@@ -172,6 +176,8 @@ module MemoryAccessStage (
         }
 
         port.nextStage = nextStage;
+
+        // Debug Register
     }
 
     // NOT_TRANSPILED_TO_VERYL

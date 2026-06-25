@@ -138,6 +138,9 @@ module FMAStage0 (
         mullhs_is_nan  = (mullhs_expo == 8'hff) & (mullhs_mant != 0);
         mulrhs_is_nan  = (mulrhs_expo == 8'hff) & (mulrhs_mant != 0);
         addend_is_nan  = (addend_expo == 8'hff) & (addend_mant != 0);
+        // One of the input is NaN
+        // Inf * Zero
+        // Inf - Inf
         result_is_nan  = mullhs_is_nan | mulrhs_is_nan | addend_is_nan | (mullhs_is_zero & mulrhs_is_inf)
             | (mullhs_is_inf & mulrhs_is_zero) | (is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf);
         nan            = 32'h7fc00000;
@@ -168,7 +171,7 @@ module FMAStage0 (
         }
         mulres_expo   = v_mullhs_expo + v_mulrhs_expo - 127;
         addend_shift  = v_addend_expo - mulres_expo + 23;
-        res_is_addend = (($signed(addend_shift) >: 49) | mullhs_is_zero | mulrhs_is_zero) & !addend_is_zero;
+        res_is_addend = (($signed(addend_shift) >: 49) | mullhs_is_zero | mulrhs_is_zero) & !addend_is_zero; // |lhs*rhs| < 0.5ULP(|addend|-eps); assuming round to nearest, result is equal to the addend.
 
         addend_hidden_mant = {addend_expo != 8'h00, addend_mant};
         if $signed(addend_shift) >= 0 {
@@ -176,12 +179,12 @@ module FMAStage0 (
         } else if $signed(addend_shift) <: -26 {
             addend_sticky = addend_hidden_mant != 0;
         } else {
-            addend_sticky = (addend_hidden_mant << (10'd26 + addend_shift)) != 24'h000000;
+            addend_sticky = (addend_hidden_mant << (10'd26 + addend_shift)) != 24'h000000; // shifted out part of { mantissa(24bit), guard(1bit), round(1bit) } >> -addend_shift
         }
 
-        maddend = {1'b0, {addend_expo != 8'h00, addend_mant, 2'b00, 49'b0} >> (10'd49 - addend_shift), addend_sticky};
-        mlhs    = {51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0};
-        mrhs    = {52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0};
+        maddend = {1'b0, {addend_expo != 8'h00, addend_mant, 2'b00, 49'b0} >> (10'd49 - addend_shift), addend_sticky}; // The 1'b0 is the sign bit. The 2'b0 are the gaurd bit and the round bit.
+        mlhs    = {51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0}; // lhs_expo != 8'h00 is the hidden bit of a normalized number
+        mrhs    = {52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0}; // rhs_expo != 8'h00 is the hidden bit of a normalized number
 
         stg0Out.mulres_expo   = mulres_expo;
         stg0Out.result_is_inf = result_is_inf;
@@ -308,13 +311,13 @@ module FMAStage3 (
     always_comb {
         abs_fma_result = pipeReg.abs_fma_result;
         mulres_expo    = pipeReg.mulres_expo;
-        leading_zeros  = {1'b0, leading_zeros_count(abs_fma_result)};
-        virtual_expo   = mulres_expo - {2'b00, leading_zeros} + 26;
+        leading_zeros  = {1'b0, leading_zeros_count(abs_fma_result)}; // 0 <= leading_sign_bits <= 74 if !res_is_zero
+        virtual_expo   = mulres_expo - {2'b00, leading_zeros} + 26; // There are 26 bits above lhs*rhs<<3, assuming no carryover occurs in lhs*rhs.
         subnormal      = $signed(virtual_expo) <= 0;
         if subnormal {
-            fmares_shift = 26 - mulres_expo[7:0];
+            fmares_shift = 26 - mulres_expo[7:0]; // There are 3 bits below lhs*rhs<<3, and 23 bits will be lost due to rounding, assuming no carryover occurs in lhs*rhs.
         } else {
-            fmares_shift = 51 - leading_zeros;
+            fmares_shift = 51 - leading_zeros; // (75 - addend_sticky(1bit)) - shifter_result(24bit)
         }
 
         stg3Out.abs_fma_result  = abs_fma_result;
@@ -391,10 +394,10 @@ module FMAStage4 (
         is_subtract     = pipeReg.is_subtract;
 
         shifter_result = {abs_fma_result, 23'b0} >> (7'd23 + fmares_shift);
-        sticky         = (abs_fma_result << (76 - fmares_shift)) != 0;
-        round_to_away  = shifter_result[0] & (shifter_result[1] | sticky);
-        exp_plus_one   = shifter_result >= 24'hffffff;
-        result_mant    = shifter_result[23:1] + {22'h0, round_to_away};
+        sticky         = (abs_fma_result << (76 - fmares_shift)) != 0; // the part shifted out above
+        round_to_away  = shifter_result[0] & (shifter_result[1] | sticky); // round to nearest, ties to even
+        exp_plus_one   = shifter_result >= 24'hffffff; // carry is generated with rounding taken into account
+        result_mant    = shifter_result[23:1] + {22'h0, round_to_away}; // No special treatment is required even if a overflow occurs since the answer will be 0 and it will be correct.
         if subnormal {
             result_expo = 8'h00 + {7'b0, exp_plus_one};
         } else {

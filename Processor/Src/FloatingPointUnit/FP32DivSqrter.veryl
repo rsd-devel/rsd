@@ -72,10 +72,10 @@ module FP32DivSqrter (
     }
 
     enum Phase: logic<2> {
-        PHASE_FINISHED = 0,
-        PHASE_PREPARATION = 1,
-        PHASE_PROCESSING = 2,
-        PHASE_ROUNDING = 3,
+        PHASE_FINISHED = 0,     // Division is finished. It outputs results.
+        PHASE_PREPARATION = 1,  // In preparation
+        PHASE_PROCESSING = 2,   // In processing (SRT loop)
+        PHASE_ROUNDING = 3,     // In rounding & arrangement
     }
 
     var regPhase   : Phase              ;
@@ -167,21 +167,26 @@ module FP32DivSqrter (
         // Preparation
         result_sign = is_divide & (lhs_sign ^ rhs_sign);
         if lhs_expo == 0 {
+            // virtual exponent (ignores subnormals, but is biased)
             v_lhs_expo = 0 - leading_zeros_count(lhs_mant);
             v_lhs_mant = {lhs_mant, 1'b0} << leading_zeros_count(lhs_mant);
         } else {
+            // virtual exponent (ignores subnormals, but is biased)
             v_lhs_expo = {2'b0, lhs_expo};
             v_lhs_mant = {1'b1, lhs_mant};
         }
         if rhs_expo == 0 {
+            // virtual exponent (ignores subnormals, but is biased)
             v_rhs_expo = 0 - leading_zeros_count(rhs_mant);
             v_rhs_mant = {rhs_mant, 1'b0} << leading_zeros_count(rhs_mant);
         } else {
+            // virtual exponent (ignores subnormals, but is biased)
             v_rhs_expo = {2'b0, rhs_expo};
             v_rhs_mant = {1'b1, rhs_mant};
         }
 
         dividend_normalize = regData.v_lhs_mant <: regData.v_rhs_mant;
+        // new biased virtual exponent (ignores subnormals)
         virtual_expo       = regData.v_lhs_expo - regData.v_rhs_expo + 127 - {8'h0, dividend_normalize};
         subnormal          = regData.is_divide & ($signed(virtual_expo) <= 0);
         if regData.is_divide {
@@ -200,10 +205,14 @@ module FP32DivSqrter (
             quo_0 = 26'h0;
         } else {
             if regData.v_lhs_expo[0] {
+                // 2 * (x - 1.375^2 or 1.5^2)
                 rem_0 = {2'b0, regData.v_lhs_mant, 1'b0} - 27'h1e40000;
+                // magical initial guess: 1.375 or 1.5; this avoids SRT-table defects at ([-4.5,-4-11/36], 1.5) and ([-4,-4+1/144], 1.25)
                 quo_0 = 26'h1600000;
             } else {
+                // 2 * (x - 1.375^2 or 1.5^2)
                 rem_0 = {1'b0, regData.v_lhs_mant, 2'b0} - 27'h2400000;
+                // magical initial guess: 1.375 or 1.5; this avoids SRT-table defects at ([-4.5,-4-11/36], 1.5) and ([-4,-4+1/144], 1.25)
                 quo_0 = 26'h1800000;
             }
         }
@@ -256,8 +265,9 @@ module FP32DivSqrter (
         }
         round_away   = before_round[24]
             & (((before_round[23:0] == 0) & (regData.rem == 0) & before_round[25]) | (before_round[23:0] != 0)
-                | ($signed(regData.rem) >: 0));
+                | ($signed(regData.rem) >: 0));  // round nearest, ties to even
         exp_plus_one = (before_round[47:25] == 23'h7fffff) & round_away;
+        // No special treatment is required even if a overflow occurs since the answer will be 0 and it will be correct.
         result_mant  = before_round[47:25] + {22'h0, round_away};
         if regData.is_divide {
             if subnormal {
@@ -332,6 +342,7 @@ module FP32DivSqrter (
             } else {
                 nextPhase = Phase::PHASE_PROCESSING;
             }
+        // Here, quo has a <1/3ULP error.
         } else if regPhase == Phase::PHASE_ROUNDING {
             nextResult  = final_result;
             nextPhase   = Phase::PHASE_FINISHED;

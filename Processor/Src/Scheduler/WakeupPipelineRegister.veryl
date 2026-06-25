@@ -14,12 +14,18 @@ module WakeupPipelineRegister (
     //     ISSUE_QUEUE_INT_LATENCY == 1,
     //     "Int latency must be 1."
     // );
+    // Normally, the latency of INT is 1, so when ISSUE_QUEUE_INT_LATENCY is other than 1, it is not supported.
+    // To make ISSUE_QUEUE_INT_LATENCY larger than 1, the following part must be changed. (Refer to the implementation of COMPLEX or MEM)
+    // - update of intPipeReg.
+    // - port.wakeup, port.wakeupVector
+    // - port.releaseEntry
 
+    // Pipeline registers
     struct WakeupPipeReg {
-        valid        : logic,
-        ptr          : IssueQueueIndexPath,
-        depVector    : IssueQueueOneHotPath,
-        activeListPtr: ActiveListIndexPath,
+        valid        : logic,               // Valid flag.
+        ptr          : IssueQueueIndexPath, // A pointer to a selected entry.
+        depVector    : IssueQueueOneHotPath, // A producer vector for a producer matrix.
+        activeListPtr: ActiveListIndexPath, // A pointer of active list for flush
     }
 
     var intPipeReg: WakeupPipeReg<INT_ISSUE_WIDTH, ISSUE_QUEUE_INT_LATENCY>;
@@ -39,10 +45,11 @@ module WakeupPipelineRegister (
     var flushFP: logic [FP_ISSUE_WIDTH];
     var fpSelectedPtr: IssueQueueIndexPath [FP_ISSUE_WIDTH];
 
-    var canBeFlushedRegCountInt: logic<$clog2(ISSUE_QUEUE_INT_LATENCY) + 1>;
-    var canBeFlushedRegCountMem: logic<$clog2(ISSUE_QUEUE_MEM_LATENCY) + 1>;
-    var flushRangeHeadPtr: ActiveListIndexPath;
-    var flushRangeTailPtr: ActiveListIndexPath;
+    // Flushed Op detection
+    var canBeFlushedRegCountInt: logic<$clog2(ISSUE_QUEUE_INT_LATENCY) + 1>; //FlushedOpが存在している可能性があるIntパイプラインレジスタの段数
+    var canBeFlushedRegCountMem: logic<$clog2(ISSUE_QUEUE_MEM_LATENCY) + 1>; //FlushedOpが存在している可能性があるMemパイプラインレジスタの段数
+    var flushRangeHeadPtr: ActiveListIndexPath; //フラッシュされた命令の範囲のhead
+    var flushRangeTailPtr: ActiveListIndexPath; //フラッシュされた命令の範囲のtail
     var flushAllInsns: logic;
     var flushInt: logic [INT_ISSUE_WIDTH];
     var flushMem: logic [MEM_ISSUE_WIDTH];
@@ -56,6 +63,8 @@ module WakeupPipelineRegister (
 
     always_ff (port.clk) {
         if port.rst || (recovery.toRecoveryPhase && !recovery.recoveryFromRwStage) {
+            // Upon reset or recovery from the commit stage, initialize the wakeup pipeline register.
+            // Set the valid flag to FALSE and the depVector to '0 to prevent incorrect wakeups of unrelated registers/instructions.
             for i in 0..INT_ISSUE_WIDTH {
                 for j in 0..ISSUE_QUEUE_INT_LATENCY {
                     intPipeReg[i][j].valid = FALSE;
@@ -106,6 +115,11 @@ module WakeupPipelineRegister (
                 fpPipeReg[i][ISSUE_QUEUE_FP_LATENCY - 1] = nextFPPipeReg[i];
             }
         } else {
+            // When the scheduler is stalled, only the 1st stage ([LATENCY-1]) of PipeReg needs to
+            // be stalled so that the select result of that cycle is not reflected.
+            // The 2nd and subsequent stages continue to flow regardless of stall.
+            // Therefore the 2nd stage ([LATENCY-2]) must be filled with bubbles when the 1st stage is stalled.
+            // IntPipe has only one stage by default, so such bubbles are unnecessary for IntPipe.
             for i in 0..COMPLEX_ISSUE_WIDTH {
                 for j in 1..ISSUE_QUEUE_COMPLEX_LATENCY - 1 {
                     complexPipeReg[i][j - 1] = complexPipeReg[i][j];
@@ -131,9 +145,15 @@ module WakeupPipelineRegister (
     }
 
     always_comb {
+        // A bit vector indicating whether each IQ entry is flushed.
+        // This is used to deassert the wakeup signal of instructions that are selected but flushed at the same time.
         flushIQ_Entry = recovery.flushIQ_Entry;
 
+        //
+        // Register selected ops.
+        //
         for i in 0..INT_ISSUE_WIDTH {
+            // Input of PipeReg (Selected Data)
             intSelectedPtr[i] = port.selectedPtr[i];
             nextIntPipeReg[i].valid = port.selected[i] && !flushIQ_Entry[intSelectedPtr[i]];
             nextIntPipeReg[i].ptr = port.selectedPtr[i];
@@ -173,7 +193,12 @@ module WakeupPipelineRegister (
                 recovery.selectedActiveListPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
         }
 
+        //
+        // Exit from the pipeline registers and now wakeup consumers.
+        //
         for i in 0..INT_ISSUE_WIDTH {
+            // Output of PipeReg (Wakeup Data)
+            // Now, WAKEUP_WIDTH == ISSUE_WIDTH
             flushInt[i] = SelectiveFlushDetector(
                 canBeFlushedRegCountInt != 0,
                 flushRangeHeadPtr,
@@ -233,7 +258,13 @@ module WakeupPipelineRegister (
         }
     }
 
+    // To an issue queue.
+    // Flushed op is detected here.
     always_comb {
+        //
+        // Release issue queue entries.
+        // Entries can be released after they wake up consumers.
+        //
         for i in 0..INT_ISSUE_WIDTH {
             port.releaseEntry[i] = intPipeReg[i][0].valid && !port.stall;
             port.releasePtr[i] = intPipeReg[i][0].ptr;

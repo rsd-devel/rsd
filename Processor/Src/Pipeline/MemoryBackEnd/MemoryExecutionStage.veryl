@@ -65,6 +65,9 @@ module AmoALU (
     }
 }
 
+//
+// 実行ステージ
+//
 module MemoryExecutionStage (
     port         : modport MemoryExecutionStageIF::ThisStage,
     prev         : modport MemoryRegisterReadStageIF::NextStage,
@@ -94,7 +97,7 @@ module MemoryExecutionStage (
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
-
+    // --- Pipeline registers
     always_ff (port.clk) {
         if port.rst {
             for i in 0..MEM_ISSUE_WIDTH {
@@ -118,8 +121,8 @@ module MemoryExecutionStage (
     inst amoAlu: AmoALU (
         amoAluDataOut: amoAluDataOut,
         amoCode      : amoCode,
-        opA          : amoOpA,
-        opB          : amoOpB,
+        opA          : amoOpA, // rs2
+        opB          : amoOpB, // loaded data
     );
 
     always_comb {
@@ -155,6 +158,7 @@ module MemoryExecutionStage (
                 iqDataValue.activeListPtr
             );
 
+            // オペランド
             if pipeReg[i].bCtrl.rA.valid {
                 fuOpAValue = bypass.memSrcRegDataOutA[i];
             } else {
@@ -172,10 +176,16 @@ module MemoryExecutionStage (
                 {memOpInfoValue.addrIn[ADDR_OPERAND_IMM_WIDTH - 1] repeat ADDR_SIGN_EXTENTION_WIDTH, memOpInfoValue.addrIn};
             phyAddrOutValue = ToPhyAddrFromLogical(addrOutValue);
 
+            // Register valid bits.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValidValue =
                 (memOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
                 (memOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid);
 
+            // --- DCache access
+            // TODO: メモリマップが MMT_MEMORY じゃなかったとしても，一度 MSHR を確保して
+            // しまった場合にはデータを受け取らないと行けないので，とりあえずどんな
+            // 領域にアクセスをするとしても DC からデータを拾うようにしておく
             loadStoreUnit.dcReadReq[i] =
                 !stall &&
                 !clear &&
@@ -188,9 +198,12 @@ module MemoryExecutionStage (
                 );
             loadStoreUnit.dcReadAddr[i] = phyAddrOutValue;
             loadStoreUnit.dcReadUncachable[i] = IsPhyAddrUncachable(phyAddrOutValue);
+            // AL Ptr to release MSHR entry when allocator load is flushed.
             loadStoreUnit.dcReadActiveListPtr[i] = pipeReg[i].memQueueData.activeListPtr;
         }
 
+        // FENCE.I (with ICache and DCache flush)
+        // FENCE.I must be issued to the lane 0;
         cacheFlushReq = FALSE;
         if pipeReg[0].valid &&
             pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_FENCE &&
@@ -199,7 +212,9 @@ module MemoryExecutionStage (
         }
         cacheFlush.cacheFlushReq = cacheFlushReq;
 
+        // CSR must be issued to the lane 0;
         isCSR = pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_CSR;
+        // CSR request
         csrUnit.csrWE = pipeReg[0].valid && isCSR;
         csrUnit.csrNumber = pipeReg[0].memQueueData.memOpInfo.addrIn;
         if pipeReg[0].memQueueData.memOpInfo.csrCtrl.isImm {
@@ -251,8 +266,12 @@ module MemoryExecutionStage (
             phyAddrOutValue = ToPhyAddrFromLogical(addrOutValue);
             memMapTypeValue = GetMemoryMapType(addrOutValue);
 
+            // --- Bypass
+            // 制御
             bypass.memCtrlIn[i] = pipeReg[i].bCtrl;
 
+            // Register valid bits.
+            // If invalid registers are read, regValid is negated and this op must be replayed.
             regValidValue =
                 (memOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
                 (memOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid);
@@ -271,6 +290,7 @@ module MemoryExecutionStage (
             }
 
             if nextMemQueueDataValue.memOpInfo.opType == MEM_MOP_TYPE_ENV {
+                // xRET must be executed in y-mode >= x-mode
                 if
                     (
                         nextMemQueueDataValue.memOpInfo.envCode == ENV_SRET &&
@@ -289,6 +309,7 @@ module MemoryExecutionStage (
             }
 
             nextStage[i].memQueueData = nextMemQueueDataValue;
+            // リセットorフラッシュ時はNOP
             if stall || clear || port.rst || flushValue {
                 nextStage[i].valid = FALSE;
             } else {
@@ -297,7 +318,7 @@ module MemoryExecutionStage (
             nextStage[i].condEnabled = TRUE;
 
             if i == 0 && isCSR {
-                nextStage[i].dataIn = csrUnit.csrReadOut;
+                nextStage[i].dataIn = csrUnit.csrReadOut; // CSR / Zaamo must be issued to the lane 0
             } else if i == 0 && pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_ZAAMO {
                 nextStage[i].dataIn = amoAluDataOut;
             } else {
@@ -310,6 +331,7 @@ module MemoryExecutionStage (
             nextStage[i].phyAddrOut = phyAddrOutValue;
             nextStage[i].opId = pipeReg[i].opId;
 
+            // Special case for CSR
             debug.memExReg[i].valid = pipeReg[i].valid;
             debug.memExReg[i].flush = flushValue;
             debug.memExReg[i].opId = pipeReg[i].opId;

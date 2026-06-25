@@ -1,3 +1,6 @@
+//
+// Complex Integer Write back stage
+//
 module ComplexIntegerRegisterWriteStage (
     prev        : modport ComplexIntegerExecutionStageIF::NextStage,
     registerFile: modport RegisterFileIF::ComplexIntegerRegisterWriteStage,
@@ -19,8 +22,7 @@ module ComplexIntegerRegisterWriteStage (
 
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
-
-
+    // --- Pipeline registers
     always_ff (ctrl.clk) {
         if ctrl.rst {
             for i in 0..COMPLEX_ISSUE_WIDTH {
@@ -39,6 +41,7 @@ module ComplexIntegerRegisterWriteStage (
     var regValid: logic [COMPLEX_ISSUE_WIDTH];
 
     always_comb {
+        // Pipeline controll
         stall = ctrl.backEnd.stall;
         clear = ctrl.backEnd.clear;
 
@@ -63,10 +66,16 @@ module ComplexIntegerRegisterWriteStage (
             updateValue = !stall && !clear && valid[i] && !flush[i];
             update[i] = updateValue;
 
+            //
+            // Register file
+            //
             registerFile.complexDstRegWE[i] = updateValue && iqDataValue.opDst.writeReg;
             registerFile.complexDstRegNum[i] = iqDataValue.opDst.phyDstRegNum;
             registerFile.complexDstRegData[i] = pipeReg[i].dataOut;
 
+            //
+            // Active list
+            //
             alWriteDataValue.ptr = iqDataValue.activeListPtr;
             alWriteDataValue.loadQueuePtr = iqDataValue.loadQueueRecoveryPtr;
             alWriteDataValue.storeQueuePtr = iqDataValue.storeQueueRecoveryPtr;
@@ -76,15 +85,18 @@ module ComplexIntegerRegisterWriteStage (
             alWriteDataValue.isBranch = FALSE;
             alWriteDataValue.isStore = FALSE;
 
+            // ExecState
             if updateValue && regValidValue {
                 alWriteDataValue.state = EXEC_STATE_SUCCESS;
             } else {
                 alWriteDataValue.state = EXEC_STATE_NOT_FINISHED;
             }
 
+            // div result is directly written by MulDivUnit
             activeList.complexWrite[i] = updateValue && iqDataValue.opType != COMPLEX_MOP_TYPE_DIV;
             activeList.complexWriteData[i] = alWriteDataValue;
 
+            // Debug Register
             debug.complexRwReg[i].valid = valid[i];
             debug.complexRwReg[i].flush = flush[i];
             debug.complexRwReg[i].opId = pipeReg[i].opId;

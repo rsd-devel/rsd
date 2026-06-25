@@ -12,6 +12,7 @@ package DebugTypes {
     type ComplexExecOpIdArray = OpId [COMPLEX_EXEC_STAGE_DEPTH];
     type FPExecOpIdArray = OpId [FP_EXEC_STAGE_DEPTH];
 
+    // --- Hardware Counter
     struct PerfCounterPath {
         numIC_Miss: DataPath,
         numLoadMiss: DataPath,
@@ -22,19 +23,24 @@ package DebugTypes {
         numMemDepPredMiss: DataPath,
     }
 
+    // --- Debug Register
     struct NextPCStageDebugRegister { valid: logic, sid: OpSerial, }
     struct FetchStageDebugRegister { valid: logic, sid: OpSerial, flush: logic, icMiss: logic, }
 
     struct PreDecodeStageDebugRegister {
         valid: logic,
         sid: OpSerial,
+        // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+        // 合成時は、IOポートが足りなくて不可能であるため
         aluCode: IntALU_Code,
         opType: IntMicroOpSubType,
     }
 
     struct DecodeStageDebugRegister {
         valid: logic,
+        // Branch misprediction is detected on instruction decode and flush this instruction.
         flushed: logic,
+        // This op causes branch misprediction and triggers flush.
         flushTriggering: logic,
         opId: OpId,
         pc: AddrPath,
@@ -43,11 +49,17 @@ package DebugTypes {
         unsupported: logic,
     }
 
+    // Physical register numbers are outputted in the next stage, because
+    // The pop flags of the free list is negated and correct physical
+    // register numbers cannot be outputted in this stage when the pipeline
+    // is stalled.
     struct RenameStageDebugRegister { valid: logic, opId: OpId, }
 
     struct DispatchStageDebugRegister {
         valid: logic,
         opId: OpId,
+        // レジスタ番号は、機能シミュレーション時のみデバッグ出力する
+        // 合成時は、IOポートが足りなくて不可能であるため
         readRegA: logic,
         logSrcRegA: LRegNumPath,
         phySrcRegA: PRegNumPath,
@@ -72,6 +84,8 @@ package DebugTypes {
         valid: logic,
         flush: logic,
         opId: OpId,
+        // Output source values and an execution result only on functional simulation
+        // because actual chips do not have enough IO pins for these signals.
         dataOut: DataPath,
         fuOpA: DataPath,
         fuOpB: DataPath,
@@ -88,6 +102,8 @@ package DebugTypes {
         valid: logic<COMPLEX_EXEC_STAGE_DEPTH>,
         flush: logic<COMPLEX_EXEC_STAGE_DEPTH>,
         opId: ComplexExecOpIdArray,
+        // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+        // 合成時は、IOポートが足りなくて不可能であるため
         dataOut: DataPath,
         fuOpA: DataPath,
         fuOpB: DataPath,
@@ -101,6 +117,8 @@ package DebugTypes {
         valid: logic,
         flush: logic,
         opId: OpId,
+        // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+        // 合成時は、IOポートが足りなくて不可能であるため
         addrOut: AddrPath,
         fuOpA: DataPath,
         fuOpB: DataPath,
@@ -141,6 +159,8 @@ package DebugTypes {
         valid: logic<FP_EXEC_STAGE_DEPTH>,
         flush: logic<FP_EXEC_STAGE_DEPTH>,
         opId: FPExecOpIdArray,
+        // 演算のソースと結果の値は、機能シミュレーション時のみデバッグ出力する
+        // 合成時は、IOポートが足りなくて不可能であるため
         dataOut: DataPath,
         fuOpA: DataPath,
         fuOpB: DataPath,
@@ -190,6 +210,7 @@ package DebugTypes {
     type IssueQueueDebugRegisterArray = IssueQueueDebugRegister [ISSUE_QUEUE_ENTRY_NUM];
 
     struct DebugRegister {
+        // DebugRegister of each stage
         npReg: NextPCStageDebugRegisterArray,
         ifReg: FetchStageDebugRegisterArray,
         pdReg: PreDecodeStageDebugRegisterArray,
@@ -217,9 +238,11 @@ package DebugTypes {
         cmReg: CommitStageDebugRegisterArray,
         scheduler: SchedulerDebugRegisterArray,
         issueQueue: IssueQueueDebugRegisterArray,
+        // Signals related to commit
         toRecoveryPhase: logic,
         activeListHeadPtr: ActiveListIndexPath,
         activeListCount: ActiveListCountPath,
+        // Pipeline control signal
         npStagePipeCtrl: PipelineControll,
         ifStagePipeCtrl: PipelineControll,
         pdStagePipeCtrl: PipelineControll,
@@ -229,11 +252,13 @@ package DebugTypes {
         backEndPipeCtrl: PipelineControll,
         cmStagePipeCtrl: PipelineControll,
         stallByDecodeStage: logic,
+        // Others
         loadStoreUnitAllocatable: logic,
         storeCommitterPhase: logic,
         storeQueueCount: StoreQueueCountPath,
         busyInRecovery: logic,
         storeQueueEmpty: logic,
+        // Performance monitoring counters are exported to DebugRegister only on simulation.
         perfCounter: PerfCounterPath,
     }
 }

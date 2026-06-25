@@ -7,6 +7,9 @@ module ComplexIntegerRegisterReadStage (
     ctrl        : modport ControllerIF::ComplexIntegerRegisterReadStage,
     debug       : modport DebugIF::ComplexIntegerRegisterReadStage,
 ) {
+    //
+    // A pipeline stage for register read.
+    //
     import BasicTypes::*;
     import OpFormatTypes::*;
     import MicroOpTypes::*;
@@ -15,22 +18,25 @@ module ComplexIntegerRegisterReadStage (
     import PipelineTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: ComplexIntegerRegisterReadStageRegPath [COMPLEX_ISSUE_WIDTH];
 
     // NOT_TRANSPILED_TO_VERYL
     // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
 
 
-    always_ff (port.clk) {
+    always_ff (port.clk) {  // synchronous rst
         if port.rst {
             for i in 0..COMPLEX_ISSUE_WIDTH {
                 pipeReg[i].valid = '0;
             }
         } else if !ctrl.backEnd.stall {
+            // write data
             pipeReg = prev.nextStage;
         }
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var nextStage: ComplexIntegerExecutionStageRegPath [COMPLEX_ISSUE_WIDTH];
@@ -49,20 +55,33 @@ module ComplexIntegerRegisterReadStage (
             opSrcValue = iqDataValue.opSrc;
             opDstValue = iqDataValue.opDst;
 
+            //
+            // To the register file.
+            //
             registerFile.complexSrcRegNumA[i] = opSrcValue.phySrcRegNumA;
             registerFile.complexSrcRegNumB[i] = opSrcValue.phySrcRegNumB;
 
+            //
+            // To the bypass network.
+            // ストールやフラッシュの制御は，Bypass モジュールの内部で
+            // コントローラの信号を参照して行われている
+            //
             bypass.complexPhySrcRegNumA[i] = opSrcValue.phySrcRegNumA;
             bypass.complexPhySrcRegNumB[i] = opSrcValue.phySrcRegNumB;
 
             bypass.complexWriteReg[i] = opDstValue.writeReg & pipeReg[i].valid;
             bypass.complexPhyDstRegNum[i] = opDstValue.phyDstRegNum;
 
+            // Complex Integer では、operandTypeはOOT_REGしか未サポート
             bypass.complexReadRegA[i] = TRUE;
             bypass.complexReadRegB[i] = TRUE;
 
+            //
+            // --- Pipeline ラッチ書き込み
+            //
             nextStage[i].opId = pipeReg[i].opId;
 
+            // リセットorフラッシュ時はNOP
             flushValue = SelectiveFlushDetector(
                 recovery.toRecoveryPhase,
                 recovery.flushRangeHeadPtr,
@@ -78,11 +97,18 @@ module ComplexIntegerRegisterReadStage (
             }
 
             nextStage[i].replay = pipeReg[i].replay;
+
+            // レジスタ値&フラグ
             nextStage[i].operandA = registerFile.complexSrcRegDataA[i];
             nextStage[i].operandB = registerFile.complexSrcRegDataB[i];
+
+            // Issue queue data
             nextStage[i].complexQueueData = pipeReg[i].complexQueueData;
+
+            // バイパス制御
             nextStage[i].bCtrl = bypass.complexCtrlOut[i];
 
+            // Debug Register
             debug.complexRrReg[i].valid = pipeReg[i].valid;
             debug.complexRrReg[i].flush = flushValue;
             debug.complexRrReg[i].opId = pipeReg[i].opId;

@@ -1,3 +1,4 @@
+// A pipeline stage for issuing ops.
 module MemoryIssueStage (
     port      : modport MemoryIssueStageIF::ThisStage,
     prev      : modport ScheduleStageIF::MemNextStage,
@@ -14,15 +15,16 @@ module MemoryIssueStage (
     import ActiveListIndexTypes::*;
     import DebugTypes::*;
 
+    // --- Pipeline registers
     var pipeReg: IssueStageRegPath [MEM_ISSUE_WIDTH];
     var nextPipeReg: IssueStageRegPath [MEM_ISSUE_WIDTH];
 
-    always_ff (port.clk) {
+    always_ff (port.clk) {  // synchronous rst
         if port.rst {
             for i in 0..MEM_ISSUE_WIDTH {
                 pipeReg[i] = '0;
             }
-        } else if !ctrl.isStage.stall {
+        } else if !ctrl.isStage.stall {  // write data
             pipeReg = prev.memNextStage;
         } else {
             pipeReg = nextPipeReg;
@@ -49,6 +51,7 @@ module MemoryIssueStage (
         }
     }
 
+    // Pipeline controll
     var stall: logic;
     var clear: logic;
     var valid: logic [MEM_ISSUE_WIDTH];
@@ -81,12 +84,16 @@ module MemoryIssueStage (
                 issuedDataValue.activeListPtr
             );
 
+            // Issue
             scheduler.memIssue[i] = !clear && valid[i] && !flushValue;
             scheduler.memIssuePtr[i] = issueQueuePtrValue;
 
+            // Release the entries of the issue queue.
             nextStage[i].replay = scheduler.replay;
             nextStage[i].issueQueuePtr = issueQueuePtrValue;
 
+            // --- Pipeline ラッチ書き込み
+            // リセットorフラッシュ時はNOP
             if clear || port.rst || flushValue {
                 nextStage[i].valid = FALSE;
             } else {
