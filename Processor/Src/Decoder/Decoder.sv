@@ -1939,7 +1939,7 @@ endfunction
 //
 // --- DecodeStageでインスタンシエートされるモジュール
 //
-module Decoder_SV(
+module Decoder(
 input
     InsnPath insn,      // Input instruction
     logic illegalPC,
@@ -2062,6 +2062,6 @@ output
 
 
 
-endmodule : Decoder_SV
+endmodule : Decoder
 
 

@@ -99,9 +99,3 @@ hs*.dmp
 /.library_mapping.xml
 /.project
 /.history
-
-# veryl
-rsd.f
-Veryl.lock
-/dependencies
-/.build

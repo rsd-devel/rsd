@@ -15,7 +15,7 @@ import MemoryMapTypes::*;
 import IO_UnitTypes::*;
 import DebugTypes::*;
 
-module Core_SV (
+module Core (
 input
     logic clk,
     logic rst, rstStart,
@@ -42,8 +42,13 @@ output
     //
     // --- For Debug
     //
-    DebugIF debugIF( clk, rst );
-    PerformanceCounterIF perfCounterIF( clk, rst );
+    DebugIF debugIF();
+    PerformanceCounterIF perfCounterIF();
+
+    assign debugIF.clk = clk;
+    assign debugIF.rst = rst;
+    assign perfCounterIF.clk = clk;
+    assign perfCounterIF.rst = rst;
 
     assign debugRegister = debugIF.debugRegister;
 
@@ -64,55 +69,150 @@ output
     //
 
     // Pipeline control logic
-    ControllerIF ctrlIF( clk, rst );
+    ControllerIF ctrlIF();
 
     // Pipeline stages
-    NextPCStageIF npStageIF( clk, rst, rstStart );
-    FetchStageIF ifStageIF( clk, rst, rstStart );
-    PreDecodeStageIF pdStageIF( clk, rst );
-    DecodeStageIF idStageIF( clk, rst );
-    RenameStageIF rnStageIF( clk, rst, rstStart );
+    NextPCStageIF npStageIF();
+    FetchStageIF ifStageIF();
+    PreDecodeStageIF pdStageIF();
+    DecodeStageIF idStageIF();
+    RenameStageIF rnStageIF();
     //DispatchStageIF dsStageIF( clk, rst );
-    ScheduleStageIF scStageIF( clk, rst );
+    ScheduleStageIF scStageIF();
 
-    IntegerIssueStageIF intIsStageIF( clk, rst );
-    IntegerRegisterReadStageIF intRrStageIF( clk, rst );
-    IntegerExecutionStageIF intExStageIF( clk, rst );
+    IntegerIssueStageIF intIsStageIF();
+    IntegerRegisterReadStageIF intRrStageIF();
+    IntegerExecutionStageIF intExStageIF();
     //IntegerRegisterWriteStageIF intRwStageIF( clk, rst );
 
-    ComplexIntegerIssueStageIF complexIsStageIF( clk, rst );
-    ComplexIntegerRegisterReadStageIF complexRrStageIF( clk, rst );
-    ComplexIntegerExecutionStageIF complexExStageIF( clk, rst );
+    ComplexIntegerIssueStageIF complexIsStageIF();
+    ComplexIntegerRegisterReadStageIF complexRrStageIF();
+    ComplexIntegerExecutionStageIF complexExStageIF();
 
-    MemoryIssueStageIF memIsStageIF( clk, rst );
-    MemoryRegisterReadStageIF memRrStageIF( clk, rst );
-    MemoryExecutionStageIF memExStageIF( clk, rst );
-    MemoryTagAccessStageIF mtStageIF( clk, rst );
-    MemoryAccessStageIF maStageIF( clk, rst );
+    MemoryIssueStageIF memIsStageIF();
+    MemoryRegisterReadStageIF memRrStageIF();
+    MemoryExecutionStageIF memExStageIF();
+    MemoryTagAccessStageIF mtStageIF();
+    MemoryAccessStageIF maStageIF();
     //MemoryRegisterWriteStageIF memRwStageIF( clk, rst );
     
-    FPIssueStageIF fpIsStageIF( clk, rst );
-    FPRegisterReadStageIF fpRrStageIF( clk, rst );
-    FPExecutionStageIF fpExStageIF( clk, rst );
-    FPDivSqrtUnitIF fpDivSqrtUnitIF(clk, rst);
+    FPIssueStageIF fpIsStageIF();
+    FPRegisterReadStageIF fpRrStageIF();
+    FPExecutionStageIF fpExStageIF();
+    FPDivSqrtUnitIF fpDivSqrtUnitIF();
 
-    CommitStageIF cmStageIF( clk, rst );
+    CommitStageIF cmStageIF();
 
     // Other interfaces.
-    CacheSystemIF cacheSystemIF( clk, rst );
-    RenameLogicIF renameLogicIF( clk, rst, rstStart );
-    ActiveListIF activeListIF( clk, rst );
-    SchedulerIF schedulerIF( clk, rst, rstStart );
-    WakeupSelectIF wakeupSelectIF( clk, rst, rstStart );
-    RegisterFileIF registerFileIF( clk, rst, rstStart );
-    BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
-    LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
-    RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqCustomInterrupt, customInterruptCode);
-    IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
-    MulDivUnitIF mulDivUnitIF(clk, rst);
-    CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
-    AMOCacheIF amoCacheIF(clk, rst);
+    CacheSystemIF cacheSystemIF();
+    RenameLogicIF renameLogicIF();
+    ActiveListIF activeListIF();
+    SchedulerIF schedulerIF();
+    WakeupSelectIF wakeupSelectIF();
+    RegisterFileIF registerFileIF();
+    BypassNetworkIF bypassNetworkIF();
+    LoadStoreUnitIF loadStoreUnitIF();
+    RecoveryManagerIF recoveryManagerIF();
+    CSR_UnitIF csrUnitIF();
+    IO_UnitIF ioUnitIF();
+    MulDivUnitIF mulDivUnitIF();
+    CacheFlushManagerIF cacheFlushManagerIF();
+    AMOCacheIF amoCacheIF();
+
+    assign ctrlIF.clk = clk;
+    assign ctrlIF.rst = rst;
+
+    assign npStageIF.clk = clk;
+    assign npStageIF.rst = rst;
+    assign npStageIF.rstStart = rstStart;
+    assign ifStageIF.clk = clk;
+    assign ifStageIF.rst = rst;
+    assign pdStageIF.clk = clk;
+    assign pdStageIF.rst = rst;
+    assign idStageIF.clk = clk;
+    assign idStageIF.rst = rst;
+    assign rnStageIF.clk = clk;
+    assign rnStageIF.rst = rst;
+    assign rnStageIF.rstStart = rstStart;
+    assign scStageIF.clk = clk;
+    assign scStageIF.rst = rst;
+
+    assign intIsStageIF.clk = clk;
+    assign intIsStageIF.rst = rst;
+    assign intRrStageIF.clk = clk;
+    assign intRrStageIF.rst = rst;
+    assign intExStageIF.clk = clk;
+    assign intExStageIF.rst = rst;
+
+    assign complexIsStageIF.clk = clk;
+    assign complexIsStageIF.rst = rst;
+    assign complexRrStageIF.clk = clk;
+    assign complexRrStageIF.rst = rst;
+    assign complexExStageIF.clk = clk;
+    assign complexExStageIF.rst = rst;
+
+    assign memIsStageIF.clk = clk;
+    assign memIsStageIF.rst = rst;
+    assign memRrStageIF.clk = clk;
+    assign memRrStageIF.rst = rst;
+    assign memExStageIF.clk = clk;
+    assign memExStageIF.rst = rst;
+    assign mtStageIF.clk = clk;
+    assign mtStageIF.rst = rst;
+    assign maStageIF.clk = clk;
+    assign maStageIF.rst = rst;
+
+    assign fpIsStageIF.clk = clk;
+    assign fpIsStageIF.rst = rst;
+    assign fpRrStageIF.clk = clk;
+    assign fpRrStageIF.rst = rst;
+    assign fpExStageIF.clk = clk;
+    assign fpExStageIF.rst = rst;
+    assign fpDivSqrtUnitIF.clk = clk;
+    assign fpDivSqrtUnitIF.rst = rst;
+    assign cmStageIF.clk = clk;
+    assign cmStageIF.rst = rst;
+
+    assign cacheSystemIF.clk = clk;
+    assign cacheSystemIF.rst = rst;
+    assign renameLogicIF.clk = clk;
+    assign renameLogicIF.rst = rst;
+    assign renameLogicIF.rstStart = rstStart;
+    assign activeListIF.clk = clk;
+    assign activeListIF.rst = rst;
+    assign schedulerIF.clk = clk;
+    assign schedulerIF.rst = rst;
+    assign schedulerIF.rstStart = rstStart;
+    assign wakeupSelectIF.clk = clk;
+    assign wakeupSelectIF.rst = rst;
+    assign wakeupSelectIF.rstStart = rstStart;
+    assign registerFileIF.clk = clk;
+    assign registerFileIF.rst = rst;
+    assign registerFileIF.rstStart = rstStart;
+    assign bypassNetworkIF.clk = clk;
+    assign bypassNetworkIF.rst = rst;
+    assign bypassNetworkIF.rstStart = rstStart;
+    assign loadStoreUnitIF.clk = clk;
+    assign loadStoreUnitIF.rst = rst;
+    assign loadStoreUnitIF.rstStart = rstStart;
+    assign recoveryManagerIF.clk = clk;
+    assign recoveryManagerIF.rst = rst;
+    assign csrUnitIF.clk = clk;
+    assign csrUnitIF.rst = rst;
+    assign csrUnitIF.rstStart = rstStart;
+    assign csrUnitIF.reqCustomInterrupt = reqCustomInterrupt;
+    assign csrUnitIF.customInterruptCode = customInterruptCode;
+    assign ioUnitIF.clk = clk;
+    assign ioUnitIF.rst = rst;
+    assign ioUnitIF.rstStart = rstStart;
+    assign serialWE = ioUnitIF.serialWE;
+    assign serialWriteData = ioUnitIF.serialWriteDataOut;
+    assign mulDivUnitIF.clk = clk;
+    assign mulDivUnitIF.rst = rst;
+    assign cacheFlushManagerIF.clk = clk;
+    assign cacheFlushManagerIF.rst = rst;
+    assign amoCacheIF.clk = clk;
+    assign amoCacheIF.rst = rst;
 
     //
     // --- Modules
@@ -211,4 +311,4 @@ output
     InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, csrUnitIF);
 
-endmodule : Core_SV
+endmodule : Core

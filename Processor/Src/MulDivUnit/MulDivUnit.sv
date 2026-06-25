@@ -13,6 +13,7 @@
 import BasicTypes::*;
 import OpFormatTypes::*;
 import ActiveListIndexTypes::*;
+import MulDivUnitTypes::*;
 
 module MulDivUnit(
     MulDivUnitIF.MulDivUnit port,

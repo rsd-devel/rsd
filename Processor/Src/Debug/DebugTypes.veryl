@@ -9,8 +9,8 @@ package DebugTypes {
     import LoadStoreUnitTypes::*;
     import PipelineTypes::*;
 
-    type ComplexExecOpIdArray = OpId [COMPLEX_EXEC_STAGE_DEPTH];
-    type FPExecOpIdArray = OpId [FP_EXEC_STAGE_DEPTH];
+    type ComplexExecOpIdArray = OpId<COMPLEX_EXEC_STAGE_DEPTH>;
+    type FPExecOpIdArray = OpId<FP_EXEC_STAGE_DEPTH>;
 
     // --- Hardware Counter
     struct PerfCounterPath {
@@ -181,33 +181,33 @@ package DebugTypes {
     struct SchedulerDebugRegister { valid: logic, }
     struct IssueQueueDebugRegister { flush: logic, opId: OpId, }
 
-    type NextPCStageDebugRegisterArray = NextPCStageDebugRegister [FETCH_WIDTH];
-    type FetchStageDebugRegisterArray = FetchStageDebugRegister [FETCH_WIDTH];
-    type PreDecodeStageDebugRegisterArray = PreDecodeStageDebugRegister [DECODE_WIDTH];
-    type DecodeStageDebugRegisterArray = DecodeStageDebugRegister [DECODE_WIDTH];
-    type RenameStageDebugRegisterArray = RenameStageDebugRegister [RENAME_WIDTH];
-    type DispatchStageDebugRegisterArray = DispatchStageDebugRegister [DISPATCH_WIDTH];
-    type IntegerIssueStageDebugRegisterArray = IntegerIssueStageDebugRegister [INT_ISSUE_WIDTH];
-    type IntegerRegisterReadStageDebugRegisterArray = IntegerRegisterReadStageDebugRegister [INT_ISSUE_WIDTH];
-    type IntegerExecutionStageDebugRegisterArray = IntegerExecutionStageDebugRegister [INT_ISSUE_WIDTH];
-    type IntegerRegisterWriteStageDebugRegisterArray = IntegerRegisterWriteStageDebugRegister [INT_ISSUE_WIDTH];
-    type ComplexIntegerIssueStageDebugRegisterArray = ComplexIntegerIssueStageDebugRegister [COMPLEX_ISSUE_WIDTH];
-    type ComplexIntegerRegisterReadStageDebugRegisterArray = ComplexIntegerRegisterReadStageDebugRegister [COMPLEX_ISSUE_WIDTH];
-    type ComplexIntegerExecutionStageDebugRegisterArray = ComplexIntegerExecutionStageDebugRegister [COMPLEX_ISSUE_WIDTH];
-    type ComplexIntegerRegisterWriteStageDebugRegisterArray = ComplexIntegerRegisterWriteStageDebugRegister [COMPLEX_ISSUE_WIDTH];
-    type MemoryIssueStageDebugRegisterArray = MemoryIssueStageDebugRegister [MEM_ISSUE_WIDTH];
-    type MemoryRegisterReadStageDebugRegisterArray = MemoryRegisterReadStageDebugRegister [MEM_ISSUE_WIDTH];
-    type MemoryExecutionStageDebugRegisterArray = MemoryExecutionStageDebugRegister [MEM_ISSUE_WIDTH];
-    type MemoryTagAccessStageDebugRegisterArray = MemoryTagAccessStageDebugRegister [MEM_ISSUE_WIDTH];
-    type MemoryAccessStageDebugRegisterArray = MemoryAccessStageDebugRegister [MEM_ISSUE_WIDTH];
-    type MemoryRegisterWriteStageDebugRegisterArray = MemoryRegisterWriteStageDebugRegister [MEM_ISSUE_WIDTH];
-    type FPIssueStageDebugRegisterArray = FPIssueStageDebugRegister [FP_ISSUE_WIDTH];
-    type FPRegisterReadStageDebugRegisterArray = FPRegisterReadStageDebugRegister [FP_ISSUE_WIDTH];
-    type FPExecutionStageDebugRegisterArray = FPExecutionStageDebugRegister [FP_ISSUE_WIDTH];
-    type FPRegisterWriteStageDebugRegisterArray = FPRegisterWriteStageDebugRegister [FP_ISSUE_WIDTH];
-    type CommitStageDebugRegisterArray = CommitStageDebugRegister [COMMIT_WIDTH];
-    type SchedulerDebugRegisterArray = SchedulerDebugRegister [ISSUE_QUEUE_ENTRY_NUM];
-    type IssueQueueDebugRegisterArray = IssueQueueDebugRegister [ISSUE_QUEUE_ENTRY_NUM];
+    type NextPCStageDebugRegisterArray = NextPCStageDebugRegister<FETCH_WIDTH>;
+    type FetchStageDebugRegisterArray = FetchStageDebugRegister<FETCH_WIDTH>;
+    type PreDecodeStageDebugRegisterArray = PreDecodeStageDebugRegister<DECODE_WIDTH>;
+    type DecodeStageDebugRegisterArray = DecodeStageDebugRegister<DECODE_WIDTH>;
+    type RenameStageDebugRegisterArray = RenameStageDebugRegister<RENAME_WIDTH>;
+    type DispatchStageDebugRegisterArray = DispatchStageDebugRegister<DISPATCH_WIDTH>;
+    type IntegerIssueStageDebugRegisterArray = IntegerIssueStageDebugRegister<INT_ISSUE_WIDTH>;
+    type IntegerRegisterReadStageDebugRegisterArray = IntegerRegisterReadStageDebugRegister<INT_ISSUE_WIDTH>;
+    type IntegerExecutionStageDebugRegisterArray = IntegerExecutionStageDebugRegister<INT_ISSUE_WIDTH>;
+    type IntegerRegisterWriteStageDebugRegisterArray = IntegerRegisterWriteStageDebugRegister<INT_ISSUE_WIDTH>;
+    type ComplexIntegerIssueStageDebugRegisterArray = ComplexIntegerIssueStageDebugRegister<COMPLEX_ISSUE_WIDTH>;
+    type ComplexIntegerRegisterReadStageDebugRegisterArray = ComplexIntegerRegisterReadStageDebugRegister<COMPLEX_ISSUE_WIDTH>;
+    type ComplexIntegerExecutionStageDebugRegisterArray = ComplexIntegerExecutionStageDebugRegister<COMPLEX_ISSUE_WIDTH>;
+    type ComplexIntegerRegisterWriteStageDebugRegisterArray = ComplexIntegerRegisterWriteStageDebugRegister<COMPLEX_ISSUE_WIDTH>;
+    type MemoryIssueStageDebugRegisterArray = MemoryIssueStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type MemoryRegisterReadStageDebugRegisterArray = MemoryRegisterReadStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type MemoryExecutionStageDebugRegisterArray = MemoryExecutionStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type MemoryTagAccessStageDebugRegisterArray = MemoryTagAccessStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type MemoryAccessStageDebugRegisterArray = MemoryAccessStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type MemoryRegisterWriteStageDebugRegisterArray = MemoryRegisterWriteStageDebugRegister<MEM_ISSUE_WIDTH>;
+    type FPIssueStageDebugRegisterArray = FPIssueStageDebugRegister<FP_ISSUE_WIDTH>;
+    type FPRegisterReadStageDebugRegisterArray = FPRegisterReadStageDebugRegister<FP_ISSUE_WIDTH>;
+    type FPExecutionStageDebugRegisterArray = FPExecutionStageDebugRegister<FP_ISSUE_WIDTH>;
+    type FPRegisterWriteStageDebugRegisterArray = FPRegisterWriteStageDebugRegister<FP_ISSUE_WIDTH>;
+    type CommitStageDebugRegisterArray = CommitStageDebugRegister<COMMIT_WIDTH>;
+    type SchedulerDebugRegisterArray = SchedulerDebugRegister<ISSUE_QUEUE_ENTRY_NUM>;
+    type IssueQueueDebugRegisterArray = IssueQueueDebugRegister<ISSUE_QUEUE_ENTRY_NUM>;
 
     struct DebugRegister {
         // DebugRegister of each stage

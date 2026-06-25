@@ -14,7 +14,7 @@ import ActiveListIndexTypes::*;
 import CacheSystemTypes::*;
 import RenameLogicTypes::*;
 
-module ReplayQueue_SV(
+module ReplayQueue(
     SchedulerIF.ReplayQueue port,
     LoadStoreUnitIF.ReplayQueue mshr,
     MulDivUnitIF.ReplayQueue mulDivUnit,
@@ -721,4 +721,4 @@ module ReplayQueue_SV(
             ;
     endfunction : IsSrcIncludeDst
 
-endmodule : ReplayQueue_SV
+endmodule : ReplayQueue

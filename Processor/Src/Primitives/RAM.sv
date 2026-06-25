@@ -17,7 +17,7 @@
 //
 
 // Simple Dual Port RAM ( 1-read / 1-write )
-module BlockDualPortRAM_SV #( 
+module BlockDualPortRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64
 )( 
@@ -59,11 +59,11 @@ module BlockDualPortRAM_SV #(
         );
     endgenerate
 
-endmodule : BlockDualPortRAM_SV
+endmodule : BlockDualPortRAM
 
 
 // True Dual Port RAM ( 2-read/write )
-module BlockTrueDualPortRAM_SV #( 
+module BlockTrueDualPortRAM #( 
     parameter ENTRY_NUM = 16, 
     parameter ENTRY_BIT_SIZE = 1,
     parameter PORT_NUM  = 2 // Do NOT change this parameter to synthesize True Dual Port RAM
@@ -129,10 +129,10 @@ module BlockTrueDualPortRAM_SV #(
         end
     endgenerate
 
-endmodule : BlockTrueDualPortRAM_SV
+endmodule : BlockTrueDualPortRAM
 
 
-module BlockMultiPortRAM_SV #( 
+module BlockMultiPortRAM #( 
     parameter ENTRY_NUM = 4, 
     parameter ENTRY_BIT_SIZE = 8, 
     parameter READ_NUM  = 2,
@@ -176,7 +176,7 @@ module BlockMultiPortRAM_SV #(
             // Duplicate as many as needed for read/write
             for (genvar j = 0; j < WRITE_NUM; j++) begin
                 for (genvar i = 0; i < READ_NUM; i++) begin
-                    BlockDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                    BlockDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                         rBank(clk, we[j], wa[j], wv[j], ra[i], rvBank[i][j]);
                 end
             end
@@ -197,7 +197,7 @@ module BlockMultiPortRAM_SV #(
             // For single write port RAM.
             // Duplicate as many as needed for read
             for (genvar i = 0; i < READ_NUM; i++) begin
-                BlockDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                BlockDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                     rBank(clk, we[0], wa[0], wv[0], ra[i], rv[i]);
             end
         end
@@ -234,14 +234,14 @@ module BlockMultiPortRAM_SV #(
         end
     endgenerate
     
-endmodule : BlockMultiPortRAM_SV
+endmodule : BlockMultiPortRAM
 
 
 //
 // BlockRAM initialized at power-on
 // Initialization is NOT performed at reset
 //
-module InitializedBlockRAM_SV #( 
+module InitializedBlockRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64,
     parameter INIT_HEX_FILE = "code.hex"
@@ -259,7 +259,7 @@ module InitializedBlockRAM_SV #(
         // Add label to if and for clause to access the module that
         // generated dynamically
         if (ENTRY_BIT_SIZE <= HEX_FILE_ENTRY_BIT_SIZE) begin : body
-            InitializedBlockRAM_ForNarrowRequest_SV #(
+            InitializedBlockRAM_ForNarrowRequest #(
                 .ENTRY_NUM (ENTRY_NUM),
                 .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
                 .INIT_HEX_FILE (INIT_HEX_FILE)
@@ -273,7 +273,7 @@ module InitializedBlockRAM_SV #(
             );
         end
         else begin : body
-            InitializedBlockRAM_ForWideRequest_SV #(
+            InitializedBlockRAM_ForWideRequest #(
                 .ENTRY_NUM (ENTRY_NUM),
                 .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
                 .INIT_HEX_FILE (INIT_HEX_FILE)
@@ -309,13 +309,13 @@ module InitializedBlockRAM_SV #(
     `endif
 `endif
     
-endmodule : InitializedBlockRAM_SV
+endmodule : InitializedBlockRAM
 
 
 //
-// InitializedBlockRAM_SV that supports a bandwidth of 128 bits or less
+// InitializedBlockRAM that supports a bandwidth of 128 bits or less
 //
-module InitializedBlockRAM_ForNarrowRequest_SV #( 
+module InitializedBlockRAM_ForNarrowRequest #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64,
     parameter INIT_HEX_FILE = "code.hex"
@@ -434,7 +434,7 @@ module InitializedBlockRAM_ForNarrowRequest_SV #(
         end
         else begin
             $display(
-                "INIT_HEX_FILE in InitializedBlockRAM_SV is not specified, so no file is read."
+                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
             );
         end
     end
@@ -453,13 +453,13 @@ module InitializedBlockRAM_ForNarrowRequest_SV #(
         );
     endgenerate
 
-endmodule : InitializedBlockRAM_ForNarrowRequest_SV
+endmodule : InitializedBlockRAM_ForNarrowRequest
 
 
 //
-// InitializedBlockRAM_SV that supports a bandwidth of 256 bits or more
+// InitializedBlockRAM that supports a bandwidth of 256 bits or more
 //
-module InitializedBlockRAM_ForWideRequest_SV #( 
+module InitializedBlockRAM_ForWideRequest #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64,
     parameter INIT_HEX_FILE = "code.hex"
@@ -567,7 +567,7 @@ module InitializedBlockRAM_ForWideRequest_SV #(
         end
         else begin
             $display(
-                "INIT_HEX_FILE in InitializedBlockRAM_SV is not specified, so no file is read."
+                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
             );
         end
     end
@@ -586,14 +586,14 @@ module InitializedBlockRAM_ForWideRequest_SV #(
         );
     endgenerate
 
-endmodule : InitializedBlockRAM_ForWideRequest_SV
+endmodule : InitializedBlockRAM_ForWideRequest
 
 
 //
 // Single Port RAM using Distributed RAM
 // multi read/write
 
-module DistributedSinglePortRAM_SV #( 
+module DistributedSinglePortRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64
 )( 
@@ -626,7 +626,7 @@ module DistributedSinglePortRAM_SV #(
         );
     endgenerate
 
-endmodule : DistributedSinglePortRAM_SV
+endmodule : DistributedSinglePortRAM
 
 //
 // Multi ports RAM using Distributed RAM
@@ -634,7 +634,7 @@ endmodule : DistributedSinglePortRAM_SV
 //
 
 // 1-read / 1-write
-module DistributedDualPortRAM_SV #( 
+module DistributedDualPortRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64
 )( 
@@ -678,10 +678,10 @@ module DistributedDualPortRAM_SV #(
         );
     endgenerate
 
-endmodule : DistributedDualPortRAM_SV
+endmodule : DistributedDualPortRAM
 
 // 1-read / 1-write
-module RegisterDualPortRAM_SV #( 
+module RegisterDualPortRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64
 )( 
@@ -731,11 +731,11 @@ module RegisterDualPortRAM_SV #(
         );
     endgenerate
 
-endmodule : RegisterDualPortRAM_SV
+endmodule : RegisterDualPortRAM
 
 
 // 1-read-write / (N-1)-read ports
-module DistributedSharedMultiPortRAM_SV #( 
+module DistributedSharedMultiPortRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64,
     parameter READ_NUM  = 4
@@ -783,12 +783,12 @@ module DistributedSharedMultiPortRAM_SV #(
 `endif
     endgenerate
         
-endmodule : DistributedSharedMultiPortRAM_SV
+endmodule : DistributedSharedMultiPortRAM
 
 
 
 // N-read / M-write (Use Live Value Table)
-module LVT_DistributedMultiPortRAM_SV #( 
+module LVT_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM = 3,
@@ -818,18 +818,18 @@ module LVT_DistributedMultiPortRAM_SV #(
             LiveValue lvo[READ_NUM];
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
-            RegisterMultiPortRAM_SV #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
+            RegisterMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
                 lvt(clk, we, wa, lvi, ra, lvo);
 `else
             // For Xilinx
-            XOR_DistributedMultiPortRAM_SV #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
+            XOR_DistributedMultiPortRAM #(ENTRY_NUM, WRITE_NUM_BIT_SIZE, READ_NUM, WRITE_NUM)
                 lvt(clk, we, wa, lvi, ra, lvo);
 `endif
 
             // Duplicate as many as needed for read/write
             for (genvar j = 0; j < WRITE_NUM; j++) begin
                 for ( genvar i = 0; i < READ_NUM; i++) begin
-                    DistributedDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                    DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                         rBank(clk, we[j], wa[j], wv[j], ra[i], rvBank[i][j]);
                 end
             end
@@ -846,7 +846,7 @@ module LVT_DistributedMultiPortRAM_SV #(
             // For single write port RAM.
             // Duplicate as many as needed for read
             for (genvar i = 0; i < READ_NUM; i++) begin
-                DistributedDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                     rBank(clk, we[0], wa[0], wv[0], ra[i], rv[i]);
             end
         end
@@ -875,7 +875,7 @@ module LVT_DistributedMultiPortRAM_SV #(
     endgenerate
 `endif
     
-endmodule : LVT_DistributedMultiPortRAM_SV
+endmodule : LVT_DistributedMultiPortRAM
 
 
 //
@@ -884,7 +884,7 @@ endmodule : LVT_DistributedMultiPortRAM_SV
 // FPGA 2012
 //
 
-module XOR_DistributedMultiPortRAM_SV #( 
+module XOR_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 32, 
     parameter ENTRY_BIT_SIZE = 2, 
     parameter READ_NUM  = 8,
@@ -927,7 +927,7 @@ module XOR_DistributedMultiPortRAM_SV #(
             for (genvar i = 0; i < WRITE_NUM; i++) begin : wi
                 if (j != i) begin
                     // The bank of i == j is not necessary.
-                    DistributedDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                    DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                         wBank(clk, we[j], wa[j], rwbWriteValue[j], wbReadAddr[i], wbReadValue[j][i]);
                 end
             end
@@ -943,7 +943,7 @@ module XOR_DistributedMultiPortRAM_SV #(
         
         for (genvar j = 0; j < WRITE_NUM; j++) begin : rj
             for (genvar i = 0; i < READ_NUM; i++) begin : ri
-                DistributedDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+                DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                     rBank(clk, we[j], wa[j], rwbWriteValue[j], rbReadAddr[i], rbReadValue[j][i]);
             end
         end
@@ -1014,11 +1014,11 @@ module XOR_DistributedMultiPortRAM_SV #(
     endgenerate
 `endif
 
-endmodule : XOR_DistributedMultiPortRAM_SV
+endmodule : XOR_DistributedMultiPortRAM
 
 
 // N-read / M-write (use Live Value Table)
-module DistributedMultiPortRAM_SV #( 
+module DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM = 3,
@@ -1039,16 +1039,16 @@ module DistributedMultiPortRAM_SV #(
         if ((READ_NUM < 2 && WRITE_NUM && ENTRY_BIT_SIZE < 8) || 
             (INDEX_BIT_SIZE <= 4 && ENTRY_BIT_SIZE > 64)) begin
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
-            RegisterMultiPortRAM_SV #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+            RegisterMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
                 body(clk, we, wa, wv, ra, rv);
 `else
             // For Xilinx
-            XOR_DistributedMultiPortRAM_SV #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+            XOR_DistributedMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
                 body(clk, we, wa, wv, ra, rv);
 `endif
         end
         else begin
-            LVT_DistributedMultiPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+            LVT_DistributedMultiPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
                 body(clk, we, wa, wv, ra, rv);
         end
     endgenerate
@@ -1081,7 +1081,7 @@ endmodule
 // LUT+FF
 //
 
-module RegisterMultiPortRAM_SV #( 
+module RegisterMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 2, 
     parameter READ_NUM = 8,
@@ -1140,14 +1140,14 @@ module RegisterMultiPortRAM_SV #(
     endgenerate
 `endif
 
-endmodule : RegisterMultiPortRAM_SV
+endmodule : RegisterMultiPortRAM
 
 
 //
 // --- Distributed RAM consisting of multiple banks
 // In a functional simulation, a bank conflict is detected as an error
 //
-module DistributedMultiBankRAM_SV #( 
+module DistributedMultiBankRAM #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM  = 4,
@@ -1170,11 +1170,11 @@ module DistributedMultiBankRAM_SV #(
 
     generate
         if (BANK_NUM >= 2) begin
-            DistributedMultiBankRAM_ForGE2Banks_SV#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+            DistributedMultiBankRAM_ForGE2Banks#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
                 rBank(clk, we, wa, wv, ra, rv);
         end
         else begin
-            DistributedDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+            DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
     endgenerate
@@ -1210,13 +1210,13 @@ module DistributedMultiBankRAM_SV #(
     endgenerate
 `endif
 
-endmodule : DistributedMultiBankRAM_SV
+endmodule : DistributedMultiBankRAM
 
 //
 // --- Distributed RAM consisting of multiple banks
-// Generated in DistributedMultiBankRAM_SV when the number of banks is 2 or more
+// Generated in DistributedMultiBankRAM when the number of banks is 2 or more
 //
-module DistributedMultiBankRAM_ForGE2Banks_SV #( 
+module DistributedMultiBankRAM_ForGE2Banks #( 
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM  = 4,
@@ -1254,7 +1254,7 @@ module DistributedMultiBankRAM_ForGE2Banks_SV #(
     generate 
         for (genvar i = 0; i < BANK_NUM; i++) begin
             if (ENTRY_BIT_SIZE < 8) begin
-                RegisterDualPortRAM_SV#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                RegisterDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
                     rBank(
                         clk, 
                         weBank[i], 
@@ -1265,7 +1265,7 @@ module DistributedMultiBankRAM_ForGE2Banks_SV #(
                     );
             end
             else begin
-                DistributedDualPortRAM_SV#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                DistributedDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
                     rBank(
                         clk, 
                         weBank[i], 
@@ -1338,14 +1338,14 @@ module DistributedMultiBankRAM_ForGE2Banks_SV #(
         end
     endgenerate
     
-endmodule : DistributedMultiBankRAM_ForGE2Banks_SV
+endmodule : DistributedMultiBankRAM_ForGE2Banks
 
 
 //
 // --- Block RAM consisting of multiple banks
 // In a functional simulation, a bank conflict is detected as an error
 //
-module BlockMultiBankRAM_SV #(
+module BlockMultiBankRAM #(
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM  = 2,
@@ -1368,11 +1368,11 @@ module BlockMultiBankRAM_SV #(
 
     generate 
         if (BANK_NUM >= 2) begin
-            BlockMultiBankRAM_Body_SV#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+            BlockMultiBankRAM_Body#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
                 rBank(clk, we, wa, wv, ra, rv);
         end
         else begin
-            BlockDualPortRAM_SV#(ENTRY_NUM, ENTRY_BIT_SIZE)
+            BlockDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
     endgenerate
@@ -1412,14 +1412,14 @@ module BlockMultiBankRAM_SV #(
     endgenerate
 `endif
 
-endmodule : BlockMultiBankRAM_SV
+endmodule : BlockMultiBankRAM
 
 
 //
 // --- Block RAM consisting of multiple banks
-// Generated in BlockMultiBankRAM_SV when the number of banks is 2 or more
+// Generated in BlockMultiBankRAM when the number of banks is 2 or more
 //
-module BlockMultiBankRAM_Body_SV #(
+module BlockMultiBankRAM_Body #(
     parameter ENTRY_NUM = 64, 
     parameter ENTRY_BIT_SIZE = 63, 
     parameter READ_NUM  = 2,
@@ -1458,7 +1458,7 @@ module BlockMultiBankRAM_Body_SV #(
     
     generate 
         for (genvar i = 0; i < BANK_NUM; i++) begin
-            BlockDualPortRAM_SV#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
+            BlockDualPortRAM#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
                 rBank(
                     clk, 
                     weBank[i], 
@@ -1535,4 +1535,4 @@ module BlockMultiBankRAM_Body_SV #(
         end
     endgenerate
 
-endmodule : BlockMultiBankRAM_Body_SV
+endmodule : BlockMultiBankRAM_Body

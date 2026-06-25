@@ -11,7 +11,7 @@
 import BasicTypes::*;
 import MemoryTypes::*;
 
-module MemoryReadReqQueue_SV (
+module MemoryReadReqQueue (
 input 
     logic clk,
     logic rst,
@@ -55,6 +55,6 @@ output
         headData = memoryReadReqQueue[ headPtr ];
     end
 
-endmodule : MemoryReadReqQueue_SV
+endmodule : MemoryReadReqQueue
 
  

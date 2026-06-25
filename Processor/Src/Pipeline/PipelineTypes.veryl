@@ -82,7 +82,7 @@ package PipelineTypes {
         brPred: BranchPred,
     }
 
-    type MicroOpInfoArray = OpInfo [MICRO_OP_MAX_NUM];
+    type MicroOpInfoArray = OpInfo<MICRO_OP_MAX_NUM>;
 
     struct DecodeStageRegPath {
         sid: OpSerial,

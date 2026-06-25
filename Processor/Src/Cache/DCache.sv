@@ -141,7 +141,7 @@ endfunction
 //
 // Controller to handle the state of DCache.
 //
-module DCacheController_SV(DCacheIF.DCacheController port);
+module DCacheController(DCacheIF.DCacheController port);
 
     // DCache state
     DCachePhase regPhase, nextPhase;
@@ -222,12 +222,12 @@ module DCacheController_SV(DCacheIF.DCacheController port);
         "Inflight load or store is found on DC flush request acquirement."
     );
 
-endmodule : DCacheController_SV
+endmodule : DCacheController
 
 //
 // The arbiter of the ports of the main memory.
 //
-module DCacheMemoryReqPortArbiter_SV(DCacheIF.DCacheMemoryReqPortArbiter port);
+module DCacheMemoryReqPortArbiter(DCacheIF.DCacheMemoryReqPortArbiter port);
 
     logic req[MSHR_NUM];
     logic grant[MSHR_NUM];
@@ -261,13 +261,13 @@ module DCacheMemoryReqPortArbiter_SV(DCacheIF.DCacheMemoryReqPortArbiter port);
         end
     end
 
-endmodule : DCacheMemoryReqPortArbiter_SV
+endmodule : DCacheMemoryReqPortArbiter
 
 //
 // Multiplexer for a memory signals
 //
 
-module DCacheMemoryReqPortMultiplexer_SV(DCacheIF.DCacheMemoryReqPortMultiplexer port);
+module DCacheMemoryReqPortMultiplexer(DCacheIF.DCacheMemoryReqPortMultiplexer port);
 
     MSHR_IndexPath portIn;
     always_comb begin
@@ -286,7 +286,7 @@ module DCacheMemoryReqPortMultiplexer_SV(DCacheIF.DCacheMemoryReqPortMultiplexer
 
     end
 
-endmodule : DCacheMemoryReqPortMultiplexer_SV
+endmodule : DCacheMemoryReqPortMultiplexer
 
 
 //
@@ -308,7 +308,7 @@ endmodule : DCacheMemoryReqPortMultiplexer_SV
 // 典型的には，
 //   grant[0]: load, grant[1]: store, grant[2],grant[3]...: mshr
 //
-module DCacheArrayPortArbiter_SV(DCacheIF.DCacheArrayPortArbiter port);
+module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
     logic req[DCACHE_MUX_PORT_NUM];
     logic grant[DCACHE_MUX_PORT_NUM];
@@ -367,7 +367,7 @@ module DCacheArrayPortArbiter_SV(DCacheIF.DCacheArrayPortArbiter port);
         end
     end
 
-endmodule : DCacheArrayPortArbiter_SV
+endmodule : DCacheArrayPortArbiter
 
 
 
@@ -379,7 +379,7 @@ endmodule : DCacheArrayPortArbiter_SV
 // DCache アクセスはパイプライン化されているため，スイッチもパイプラインの各ステージ
 // にあわせて行われる．
 //
-module DCacheArrayPortMultiplexer_SV(DCacheIF.DCacheArrayPortMultiplexer port);
+module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
     DCacheMuxPortIndexPath portIn;
     DCacheMuxPortIndexPath portInRegTagStg[DCACHE_ARRAY_PORT_NUM];
@@ -627,13 +627,13 @@ module DCacheArrayPortMultiplexer_SV(DCacheIF.DCacheArrayPortMultiplexer port);
         end
     end
 
-endmodule : DCacheArrayPortMultiplexer_SV
+endmodule : DCacheArrayPortMultiplexer
 
 
 //
 // Tag/data/dirty bits array.
 //
-module DCacheArray_SV(DCacheIF.DCacheArray port);
+module DCacheArray(DCacheIF.DCacheArray port);
     // Data array signals
     logic dataArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic dataArrayByteWE[DCACHE_LINE_BYTE_NUM][DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
@@ -873,12 +873,12 @@ module DCacheArray_SV(DCacheIF.DCacheArray port);
         end
     end
 
-endmodule : DCacheArray_SV
+endmodule : DCacheArray
 
 //
 // Data cache main module.
 //
-module DCache_SV(
+module DCache(
     LoadStoreUnitIF.DCache lsu,
     CacheSystemIF.DCache cacheSystem,
     ControllerIF.DCache ctrl,
@@ -898,16 +898,16 @@ module DCache_SV(
     assign port.rst = lsu.rst;
     assign port.rstStart = lsu.rstStart;
 
-    DCacheController_SV controller(port);
+    DCacheController controller(port);
 
-    DCacheArray_SV array(port);
-    DCacheArrayPortArbiter_SV arrayArbiter(port);
-    DCacheArrayPortMultiplexer_SV arrayMux(port);
+    DCacheArray array(port);
+    DCacheArrayPortArbiter arrayArbiter(port);
+    DCacheArrayPortMultiplexer arrayMux(port);
 
-    DCacheMemoryReqPortArbiter_SV memArbiter(port);
-    DCacheMemoryReqPortMultiplexer_SV memMux(port);
+    DCacheMemoryReqPortArbiter memArbiter(port);
+    DCacheMemoryReqPortMultiplexer memMux(port);
 
-    DCacheMissHandler_SV missHandler(port, recovery);
+    DCacheMissHandler missHandler(port, recovery);
 
 
     // Stored data
@@ -1295,10 +1295,10 @@ module DCache_SV(
         port.flushComplete = cacheSystem.flushComplete;
     end
 
-endmodule : DCache_SV
+endmodule : DCache
 
 
-module DCacheMissHandler_SV(
+module DCacheMissHandler(
     DCacheIF.DCacheMissHandler port,
     RecoveryManagerIF.DCacheMissHandler recovery
 );
@@ -1913,4 +1913,4 @@ module DCacheMissHandler_SV(
 `endif
 
 
-endmodule : DCacheMissHandler_SV
+endmodule : DCacheMissHandler

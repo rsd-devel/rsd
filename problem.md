@@ -1,161 +1,129 @@
 # Veryl 移行メモ
 
-このファイルは、RSD の SystemVerilog から Veryl への移行で、まだ注意が必要な点だけをまとめる。履歴の羅列ではなく、現在の状態、意図的に残した SV leaf、既知の変換上の例外を確認するためのメモである。
+このファイルは、現在の Veryl 利用方針と、移行中に見つかったツール起因の注意点だけをまとめる。
 
-## 現在の状態
+## 現在の方針
 
-- `Processor/Src` の公開モジュール/インターフェースは基本的に native Veryl 化済み。
-- `include(inline)` と `embed (inline) sv` は残していない。
-- `Decoder` は native Veryl 実装になっており、`Decoder_SV` leaf への参照は残していない。
-- `FPIssueStage`、`FPRegisterReadStage`、`FPExecutionStage`、`FPRegisterWriteStage`、`MemoryTagAccessStage`、`ReplayQueue`、`Core`、`DCache` も native Veryl 化済み。
-- 残っている `$sv::` 参照は、RAM/AXI/メモリキュー/DCacheArray の合成・メモリ推論に関わる leaf に限る。
-- 手書き Veryl には `unsupported loop`、`TODO(translate)`、`unsupported jump` のマーカーは残っていない。
-- `veryl check --quiet` と `veryl build --quiet` は通過済み。
+- Veryl 化の対象は package と interface だけにする。
+- module 本体は SystemVerilog のまま使う。
+- Verification 配下のテスト用 SV は対象外にする。
+- Veryl 生成物は `target/rsd_pkg_if.sv` の bundle 1 ファイルにまとめる。
+- `Veryl.toml` の `omit_project_prefix = true` で、package/interface 名にプロジェクト prefix が付かないようにする。
+- 非 Verification の SV package/interface ソースは削除済み。Verilator には Veryl 生成 bundle を先に読ませる。
 
-確認に使った代表コマンド:
+確認済みコマンド:
 
 ```sh
-rg -n '\$sv|include\(inline\)|embed \(inline\) sv|Decoder_SV' Processor/Src -g '*.veryl'
-rg -n 'unsupported loop|TODO\(translate\)|unsupported jump' Processor/Src -g '*.veryl'
-veryl check --quiet
-veryl build --quiet
+cd Processor/Src
+make -f Makefile.verilator.mk build -j
 ```
 
-## 意図的に残している SV leaf
+## 生成 bundle まわり
 
-以下は「未変換」ではなく、Veryl のトランスパイルで生成 SV の形が変わると合成・RAM 推論・ベンダ依存挙動に影響し得るため、native Veryl wrapper から SV leaf を呼ぶ形で残している。
+`Processor/Src/Makefiles/CoreSources.inc.mk` では、SV package/interface の代わりに `target/rsd_pkg_if.sv` を `TYPES` の先頭へ入れる。
 
-| Veryl wrapper | SV leaf | 残している理由 |
-| --- | --- | --- |
-| `Processor/Src/Primitives/RAM.veryl` | `*_SV` RAM 群 | RAM 推論、ベンダ分岐、初期化関数、debug assert の形を保持するため |
-| `Processor/Src/Memory/ControlQueue.veryl` | `ControlQueue_SV` | `syn_ramstyle = "select_ram"` 付き配列 RAM の推論形状を保持するため |
-| `Processor/Src/Memory/MemoryReadReqQueue.veryl` | `MemoryReadReqQueue_SV` | 同上 |
-| `Processor/Src/Memory/MemoryWriteDataQueue.veryl` | `MemoryWriteDataQueue_SV` | 同上 |
-| `Processor/Src/Memory/Memory.veryl` | `Memory_SV` | メモリモデル/シミュレーション依存実装を保持するため |
-| `Processor/Src/Memory/Axi4Memory.veryl` | `Axi4Memory_SV` | AXI メモリ実装の既存 SV 形状を保持するため |
-| `Processor/Src/Memory/Axi4LiteMemory.veryl` | `Axi4LiteDualPortBlockRAM_SV` | AXI Lite RAM 実装の既存 SV 形状を保持するため |
-| `Processor/Src/Memory/Axi4LiteControlRegister.veryl` | `Axi4LitePlToPsControlRegister_SV`, `Axi4LitePsToPlControlRegister_SV` | AXI Lite control register 実装の既存 SV 形状を保持するため |
-| `Processor/Src/Cache/DCache.veryl` | `DCacheArray_SV` | `BlockTrueDualPortRAM` 群、Synplify/Vivado 回避用配線、reset 時 RAM 初期化パターンを保持するため |
+`Processor/Src/Makefile.verilator.mk` では、Verilator build 前に `veryl build --quiet` を実行し、生成 bundle に必要最小限の後処理を入れる。
 
-この方針により、外部から見える公開 module 名は Veryl 側に置きつつ、合成時に敏感な RAM/AXI 本体だけ SV leaf として固定している。
+後処理している理由:
 
-## 移行時の共通ルール
+- enum variant 名を既存 SV 側の参照に合わせるため。
+- Verilator C++ 側から見える必要がある parameter/typedef に `/*verilator public*/` を戻すため。
 
-### モジュール外 function
+## 既知の注意点
 
-元 SV でモジュール外に定義されていた function は、Veryl では package に移している。
+### interface constructor 引数
+
+元 SV interface には `DebugIF debugIF(clk, rst);` のように constructor 引数を渡す形があった。
+
+Veryl 生成 interface は SV の interface port list を出さないため、同じ形では instantiate できない。現在は module 側で `DebugIF debugIF();` のように引数なしで生成し、`debugIF.clk` / `debugIF.rst` / `rstStart` などを明示 assign している。
+
+このため、interface 側を Veryl にする場合は、constructor 引数に依存した接続を module 側の明示配線へ寄せる必要がある。
+
+### enum variant 名
+
+Veryl の enum は、生成 SV では `PipelinePhase::PHASE_COMMIT` 相当の variant が `PipelinePhase_PHASE_COMMIT` のように enum 名付きで出力される。
+
+確認した範囲:
+
+- `veryl metadata --format json` の `[build]` 項目に enum variant prefix を省略する設定はない。
+- 公式 build 設定の `omit_project_prefix` は module/interface/package 名の project prefix を省略する設定で、enum variant 名には効かない。
+- `omit_enum_prefix` / `strip_enum_prefix` などの名前を試すと、Veryl 0.20.1-nightly は unknown field として拒否した。
+
+したがって、現時点では TOML 設定で「機械的置換なしに、生成 SV の enum variant prefix を落として `a::b` を `b` として出力する」Veryl build option は見つかっていない。将来 Veryl 側に該当 option が追加された場合は、Makefile の enum 後処理を置き換える。
+
+### PipelinePhase alias と Verilator internal error
+
+Veryl 生成 bundle を Verilator に読ませると、`PipelinePhase` enum の public alias 付近で internal error が出た。
+
+問題になった形:
+
+```systemverilog
+localparam PipelinePhase PHASE_COMMIT = PipelinePhase_PHASE_COMMIT;
+```
+
+既存 SV module 側は `PHASE_COMMIT` のような短い enumerator 名を参照している。一方、Veryl 生成 bundle は `PipelinePhase_PHASE_COMMIT` を実体として出し、短い名は localparam alias になる。この alias 周辺で Verilator が苦手な形になった。
+
+現在の回避策:
+
+- 生成 bundle 内の enum alias 対応を拾う。
+- `PipelinePhase_PHASE_COMMIT` のような参照を `PHASE_COMMIT` へ寄せる。
+- `localparam PHASE_COMMIT = PHASE_COMMIT;` になった自己 alias 行は削除する。
+
+この回避策は `Processor/Src/Makefile.verilator.mk` の Veryl build 後処理に閉じ込めている。
+
+### `verilator public` と Veryl attribute
+
+Veryl には `#[sv("...")]` attribute があり、SV attribute `(* ... *)` を生成できる。
+
+ただし、`#[sv("verilator public")]` は次のような生成になる。
+
+```systemverilog
+(* verilator public *)
+localparam int unsigned X = 1;
+```
+
+手元の Verilator 4.228 では、この SV attribute 形式では package localparam が C++ ヘッダへ公開されなかった。元 SV と同じ次の metacomment 形式では公開された。
+
+```systemverilog
+localparam int X /*verilator public*/ = 1;
+```
+
+そのため、現在は Veryl attribute だけには置き換えず、生成 bundle 後処理で `/*verilator public*/` を必要箇所へ戻している。
+
+### package function 内の packed array select
+
+Veryl 生成 package 内 function で、次のような式に対して Verilator が internal error を出した。
+
+```systemverilog
+e.complexExReg[i].opId[0]
+```
+
+見えたエラーは `No VarRef or Const under ArraySel` 系で、package/interface 限定構成でも `VerilatorHelper` の型ユーティリティとして生成される箇所だった。
+
+現在の回避策:
+
+- `Processor/Src/SysDeps/Verilator/VerilatorHelper.veryl` で、`e.complexExReg[i]` / `e.fpExReg[i]` をいったん local 変数に受ける。
+- その local 変数に対して `stageReg.opId[0]` / `stageReg.valid[0]` のように select する。
+
+これで元 SV に近い段階的な参照になり、Verilator の internal error を避けている。
+
+### combinational_loop false positive
+
+以前の module まで Veryl 化する試行では、ReplayQueue や DCache の一部で Veryl 0.20.1-nightly の `combinational_loop` 検出に引っかかった。
+
+これは元 SV 上の実回路ループではなく、解析器がレジスタ境界や RAM read の依存を保守的に同一組合せ経路として扱った false positive と判断している。
 
 代表例:
-
-- `DecoderFunctions`
-- `CommitStageFunctions`
-- `DCacheFunctions`
-- `ICacheFunctions`
-- `LoadStoreUnitFunctions`
-- `CSR_UnitFunctions`
-- `BypassControllerTypes`
-
-### マクロ assert
-
-`RSD_ASSERT_CLK`、`RSD_STATIC_ASSERT`、一部の debug/non-synthesis initial は、そのまま native Veryl にできない箇所がある。これらは指定どおり、直前に共通コメントを置いてコメントアウトしている。
-
-```veryl
-// NOT_TRANSPILED_TO_VERYL
-// ...
-```
-
-### マクロ条件付き構成
-
-Veryl の struct/modport/interface 定義では、SV と同じ位置にプリプロセッサ分岐を置けない箇所がある。このため、いくつかのファイルは現行構成に合わせて展開している。
-
-主な前提:
-
-- `RSD_MARCH_FP_PIPE` は有効な構成として展開。
-- `RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE` は無効な構成として展開。
-- `RSD_ENABLE_ZBA`、`RSD_ENABLE_ZICOND` は Decoder 側で有効な構成として展開。
-- `DebugTypes.veryl` は現行の FP/デバッグ有効構成で必要な packed debug field を明示。
-- `IO_UnitTypes.veryl` は現行構成に合わせて LED 幅 16、serial 幅 32 を明示。
-
-別のマクロ組み合わせを使う場合は、該当 interface/type/package の別表現を追加する必要がある。
-
-### Veryl の型検査に合わせた表現
-
-元 SV と意味は同じだが、Veryl の型検査を通すために表現を変えた箇所がある。
-
-- array-of-struct は `Type<N>` 形式を使う箇所がある。
-- `PreDecodeStage.veryl` の `microOps` は `MicroOpInfoArray [DECODE_WIDTH]` とし、stage register へ要素ごとに代入している。
-- `SchedulerTypes.veryl` の `SchedulerSrcTag` は `SchedulerRegTag<N>` 形式で保持している。
-- union の別名 field 参照は、Veryl が型検査できる field へ寄せている箇所がある。
-- SV の variable part-select は、shift/or や helper function に展開した箇所がある。
-
-## 個別の注意点
-
-### Decoder
-
-`Processor/Src/Decoder/Decoder.sv` はモジュール外 function が多く、`veryl translate --stdout` では FP デコードの三項演算子チェーン周辺で構文的に不正な Veryl が生成された。
-
-現在は手作業で native Veryl 化済み。function 群は `DecoderFunctions` package に移し、`PreDecodeStage.veryl` から native `Decoder` を直接 instantiate している。`Decoder_SV` leaf への参照は残していない。
-
-### ReplayQueue
-
-`ReplayQueue.veryl` は native Veryl 実装へ移した。
-
-変換中、`flushInt`/`flushMem` の計算で Veryl 0.20.1-nightly の `combinational_loop` 検出に引っかかった。これは元 SV 上の実回路ループではなく、解析器が次の依存を保守的に同一組合せ経路として扱った false positive と判断している。
 
 ```text
 popEntry -> QueuePointer/RAM -> replayEntryOut -> flush* -> popEntry
 ```
 
-元の `QueuePointerWithEntryCount` は head/tail/count がレジスタ出力で、`DistributedDualPortRAM` の read address もそのレジスタ出力から来るため、実際にはレジスタ境界が入る。
+現在の package/interface 限定方針では module 本体を Veryl 化しないため、この問題は build blocker ではない。ただし、将来 module の Veryl 化を再開する場合は、該当箇所を scalar 展開する、計算ブロックを分ける、または合成上敏感な RAM/queue を SV leaf として切り出す必要がある。
 
-対処として、ReplayQueue 内では pointer レジスタと小さな replay storage を native Veryl に展開し、`flush*` 計算ブロックと `popEntry`/replay 出力計算ブロックを分離した。
+## 再確認ポイント
 
-### DCache
-
-`DCache.veryl` は controller、memory request arbiter/mux、array port arbiter/mux、miss handler、top glue まで native Veryl 化済み。module 外 function 群は `DCacheFunctions` package に移した。
-
-`DCacheArray` だけは RAM 推論形状を保つため、native Veryl wrapper から `DCacheArray_SV` を呼ぶ形で残している。これは理由なく残した SV leaf ではなく、合成時の挙動を固定するための例外である。
-
-MSHR allocation では、元 SV の一般ループをそのまま書くと Veryl 0.20.1-nightly が `mshrConflict`/`portInitMSHR` を `combinational_loop` として検出した。現行 RSD 構成では load port 1、store port 1、MSHR 2 entry が定数なので、元 SV と同じ load 優先、次に store の優先順を scalar に展開して false positive を回避した。
-
-### Core / FP backend
-
-`Core.veryl` は native Veryl 実装へ移した。
-
-FP backend の次の stage も native Veryl 実装へ移しており、`Core.veryl` からの `$sv::FP...` 直呼びは削除済み。
-
-- `FPIssueStage.veryl`
-- `FPRegisterReadStage.veryl`
-- `FPExecutionStage.veryl`
-- `FPRegisterWriteStage.veryl`
-
-`FPExecutionStage` の local pipeline register は、`ComplexIntegerExecutionStage` と同じ `LocalPipeReg<ISSUE_WIDTH, DEPTH - 1>` 形式で保持している。元 SV の `inside` と三項演算子は if/OR 条件へ展開した。
-
-### MemoryTagAccessStage
-
-`MemoryTagAccessStage.veryl` は native Veryl 実装へ移した。理由のない SV leaf としては残していない。
-
-### Cache / branch predictor
-
-`ICache.veryl` は main module まで native Veryl 化済み。hit/eviction way 探索の `break` は `foundHit` / `foundEvict` フラグ付きループへ展開した。RAM 配列サブモジュールは native RAM wrapper 経由で SV leaf の RAM 本体を参照する。
-
-`BTB.veryl`、`Gshare.veryl`、`Bimodal.veryl` は native Veryl 化済み。PHT/BTB RAM 本体は RAM wrapper 経由で SV leaf 側に残している。
-
-### Load/store / queues
-
-`LoadQueue.veryl`、`StoreQueue.veryl`、`StoreCommitter.veryl`、`LoadStoreUnit.veryl` は native Veryl 化済み。
-
-`StoreQueue` の data RAM、`DestinationRAM`、`MemoryDependencyPredictor` など、RAM 推論対象の本体は RAM wrapper 経由で SV leaf 側に残している。
-
-### Register / scheduler / rename
-
-`RegisterFile.veryl`、`BypassNetwork.veryl`、`BypassController.veryl`、`Scheduler.veryl`、`IssueQueue.veryl`、`WakeupPipelineRegister.veryl`、`RenameLogic.veryl`、`ActiveList.veryl` は native Veryl 化済み。
-
-RAM 本体を持つ箇所は、公開 module を Veryl に置いたうえで RAM wrapper 経由の SV leaf に切り出している。
-
-## 残っている確認ポイント
-
-- 別マクロ構成でビルドする場合は、現行構成として展開した interface/type/package を再確認する。
-- 合成向け flow で RAM 推論が期待どおりか確認する。
-- `// NOT_TRANSPILED_TO_VERYL` の箇所は、必要なら Veryl 側で書ける assert 形式に置き換える。
-- Veryl の `combinational_loop` false positive 回避として scalar 展開した箇所は、ポート数や MSHR 数を変更した場合に再確認する。
+- Veryl の新しいバージョンで enum variant prefix を制御する build option が追加されていないか。
+- Veryl が Verilator metacomment を直接出せるようになっていないか。
+- Verilator 更新後に、`PipelinePhase` alias と package function の internal error 回避がまだ必要か。
+- 別マクロ構成で build する場合、Veryl 化済み package/interface の展開前提が合っているか。

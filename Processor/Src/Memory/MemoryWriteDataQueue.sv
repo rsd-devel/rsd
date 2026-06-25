@@ -11,7 +11,7 @@
 import BasicTypes::*;
 import MemoryTypes::*;
 
-module MemoryWriteDataQueue_SV (
+module MemoryWriteDataQueue (
 input 
     logic clk,
     logic rst,
@@ -57,6 +57,6 @@ output
         headData = memoryWriteDataQueue[ headPtr ];
     end
 
-endmodule : MemoryWriteDataQueue_SV
+endmodule : MemoryWriteDataQueue
 
  

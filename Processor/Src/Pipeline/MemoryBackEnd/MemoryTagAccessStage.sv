@@ -23,7 +23,7 @@ import MemoryMapTypes::*;
 // Otherwise, instructions are refetched.
 `define RSD_ENABLE_REISSUE_ON_CACHE_MISS
 
-module MemoryTagAccessStage_SV(
+module MemoryTagAccessStage(
     MemoryTagAccessStageIF.ThisStage port,
     MemoryExecutionStageIF.NextStage prev,
     SchedulerIF.MemoryTagAccessStage scheduler,
@@ -699,4 +699,4 @@ module MemoryTagAccessStage_SV(
     end
 
 
-endmodule : MemoryTagAccessStage_SV
+endmodule : MemoryTagAccessStage

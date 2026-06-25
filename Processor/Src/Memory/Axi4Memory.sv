@@ -12,7 +12,7 @@ import BasicTypes::*;
 import MemoryTypes::*;
 import CacheSystemTypes::*;
 
-module Axi4Memory_SV
+module Axi4Memory
 (
 Axi4MemoryIF.Axi4 port,
 input

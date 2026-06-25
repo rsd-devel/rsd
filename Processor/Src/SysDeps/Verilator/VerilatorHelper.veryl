@@ -1277,7 +1277,9 @@ package VerilatorHelper {
         i: input i32,
     ) -> logic {
         /*verilator public*/
-        return e.complexExReg[i].valid[0];
+        var stageReg: ComplexIntegerExecutionStageDebugRegister;
+        stageReg = e.complexExReg[i];
+        return stageReg.valid[0];
     }
 
     function DebugRegister_complexExReg_opId (
@@ -1285,7 +1287,9 @@ package VerilatorHelper {
         i: input i32,
     ) -> OpId {
         /*verilator public*/
-        return e.complexExReg[i].opId[0];
+        var stageReg: ComplexIntegerExecutionStageDebugRegister;
+        stageReg = e.complexExReg[i];
+        return stageReg.opId[0];
     }
 
     // Output only the first execution stage of a fp pipeline
@@ -1294,7 +1298,9 @@ package VerilatorHelper {
         i: input i32,
     ) -> logic {
         /*verilator public*/
-        return e.fpExReg[i].valid[0];
+        var stageReg: FPExecutionStageDebugRegister;
+        stageReg = e.fpExReg[i];
+        return stageReg.valid[0];
     }
 
     function DebugRegister_fpExReg_opId (
@@ -1302,6 +1308,8 @@ package VerilatorHelper {
         i: input i32,
     ) -> OpId {
         /*verilator public*/
-        return e.fpExReg[i].opId[0];
+        var stageReg: FPExecutionStageDebugRegister;
+        stageReg = e.fpExReg[i];
+        return stageReg.opId[0];
     }
 }

@@ -30,8 +30,7 @@ KANATA_LOG_FILE_RTL = Kanata.log
 include Makefiles/CoreSources.inc.mk
 
 
-DEBUG_HELPERS = \
-	SysDeps/Verilator/VerilatorHelper.sv
+DEBUG_HELPERS =
 
 DEPS_RTL = \
 	$(TYPES:%=$(SOURCE_ROOT)%) \
@@ -81,7 +80,20 @@ VERILATOR_TARGET_CXXFLAGS= \
 	-D RSD_MARCH_FP_PIPE \
 	-Wno-attributes \
 
-all: $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
+VERYL_TARGET_DIR = ./target
+VERYL_SOURCES = $(shell find . -name '*.veryl' -print)
+
+.PHONY: build veryl-build veryl-clean clean
+build: all
+
+veryl-build: $(VERYL_GENERATED_RTL)
+
+$(VERYL_GENERATED_RTL): Veryl.toml $(VERYL_SOURCES)
+	veryl build
+	perl -0pi -e 'my %m; while (/^\s*localparam\s+(?:[A-Za-z_][A-Za-z0-9_]*\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s+([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*);/mg) { $$m{$$2} = $$1; } for my $$k (sort { length($$b) <=> length($$a) } keys %m) { my $$v = $$m{$$k}; s/\b\Q$$k\E\b/$$v/g; } s/^\s*localparam\s+(?:[A-Za-z_][A-Za-z0-9_]*\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s+\1;\s*\n//mg;' target/rsd_pkg_if.sv
+	perl -0pi -e 's/^(\s*localparam\b[^\n=]*\b(?:PC_GOAL|PHY_ADDR_SECTION_0_BASE|PHY_ADDR_SECTION_1_BASE|LSCALAR_NUM|LSCALAR_FP_NUM|LREG_NUM|FETCH_WIDTH|DECODE_WIDTH|RENAME_WIDTH|DISPATCH_WIDTH|COMMIT_WIDTH|INT_ISSUE_WIDTH|COMPLEX_ISSUE_WIDTH|MEM_ISSUE_WIDTH|FP_ISSUE_WIDTH|ISSUE_QUEUE_ENTRY_NUM|COMPLEX_EXEC_STAGE_DEPTH|FP_EXEC_STAGE_DEPTH)\b)(\s*=)/$$1 \/*verilator public*\/$$2/mg; s/typedef MicroOpTypes::MemMicroOpSubType MemMicroOpSubType;/typedef MicroOpTypes::MemMicroOpSubType MemMicroOpSubType \/*verilator public*\/;/' target/rsd_pkg_if.sv
+
+all: $(LIBRARY_WORK_RTL) $(VERYL_GENERATED_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
 	$(VERILATOR_BIN) $(VERILATOR_OPTION) $(DEPS_RTL)
 	cd $(LIBRARY_WORK_RTL); \
 		VPATH=../../../Src \
@@ -120,6 +132,7 @@ $(LIBRARY_WORK_RTL):
 	mkdir $(PROJECT_WORK) -p
 
 clean:
+	veryl clean
 	rm $(LIBRARY_WORK_RTL) -f -r
 
 
