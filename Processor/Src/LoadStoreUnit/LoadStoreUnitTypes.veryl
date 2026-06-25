@@ -1,0 +1,167 @@
+package LoadStoreUnitTypes {
+    import MicroArchConf::*;
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+
+    const LSQ_ADDR_MSB: u32 = PHY_ADDR_WIDTH;
+    const LSQ_ADDR_UPPER_PADDING_BIT_SIZE: u32 = PHY_ADDR_WIDTH - LSQ_ADDR_MSB;
+
+    const LSQ_BLOCK_WIDTH: u32 = 32;
+    const LSQ_BLOCK_WORD_WIDTH: u32 = LSQ_BLOCK_WIDTH / DATA_WIDTH;
+    const LSQ_BLOCK_BYTE_WIDTH: u32 = LSQ_BLOCK_WIDTH / BYTE_WIDTH;
+    const LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(LSQ_BLOCK_BYTE_WIDTH);
+    type LSQ_BlockDataPath = logic<LSQ_BLOCK_WIDTH>;
+    type LSQ_BlockAddrPath = logic<LSQ_ADDR_MSB - LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE>;
+
+    function LSQ_ToRawAddr (
+        addr: input PhyAddrPath,
+    ) -> logic<PHY_ADDR_WIDTH> {
+        return {addr.isUncachable, addr.isIO, addr.addr};
+    }
+
+    function LSQ_ToPhyAddr (
+        rawAddr: input logic<PHY_ADDR_WIDTH>,
+    ) -> PhyAddrPath {
+        var ret: PhyAddrPath;
+        ret.isUncachable = rawAddr[PHY_ADDR_WIDTH - 1];
+        ret.isIO = rawAddr[PHY_ADDR_WIDTH - 2];
+        ret.addr = rawAddr[PHY_RAW_ADDR_WIDTH - 1:0];
+        return ret;
+    }
+
+    function LSQ_ToBlockAddr (
+        addr: input PhyAddrPath,
+    ) -> LSQ_BlockAddrPath {
+        var rawAddr: logic<PHY_ADDR_WIDTH>;
+        rawAddr = LSQ_ToRawAddr(addr);
+        return rawAddr[LSQ_ADDR_MSB - 1:LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE];
+    }
+
+    function LSQ_ToFullAddrFromBlockAddr (
+        blockAddr: input LSQ_BlockAddrPath,
+    ) -> PhyAddrPath {
+        return LSQ_ToPhyAddr({blockAddr, 1'b0 repeat LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE});
+    }
+
+    const LOAD_QUEUE_ENTRY_NUM: u32 = CONF_LOAD_QUEUE_ENTRY_NUM;
+    const LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(LOAD_QUEUE_ENTRY_NUM);
+    type LoadQueueIndexPath = logic<LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH>;
+    type LoadQueueCountPath = logic<LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH + 1>;
+    type LoadQueueOneHotPath = logic<(1 << LOAD_QUEUE_ENTRY_NUM_BIT_WIDTH)>;
+
+    const STORE_QUEUE_ENTRY_NUM: u32 = CONF_STORE_QUEUE_ENTRY_NUM;
+    const STORE_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(STORE_QUEUE_ENTRY_NUM);
+    type StoreQueueIndexPath = logic<STORE_QUEUE_ENTRY_NUM_BIT_WIDTH>;
+    type StoreQueueCountPath = logic<STORE_QUEUE_ENTRY_NUM_BIT_WIDTH + 1>;
+    type StoreQueueOneHotPath = logic<(1 << STORE_QUEUE_ENTRY_NUM_BIT_WIDTH)>;
+
+    type LSQ_BlockWordEnablePath = logic<LSQ_BLOCK_WORD_WIDTH>;
+    type LSQ_BlockByteEnablePath = logic<LSQ_BLOCK_BYTE_WIDTH>;
+    type LSQ_WordByteEnablePath = logic<DATA_BYTE_WIDTH>;
+
+    function LSQ_SelectBits (
+        data  : input i32,
+        offset: input i32,
+        width : input i32,
+    ) -> i32 {
+        var ret: i32;
+        ret = 0;
+        for i in 0..width {
+            ret[i] = data[i + offset];
+        }
+        return ret;
+    }
+
+    function LSQ_ToBlockWordEnable (
+        addr: input PhyAddrPath,
+        mode: input MemAccessMode,
+    ) -> LSQ_BlockWordEnablePath {
+        var rawAddr: logic<PHY_ADDR_WIDTH>;
+        var wordEnable: LSQ_BlockWordEnablePath;
+        rawAddr = LSQ_ToRawAddr(addr);
+        case mode.size {
+            MEM_ACCESS_SIZE_VEC: {
+                wordEnable = {1'b1 repeat LSQ_BLOCK_WORD_WIDTH};
+            }
+            default: {
+                wordEnable = 1;
+            }
+        }
+        return wordEnable;
+    }
+
+    function LSQ_ToWordByteEnable (
+        addr: input PhyAddrPath,
+        mode: input MemAccessMode,
+    ) -> LSQ_WordByteEnablePath {
+        var rawAddr: logic<PHY_ADDR_WIDTH>;
+        var byteEnable: LSQ_WordByteEnablePath;
+        rawAddr = LSQ_ToRawAddr(addr);
+        case mode.size {
+            MEM_ACCESS_SIZE_BYTE: {
+                byteEnable = 4'b0001;
+            }
+            MEM_ACCESS_SIZE_HALF_WORD: {
+                byteEnable = 4'b0011;
+            }
+            default: {
+                byteEnable = 4'b1111;
+            }
+        }
+        return byteEnable << rawAddr[DATA_BYTE_WIDTH_BIT_SIZE - 1:0];
+    }
+
+    function LSQ_ToFullPhyAddrFromBlockAddrAndWordWE (
+        blockAddr: input LSQ_BlockAddrPath,
+        wordWE   : input LSQ_BlockWordEnablePath,
+    ) -> PhyAddrPath {
+        var retRaw: logic<PHY_ADDR_WIDTH>;
+        retRaw = {blockAddr, 1'b0 repeat LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE};
+        for i in 0..LSQ_BLOCK_WORD_WIDTH {
+            if wordWE[i] {
+                return LSQ_ToPhyAddr(retRaw + i * DATA_BYTE_WIDTH);
+            }
+        }
+        return LSQ_ToPhyAddr(retRaw);
+    }
+
+    function LSQ_ToScalarWordDataFromBlockData (
+        data  : input LSQ_BlockDataPath,
+        wordWE: input LSQ_BlockWordEnablePath,
+    ) -> DataPath {
+        var ret: DataPath;
+        ret = data[DATA_WIDTH - 1:0];
+        for i in 0..LSQ_BLOCK_WORD_WIDTH {
+            if wordWE[i] {
+                return data >> (i * DATA_WIDTH);
+            }
+        }
+        return ret;
+    }
+
+    struct LoadQueueEntry {
+        regValid: logic,
+        finished: logic,
+        address : LSQ_BlockAddrPath,
+        wordRE  : LSQ_BlockWordEnablePath,
+        pc      : PC_Path,
+    }
+
+    struct StoreQueueAddrEntry {
+        regValid: logic,
+        finished: logic,
+        address : LSQ_BlockAddrPath,
+        wordWE  : LSQ_BlockWordEnablePath,
+        byteWE  : LSQ_WordByteEnablePath,
+    }
+
+    struct StoreQueueDataEntry {
+        condEnabled: logic,
+        data       : LSQ_BlockDataPath,
+        wordWE     : LSQ_BlockWordEnablePath,
+        byteWE     : LSQ_WordByteEnablePath,
+    }
+}

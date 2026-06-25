@@ -1,0 +1,172 @@
+package FPUTypes {
+    struct FAddDataPath {
+        sign: logic    ,
+        expo: logic<8> ,
+        offs: logic<8> ,
+        mant: logic<24>,
+    }
+
+    struct FAddStage1RegPath {
+        lhs           : FAddDataPath    ,
+        rhs           : FAddDataPath    ,
+        is_subtraction: logic           ,
+        prec_loss     : logic           ,
+        res_is_nan    : logic           ,
+        nan           : logic       <32>,
+    }
+
+    struct FAddStage2RegPath {
+        is_subtraction: logic    ,
+        adder_lhs     : logic<27>,
+        adder_rhs     : logic<27>,
+        lhs_sign      : logic    ,
+        lhs_expo      : logic<8> ,
+        lhs_offs      : logic<8> ,
+        suber_result  : logic<25>,
+        lz_count      : logic<5> ,
+        prec_loss     : logic    ,
+        res_is_nan    : logic    ,
+        nan           : logic<32>,
+    }
+
+    struct FMulDataPath {
+        expo  : logic<8> ,
+        v_expo: logic<10>,
+        mant  : logic<23>,
+    }
+
+    struct FMulStage1RegPath {
+        lhs         : FMulDataPath    ,
+        rhs         : FMulDataPath    ,
+        virtual_expo: logic       <10>,
+        result_sign : logic           ,
+        subnormal   : logic           ,
+        res_is_zero : logic           ,
+        res_is_nan  : logic           ,
+        res_is_inf  : logic           ,
+        nan         : logic       <32>,
+    }
+
+    struct FMulStage2RegPath {
+        multiplier_result: logic<48>,
+        subnormal_shift  : logic<6> ,
+        virtual_expo     : logic<10>,
+        result_sign      : logic    ,
+        subnormal        : logic    ,
+        res_is_zero      : logic    ,
+        res_is_nan       : logic    ,
+        res_is_inf       : logic    ,
+        nan              : logic<32>,
+    }
+
+    struct FDivDataPath {
+        v_expo: logic<10>,
+        v_mant: logic<23>,
+    }
+
+    struct FDivRegPath {
+        lhs               : FDivDataPath    ,
+        rhs               : FDivDataPath    ,
+        virtual_expo      : logic       <10>,
+        result_sign       : logic           ,
+        subnormal         : logic           ,
+        dividend_normalize: logic           ,
+        res_is_zero       : logic           ,
+        res_is_nan        : logic           ,
+        res_is_inf        : logic           ,
+        nan               : logic       <32>,
+        rem               : logic       <27>,
+        quo               : logic       <24>,
+    }
+
+    struct FSQRTRegPath {
+        inp_sign   : logic    ,
+        v_expo     : logic<9> ,
+        v_mant     : logic<24>,
+        res_is_zero: logic    ,
+        res_is_nan : logic    ,
+        res_is_inf : logic    ,
+        nan        : logic<32>,
+        rem        : logic<27>,
+        quo        : logic<26>,
+    }
+
+    struct FDivSqrtRegPath {
+        v_lhs_expo  : logic<10>,
+        v_rhs_expo  : logic<10>,
+        v_lhs_mant  : logic<24>,
+        v_rhs_mant  : logic<24>,
+        virtual_expo: logic<10>,
+        is_divide   : logic    ,
+        result_sign : logic    ,
+        lhs_sign    : logic    ,
+        subnormal   : logic    ,
+        res_is_zero : logic    ,
+        res_is_nan  : logic    ,
+        res_is_inf  : logic    ,
+        nan         : logic<32>,
+        rem         : logic<27>,
+        quo         : logic<26>,
+    }
+
+    struct FMAStage1RegPath {
+        mulres_expo  : logic<10>,
+        result_is_inf: logic    ,
+        result_is_nan: logic    ,
+        res_is_addend: logic    ,
+        mul_sign     : logic    ,
+        prop_inf_sign: logic    ,
+        addend_sign  : logic    ,
+        is_subtract  : logic    ,
+        nan          : logic<32>,
+        addend       : logic<32>,
+    }
+
+    struct FMAStage2RegPath {
+        mulres_expo  : logic<10>,
+        result_is_inf: logic    ,
+        result_is_nan: logic    ,
+        res_is_addend: logic    ,
+        mul_sign     : logic    ,
+        prop_inf_sign: logic    ,
+        addend_sign  : logic    ,
+        is_subtract  : logic    ,
+        nan          : logic<32>,
+        addend       : logic<32>,
+    }
+
+    struct FMAStage3RegPath {
+        abs_fma_result : logic<76>,
+        mulres_expo    : logic<10>,
+        res_is_negative: logic    ,
+        result_is_inf  : logic    ,
+        result_is_nan  : logic    ,
+        res_is_zero    : logic    ,
+        res_is_addend  : logic    ,
+        result_sign    : logic    ,
+        prop_inf_sign  : logic    ,
+        addend_sign    : logic    ,
+        is_subtract    : logic    ,
+        nan            : logic<32>,
+        addend         : logic<32>,
+    }
+
+    struct FMAStage4RegPath {
+        abs_fma_result : logic<76>,
+        fmares_shift   : logic<8> ,
+        virtual_expo   : logic<10>,
+        subnormal      : logic    ,
+        res_is_negative: logic    ,
+        result_is_inf  : logic    ,
+        result_is_nan  : logic    ,
+        res_is_zero    : logic    ,
+        res_is_addend  : logic    ,
+        result_sign    : logic    ,
+        prop_inf_sign  : logic    ,
+        addend_sign    : logic    ,
+        is_subtract    : logic    ,
+        nan            : logic<32>,
+        addend         : logic<32>,
+    }
+
+}

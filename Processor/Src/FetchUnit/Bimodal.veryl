@@ -1,0 +1,191 @@
+package BimodalFunctions {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import FetchUnitTypes::*;
+
+    function ToPHT_Index_Local (
+        addr: input PC_Path,
+    ) -> PHT_IndexPath {
+        return
+            addr[
+                PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1:
+                INSN_ADDR_BIT_WIDTH
+            ];
+    }
+}
+
+module Bimodal (
+    port: modport NextPCStageIF::BranchPredictor,
+    next: modport FetchStageIF::BranchPredictor,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import FetchUnitTypes::*;
+    import BimodalFunctions::*;
+
+    var pcIn: PC_Path;
+
+    var phtWE: logic [INT_ISSUE_WIDTH];
+    var phtWA: PHT_IndexPath [INT_ISSUE_WIDTH];
+    var phtWV: PHT_EntryPath [INT_ISSUE_WIDTH];
+    var phtRA: PHT_IndexPath [FETCH_WIDTH];
+    var phtRV: PHT_EntryPath [FETCH_WIDTH];
+
+    var pushPhtQueue: logic;
+    var popPhtQueue: logic;
+    var full: logic;
+    var empty: logic;
+
+    var phtQueue: PhtQueueEntry [PHT_QUEUE_SIZE];
+    var headPtr: PhtQueuePointerPath;
+    var tailPtr: PhtQueuePointerPath;
+    var updatePht: logic;
+
+    inst pht: BlockMultiBankRAM #(
+        ENTRY_NUM     : PHT_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(PHT_EntryPath),
+        READ_NUM      : FETCH_WIDTH,
+        WRITE_NUM     : INT_ISSUE_WIDTH,
+    ) (
+        clk: port.clk,
+        we : phtWE,
+        wa : phtWA,
+        wv : phtWV,
+        ra : phtRA,
+        rv : phtRV,
+    );
+
+    inst phtQueuePointer: QueuePointer #(
+        SIZE: PHT_QUEUE_SIZE,
+    ) (
+        clk    : port.clk,
+        rst    : port.rst,
+        push   : pushPhtQueue,
+        pop    : popPhtQueue,
+        full   : full,
+        empty  : empty,
+        headPtr: headPtr,
+        tailPtr: tailPtr,
+    );
+
+    var resetIndex: PHT_IndexPath;
+
+    always_ff (port.clk) {
+        if port.rstStart {
+            resetIndex = 0;
+        } else {
+            resetIndex = resetIndex + 1;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWA = '0;
+            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV = PHT_ENTRY_MAX / 2 + 1;
+        } else if pushPhtQueue {
+            phtQueue[headPtr].phtWA = phtWA[INT_ISSUE_WIDTH - 1];
+            phtQueue[headPtr].phtWV = phtWV[INT_ISSUE_WIDTH - 1];
+        }
+    }
+
+    always_comb {
+        pcIn = port.predNextPC;
+
+        var stopPredict: logic;
+        stopPredict = FALSE;
+        for i in 0..FETCH_WIDTH {
+            var brPredTakenValue: logic;
+
+            next.phtPrevValue[i] = phtRV[i];
+            brPredTakenValue = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+            if stopPredict {
+                next.brPredTaken[i] = FALSE;
+            } else {
+                next.brPredTaken[i] = brPredTakenValue;
+                if brPredTakenValue {
+                    stopPredict = TRUE;
+                }
+            }
+            next.brGlobalHistory[i] = '0;
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            phtWE[i] = FALSE;
+            phtWV[i] = '0;
+            phtWA[i] = ToPHT_Index_Local(port.brResult[i].brAddr);
+        }
+
+        updatePht = FALSE;
+        pushPhtQueue = FALSE;
+
+        var stopUpdate: logic;
+        stopUpdate = FALSE;
+        for i in 0..INT_ISSUE_WIDTH {
+            var phtPrevValueValue: PHT_EntryPath;
+            var mispredValue: logic;
+            phtPrevValueValue = port.brResult[i].phtPrevValue;
+            mispredValue = FALSE;
+
+            if !stopUpdate {
+                if updatePht {
+                    pushPhtQueue = port.brResult[i].valid;
+                } else {
+                    phtWE[i] = port.brResult[i].valid;
+                    updatePht = updatePht | phtWE[i];
+                }
+
+                mispredValue = port.brResult[i].mispred && port.brResult[i].valid;
+
+                if port.brResult[i].execTaken {
+                    if phtPrevValueValue == PHT_ENTRY_MAX {
+                        phtWV[i] = PHT_ENTRY_MAX;
+                    } else {
+                        phtWV[i] = phtPrevValueValue + 1;
+                    }
+                } else {
+                    if phtPrevValueValue == 0 {
+                        phtWV[i] = 0;
+                    } else {
+                        phtWV[i] = phtPrevValueValue - 1;
+                    }
+                }
+
+                if mispredValue {
+                    stopUpdate = TRUE;
+                }
+            }
+        }
+
+        for i in 0..FETCH_WIDTH {
+            phtRA[i] = ToPHT_Index_Local(pcIn + i * INSN_BYTE_WIDTH);
+        }
+
+        if !empty && !updatePht {
+            popPhtQueue = TRUE;
+            phtWE[0] = TRUE;
+            phtWA[0] = phtQueue[tailPtr].phtWA[PHT_ENTRY_NUM_BIT_WIDTH - 1:0];
+            phtWV[0] = phtQueue[tailPtr].phtWV;
+        } else {
+            popPhtQueue = FALSE;
+        }
+
+        if port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                if i == 0 {
+                    phtWE[i] = TRUE;
+                } else {
+                    phtWE[i] = FALSE;
+                }
+                phtWA[i] = resetIndex;
+                phtWV[i] = PHT_ENTRY_MAX / 2 + 1;
+            }
+
+            for i in 0..FETCH_WIDTH {
+                phtRA[i] = i;
+            }
+
+            pushPhtQueue = FALSE;
+            popPhtQueue = FALSE;
+        }
+    }
+}

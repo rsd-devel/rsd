@@ -1,0 +1,35 @@
+module Axi4Memory (
+    port               : modport Axi4MemoryIF::Axi4,
+    memAccessAddr      : input  AddrPath            ,
+    memAccessWriteData : input  MemoryEntryDataPath ,
+    memAccessRE        : input  logic               ,
+    memAccessWE        : input  logic               ,
+    memAccessReadBusy  : output logic               ,
+    memAccessWriteBusy : output logic               ,
+    nextMemReadSerial  : output MemAccessSerial     ,
+    nextMemWriteSerial : output MemWriteSerial      ,
+    memReadDataReady   : output logic               ,
+    memReadData        : output MemoryEntryDataPath ,
+    memReadSerial      : output MemAccessSerial     ,
+    memAccessResponse  : output MemAccessResponse   ,
+) {
+    import BasicTypes::*;
+    import MemoryTypes::*;
+    import CacheSystemTypes::*;
+
+    inst body: $sv::Axi4Memory_SV (
+        port              : port,
+        memAccessAddr     : memAccessAddr,
+        memAccessWriteData: memAccessWriteData,
+        memAccessRE       : memAccessRE,
+        memAccessWE       : memAccessWE,
+        memAccessReadBusy : memAccessReadBusy,
+        memAccessWriteBusy: memAccessWriteBusy,
+        nextMemReadSerial : nextMemReadSerial,
+        nextMemWriteSerial: nextMemWriteSerial,
+        memReadDataReady  : memReadDataReady,
+        memReadData       : memReadData,
+        memReadSerial     : memReadSerial,
+        memAccessResponse : memAccessResponse,
+    );
+}

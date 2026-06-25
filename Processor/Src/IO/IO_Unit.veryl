@@ -1,0 +1,68 @@
+module IO_Unit (
+    port   : modport IO_UnitIF::IO_Unit,
+    csrUnit: modport CSR_UnitIF::IO_Unit,
+) {
+    import BasicTypes::*;
+    import LoadStoreUnitTypes::*;
+    import MemoryMapTypes::*;
+    import IO_UnitTypes::*;
+    import DebugTypes::*;
+
+    var tmReg: TimerRegsters;
+    var tmNext: TimerRegsters;
+
+    always_ff (port.clk) {
+        if port.rst {
+            tmReg = '0;
+        } else {
+            tmReg = tmNext;
+        }
+    }
+
+    var phyRawReadAddr: PhyRawAddrPath;
+    var phyRawWriteAddr: PhyRawAddrPath;
+
+    always_comb {
+        phyRawReadAddr = port.ioReadAddrIn.addr;
+        phyRawWriteAddr = port.ioWriteAddrIn.addr;
+
+        tmNext = tmReg;
+        tmNext.mtime.raw = tmNext.mtime.raw + 1;
+
+        if tmNext.mtime.raw >= tmNext.mtimecmp.raw {
+            csrUnit.reqTimerInterrupt = TRUE;
+        } else {
+            csrUnit.reqTimerInterrupt = FALSE;
+        }
+
+        if port.ioWE {
+            if phyRawWriteAddr == PHY_ADDR_TIMER_LOW {
+                tmNext.mtime.split.low = port.ioWriteDataIn;
+            } else if phyRawWriteAddr == PHY_ADDR_TIMER_HI {
+                tmNext.mtime.split.hi = port.ioWriteDataIn;
+            } else if phyRawWriteAddr == PHY_ADDR_TIMER_CMP_LOW {
+                tmNext.mtimecmp.split.low = port.ioWriteDataIn;
+            } else if phyRawWriteAddr == PHY_ADDR_TIMER_CMP_HI {
+                tmNext.mtimecmp.split.hi = port.ioWriteDataIn;
+            }
+        }
+
+        if phyRawReadAddr == PHY_ADDR_TIMER_LOW {
+            port.ioReadDataOut = tmReg.mtime.split.low;
+        } else if phyRawReadAddr == PHY_ADDR_TIMER_HI {
+            port.ioReadDataOut = tmReg.mtime.split.hi;
+        } else if phyRawReadAddr == PHY_ADDR_TIMER_CMP_LOW {
+            port.ioReadDataOut = tmReg.mtimecmp.split.low;
+        } else {
+            port.ioReadDataOut = tmReg.mtimecmp.split.hi;
+        }
+    }
+
+    always_comb {
+        port.serialWE = FALSE;
+        port.serialWriteDataOut = port.ioWriteDataIn[SERIAL_OUTPUT_WIDTH - 1:0];
+        if port.ioWE && phyRawWriteAddr == PHY_ADDR_SERIAL_OUTPUT {
+            port.serialWE = TRUE;
+        }
+    }
+}

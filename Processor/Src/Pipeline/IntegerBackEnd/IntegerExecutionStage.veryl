@@ -1,0 +1,264 @@
+package IntegerExecutionStageFunctions {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    function IsConditionEnabledInt (
+        cond: input CondCode,
+        opA : input DataPath,
+        opB : input DataPath,
+    ) -> logic {
+        var signedOpA: SignedDataPath;
+        var signedOpB: SignedDataPath;
+
+        signedOpA = opA;
+        signedOpB = opB;
+
+        case cond {
+            COND_EQ: {
+                return opA == opB;
+            }
+            COND_NE: {
+                return opA != opB;
+            }
+            COND_LT: {
+                return signedOpA <: signedOpB;
+            }
+            COND_LTU: {
+                return opA <: opB;
+            }
+            COND_GE: {
+                return signedOpA >= signedOpB;
+            }
+            COND_GEU: {
+                return opA >= opB;
+            }
+            COND_AL: {
+                return 1'b1;
+            }
+            default: {
+                return 1'b1;
+            }
+        }
+    }
+}
+
+module IntegerExecutionStage (
+    port    : modport IntegerExecutionStageIF::ThisStage,
+    prev    : modport IntegerRegisterReadStageIF::NextStage,
+    bypass  : modport BypassNetworkIF::IntegerExecutionStage,
+    recovery: modport RecoveryManagerIF::IntegerExecutionStage,
+    ctrl    : modport ControllerIF::IntegerExecutionStage,
+    debug   : modport DebugIF::IntegerExecutionStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import FetchUnitTypes::*;
+    import RenameLogicTypes::*;
+    import IntegerExecutionStageFunctions::*;
+
+    var pipeReg: IntegerExecutionStageRegPath [INT_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                pipeReg[i].valid = FALSE;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+
+    var fuOpA: PRegDataPath [INT_ISSUE_WIDTH];
+    var fuOpB: PRegDataPath [INT_ISSUE_WIDTH];
+
+    var aluDataOut: DataPath [INT_ISSUE_WIDTH];
+    var aluCode: IntALU_Code [INT_ISSUE_WIDTH];
+
+    for i in 0..INT_ISSUE_WIDTH : BlockALU {
+        inst intALU: IntALU (
+            aluCode   : aluCode[i],
+            fuOpA_In  : fuOpA[i].data,
+            fuOpB_In  : fuOpB[i].data,
+            aluDataOut: aluDataOut[i],
+        );
+    }
+
+    var shiftOperandType: ShiftOperandType [INT_ISSUE_WIDTH];
+    var shiftImmIn: RISCV_IntOperandImmShift [INT_ISSUE_WIDTH];
+    var shiftDataOut: DataPath [INT_ISSUE_WIDTH];
+    var shiftCarryOut: logic [INT_ISSUE_WIDTH];
+
+    for i in 0..INT_ISSUE_WIDTH : BlockShifter {
+        inst shifter: Shifter (
+            shiftOperandType: shiftOperandType[i],
+            shiftType       : shiftImmIn[i].shiftType,
+            immShiftAmount  : shiftImmIn[i].shift,
+            regShiftAmount  : fuOpB[i].data[SHIFT_AMOUNT_BIT_SIZE - 1:0],
+            dataIn          : fuOpA[i].data,
+            carryIn         : 1'b0,
+            dataOut         : shiftDataOut[i],
+            carryOut        : shiftCarryOut[i],
+        );
+    }
+
+    var nextStage: IntegerRegisterWriteStageRegPath [INT_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            var iqDataValue: IntIssueQueueEntry;
+            var intOpInfoValue: IntOpInfo;
+            var intSubInfoValue: IntOpSubInfo;
+            var brSubInfoValue: BrOpSubInfo;
+            var bPredValue: BranchPred;
+            var pcValue: AddrPath;
+            var dataOutValue: PRegDataPath;
+            var isCondEnabledValue: logic;
+            var isBranchValue: logic;
+            var isJumpValue: logic;
+            var brTakenValue: logic;
+            var brResultValue: BranchResult;
+            var predMissValue: logic;
+            var regValidValue: logic;
+            var flushValue: logic;
+
+            iqDataValue = pipeReg[i].intQueueData;
+            intOpInfoValue = iqDataValue.intOpInfo;
+            intSubInfoValue = intOpInfoValue.intSubInfo;
+            brSubInfoValue = intOpInfoValue.brSubInfo;
+            pcValue = ToAddrFromPC(iqDataValue.pc);
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+
+            if pipeReg[i].bCtrl.rA.valid {
+                fuOpA[i] = bypass.intSrcRegDataOutA[i];
+            } else {
+                fuOpA[i] = pipeReg[i].operandA;
+            }
+
+            if pipeReg[i].bCtrl.rB.valid {
+                fuOpB[i] = bypass.intSrcRegDataOutB[i];
+            } else {
+                fuOpB[i] = pipeReg[i].operandB;
+            }
+
+            isCondEnabledValue = IsConditionEnabledInt(iqDataValue.cond, fuOpA[i].data, fuOpB[i].data);
+
+            shiftOperandType[i] = intSubInfoValue.shiftType;
+            shiftImmIn[i] = intSubInfoValue.shiftIn;
+
+            aluCode[i] = intSubInfoValue.aluCode;
+
+            case iqDataValue.opType {
+                INT_MOP_TYPE_ALU: {
+                    dataOutValue.data = aluDataOut[i];
+                }
+                INT_MOP_TYPE_SHIFT: {
+                    dataOutValue.data = shiftDataOut[i];
+                }
+                INT_MOP_TYPE_BR, INT_MOP_TYPE_RIJ: {
+                    dataOutValue.data = pcValue + PC_OPERAND_OFFSET;
+                }
+                default: {
+                    if isCondEnabledValue {
+                        dataOutValue.data = fuOpA[i].data;
+                    } else {
+                        dataOutValue.data = fuOpB[i].data;
+                    }
+                }
+            }
+
+            regValidValue =
+                (intSubInfoValue.operandTypeA != OOT_REG || fuOpA[i].valid) &&
+                (intSubInfoValue.operandTypeB != OOT_REG || fuOpB[i].valid);
+            dataOutValue.valid = regValidValue;
+
+            bypass.intCtrlIn[i] = pipeReg[i].bCtrl;
+            bypass.intDstRegDataOut[i] = dataOutValue;
+
+            bPredValue = brSubInfoValue.bPred;
+            isBranchValue =
+                iqDataValue.opType == INT_MOP_TYPE_BR ||
+                iqDataValue.opType == INT_MOP_TYPE_RIJ;
+            isJumpValue =
+                (iqDataValue.opType == INT_MOP_TYPE_BR && iqDataValue.cond == COND_AL) ||
+                iqDataValue.opType == INT_MOP_TYPE_RIJ;
+
+            brTakenValue = pipeReg[i].valid && isBranchValue && isCondEnabledValue;
+
+            brResultValue.isCondBr = !isJumpValue;
+            brResultValue.brAddr = ToPC_FromAddr(pcValue);
+
+            if brTakenValue {
+                if iqDataValue.opType == INT_MOP_TYPE_BR {
+                    brResultValue.nextAddr = ToPC_FromAddr(pcValue + ExtendBranchDisplacement(brSubInfoValue.brDisp));
+                } else {
+                    brResultValue.nextAddr = ToPC_FromAddr(AddJALR_TargetOffset(fuOpA[i].data, brSubInfoValue.brDisp));
+                }
+            } else {
+                brResultValue.nextAddr = ToPC_FromAddr(pcValue + INSN_BYTE_WIDTH);
+            }
+
+            brResultValue.execTaken = brTakenValue;
+            brResultValue.predTaken = bPredValue.predTaken;
+            brResultValue.valid = isBranchValue && pipeReg[i].valid && regValidValue;
+            brResultValue.globalHistory = bPredValue.globalHistory;
+            brResultValue.phtPrevValue = bPredValue.phtPrevValue;
+
+            predMissValue =
+                brResultValue.valid &&
+                (
+                    (bPredValue.predTaken != brTakenValue) ||
+                    (brTakenValue == TRUE && bPredValue.predAddr != brResultValue.nextAddr)
+                );
+
+            brResultValue.mispred = predMissValue;
+
+            nextStage[i].opId = pipeReg[i].opId;
+            nextStage[i].intQueueData = pipeReg[i].intQueueData;
+
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].dataOut = dataOutValue;
+
+            nextStage[i].brResult = brResultValue;
+            nextStage[i].brMissPred = predMissValue;
+
+            debug.intExReg[i].valid = pipeReg[i].valid;
+            debug.intExReg[i].flush = flushValue;
+            debug.intExReg[i].opId = pipeReg[i].opId;
+            debug.intExReg[i].dataOut = dataOutValue;
+            debug.intExReg[i].fuOpA = fuOpA[i].data;
+            debug.intExReg[i].fuOpB = fuOpB[i].data;
+            debug.intExReg[i].aluCode = aluCode[i];
+            debug.intExReg[i].opType = iqDataValue.opType;
+            debug.intExReg[i].brPredMiss = predMissValue;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

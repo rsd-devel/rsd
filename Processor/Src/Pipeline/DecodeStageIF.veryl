@@ -1,0 +1,25 @@
+interface DecodeStageIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import MicroOpTypes::*;
+
+    var clk            : clock;
+    var rst            : logic;
+    var nextStage      : RenameStageRegPath [DECODE_WIDTH];
+    var nextFlush      : logic;
+    var nextRecoveredPC: AddrPath;
+
+    modport ThisStage {
+        clk            : input ,
+        rst            : input ,
+        nextStage      : output,
+        nextFlush      : output,
+        nextRecoveredPC: output,
+    }
+
+    modport NextStage {
+        nextStage      : input,
+        nextFlush      : input,
+        nextRecoveredPC: input,
+    }
+}

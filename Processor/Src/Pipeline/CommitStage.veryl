@@ -1,0 +1,397 @@
+package CommitStageFunctions {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    struct CommitDecision {
+        commit         : logic<COMMIT_WIDTH>,
+        toRecoveryPhase: logic,
+        recoveredIndex : CommitLaneIndexPath,
+        refetchType    : RefetchType,
+        recoveryCause  : ExecutionState,
+    }
+
+    function GetFinishedOpNum (
+        activeListCount: input ActiveListCountPath,
+        execState      : input ExecutionState [COMMIT_WIDTH],
+    ) -> CommitLaneCountPath {
+        var finishedOpNum: CommitLaneCountPath;
+        var foundStop: logic;
+
+        finishedOpNum = 0;
+        foundStop = FALSE;
+        for i in 0..COMMIT_WIDTH {
+            if !foundStop {
+                if i <: activeListCount && execState[i] != EXEC_STATE_NOT_FINISHED {
+                    finishedOpNum = i + 1;
+                } else {
+                    foundStop = TRUE;
+                }
+            }
+        }
+        return finishedOpNum;
+    }
+
+    function GetFinishedInsnRange (
+        finishedOpNum: input CommitLaneCountPath,
+        last         : input logic<COMMIT_WIDTH>,
+    ) -> CommitLaneCountPath {
+        var finishedInsnRange: CommitLaneCountPath;
+        var foundValue: logic;
+
+        finishedInsnRange = 0;
+        foundValue = FALSE;
+        for k in 0..COMMIT_WIDTH {
+            var i: u32;
+            i = COMMIT_WIDTH - 1 - k;
+            if !foundValue && i <: finishedOpNum && last[i] {
+                finishedInsnRange = i + 1;
+                foundValue = TRUE;
+            }
+        }
+        return finishedInsnRange;
+    }
+
+    function GetHeadOfThisInsn (
+        lane: input CommitLaneIndexPath,
+        last: input logic<COMMIT_WIDTH>,
+    ) -> CommitLaneIndexPath {
+        var head: CommitLaneIndexPath;
+
+        head = 0;
+        for j in 0..COMMIT_WIDTH {
+            if j <: lane && last[j] {
+                head = j + 1;
+            }
+        }
+        return head;
+    }
+
+    function GetTailOfThisInsn (
+        lane: input CommitLaneIndexPath,
+        last: input logic<COMMIT_WIDTH>,
+    ) -> CommitLaneIndexPath {
+        var tail: CommitLaneIndexPath;
+        var foundValue: logic;
+
+        tail = COMMIT_WIDTH - 1;
+        foundValue = FALSE;
+        for j in 0..COMMIT_WIDTH {
+            if !foundValue && j >= lane && last[j] {
+                tail = j;
+                foundValue = TRUE;
+            }
+        }
+        return tail;
+    }
+
+    function IsRefetchThisState (
+        state: input ExecutionState,
+    ) -> logic {
+        return
+            state == EXEC_STATE_REFETCH_THIS ||
+            state == EXEC_STATE_STORE_LOAD_FORWARDING_MISS ||
+            state == EXEC_STATE_FAULT_LOAD_MISALIGNED ||
+            state == EXEC_STATE_FAULT_LOAD_VIOLATION ||
+            state == EXEC_STATE_FAULT_STORE_MISALIGNED ||
+            state == EXEC_STATE_FAULT_STORE_VIOLATION ||
+            state == EXEC_STATE_FAULT_INSN_ILLEGAL ||
+            state == EXEC_STATE_FAULT_INSN_VIOLATION;
+    }
+
+    function DecideCommit (
+        startCommit          : input logic,
+        activeListCount      : input ActiveListCountPath,
+        execState            : input ExecutionState [COMMIT_WIDTH],
+        isBranch             : input logic<COMMIT_WIDTH>,
+        isStore              : input logic<COMMIT_WIDTH>,
+        last                 : input logic<COMMIT_WIDTH>,
+        unableToStartRecovery: input logic,
+    ) -> CommitDecision {
+        var decision: CommitDecision;
+        var recovery: logic [COMMIT_WIDTH];
+        var recoveryPoint: CommitLaneIndexPath [COMMIT_WIDTH];
+        var opRefetchType: RefetchType [COMMIT_WIDTH];
+        var recoveryTrigger: logic;
+        var recoveryStart: CommitLaneCountPath;
+        var finishedOpNum: CommitLaneCountPath;
+        var finishedInsnRange: CommitLaneCountPath;
+
+        finishedOpNum = GetFinishedOpNum(activeListCount, execState);
+        finishedInsnRange = GetFinishedInsnRange(finishedOpNum, last);
+
+        for i in 0..COMMIT_WIDTH {
+            var lane: CommitLaneIndexPath;
+            lane = i;
+
+            if execState[i] == EXEC_STATE_REFETCH_NEXT {
+                recovery[i] = TRUE;
+                recoveryPoint[i] = GetTailOfThisInsn(lane, last);
+                if isBranch[i] {
+                    opRefetchType[i] = REFETCH_TYPE_BRANCH_TARGET;
+                } else if isStore[i] {
+                    opRefetchType[i] = REFETCH_TYPE_STORE_NEXT_PC;
+                } else {
+                    opRefetchType[i] = REFETCH_TYPE_NEXT_PC;
+                }
+            } else if execState[i] == EXEC_STATE_REFETCH_THIS ||
+                execState[i] == EXEC_STATE_STORE_LOAD_FORWARDING_MISS {
+                recovery[i] = TRUE;
+                recoveryPoint[i] = GetHeadOfThisInsn(lane, last);
+                opRefetchType[i] = REFETCH_TYPE_THIS_PC;
+            } else if
+                execState[i] == EXEC_STATE_TRAP_ECALL ||
+                execState[i] == EXEC_STATE_TRAP_EBREAK ||
+                execState[i] == EXEC_STATE_TRAP_SRET ||
+                execState[i] == EXEC_STATE_TRAP_MRET ||
+                execState[i] == EXEC_STATE_FAULT_INSN_MISALIGNED {
+                recovery[i] = TRUE;
+                recoveryPoint[i] = GetTailOfThisInsn(lane, last);
+                opRefetchType[i] = REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET;
+            } else if
+                execState[i] == EXEC_STATE_FAULT_LOAD_MISALIGNED ||
+                execState[i] == EXEC_STATE_FAULT_LOAD_VIOLATION ||
+                execState[i] == EXEC_STATE_FAULT_STORE_MISALIGNED ||
+                execState[i] == EXEC_STATE_FAULT_STORE_VIOLATION ||
+                execState[i] == EXEC_STATE_FAULT_INSN_ILLEGAL ||
+                execState[i] == EXEC_STATE_FAULT_INSN_VIOLATION {
+                recovery[i] = TRUE;
+                recoveryPoint[i] = GetHeadOfThisInsn(lane, last);
+                opRefetchType[i] = REFETCH_TYPE_THIS_PC_TO_CSR_TARGET;
+            } else {
+                recovery[i] = FALSE;
+                recoveryPoint[i] = 0;
+                opRefetchType[i] = REFETCH_TYPE_THIS_PC;
+            }
+        }
+
+        recoveryTrigger = FALSE;
+        decision.recoveredIndex = 0;
+        recoveryStart = COMMIT_WIDTH;
+        decision.refetchType = REFETCH_TYPE_THIS_PC;
+        decision.recoveryCause = EXEC_STATE_SUCCESS;
+        for i in 0..COMMIT_WIDTH {
+            if i <: finishedInsnRange {
+                if recovery[i] && recoveryPoint[i] <: recoveryStart {
+                    recoveryTrigger = TRUE;
+                    decision.recoveredIndex = i;
+                    recoveryStart = recoveryPoint[i];
+                    decision.refetchType = opRefetchType[i];
+                    decision.recoveryCause = execState[i];
+                }
+            }
+        }
+
+        if startCommit && recoveryTrigger && !unableToStartRecovery {
+            decision.toRecoveryPhase = TRUE;
+        } else {
+            decision.toRecoveryPhase = FALSE;
+        }
+
+        for i in 0..COMMIT_WIDTH {
+            if startCommit {
+                if recoveryTrigger {
+                    if i <: recoveryStart {
+                        decision.commit[i] = TRUE;
+                    } else if i == recoveryStart {
+                        if IsRefetchThisState(execState[i]) || unableToStartRecovery {
+                            decision.commit[i] = FALSE;
+                        } else {
+                            decision.commit[i] = TRUE;
+                        }
+                    } else {
+                        decision.commit[i] = FALSE;
+                    }
+                } else {
+                    if i <: finishedInsnRange {
+                        decision.commit[i] = TRUE;
+                    } else {
+                        decision.commit[i] = FALSE;
+                    }
+                }
+            } else {
+                decision.commit[i] = FALSE;
+            }
+        }
+
+        return decision;
+    }
+}
+
+module CommitStage (
+    port         : modport CommitStageIF::ThisStage,
+    renameLogic  : modport RenameLogicIF::CommitStage,
+    activeList   : modport ActiveListIF::CommitStage,
+    loadStoreUnit: modport LoadStoreUnitIF::CommitStage,
+    recovery     : modport RecoveryManagerIF::CommitStage,
+    csrUnit      : modport CSR_UnitIF::CommitStage,
+    debug        : modport DebugIF::CommitStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+    import FetchUnitTypes::*;
+    import CommitStageFunctions::*;
+
+    var toRecoveryPhase: logic;
+    var commit: logic<COMMIT_WIDTH>;
+    var last: logic<COMMIT_WIDTH>;
+    var isBranch: logic<COMMIT_WIDTH>;
+    var isStore: logic<COMMIT_WIDTH>;
+    var recoveryOpIndex: CommitLaneIndexPath;
+    var refetchType: RefetchType;
+    var recoveryCause: ExecutionState;
+
+    var commitNum: CommitLaneCountPath;
+    var commitLoadNum: CommitLaneCountPath;
+    var commitStoreNum: CommitLaneCountPath;
+    var fflagsWE: logic;
+    var fflagsData: FFlags_Path;
+
+    var phase: PipelinePhase;
+    var lastCommittedPC: PC_Path;
+    var prevLastCommittedPC: PC_Path;
+
+    always_ff (port.clk) {
+        prevLastCommittedPC = lastCommittedPC;
+    }
+
+    always_comb {
+        var decision: CommitDecision;
+
+        phase = recovery.phase;
+
+        for i in 0..COMMIT_WIDTH {
+            last[i] = activeList.readData[i].last;
+            isBranch[i] = activeList.readData[i].isBranch;
+            isStore[i] = activeList.readData[i].isStore;
+        }
+
+        decision = DecideCommit(
+            phase == PHASE_COMMIT,
+            activeList.validEntryNum,
+            activeList.headExecState,
+            isBranch,
+            isStore,
+            last,
+            recovery.unableToStartRecovery
+        );
+
+        commit = decision.commit;
+        toRecoveryPhase = decision.toRecoveryPhase;
+        recoveryOpIndex = decision.recoveredIndex;
+        refetchType = decision.refetchType;
+        recoveryCause = decision.recoveryCause;
+
+        commitNum = 0;
+        commitLoadNum = 0;
+        commitStoreNum = 0;
+        for i in 0..COMMIT_WIDTH {
+            if commit[i] {
+                commitNum = commitNum + 1;
+                if activeList.readData[i].isLoad || activeList.readData[i].isZaamo {
+                    commitLoadNum = commitLoadNum + 1;
+                }
+                if activeList.readData[i].isStore || activeList.readData[i].isZaamo {
+                    commitStoreNum = commitStoreNum + 1;
+                }
+            }
+        }
+
+        renameLogic.commit = commit[0];
+        renameLogic.commitNum = commitNum;
+
+        for i in 0..COMMIT_WIDTH {
+            if commit[i] {
+                renameLogic.retRMT_WriteReg[i] = activeList.readData[i].writeReg;
+                renameLogic.retRMT_WriteReg_PhyRegNum[i] = activeList.readData[i].phyDstRegNum;
+                renameLogic.retRMT_WriteReg_LogRegNum[i] = activeList.readData[i].logDstRegNum;
+            } else {
+                renameLogic.retRMT_WriteReg[i] = FALSE;
+                renameLogic.retRMT_WriteReg_PhyRegNum[i] = 0;
+                renameLogic.retRMT_WriteReg_LogRegNum[i] = 0;
+            }
+        }
+
+        loadStoreUnit.releaseLoadQueue = commit[0];
+        loadStoreUnit.releaseLoadQueueEntryNum = commitLoadNum;
+        loadStoreUnit.commitStore = commit[0];
+        loadStoreUnit.commitStoreNum = commitStoreNum;
+
+        recovery.exceptionDetectedInCommitStage = toRecoveryPhase;
+        recovery.refetchTypeFromCommitStage = refetchType;
+        recovery.recoveryOpIndex = recoveryOpIndex;
+        recovery.recoveryCauseFromCommitStage = recoveryCause;
+
+        lastCommittedPC = prevLastCommittedPC;
+        for i in 0..COMMIT_WIDTH {
+            if commit[i] {
+                lastCommittedPC = activeList.readData[i].pc;
+            }
+        }
+
+        csrUnit.commitNum = commitNum;
+
+        fflagsWE = FALSE;
+        fflagsData = csrUnit.fflags;
+        for i in 0..COMMIT_WIDTH {
+            if commit[i] {
+                fflagsWE = TRUE;
+                fflagsData = fflagsData | activeList.fflagsData[i];
+            }
+        }
+        csrUnit.fflagsWE = fflagsWE;
+        csrUnit.fflagsData = fflagsData;
+
+        debug.recover = toRecoveryPhase;
+        debug.toRecoveryPhase = toRecoveryPhase;
+        for i in 0..COMMIT_WIDTH {
+            debug.cmReg[i].commit = commit[i];
+            debug.cmReg[i].flush = (i <: renameLogic.flushNum) && recovery.renameLogicRecoveryRMT;
+            debug.cmReg[i].opId = activeList.readData[i].opId;
+            debug.cmReg[i].releaseReg = renameLogic.releaseReg[i];
+            debug.cmReg[i].phyReleasedReg = renameLogic.phyReleasedReg[i];
+        }
+        debug.lastCommittedPC = lastCommittedPC;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 0; i < COMMIT_WIDTH; i++) begin
+    //         `RSD_ASSERT_CLK(
+    //             port.clk,
+    //             !(commit[i] && phase == PHASE_COMMIT && alReadData[i].undefined),
+    //             "An undefined or unsupported op is retired."
+    //         );
+    //     end
+    // endgenerate
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `ifdef RSD_FUNCTIONAL_SIMULATION
+    // localparam DEADLOCK_DETECT_CYCLES = 500;
+    // integer cycles;
+    // always_ff @(posedge port.clk) begin
+    //     if (port.rst || commit[0]) begin
+    //         cycles <= 0;
+    //     end
+    //     else begin
+    //         cycles <= cycles + 1;
+    //     end
+    // end
+    //
+    // generate
+    //     `RSD_ASSERT_CLK(
+    //         port.clk,
+    //         !(cycles > DEADLOCK_DETECT_CYCLES),
+    //         "Deadlock detected"
+    //     );
+    // endgenerate
+    // `endif
+}

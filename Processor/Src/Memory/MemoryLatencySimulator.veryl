@@ -1,0 +1,102 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// MemoryLatencySimulator
+//
+
+module MemoryLatencySimulator (
+    clk        : input  clock                                   ,
+    rst        : input  logic                                   ,
+    push       : input  logic                                   ,
+    pushedData : input  MemoryTypes::MemoryLatencySimRequestPath,
+    hasRequest : output logic                                   ,
+    requestData: output MemoryTypes::MemoryLatencySimRequestPath,
+) {
+    import BasicTypes::*;
+    import MemoryTypes::*;
+
+    type IndexPath = logic<$clog2(MEM_LATENCY_SIM_QUEUE_SIZE)>;
+
+    var pop  : logic;
+    var full : logic;
+    var empty: logic;
+
+    var headPtr : IndexPath       ;
+    var tailPtr : IndexPath       ;
+    var count   : LatencyCountPath;
+    var countReg: LatencyCountPath;
+    var randReg : MemoryRandPath  ;
+    var randNext: MemoryRandPath  ;
+
+    // size, initial head, initial tail, initial count
+    inst pointer: QueuePointer #(
+        SIZE            : MEM_LATENCY_SIM_QUEUE_SIZE,
+        INITIAL_HEAD_PTR: 0                         ,
+        INITIAL_TAIL_PTR: 0                         ,
+        INITIAL_COUNT   : 0                         ,
+    ) (
+        clk    : clk    ,
+        rst    : rst    ,
+        push   : push   ,
+        pop    : pop    ,
+        full   : full   ,
+        empty  : empty  ,
+        headPtr: headPtr,
+        tailPtr: tailPtr,
+    );
+
+    var memoryRequestQueue: MemoryLatencySimRequestPath [MEM_LATENCY_SIM_QUEUE_SIZE];
+
+    always_ff (clk) {
+        if push {
+            memoryRequestQueue[tailPtr] = pushedData;
+        }
+
+        if rst {
+            countReg = '0;
+            randReg  = MEM_LATENCY_SIM_RAND_SEED;
+        } else {
+            countReg = count;
+            randReg  = randNext;
+        }
+    }
+
+    always_comb {
+        randNext = randReg;
+        count    = countReg;
+
+        if !empty {
+            // There is some request in the queue
+            if count == (randReg % MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE) {
+                // Issue memory request
+                pop      = TRUE;
+                count    = '0;
+                randNext = randNext ^ (randNext << 13);
+                randNext = randNext ^ (randNext >> 17);
+                randNext = randNext ^ (randNext << 5);
+
+                // for debug
+                //$display("Latency set to %d", randNext % MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE);
+            } else {
+                // Wait until the determined latency has passed
+                pop   = FALSE;
+                count = count + 1;
+            }
+        } else {
+            // There is no request in the queue
+            pop = FALSE;
+        }
+
+        hasRequest  = pop;
+        requestData = memoryRequestQueue[headPtr];
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, !full, "Cannot response so many memory request.");
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `ifdef RSD_SYNTHESIS
+    //     `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
+    // `endif
+}

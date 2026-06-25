@@ -1,0 +1,475 @@
+module BlockDualPortRAM #(
+    param ENTRY_NUM     : u32 = 128,
+    param ENTRY_BIT_SIZE: u32 = 64 ,
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::BlockDualPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module BlockTrueDualPortRAM #(
+    param ENTRY_NUM     : u32 = 16,
+    param ENTRY_BIT_SIZE: u32 = 1 ,
+    param PORT_NUM      : u32 = 2 ,
+) (
+    clk: input  clock                            ,
+    we : input  logic                    [PORT_NUM],
+    rwa: input  logic<$clog2(ENTRY_NUM)> [PORT_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [PORT_NUM],
+    rv : output logic<ENTRY_BIT_SIZE>    [PORT_NUM],
+) {
+    inst body: $sv::BlockTrueDualPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        PORT_NUM      : PORT_NUM      ,
+    ) (
+        clk: clk,
+        we : we ,
+        rwa: rwa,
+        wv : wv ,
+        rv : rv ,
+    );
+}
+
+module BlockMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 4,
+    param ENTRY_BIT_SIZE: u32 = 8,
+    param READ_NUM      : u32 = 2,
+    param WRITE_NUM     : u32 = 2,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::BlockMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module InitializedBlockRAM #(
+    param ENTRY_NUM     : u32    = 128       ,
+    param ENTRY_BIT_SIZE: u32    = 64        ,
+    param INIT_HEX_FILE : string = "code.hex",
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::InitializedBlockRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        INIT_HEX_FILE : INIT_HEX_FILE ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module InitializedBlockRAM_ForNarrowRequest #(
+    param ENTRY_NUM     : u32    = 128       ,
+    param ENTRY_BIT_SIZE: u32    = 64        ,
+    param INIT_HEX_FILE : string = "code.hex",
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::InitializedBlockRAM_ForNarrowRequest_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        INIT_HEX_FILE : INIT_HEX_FILE ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module InitializedBlockRAM_ForWideRequest #(
+    param ENTRY_NUM     : u32    = 128       ,
+    param ENTRY_BIT_SIZE: u32    = 64        ,
+    param INIT_HEX_FILE : string = "code.hex",
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::InitializedBlockRAM_ForWideRequest_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        INIT_HEX_FILE : INIT_HEX_FILE ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedSinglePortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::DistributedSinglePortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedDualPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::DistributedDualPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module RegisterDualPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+) (
+    clk: input  clock                       ,
+    we : input  logic                       ,
+    wa : input  logic<$clog2(ENTRY_NUM)>    ,
+    wv : input  logic<ENTRY_BIT_SIZE>       ,
+    ra : input  logic<$clog2(ENTRY_NUM)>    ,
+    rv : output logic<ENTRY_BIT_SIZE>       ,
+) {
+    inst body: $sv::RegisterDualPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedSharedMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 8 ,
+) (
+    clk: input  clock                            ,
+    we : input  logic                            ,
+    wa : input  logic<$clog2(ENTRY_NUM)>         ,
+    wv : input  logic<ENTRY_BIT_SIZE>            ,
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM],
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM],
+) {
+    inst body: $sv::DistributedSharedMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module LVT_DistributedMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 8 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::LVT_DistributedMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module XOR_DistributedMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 8 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::XOR_DistributedMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 3 ,
+    param WRITE_NUM     : u32 = 3 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::DistributedMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module RegisterMultiPortRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 2 ,
+    param READ_NUM      : u32 = 8 ,
+    param WRITE_NUM     : u32 = 4 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::RegisterMultiPortRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedMultiBankRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 4 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::DistributedMultiBankRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module DistributedMultiBankRAM_ForGE2Banks #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 4 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::DistributedMultiBankRAM_ForGE2Banks_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module BlockMultiBankRAM #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 2 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::BlockMultiBankRAM_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}
+
+module BlockMultiBankRAM_Body #(
+    param ENTRY_NUM     : u32 = 64,
+    param ENTRY_BIT_SIZE: u32 = 63,
+    param READ_NUM      : u32 = 2 ,
+    param WRITE_NUM     : u32 = 2 ,
+) (
+    clk: input  clock                             ,
+    we : input  logic                    [WRITE_NUM],
+    wa : input  logic<$clog2(ENTRY_NUM)> [WRITE_NUM],
+    wv : input  logic<ENTRY_BIT_SIZE>    [WRITE_NUM],
+    ra : input  logic<$clog2(ENTRY_NUM)> [READ_NUM] ,
+    rv : output logic<ENTRY_BIT_SIZE>    [READ_NUM] ,
+) {
+    inst body: $sv::BlockMultiBankRAM_Body_SV #(
+        ENTRY_NUM     : ENTRY_NUM     ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : READ_NUM      ,
+        WRITE_NUM     : WRITE_NUM     ,
+    ) (
+        clk: clk,
+        we : we ,
+        wa : wa ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+}

@@ -1,0 +1,205 @@
+module RecoveryManager (
+    port       : modport RecoveryManagerIF::RecoveryManager,
+    activeList : modport ActiveListIF::RecoveryManager,
+    csrUnit    : modport CSR_UnitIF::RecoveryManager,
+    ctrl       : modport ControllerIF::RecoveryManager,
+    perfCounter: modport PerformanceCounterIF::RecoveryManager,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    struct RecoveryManagerStatePath {
+        phase: PipelinePhase,
+
+        exceptionDetectedInCommitStage: logic,
+        recoveredPC_FromRwStage       : AddrPath,
+        recoveredPC_FromCommitStage   : AddrPath,
+
+        excptCause        : ExecutionState,
+        excptCauseDataAddr: AddrPath,
+
+        flushRangeHeadPtr: ActiveListIndexPath,
+        flushRangeTailPtr: ActiveListIndexPath,
+
+        recoveryFromRwStage: logic,
+        refetchType        : RefetchType,
+    }
+
+    var regState : RecoveryManagerStatePath;
+    var nextState: RecoveryManagerStatePath;
+
+    var toRecoveryPhase: logic;
+    var toCommitPhase  : logic;
+
+    var refetchFromCSR: logic;
+
+    var recoveredPC: PC_Path;
+
+    var exceptionOpPtr: ActiveListIndexPath;
+
+    var exceptionDetected: logic;
+
+    always_ff (port.clk) {
+        if !port.rst {
+            regState = nextState;
+        } else {
+            regState.phase = PHASE_COMMIT;
+            regState.flushRangeHeadPtr = '0;
+            regState.flushRangeTailPtr = '0;
+            regState.recoveryFromRwStage = FALSE;
+            regState.refetchType = REFETCH_TYPE_THIS_PC;
+
+            regState.exceptionDetectedInCommitStage = '0;
+            regState.recoveredPC_FromRwStage = '0;
+            regState.recoveredPC_FromCommitStage = '0;
+
+            regState.excptCause = EXEC_STATE_NOT_FINISHED;
+            regState.excptCauseDataAddr = '0;
+        }
+    }
+
+    always_comb {
+        toRecoveryPhase =
+            port.exceptionDetectedInCommitStage ||
+            port.exceptionDetectedInRwStage;
+        if toRecoveryPhase {
+            nextState.recoveryFromRwStage = port.exceptionDetectedInRwStage;
+        } else {
+            nextState.recoveryFromRwStage = FALSE;
+        }
+
+        toCommitPhase =
+            (regState.phase == PHASE_RECOVER_1) &&
+            !(port.renameLogicRecoveryRMT || port.issueQueueReturnIndex);
+        if port.exceptionDetectedInCommitStage {
+            nextState.refetchType = port.refetchTypeFromCommitStage;
+        } else {
+            nextState.refetchType = port.refetchTypeFromRwStage;
+        }
+
+        nextState.excptCause = port.recoveryCauseFromCommitStage;
+        nextState.excptCauseDataAddr = port.faultingDataAddr;
+        nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
+        nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
+        nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
+
+        refetchFromCSR =
+            (regState.refetchType == REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET) ||
+            (regState.refetchType == REFETCH_TYPE_THIS_PC_TO_CSR_TARGET);
+        csrUnit.triggerExcpt = (regState.phase == PHASE_RECOVER_0) && refetchFromCSR;
+        csrUnit.excptCauseAddr = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
+        csrUnit.excptCause = regState.excptCause;
+        csrUnit.excptCauseDataAddr = regState.excptCauseDataAddr;
+
+        if regState.phase == PHASE_RECOVER_0 {
+            if refetchFromCSR {
+                recoveredPC = ToPC_FromAddr(csrUnit.excptTargetAddr);
+            } else {
+                if regState.refetchType == REFETCH_TYPE_THIS_PC {
+                    if regState.exceptionDetectedInCommitStage {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
+                    } else {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromRwStage);
+                    }
+                } else if (regState.refetchType == REFETCH_TYPE_NEXT_PC) ||
+                          (regState.refetchType == REFETCH_TYPE_STORE_NEXT_PC) {
+                    if regState.exceptionDetectedInCommitStage {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromCommitStage) + INSN_BYTE_WIDTH;
+                    } else {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromRwStage) + INSN_BYTE_WIDTH;
+                    }
+                } else {
+                    if regState.exceptionDetectedInCommitStage {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
+                    } else {
+                        recoveredPC = ToPC_FromAddr(regState.recoveredPC_FromRwStage);
+                    }
+                }
+            }
+        } else {
+            recoveredPC = '0;
+        }
+
+        if port.rst {
+            nextState.phase = PHASE_COMMIT;
+        } else if regState.phase == PHASE_COMMIT {
+            if toRecoveryPhase {
+                nextState.phase = PHASE_RECOVER_0;
+            } else {
+                nextState.phase = PHASE_COMMIT;
+            }
+        } else if regState.phase == PHASE_RECOVER_0 {
+            nextState.phase = PHASE_RECOVER_1;
+        } else {
+            if toCommitPhase {
+                nextState.phase = PHASE_COMMIT;
+            } else {
+                nextState.phase = regState.phase;
+            }
+        }
+
+        port.phase = regState.phase;
+
+        port.recoveredPC_FromRwCommit = recoveredPC;
+        port.toCommitPhase = toCommitPhase;
+
+        port.toRecoveryPhase = regState.phase == PHASE_RECOVER_0;
+        port.recoveryFromRwStage = regState.recoveryFromRwStage;
+
+        ctrl.cmStageFlushUpper = regState.phase == PHASE_RECOVER_0;
+
+        exceptionDetected = port.exceptionDetectedInCommitStage || port.exceptionDetectedInRwStage;
+        exceptionOpPtr = activeList.exceptionOpPtr;
+
+        if (nextState.refetchType == REFETCH_TYPE_THIS_PC) ||
+           (nextState.refetchType == REFETCH_TYPE_THIS_PC_TO_CSR_TARGET) {
+            nextState.flushRangeHeadPtr = exceptionOpPtr;
+        } else {
+            nextState.flushRangeHeadPtr = exceptionOpPtr + 1;
+        }
+        nextState.flushRangeTailPtr = activeList.detectedFlushRangeTailPtr;
+        port.loadQueueRecoveryTailPtr = activeList.loadQueueRecoveryTailPtr;
+        if regState.refetchType == REFETCH_TYPE_STORE_NEXT_PC {
+            port.storeQueueRecoveryTailPtr = activeList.storeQueueRecoveryTailPtr + 1;
+        } else {
+            port.storeQueueRecoveryTailPtr = activeList.storeQueueRecoveryTailPtr;
+        }
+
+        port.flushRangeHeadPtr = regState.flushRangeHeadPtr;
+        port.flushRangeTailPtr = regState.flushRangeTailPtr;
+
+        port.unableToStartRecovery =
+            (regState.phase != PHASE_COMMIT) ||
+            port.renameLogicRecoveryRMT ||
+            port.issueQueueReturnIndex ||
+            port.replayQueueFlushedOpExist ||
+            port.wakeupPipelineRegFlushedOpExist;
+
+        perfCounter.storeLoadForwardingFail =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_THIS_PC);
+        perfCounter.memDepPredMiss =
+            regState.phase == PHASE_RECOVER_0 &&
+            ((regState.refetchType == REFETCH_TYPE_NEXT_PC) ||
+             (regState.refetchType == REFETCH_TYPE_STORE_NEXT_PC));
+        perfCounter.branchPredMiss =
+            regState.phase == PHASE_RECOVER_0 && (regState.refetchType == REFETCH_TYPE_BRANCH_TARGET);
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(
+    //     port.clk,
+    //     !(toCommitPhase && toRecoveryPhase),
+    //     "Tried to start the commit phase and the recovery phase at the same time"
+    // );
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(
+    //     port.clk,
+    //     !(port.exceptionDetectedInRwStage && nextState.refetchType inside {REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET, REFETCH_TYPE_THIS_PC_TO_CSR_TARGET} ),
+    //     "RW stage recovery is not allowed in REFETCH_TYPE_CSR_UNIT_TARGET"
+    // );
+}

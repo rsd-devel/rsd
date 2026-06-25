@@ -1,0 +1,117 @@
+module FPRegisterReadStage (
+    port        : modport FPRegisterReadStageIF::ThisStage,
+    prev        : modport FPIssueStageIF::NextStage,
+    registerFile: modport RegisterFileIF::FPRegisterReadStage,
+    bypass      : modport BypassNetworkIF::FPRegisterReadStage,
+    recovery    : modport RecoveryManagerIF::FPRegisterReadStage,
+    ctrl        : modport ControllerIF::FPRegisterReadStage,
+    debug       : modport DebugIF::FPRegisterReadStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: FPRegisterReadStageRegPath [FP_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FP_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [FP_ISSUE_WIDTH];
+    var iqData: FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var fpOpInfo: FPOpInfo [FP_ISSUE_WIDTH];
+
+    var operandA: PRegDataPath [FP_ISSUE_WIDTH];
+    var operandB: PRegDataPath [FP_ISSUE_WIDTH];
+    var operandC: PRegDataPath [FP_ISSUE_WIDTH];
+    var opSrc: OpSrc [FP_ISSUE_WIDTH];
+    var opDst: OpDst [FP_ISSUE_WIDTH];
+    var nextStage: FPExecutionStageRegPath [FP_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            iqData[i] = pipeReg[i].fpQueueData;
+            fpOpInfo[i] = pipeReg[i].fpQueueData.fpOpInfo;
+            opSrc[i] = iqData[i].opSrc;
+            opDst[i] = iqData[i].opDst;
+
+            registerFile.fpSrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            registerFile.fpSrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+            registerFile.fpSrcRegNumC[i] = opSrc[i].phySrcRegNumC;
+
+            bypass.fpPhySrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            bypass.fpPhySrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+            bypass.fpPhySrcRegNumC[i] = opSrc[i].phySrcRegNumC;
+
+            bypass.fpWriteReg[i] = opDst[i].writeReg && pipeReg[i].valid;
+            bypass.fpPhyDstRegNum[i] = opDst[i].phyDstRegNum;
+
+            bypass.fpReadRegA[i] = fpOpInfo[i].operandTypeA == OOT_REG;
+            bypass.fpReadRegB[i] = fpOpInfo[i].operandTypeB == OOT_REG;
+            bypass.fpReadRegC[i] = fpOpInfo[i].operandTypeC == OOT_REG;
+
+            operandA[i] = registerFile.fpSrcRegDataA[i];
+            operandB[i] = registerFile.fpSrcRegDataB[i];
+            operandC[i] = registerFile.fpSrcRegDataC[i];
+            operandA[i].valid = (fpOpInfo[i].operandTypeA != OOT_REG) || registerFile.fpSrcRegDataA[i].valid;
+            operandB[i].valid = (fpOpInfo[i].operandTypeB != OOT_REG) || registerFile.fpSrcRegDataB[i].valid;
+            operandC[i].valid = (fpOpInfo[i].operandTypeC != OOT_REG) || registerFile.fpSrcRegDataC[i].valid;
+
+            nextStage[i].opId = pipeReg[i].opId;
+
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqData[i].activeListPtr
+            );
+            if stall || clear || port.rst || flush[i] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].replay = pipeReg[i].replay;
+
+            if (iqData[i].fpOpInfo.opType == FP_MOP_TYPE_DIV) ||
+               (iqData[i].fpOpInfo.opType == FP_MOP_TYPE_SQRT) {
+                nextStage[i].isFlushed = pipeReg[i].valid && flush[i];
+            } else {
+                nextStage[i].isFlushed = FALSE;
+            }
+
+            nextStage[i].operandA = operandA[i];
+            nextStage[i].operandB = operandB[i];
+            nextStage[i].operandC = operandC[i];
+            nextStage[i].fpQueueData = pipeReg[i].fpQueueData;
+            nextStage[i].bCtrl = bypass.fpCtrlOut[i];
+        }
+
+        port.nextStage = nextStage;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            debug.fpRrReg[i].valid = pipeReg[i].valid;
+            debug.fpRrReg[i].flush = flush[i];
+            debug.fpRrReg[i].opId = pipeReg[i].opId;
+        }
+    }
+}

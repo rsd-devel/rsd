@@ -1,0 +1,1281 @@
+package VerilatorHelper {
+    import DebugTypes::*;
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+    import PipelineTypes::*;
+    import MemoryMapTypes::*;
+
+    const PC_GOAL: AddrPath = MemoryMapTypes::PC_GOAL;
+    const PHY_ADDR_SECTION_0_BASE: PhyRawAddrPath = MemoryMapTypes::PHY_ADDR_SECTION_0_BASE;
+    const PHY_ADDR_SECTION_1_BASE: PhyRawAddrPath = MemoryMapTypes::PHY_ADDR_SECTION_1_BASE;
+    const LSCALAR_NUM: u32 = BasicTypes::LSCALAR_NUM;
+    const LSCALAR_FP_NUM: u32 = BasicTypes::LSCALAR_FP_NUM;
+    const LREG_NUM: u32 = BasicTypes::LREG_NUM;
+    const FETCH_WIDTH: u32 = BasicTypes::FETCH_WIDTH;
+    const DECODE_WIDTH: u32 = BasicTypes::DECODE_WIDTH;
+    const RENAME_WIDTH: u32 = BasicTypes::RENAME_WIDTH;
+    const DISPATCH_WIDTH: u32 = BasicTypes::DISPATCH_WIDTH;
+    const COMMIT_WIDTH: u32 = BasicTypes::COMMIT_WIDTH;
+    const INT_ISSUE_WIDTH: u32 = BasicTypes::INT_ISSUE_WIDTH;
+    const COMPLEX_ISSUE_WIDTH: u32 = BasicTypes::COMPLEX_ISSUE_WIDTH;
+    const MEM_ISSUE_WIDTH: u32 = BasicTypes::MEM_ISSUE_WIDTH;
+    const FP_ISSUE_WIDTH: u32 = BasicTypes::FP_ISSUE_WIDTH;
+    const ISSUE_QUEUE_ENTRY_NUM: u32 = SchedulerTypes::ISSUE_QUEUE_ENTRY_NUM;
+    const COMPLEX_EXEC_STAGE_DEPTH: u32 = BasicTypes::COMPLEX_EXEC_STAGE_DEPTH;
+    const FP_EXEC_STAGE_DEPTH: u32 = BasicTypes::FP_EXEC_STAGE_DEPTH;
+
+    type MemMicroOpSubType = MicroOpTypes::MemMicroOpSubType;
+
+    function ActiveListEntry_writeReg (
+        e: input ActiveListEntry,
+    ) -> logic {
+        /*verilator public*/
+        return e.writeReg;
+    }
+
+    function ActiveListEntry_logDstRegNum (
+        e: input ActiveListEntry,
+    ) -> LRegNumPath {
+        /*verilator public*/
+        return e.logDstRegNum;
+    }
+
+    function ActiveListEntry_phyDstRegNum_regNum (
+        e: input ActiveListEntry,
+    ) -> PScalarRegNumPath {
+        /*verilator public*/
+        return e.phyDstRegNum.regNum;
+    }
+
+    function ActiveListEntry_pc (
+        e: input ActiveListEntry,
+    ) -> PC_Path {
+        /*verilator public*/
+        return e.pc;
+    }
+
+    function OpId_sid (
+        e: input OpId,
+    ) -> OpSerial {
+        /*verilator public*/
+        return e.sid;
+    }
+
+    function OpId_mid (
+        e: input OpId,
+    ) -> MicroOpIndex {
+        /*verilator public*/
+        return e.mid;
+    }
+
+    function PipelineControll_stall (
+        e: input PipelineControll,
+    ) -> logic {
+        /*verilator public*/
+        return e.stall;
+    }
+
+    function PipelineControll_clear (
+        e: input PipelineControll,
+    ) -> logic {
+        /*verilator public*/
+        return e.clear;
+    }
+
+    function DebugRegister_npReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.npReg[i].valid;
+    }
+
+    function DebugRegister_npReg_sid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpSerial {
+        /*verilator public*/
+        return e.npReg[i].sid;
+    }
+
+    function DebugRegister_ifReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.ifReg[i].valid;
+    }
+
+    function DebugRegister_ifReg_sid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpSerial {
+        /*verilator public*/
+        return e.ifReg[i].sid;
+    }
+
+    function DebugRegister_ifReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.ifReg[i].flush;
+    }
+
+    function DebugRegister_ifReg_icMiss (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.ifReg[i].icMiss;
+    }
+
+    function DebugRegister_pdReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.pdReg[i].valid;
+    }
+
+    function DebugRegister_pdReg_sid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpSerial {
+        /*verilator public*/
+        return e.pdReg[i].sid;
+    }
+
+    function DebugRegister_pdReg_aluCode (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> IntALU_Code {
+        /*verilator public*/
+        return e.pdReg[i].aluCode;
+    }
+
+    function DebugRegister_pdReg_opType (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> IntMicroOpSubType {
+        /*verilator public*/
+        return e.pdReg[i].opType;
+    }
+
+    function DebugRegister_idReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.idReg[i].valid;
+    }
+
+    function DebugRegister_idReg_flushed (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.idReg[i].flushed;
+    }
+
+    function DebugRegister_idReg_flushTriggering (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.idReg[i].flushTriggering;
+    }
+
+    function DebugRegister_idReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.idReg[i].opId;
+    }
+
+    function DebugRegister_idReg_pc (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> AddrPath {
+        /*verilator public*/
+        return e.idReg[i].pc;
+    }
+
+    function DebugRegister_idReg_insn (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> InsnPath {
+        /*verilator public*/
+        return e.idReg[i].insn;
+    }
+
+    function DebugRegister_idReg_undefined (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.idReg[i].undefined;
+    }
+
+    function DebugRegister_idReg_unsupported (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.idReg[i].unsupported;
+    }
+
+    function DebugRegister_rnReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.rnReg[i].valid;
+    }
+
+    function DebugRegister_rnReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.rnReg[i].opId;
+    }
+
+    function DebugRegister_dsReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.dsReg[i].valid;
+    }
+
+    function DebugRegister_dsReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.dsReg[i].opId;
+    }
+
+    function DebugRegister_dsReg_readRegA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.dsReg[i].readRegA;
+    }
+
+    function DebugRegister_dsReg_logSrcRegA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> LRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].logSrcRegA;
+    }
+
+    function DebugRegister_dsReg_phySrcRegA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].phySrcRegA;
+    }
+
+    function DebugRegister_dsReg_readRegB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.dsReg[i].readRegB;
+    }
+
+    function DebugRegister_dsReg_logSrcRegB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> LRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].logSrcRegB;
+    }
+
+    function DebugRegister_dsReg_phySrcRegB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].phySrcRegB;
+    }
+
+    function DebugRegister_dsReg_readRegC (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.dsReg[i].readRegC;
+    }
+
+    function DebugRegister_dsReg_logSrcRegC (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> LRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].logSrcRegC;
+    }
+
+    function DebugRegister_dsReg_phySrcRegC (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].phySrcRegC;
+    }
+
+    function DebugRegister_dsReg_writeReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.dsReg[i].writeReg;
+    }
+
+    function DebugRegister_dsReg_logDstReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> LRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].logDstReg;
+    }
+
+    function DebugRegister_dsReg_phyDstReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].phyDstReg;
+    }
+
+    function DebugRegister_dsReg_phyPrevDstReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.dsReg[i].phyPrevDstReg;
+    }
+
+    function DebugRegister_dsReg_activeListPtr (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> ActiveListIndexPath {
+        /*verilator public*/
+        return e.dsReg[i].activeListPtr;
+    }
+
+    function DebugRegister_dsReg_issueQueuePtr (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> IssueQueueIndexPath {
+        /*verilator public*/
+        return e.dsReg[i].issueQueuePtr;
+    }
+
+    function DebugRegister_intIsReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intIsReg[i].valid;
+    }
+
+    function DebugRegister_intIsReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intIsReg[i].flush;
+    }
+
+    function DebugRegister_intIsReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.intIsReg[i].opId;
+    }
+
+    function DebugRegister_intRrReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intRrReg[i].valid;
+    }
+
+    function DebugRegister_intRrReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intRrReg[i].flush;
+    }
+
+    function DebugRegister_intRrReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.intRrReg[i].opId;
+    }
+
+    function DebugRegister_intExReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intExReg[i].valid;
+    }
+
+    function DebugRegister_intExReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intExReg[i].flush;
+    }
+
+    function DebugRegister_intExReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.intExReg[i].opId;
+    }
+
+    function DebugRegister_intExReg_dataOut (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.intExReg[i].dataOut;
+    }
+
+    function DebugRegister_intExReg_fuOpA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.intExReg[i].fuOpA;
+    }
+
+    function DebugRegister_intExReg_fuOpB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.intExReg[i].fuOpB;
+    }
+
+    function DebugRegister_intExReg_aluCode (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> IntALU_Code {
+        /*verilator public*/
+        return e.intExReg[i].aluCode;
+    }
+
+    function DebugRegister_intExReg_opType (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> IntMicroOpSubType {
+        /*verilator public*/
+        return e.intExReg[i].opType;
+    }
+
+    function DebugRegister_intExReg_brPredMiss (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intExReg[i].brPredMiss;
+    }
+
+    function DebugRegister_intRwReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intRwReg[i].valid;
+    }
+
+    function DebugRegister_intRwReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.intRwReg[i].flush;
+    }
+
+    function DebugRegister_intRwReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.intRwReg[i].opId;
+    }
+
+    function DebugRegister_complexIsReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexIsReg[i].valid;
+    }
+
+    function DebugRegister_complexIsReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexIsReg[i].flush;
+    }
+
+    function DebugRegister_complexIsReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.complexIsReg[i].opId;
+    }
+
+    function DebugRegister_complexRrReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexRrReg[i].valid;
+    }
+
+    function DebugRegister_complexRrReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexRrReg[i].flush;
+    }
+
+    function DebugRegister_complexRrReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.complexRrReg[i].opId;
+    }
+
+    function DebugRegister_complexExReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexExReg[i].flush;
+    }
+
+    function DebugRegister_complexExReg_dataOut (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.complexExReg[i].dataOut;
+    }
+
+    function DebugRegister_complexExReg_fuOpA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.complexExReg[i].fuOpA;
+    }
+
+    function DebugRegister_complexExReg_fuOpB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.complexExReg[i].fuOpB;
+    }
+
+    function DebugRegister_complexRwReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexRwReg[i].valid;
+    }
+
+    function DebugRegister_complexRwReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexRwReg[i].flush;
+    }
+
+    function DebugRegister_complexRwReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.complexRwReg[i].opId;
+    }
+
+    function DebugRegister_memIsReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memIsReg[i].valid;
+    }
+
+    function DebugRegister_memIsReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memIsReg[i].flush;
+    }
+
+    function DebugRegister_memIsReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.memIsReg[i].opId;
+    }
+
+    function DebugRegister_memRrReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memRrReg[i].valid;
+    }
+
+    function DebugRegister_memRrReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memRrReg[i].flush;
+    }
+
+    function DebugRegister_memRrReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.memRrReg[i].opId;
+    }
+
+    function DebugRegister_memExReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memExReg[i].valid;
+    }
+
+    function DebugRegister_memExReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memExReg[i].flush;
+    }
+
+    function DebugRegister_memExReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.memExReg[i].opId;
+    }
+
+    function DebugRegister_memExReg_addrOut (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> AddrPath {
+        /*verilator public*/
+        return e.memExReg[i].addrOut;
+    }
+
+    function DebugRegister_memExReg_fuOpA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.memExReg[i].fuOpA;
+    }
+
+    function DebugRegister_memExReg_fuOpB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.memExReg[i].fuOpB;
+    }
+
+    function DebugRegister_memExReg_opType (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> MemMicroOpSubType {
+        /*verilator public*/
+        return e.memExReg[i].opType;
+    }
+
+    function DebugRegister_memExReg_size (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> MemAccessSizeType {
+        /*verilator public*/
+        return e.memExReg[i].size;
+    }
+
+    function DebugRegister_memExReg_isSigned (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memExReg[i].isSigned;
+    }
+
+    function DebugRegister_mtReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].valid;
+    }
+
+    function DebugRegister_mtReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].flush;
+    }
+
+    function DebugRegister_mtReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.mtReg[i].opId;
+    }
+
+    function DebugRegister_mtReg_executeLoad (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].executeLoad;
+    }
+
+    function DebugRegister_mtReg_executedLoadAddr (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> AddrPath {
+        /*verilator public*/
+        return e.mtReg[i].executedLoadAddr;
+    }
+
+    function DebugRegister_mtReg_mshrAllocated (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].mshrAllocated;
+    }
+
+    function DebugRegister_mtReg_mshrHit (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].mshrHit;
+    }
+
+    function DebugRegister_mtReg_mshrEntryID (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.mtReg[i].mshrEntryID;
+    }
+
+    function DebugRegister_mtReg_executeStore (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.mtReg[i].executeStore;
+    }
+
+    function DebugRegister_mtReg_executedStoreAddr (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> AddrPath {
+        /*verilator public*/
+        return e.mtReg[i].executedStoreAddr;
+    }
+
+    function DebugRegister_mtReg_executedStoreData (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.mtReg[i].executedStoreData;
+    }
+
+    function DebugRegister_maReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.maReg[i].valid;
+    }
+
+    function DebugRegister_maReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.maReg[i].flush;
+    }
+
+    function DebugRegister_maReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.maReg[i].opId;
+    }
+
+    function DebugRegister_maReg_executeLoad (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.maReg[i].executeLoad;
+    }
+
+    function DebugRegister_maReg_executedLoadData (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.maReg[i].executedLoadData;
+    }
+
+    function DebugRegister_memRwReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memRwReg[i].valid;
+    }
+
+    function DebugRegister_memRwReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.memRwReg[i].flush;
+    }
+
+    function DebugRegister_memRwReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.memRwReg[i].opId;
+    }
+
+    function DebugRegister_fpIsReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpIsReg[i].valid;
+    }
+
+    function DebugRegister_fpIsReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpIsReg[i].flush;
+    }
+
+    function DebugRegister_fpIsReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.fpIsReg[i].opId;
+    }
+
+    function DebugRegister_fpRrReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpRrReg[i].valid;
+    }
+
+    function DebugRegister_fpRrReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpRrReg[i].flush;
+    }
+
+    function DebugRegister_fpRrReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.fpRrReg[i].opId;
+    }
+
+    function DebugRegister_fpExReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpExReg[i].flush;
+    }
+
+    function DebugRegister_fpExReg_dataOut (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.fpExReg[i].dataOut;
+    }
+
+    function DebugRegister_fpExReg_fuOpA (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.fpExReg[i].fuOpA;
+    }
+
+    function DebugRegister_fpExReg_fuOpB (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.fpExReg[i].fuOpB;
+    }
+
+    function DebugRegister_fpExReg_fuOpC (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.fpExReg[i].fuOpC;
+    }
+
+    function DebugRegister_fpRwReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpRwReg[i].valid;
+    }
+
+    function DebugRegister_fpRwReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpRwReg[i].flush;
+    }
+
+    function DebugRegister_fpRwReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.fpRwReg[i].opId;
+    }
+
+    function DebugRegister_cmReg_commit (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.cmReg[i].commit;
+    }
+
+    function DebugRegister_cmReg_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.cmReg[i].flush;
+    }
+
+    function DebugRegister_cmReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.cmReg[i].opId;
+    }
+
+    function DebugRegister_cmReg_releaseReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.cmReg[i].releaseReg;
+    }
+
+    function DebugRegister_cmReg_phyReleasedReg (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PRegNumPath {
+        /*verilator public*/
+        return e.cmReg[i].phyReleasedReg;
+    }
+
+    function DebugRegister_scheduler_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.scheduler[i].valid;
+    }
+
+    function DebugRegister_issueQueue_flush (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.issueQueue[i].flush;
+    }
+
+    function DebugRegister_issueQueue_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.issueQueue[i].opId;
+    }
+
+    function DebugRegister_toRecoveryPhase (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.toRecoveryPhase;
+    }
+
+    function DebugRegister_activeListHeadPtr (
+        e: input DebugRegister,
+    ) -> ActiveListIndexPath {
+        /*verilator public*/
+        return e.activeListHeadPtr;
+    }
+
+    function DebugRegister_activeListCount (
+        e: input DebugRegister,
+    ) -> ActiveListCountPath {
+        /*verilator public*/
+        return e.activeListCount;
+    }
+
+    function DebugRegister_npStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.npStagePipeCtrl;
+    }
+
+    function DebugRegister_ifStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.ifStagePipeCtrl;
+    }
+
+    function DebugRegister_pdStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.pdStagePipeCtrl;
+    }
+
+    function DebugRegister_idStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.idStagePipeCtrl;
+    }
+
+    function DebugRegister_rnStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.rnStagePipeCtrl;
+    }
+
+    function DebugRegister_dsStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.dsStagePipeCtrl;
+    }
+
+    function DebugRegister_backEndPipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.backEndPipeCtrl;
+    }
+
+    function DebugRegister_cmStagePipeCtrl (
+        e: input DebugRegister,
+    ) -> PipelineControll {
+        /*verilator public*/
+        return e.cmStagePipeCtrl;
+    }
+
+    function DebugRegister_stallByDecodeStage (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.stallByDecodeStage;
+    }
+
+    function DebugRegister_loadStoreUnitAllocatable (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.loadStoreUnitAllocatable;
+    }
+
+    function DebugRegister_storeCommitterPhase (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.storeCommitterPhase;
+    }
+
+    function DebugRegister_storeQueueCount (
+        e: input DebugRegister,
+    ) -> StoreQueueCountPath {
+        /*verilator public*/
+        return e.storeQueueCount;
+    }
+
+    function DebugRegister_busyInRecovery (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.busyInRecovery;
+    }
+
+    function DebugRegister_storeQueueEmpty (
+        e: input DebugRegister,
+    ) -> logic {
+        /*verilator public*/
+        return e.storeQueueEmpty;
+    }
+
+    function DebugRegister_perfCounter_numIC_Miss (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numIC_Miss;
+    }
+
+    function DebugRegister_perfCounter_numLoadMiss (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numLoadMiss;
+    }
+
+    function DebugRegister_perfCounter_numStoreMiss (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numStoreMiss;
+    }
+
+    function DebugRegister_perfCounter_numStoreLoadForwardingFail (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numStoreLoadForwardingFail;
+    }
+
+    function DebugRegister_perfCounter_numMemDepPredMiss (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numMemDepPredMiss;
+    }
+
+    function DebugRegister_perfCounter_numBranchPredMiss (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numBranchPredMiss;
+    }
+
+    function DebugRegister_perfCounter_numBranchPredMissDetectedOnDecode (
+        e: input DebugRegister,
+    ) -> DataPath {
+        /*verilator public*/
+        return e.perfCounter.numBranchPredMissDetectedOnDecode;
+    }
+
+    function DebugRegister_complexExReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.complexExReg[i].valid[0];
+    }
+
+    function DebugRegister_complexExReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.complexExReg[i].opId[0];
+    }
+
+    function DebugRegister_fpExReg_valid (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> logic {
+        /*verilator public*/
+        return e.fpExReg[i].valid[0];
+    }
+
+    function DebugRegister_fpExReg_opId (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> OpId {
+        /*verilator public*/
+        return e.fpExReg[i].opId[0];
+    }
+}

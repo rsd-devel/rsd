@@ -1,0 +1,97 @@
+module PreDecodeStage (
+    port : modport PreDecodeStageIF::ThisStage,
+    prev : modport FetchStageIF::NextStage,
+    ctrl : modport ControllerIF::PreDecodeStage,
+    debug: modport DebugIF::PreDecodeStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import FetchUnitTypes::*;
+
+    var pipeReg: PreDecodeStageRegPath [DECODE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..DECODE_WIDTH {
+                pipeReg[i].valid = FALSE;
+            }
+        } else if !ctrl.pdStage.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var pc: AddrPath [DECODE_WIDTH];
+    var illegalPC: logic [DECODE_WIDTH];
+
+    always_comb {
+        for i in 0..DECODE_WIDTH {
+            pc[i] = ToAddrFromPC(pipeReg[i].pc);
+            if GetMemoryMapType(pc[i]) == MMT_ILLEGAL {
+                illegalPC[i] = TRUE;
+            } else {
+                illegalPC[i] = FALSE;
+            }
+        }
+    }
+
+    var microOps: MicroOpInfoArray [DECODE_WIDTH];
+    var insnInfo: InsnInfo [DECODE_WIDTH];
+
+    for i in 0..DECODE_WIDTH : BlockDecoder {
+        inst decoder: Decoder (
+            insn     : pipeReg[i].insn,
+            insnInfo : insnInfo[i],
+            microOps : microOps[i],
+            illegalPC: illegalPC[i],
+        );
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var empty: logic;
+    var nextStage: DecodeStageRegPath [DECODE_WIDTH];
+
+    always_comb {
+        stall = ctrl.pdStage.stall;
+        clear = ctrl.pdStage.clear;
+
+        empty = TRUE;
+        for i in 0..DECODE_WIDTH {
+            if stall || clear || port.rst {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].insn = pipeReg[i].insn;
+            nextStage[i].pc = pipeReg[i].pc;
+            nextStage[i].brPred = pipeReg[i].brPred;
+            nextStage[i].insnInfo = insnInfo[i];
+            for j in 0..MICRO_OP_MAX_NUM {
+                nextStage[i].microOps[j] = microOps[i][j];
+            }
+
+            if pipeReg[i].valid {
+                empty = FALSE;
+            }
+
+            nextStage[i].sid = pipeReg[i].sid;
+
+            debug.pdReg[i].valid = pipeReg[i].valid;
+            debug.pdReg[i].sid = pipeReg[i].sid;
+            debug.pdReg[i].aluCode = microOps[i][1].operand.intOp.aluCode;
+            debug.pdReg[i].opType = microOps[i][1].mopSubType.intType;
+        }
+
+        port.nextStage = nextStage;
+        ctrl.pdStageEmpty = empty;
+    }
+}

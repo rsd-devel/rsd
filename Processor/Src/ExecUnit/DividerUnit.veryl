@@ -1,0 +1,186 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Divider Unit
+//
+// - 32bit/32bit=32bitを行うモジュール
+//
+
+// 除算ユニット
+module DividerUnit (
+    clk     : input  clock      ,
+    rst     : input  logic      ,
+    req     : input  logic      ,
+    fuOpA_In: input  DataPath   ,
+    fuOpB_In: input  DataPath   ,
+    divCode : input  IntDIV_Code,
+    finished: output logic      ,
+    dataOut : output DataPath   ,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+
+    var regIsSigned : logic      ;
+    var nextIsSigned: logic      ;
+    var regDividend : DataPath   ;
+    var nextDividend: DataPath   ;
+    var regDivisor  : DataPath   ;
+    var nextDivisor : DataPath   ;
+    var regDivCode  : IntDIV_Code;
+    var nextDivCode : IntDIV_Code;
+    var quotient    : DataPath   ;
+    var remainder   : DataPath   ;
+
+    inst div: QuickDivider (
+        clk      : clk         ,
+        rst      : rst         ,
+        req      : req         ,
+        dividend : nextDividend,
+        divisor  : nextDivisor ,
+        isSigned : nextIsSigned,
+        finished : finished    ,
+        quotient : quotient    ,
+        remainder: remainder   ,
+    );
+
+    always_ff (clk) {
+        if rst {
+            regIsSigned = FALSE;
+            regDividend = '0;
+            regDivisor  = '0;
+            regDivCode  = AC_DIV;
+        } else {
+            regIsSigned = nextIsSigned;
+            regDividend = nextDividend;
+            regDivisor  = nextDivisor;
+            regDivCode  = nextDivCode;
+        }
+    }
+
+    // Make src operands unsigned(plus) value.
+    always_comb {
+        if req {
+            if divCode == AC_DIVU || divCode == AC_REMU {
+                // DIVU and REMU take srcs as unsigned.
+                nextIsSigned = FALSE;
+            } else {
+                // DIV and REM take srcs as signed.
+                nextIsSigned = TRUE;
+            }
+            nextDividend = fuOpA_In;
+            nextDivisor  = fuOpB_In;
+            nextDivCode  = divCode;
+        } else {
+            // Keep the value
+            nextIsSigned = regIsSigned;
+            nextDividend = regDividend;
+            nextDivisor  = regDivisor;
+            nextDivCode  = regDivCode;
+        }
+
+        // Choose output from div or rem.
+        if regDivCode == AC_DIV || regDivCode == AC_DIVU {
+            dataOut = quotient;
+        } else {
+            dataOut = remainder;
+        }
+    }
+}
+
+package DividerUnitTypes {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    struct DividerUnitPipeReg {
+        valid   : logic      ,
+        isSigned: logic      ,
+        divCode : IntDIV_Code,
+    }
+}
+
+// パイプライン化された除算ユニット
+module PipelinedDividerUnit #(
+    param BIT_WIDTH     : u32 = 32,
+    param PIPELINE_DEPTH: u32 = 3 ,
+) (
+    clk     : input  clock      ,
+    stall   : input  logic      ,
+    req     : input  logic      ,
+    fuOpA_In: input  DataPath   ,
+    fuOpB_In: input  DataPath   ,
+    divCode : input  IntDIV_Code,
+    finished: output logic      ,
+    dataOut : output DataPath   ,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+    import DividerUnitTypes::*;
+
+    var pipeReg: DividerUnitPipeReg [PIPELINE_DEPTH - 1];
+    var nextReg: DividerUnitPipeReg                     ;
+
+    var quotient : DataPath;
+    var remainder: DataPath;
+    var isSigned : logic   ;
+    var dividend : DataPath;
+    var divisor  : DataPath;
+
+    inst div: PipelinedRefDivider #(
+        BIT_WIDTH     : $bits(DataPath),
+        PIPELINE_DEPTH: PIPELINE_DEPTH ,
+    ) (
+        clk      : clk      ,
+        stall    : stall    ,
+        dividend : dividend ,
+        divisor  : divisor  ,
+        isSigned : isSigned ,
+        quotient : quotient ,
+        remainder: remainder,
+    );
+
+    always_ff (clk) {
+        if !stall {
+            pipeReg[0] = nextReg;
+            for i in 1..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i - 1];
+            }
+        }
+    }
+
+    // Make src operands unsigned(plus) value.
+    always_comb {
+        if divCode == AC_DIVU || divCode == AC_REMU {
+            // DIVU and REMU take srcs as unsigned.
+            isSigned = TRUE;
+        } else {
+            isSigned = FALSE;
+        }
+
+        dividend = fuOpA_In;
+        divisor  = fuOpB_In;
+
+        nextReg.isSigned = isSigned;
+        nextReg.divCode  = divCode;
+        nextReg.valid    = req;
+
+        if pipeReg[PIPELINE_DEPTH - 2].valid {
+            if pipeReg[PIPELINE_DEPTH - 2].divCode == AC_DIV || pipeReg[PIPELINE_DEPTH - 2].divCode == AC_DIVU {
+                dataOut = quotient;
+            } else {
+                dataOut = remainder;
+            }
+
+            finished = TRUE;
+        } else {
+            dataOut  = '0;
+            finished = FALSE;
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+}

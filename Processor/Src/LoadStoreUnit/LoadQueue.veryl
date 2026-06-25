@@ -1,0 +1,208 @@
+package LoadQueueFunctions {
+    import LoadStoreUnitTypes::*;
+
+    function LoadQueuePtrToAge (
+        ptr : input LoadQueueIndexPath,
+        head: input LoadQueueIndexPath,
+    ) -> LoadQueueCountPath {
+        var age: LoadQueueCountPath;
+        age = ptr;
+        if ptr <: head {
+            return age + LOAD_QUEUE_ENTRY_NUM;
+        } else {
+            return age;
+        }
+    }
+}
+
+module LoadQueue (
+    port    : modport LoadStoreUnitIF::LoadQueue,
+    recovery: modport RecoveryManagerIF::LoadQueue,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import LoadStoreUnitTypes::*;
+    import LoadQueueFunctions::*;
+
+    var resetValue: logic;
+
+    var headPtr: LoadQueueIndexPath;
+    var tailPtr: LoadQueueIndexPath;
+
+    var push: logic;
+    var pushCount: RenameLaneCountPath;
+    var curCount: LoadQueueCountPath;
+
+    inst loadQueuePointer: SetTailMultiWidthQueuePointer #(
+        SIZE            : LOAD_QUEUE_ENTRY_NUM,
+        INITIAL_HEAD_PTR: 0,
+        INITIAL_TAIL_PTR: 0,
+        INITIAL_COUNT   : 0,
+        PUSH_WIDTH      : RENAME_WIDTH,
+        POP_WIDTH       : COMMIT_WIDTH,
+    ) (
+        clk        : port.clk,
+        rst        : resetValue,
+        pop        : port.releaseLoadQueue,
+        popCount   : port.releaseLoadQueueEntryNum,
+        push       : push,
+        pushCount  : pushCount,
+        setTail    : recovery.toRecoveryPhase,
+        setTailPtr : recovery.loadQueueRecoveryTailPtr,
+        count      : curCount,
+        headPtr    : headPtr,
+        tailPtr    : tailPtr,
+    );
+
+    always_comb {
+        pushCount = 0;
+        for i in 0..RENAME_WIDTH {
+            if tailPtr + pushCount <: LOAD_QUEUE_ENTRY_NUM {
+                port.allocatedLoadQueuePtr[i] = tailPtr + pushCount;
+            } else {
+                port.allocatedLoadQueuePtr[i] = tailPtr + pushCount - LOAD_QUEUE_ENTRY_NUM;
+            }
+            pushCount = pushCount + port.allocateLoadQueue[i];
+        }
+        push = pushCount >: 0;
+
+        if curCount <= LOAD_QUEUE_ENTRY_NUM - RENAME_WIDTH - 1 {
+            port.loadQueueAllocatable = TRUE;
+        } else {
+            port.loadQueueAllocatable = FALSE;
+        }
+
+        recovery.loadQueueHeadPtr = headPtr;
+    }
+
+    var loadQueue: LoadQueueEntry [LOAD_QUEUE_ENTRY_NUM];
+    var executedLoadQueuePtrByLoad: LoadQueueIndexPath [LOAD_ISSUE_WIDTH];
+    var executedLoadAddr: LSQ_BlockAddrPath [LOAD_ISSUE_WIDTH];
+    var executedLoadWordRE: LSQ_BlockWordEnablePath [LOAD_ISSUE_WIDTH];
+    var executedLoadRegValid: logic [LOAD_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if resetValue {
+            for i in 0..LOAD_QUEUE_ENTRY_NUM {
+                loadQueue[i].finished = FALSE;
+            }
+        } else {
+            for i in 0..LOAD_ISSUE_WIDTH {
+                if port.executeLoad[i] {
+                    loadQueue[executedLoadQueuePtrByLoad[i]].regValid = executedLoadRegValid[i];
+                    loadQueue[executedLoadQueuePtrByLoad[i]].finished = TRUE;
+                    loadQueue[executedLoadQueuePtrByLoad[i]].address = executedLoadAddr[i];
+                    loadQueue[executedLoadQueuePtrByLoad[i]].wordRE = executedLoadWordRE[i];
+                    loadQueue[executedLoadQueuePtrByLoad[i]].pc = port.executedLoadPC[i];
+                }
+            }
+
+            for i in 0..RENAME_WIDTH {
+                if port.allocateLoadQueue[i] {
+                    loadQueue[port.allocatedLoadQueuePtr[i]].finished = FALSE;
+                }
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..LOAD_ISSUE_WIDTH {
+            executedLoadRegValid[i] = port.executedLoadRegValid[i];
+            executedLoadQueuePtrByLoad[i] = port.executedLoadQueuePtrByLoad[i];
+            executedLoadAddr[i] = LSQ_ToBlockAddr(port.executedLoadAddr[i]);
+            executedLoadWordRE[i] =
+                LSQ_ToBlockWordEnable(
+                    port.executedLoadAddr[i],
+                    port.executedLoadMemAccessMode[i]
+                );
+        }
+    }
+
+    var executedLoadQueuePtrByStore: LoadQueueIndexPath [STORE_ISSUE_WIDTH];
+    var addrMatch: LoadQueueOneHotPath [STORE_ISSUE_WIDTH];
+    var pickedPtr: LoadQueueIndexPath [STORE_ISSUE_WIDTH];
+    var picked: logic [STORE_ISSUE_WIDTH];
+
+    for i in 0..STORE_ISSUE_WIDTH : Picker {
+        inst picker: CircularRangePicker #(
+            ENTRY_NUM: LOAD_QUEUE_ENTRY_NUM,
+        ) (
+            headPtr : executedLoadQueuePtrByStore[i],
+            tailPtr : tailPtr,
+            request : addrMatch[i],
+            grantPtr: pickedPtr[i],
+            picked  : picked[i],
+        );
+    }
+
+    var violation: logic [STORE_ISSUE_WIDTH];
+    var executedStoreAddr: LSQ_BlockAddrPath [STORE_ISSUE_WIDTH];
+    var executedStoreWordWE: LSQ_BlockWordEnablePath [STORE_ISSUE_WIDTH];
+    var conflictLoadPC: PC_Path [STORE_ISSUE_WIDTH];
+
+    always_comb {
+        resetValue = port.rst;
+
+        for si in 0..STORE_ISSUE_WIDTH {
+            violation[si] = FALSE;
+            conflictLoadPC[si] = '0;
+            executedStoreAddr[si] = LSQ_ToBlockAddr(port.executedStoreAddr[si]);
+            executedStoreWordWE[si] =
+                LSQ_ToBlockWordEnable(
+                    port.executedStoreAddr[si],
+                    port.executedStoreMemAccessMode[si]
+                );
+            executedLoadQueuePtrByStore[si] = port.executedLoadQueuePtrByStore[si];
+        }
+
+        for si in 0..STORE_ISSUE_WIDTH {
+            for lqe in 0..LOAD_QUEUE_ENTRY_NUM {
+                addrMatch[si][lqe] =
+                    loadQueue[lqe].finished &&
+                    loadQueue[lqe].regValid &&
+                    loadQueue[lqe].address == executedStoreAddr[si] &&
+                    (loadQueue[lqe].wordRE & executedStoreWordWE[si]) != '0;
+            }
+        }
+
+        for si in 0..STORE_ISSUE_WIDTH {
+            if port.executeStore[si] {
+                violation[si] = picked[si];
+                if picked[si] && pickedPtr[si] <: LOAD_QUEUE_ENTRY_NUM {
+                    conflictLoadPC[si] = loadQueue[pickedPtr[si]].pc;
+                }
+            } else {
+                violation[si] = FALSE;
+            }
+        }
+
+        for si in 0..STORE_ISSUE_WIDTH {
+            for li in 0..LOAD_ISSUE_WIDTH {
+                if port.executeLoad[li] &&
+                   executedLoadAddr[li] == executedStoreAddr[si] &&
+                   ((executedLoadWordRE[li] & executedStoreWordWE[si]) != '0) {
+                    if LoadQueuePtrToAge(port.executedLoadQueuePtrByLoad[li], headPtr) >=
+                       LoadQueuePtrToAge(executedLoadQueuePtrByStore[si], headPtr) {
+                        violation[si] = TRUE;
+                        conflictLoadPC[si] = port.executedLoadPC[li];
+                    }
+                }
+            }
+        }
+
+        port.conflictLoadPC = conflictLoadPC;
+
+        for i in 0..STORE_ISSUE_WIDTH {
+            port.conflict[i] = violation[i];
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeStore[i] && headPtr < tailPtr && executedLoadQueuePtrByStore[i] < headPtr), "1: A store's executedLoadQueuePtr is illegal.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeStore[i] && headPtr < tailPtr && tailPtr < executedLoadQueuePtrByStore[i]), "2: A store's executedLoadQueuePtr is illegal.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeStore[i] && tailPtr <= headPtr && tailPtr < executedLoadQueuePtrByStore[i] && executedLoadQueuePtrByStore[i] < headPtr), "3: A store's executedLoadQueuePtr is illegal.")
+}

@@ -1,0 +1,180 @@
+package IntALUTypes {
+    import BasicTypes::*;
+
+    struct IntAdderResult {
+        carry: logic,
+        data : DataPath,
+    }
+}
+
+module IntAdder (
+    dst        : output IntALUTypes::IntAdderResult,
+    overflowOut: output logic,
+    srcA       : input BasicTypes::DataPath,
+    invA       : input logic,
+    srcB       : input BasicTypes::DataPath,
+    invB       : input logic,
+    carryIn    : input logic,
+) {
+    import BasicTypes::*;
+    import IntALUTypes::*;
+
+    function Inv (
+        src: input DataPath,
+        inv: input logic,
+    ) -> DataPath {
+        if inv {
+            return ~src;
+        } else {
+            return src;
+        }
+    }
+
+    var tmpA: DataPath;
+    var tmpB: DataPath;
+    var sum : logic<DATA_WIDTH + 1>;
+
+    always_comb {
+        tmpA = Inv(srcA, invA);
+        tmpB = Inv(srcB, invB);
+        sum = {1'b0, tmpA} + {1'b0, tmpB} + carryIn;
+        dst.carry = sum[DATA_WIDTH];
+        dst.data = sum[DATA_WIDTH - 1:0];
+        overflowOut =
+            (dst.data[DATA_WIDTH - 1] ^ tmpA[DATA_WIDTH - 1]) &&
+            (dst.data[DATA_WIDTH - 1] ^ tmpB[DATA_WIDTH - 1]);
+    }
+}
+
+module IntALU (
+    aluDataOut: output BasicTypes::DataPath,
+    aluCode   : input OpFormatTypes::IntALU_Code,
+    fuOpA_In  : input BasicTypes::DataPath,
+    fuOpB_In  : input BasicTypes::DataPath,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import IntALUTypes::*;
+
+    var opDst: IntAdderResult;
+
+    var opA      : DataPath;
+    var opB      : DataPath;
+    var signedOpA: SignedDataPath;
+    var signedOpB: SignedDataPath;
+
+    var adderDst        : IntAdderResult;
+    var adderInA        : DataPath;
+    var adderInvInA     : logic;
+    var adderInB        : DataPath;
+    var adderInvInB     : logic;
+    var adderInCarry    : logic;
+    var adderOutOverflow: logic;
+
+    inst adder: IntAdder (
+        dst        : adderDst,
+        srcA       : adderInA,
+        invA       : adderInvInA,
+        srcB       : adderInB,
+        invB       : adderInvInB,
+        carryIn    : adderInCarry,
+        overflowOut: adderOutOverflow,
+    );
+
+    always_comb {
+        opA = fuOpA_In;
+        opB = fuOpB_In;
+        signedOpA = opA;
+        signedOpB = opB;
+
+        adderInA = '0;
+        adderInvInA = FALSE;
+        adderInB = '0;
+        adderInvInB = FALSE;
+        adderInCarry = 1'b0;
+        opDst.carry = 1'b0;
+        opDst.data = opA & opB;
+
+        case aluCode {
+            default: {
+                opDst.data = opA & opB;
+            }
+            AC_EOR: {
+                opDst.data = opA ^ opB;
+            }
+            AC_SUB: {
+                adderInA = opA;
+                adderInvInA = FALSE;
+                adderInB = opB;
+                adderInvInB = TRUE;
+                adderInCarry = 1'b1;
+                opDst = adderDst;
+            }
+            AC_ADD: {
+                adderInA = opA;
+                adderInvInA = FALSE;
+                adderInB = opB;
+                adderInvInB = FALSE;
+                adderInCarry = 1'b0;
+                opDst = adderDst;
+            }
+            AC_SLT: {
+                if signedOpA <: signedOpB {
+                    opDst.data = {31'h0, 1'b1};
+                } else {
+                    opDst.data = {31'h0, 1'b0};
+                }
+            }
+            AC_SLTU: {
+                if opA <: opB {
+                    opDst.data = {31'h0, 1'b1};
+                } else {
+                    opDst.data = {31'h0, 1'b0};
+                }
+            }
+            AC_ORR: {
+                opDst.data = opA | opB;
+            }
+            AC_SH1ADD: {
+                adderInA = opA << 1;
+                adderInvInA = FALSE;
+                adderInB = opB;
+                adderInvInB = FALSE;
+                adderInCarry = 1'b0;
+                opDst = adderDst;
+            }
+            AC_SH2ADD: {
+                adderInA = opA << 2;
+                adderInvInA = FALSE;
+                adderInB = opB;
+                adderInvInB = FALSE;
+                adderInCarry = 1'b0;
+                opDst = adderDst;
+            }
+            AC_SH3ADD: {
+                adderInA = opA << 3;
+                adderInvInA = FALSE;
+                adderInB = opB;
+                adderInvInB = FALSE;
+                adderInCarry = 1'b0;
+                opDst = adderDst;
+            }
+            AC_EQZ: {
+                if opB == 32'h0 {
+                    opDst.data = opA;
+                } else {
+                    opDst.data = 32'h0;
+                }
+            }
+            AC_NEZ: {
+                if opB != 32'h0 {
+                    opDst.data = opA;
+                } else {
+                    opDst.data = 32'h0;
+                }
+            }
+        }
+
+        aluDataOut = opDst.data;
+    }
+}

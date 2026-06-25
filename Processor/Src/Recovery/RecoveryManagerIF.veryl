@@ -1,0 +1,354 @@
+interface RecoveryManagerIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var phase: PipelinePhase;
+
+    var refetchTypeFromCommitStage: RefetchType;
+    var refetchTypeFromRwStage    : RefetchType;
+    var recoveryOpIndex           : CommitLaneIndexPath;
+    var exceptionDetectedInCommitStage: logic;
+    var exceptionDetectedInRwStage    : logic;
+
+    var toCommitPhase              : logic;
+    var recoveredPC_FromCommitStage: AddrPath;
+    var recoveredPC_FromRwStage    : AddrPath;
+    var recoveredPC_FromRwCommit   : AddrPath;
+
+    var faultingDataAddr: AddrPath;
+
+    var recoverFromRename    : logic;
+    var recoveredPC_FromRename: AddrPath;
+
+    var toRecoveryPhase: logic;
+
+    var flushRangeHeadPtr: ActiveListIndexPath;
+    var flushRangeTailPtr: ActiveListIndexPath;
+    var flushAllInsns    : logic;
+
+    var loadQueueRecoveryTailPtr : LoadQueueIndexPath;
+    var loadQueueHeadPtr         : LoadQueueIndexPath;
+    var storeQueueRecoveryTailPtr: StoreQueueIndexPath;
+    var storeQueueHeadPtr        : StoreQueueIndexPath;
+
+    var flushIQ_Entry        : IssueQueueOneHotPath;
+    var issueQueueReturnIndex: logic;
+    var inRecoveryAL         : logic;
+    var renameLogicRecoveryRMT: logic;
+
+    var replayQueueFlushedOpExist       : logic;
+    var wakeupPipelineRegFlushedOpExist : logic;
+    var unableToStartRecovery           : logic;
+
+    var notIssued: IssueQueueOneHotPath;
+
+    var selected             : logic [ISSUE_WIDTH];
+    var selectedPtr          : IssueQueueIndexPath [ISSUE_WIDTH];
+    var selectedActiveListPtr: ActiveListIndexPath [ISSUE_WIDTH];
+
+    var recoveryFromRwStage: logic;
+
+    var recoveryCauseFromCommitStage: ExecutionState;
+
+    modport RecoveryManager {
+        clk: input,
+        rst: input,
+        exceptionDetectedInCommitStage: input,
+        refetchTypeFromCommitStage: input,
+        exceptionDetectedInRwStage: input,
+        refetchTypeFromRwStage: input,
+        renameLogicRecoveryRMT: input,
+        issueQueueReturnIndex: input,
+        replayQueueFlushedOpExist: input,
+        wakeupPipelineRegFlushedOpExist: input,
+        recoveredPC_FromCommitStage: input,
+        recoveredPC_FromRwStage: input,
+        faultingDataAddr: input,
+        notIssued: input,
+        flushIQ_Entry: input,
+        recoveryCauseFromCommitStage: input,
+        phase: output,
+        toRecoveryPhase: output,
+        recoveredPC_FromRwCommit: output,
+        toCommitPhase: output,
+        flushRangeHeadPtr: output,
+        flushRangeTailPtr: output,
+        unableToStartRecovery: output,
+        recoveryFromRwStage: output,
+        loadQueueRecoveryTailPtr: output,
+        storeQueueRecoveryTailPtr: output,
+    }
+
+    modport RenameStage {
+        recoverFromRename: output,
+        recoveredPC_FromRename: output,
+    }
+
+    modport CommitStage {
+        phase: input,
+        unableToStartRecovery: input,
+        renameLogicRecoveryRMT: input,
+        exceptionDetectedInCommitStage: output,
+        recoveryOpIndex: output,
+        refetchTypeFromCommitStage: output,
+        recoveryCauseFromCommitStage: output,
+    }
+
+    modport NextPCStage {
+        toCommitPhase: input,
+        toRecoveryPhase: input,
+        recoveredPC_FromRwCommit: input,
+        recoverFromRename: input,
+        recoveredPC_FromRename: input,
+    }
+
+    modport RenameLogic {
+        toRecoveryPhase: input,
+        inRecoveryAL: input,
+        renameLogicRecoveryRMT: output,
+    }
+
+    modport RenameLogicCommitter {
+        toRecoveryPhase: input,
+        toCommitPhase: input,
+        inRecoveryAL: output,
+    }
+
+    modport IssueQueue {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+        notIssued: input,
+        selected: input,
+        selectedPtr: input,
+        recoveryFromRwStage: input,
+        flushIQ_Entry: output,
+        issueQueueReturnIndex: output,
+        selectedActiveListPtr: output,
+    }
+
+    modport Scheduler {
+        toRecoveryPhase: input,
+        flushIQ_Entry: input,
+        notIssued: output,
+    }
+
+    modport ScheduleStage {
+        toRecoveryPhase: input,
+        flushIQ_Entry: input,
+    }
+
+    modport SelectLogic {
+        selected: output,
+        selectedPtr: output,
+    }
+
+    modport ReplayQueue {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+        recoveryFromRwStage: input,
+        replayQueueFlushedOpExist: output,
+    }
+
+    modport WakeupPipelineRegister {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+        selectedActiveListPtr: input,
+        flushIQ_Entry: input,
+        recoveryFromRwStage: input,
+        wakeupPipelineRegFlushedOpExist: output,
+    }
+
+    modport LoadQueue {
+        toRecoveryPhase: input,
+        loadQueueRecoveryTailPtr: input,
+        loadQueueHeadPtr: output,
+    }
+
+    modport StoreQueue {
+        toRecoveryPhase: input,
+        storeQueueRecoveryTailPtr: input,
+        storeQueueHeadPtr: output,
+    }
+
+    modport StoreCommitter {
+        toRecoveryPhase: input,
+    }
+
+    modport DCacheMissHandler {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MulDivUnit {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport IntegerIssueStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport IntegerRegisterReadStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport IntegerExecutionStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport IntegerRegisterWriteStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport ComplexIntegerIssueStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport ComplexIntegerRegisterReadStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport ComplexIntegerExecutionStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport ComplexIntegerRegisterWriteStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryIssueStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryRegisterReadStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryExecutionStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryTagAccessStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryAccessStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport MemoryRegisterWriteStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport FPIssueStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport FPRegisterReadStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport FPExecutionStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport FPRegisterWriteStage {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport FPDivSqrtUnit {
+        toRecoveryPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        flushAllInsns: input,
+    }
+
+    modport ActiveList {
+        toRecoveryPhase: input,
+        toCommitPhase: input,
+        flushRangeHeadPtr: input,
+        flushRangeTailPtr: input,
+        unableToStartRecovery: input,
+        exceptionDetectedInRwStage: output,
+        refetchTypeFromRwStage: output,
+        recoveredPC_FromCommitStage: output,
+        recoveredPC_FromRwStage: output,
+        faultingDataAddr: output,
+        flushAllInsns: output,
+    }
+
+    modport InterruptController {
+        unableToStartRecovery: input,
+    }
+}

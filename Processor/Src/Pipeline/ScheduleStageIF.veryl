@@ -1,0 +1,36 @@
+interface ScheduleStageIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+
+    var clk             : clock;
+    var rst             : logic;
+    var intNextStage    : IssueStageRegPath [INT_ISSUE_WIDTH];
+    var complexNextStage: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
+    var memNextStage    : IssueStageRegPath [MEM_ISSUE_WIDTH];
+    var fpNextStage     : IssueStageRegPath [FP_ISSUE_WIDTH];
+
+    modport ThisStage {
+        clk             : input ,
+        rst             : input ,
+        intNextStage    : output,
+        complexNextStage: output,
+        memNextStage    : output,
+        fpNextStage     : output,
+    }
+
+    modport IntNextStage {
+        intNextStage: input,
+    }
+
+    modport ComplexNextStage {
+        complexNextStage: input,
+    }
+
+    modport MemNextStage {
+        memNextStage: input,
+    }
+
+    modport FPNextStage {
+        fpNextStage: input,
+    }
+}

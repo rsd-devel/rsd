@@ -1,0 +1,192 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// A free list for an issue queue entries.
+//
+
+module FreeList #(
+    param SIZE       : u32 = 1,
+    param ENTRY_WIDTH: u32 = 1, // MultiWidthFreeListではENTRY_WIDTH
+) (
+    clk       : input  clock             ,
+    rst       : input  logic             ,
+    push      : input  logic             ,
+    pop       : input  logic             ,
+    pushedData: input  logic<ENTRY_WIDTH>,
+    full      : output logic             ,
+    empty     : output logic             ,
+    headData  : output logic<ENTRY_WIDTH>,
+) {
+    import BasicTypes::*;
+
+    const BIT_WIDTH: u32              = $clog2(SIZE);
+    type IndexPath = logic<BIT_WIDTH>;
+
+    var headPtr: IndexPath;
+    var tailPtr: IndexPath;
+
+    // size, initial head, initial tail, initial count
+    inst pointer: QueuePointer #(
+        SIZE            : SIZE,
+        INITIAL_HEAD_PTR: 0   ,
+        INITIAL_TAIL_PTR: 0   ,
+        INITIAL_COUNT   : SIZE,
+    ) (
+        clk    : clk    ,
+        rst    : rst    ,
+        push   : push   ,
+        pop    : pop    ,
+        full   : full   ,
+        empty  : empty  ,
+        headPtr: headPtr,
+        tailPtr: tailPtr,
+    );
+
+    var freeList: logic<ENTRY_WIDTH> [SIZE];
+
+    always_ff (clk) {
+        if rst {
+            for i in 0..SIZE {
+                freeList[i] = i;
+            }
+        } else {
+            if push {
+                freeList[tailPtr] = pushedData;
+            }
+        }
+    }
+
+    always_comb {
+        headData = freeList[headPtr];
+    }
+}
+
+module MultiWidthFreeList #(
+    param SIZE          : u32 = 16  ,
+    param ENTRY_BIT_SIZE: u32 = 4   ,
+    param PUSH_WIDTH    : u32 = 4   ,
+    param POP_WIDTH     : u32 = 4   ,
+    param INITIAL_LENGTH: u32 = SIZE,
+) (
+    clk       : input  clock                               ,
+    rst       : input  logic                               ,
+    rstStart  : input  logic                               ,
+    push      : input  logic                   [PUSH_WIDTH],
+    pop       : input  logic                   [POP_WIDTH] ,
+    pushedData: input  logic<ENTRY_BIT_SIZE>   [PUSH_WIDTH],
+    count     : output logic<$clog2(SIZE) + 1>             ,
+    poppedData: output logic<ENTRY_BIT_SIZE>   [POP_WIDTH] ,
+) {
+    import BasicTypes::*;
+
+    const INDEX_BIT_SIZE: u32                       = $clog2(SIZE);
+    type IndexPath      = logic<INDEX_BIT_SIZE>    ;
+    type Value          = logic<ENTRY_BIT_SIZE>    ;
+    type CountPath      = logic<INDEX_BIT_SIZE + 1>;
+
+    // --- Control headPtr, tailPtr and count
+    var headPtr  : IndexPath                        ;
+    var tailPtr  : IndexPath                        ;
+    var pushCount: logic    <$clog2(PUSH_WIDTH) + 1>;
+    var popCount : logic    <$clog2(POP_WIDTH) + 1> ;
+
+    inst queuePointer: MultiWidthQueuePointer #(
+        SIZE            : SIZE          ,
+        INITIAL_HEAD_PTR: 0             ,
+        INITIAL_TAIL_PTR: INITIAL_LENGTH,
+        INITIAL_COUNT   : INITIAL_LENGTH,
+        PUSH_WIDTH      : PUSH_WIDTH    ,
+        POP_WIDTH       : POP_WIDTH     ,
+    ) (
+        clk      : clk           ,
+        rst      : rst           ,
+        push     : pushCount != 0,
+        pop      : popCount != 0,
+        pushCount: pushCount     ,
+        popCount : popCount      ,
+        headPtr  : headPtr       ,
+        tailPtr  : tailPtr       ,
+        count    : count         ,
+    );
+
+    // --- Data Array of Free List
+    var we: logic     [PUSH_WIDTH];
+    var wv: Value     [PUSH_WIDTH];
+    var wa: IndexPath [PUSH_WIDTH];
+
+    var rv: Value     [POP_WIDTH];
+    var ra: IndexPath [POP_WIDTH];
+
+    var rstIndex: IndexPath;
+
+    //NarrowDistributedMultiPortRAM #(
+    inst freeList: DistributedMultiBankRAM #(
+        ENTRY_NUM     : SIZE          ,
+        ENTRY_BIT_SIZE: ENTRY_BIT_SIZE,
+        READ_NUM      : POP_WIDTH     ,
+        WRITE_NUM     : PUSH_WIDTH    ,
+    ) (
+        clk: clk,
+        wa : wa ,
+        we : we ,
+        wv : wv ,
+        ra : ra ,
+        rv : rv ,
+    );
+
+    // リセット時に、各エントリの内容をエントリの番号で初期化する
+    // すなわち、 entry[0] = 0, entry[1] = 1, entry[2] = 2 ... となる
+    always_ff (clk) {
+        if rstStart {
+            rstIndex = 0;
+        } else if rstIndex >= SIZE - PUSH_WIDTH {
+            rstIndex = 0;
+        } else {
+            rstIndex = rstIndex + PUSH_WIDTH;
+        }
+    }
+
+    always_comb {
+        pushCount = 0;
+        for i in 0..PUSH_WIDTH {
+            if (tailPtr + pushCount) >= SIZE {
+                // Compensate the index to point in the freelist
+                wa[i] = tailPtr + pushCount - SIZE;
+            } else {
+                wa[i] = tailPtr + pushCount;
+            }
+            wv[i] = pushedData[i];
+            we[i] = push[i];
+            if push[i] {
+                pushCount = pushCount + 1;
+            }
+        }
+
+        // "ra" is serialized for multi-banking.
+        for i in 0..POP_WIDTH {
+            if (headPtr + i) >= SIZE {
+                ra[i] = headPtr + i - SIZE;
+            } else {
+                ra[i] = headPtr + i;
+            }
+        }
+
+        popCount = 0;
+        for i in 0..POP_WIDTH {
+            poppedData[i] = rv[popCount];
+            if pop[i] {
+                popCount = popCount + 1;
+            }
+        }
+
+        if rst {
+            for i in 0..PUSH_WIDTH {
+                wa[i] = rstIndex + i;
+                wv[i] = rstIndex + i;
+                // エントリ数が PUSH_WIDTH の整数倍じゃなかった場合の処理
+                we[i] = (wa[i] >= rstIndex) && (wa[i] <: SIZE);
+            }
+        }
+    }
+}

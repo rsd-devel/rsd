@@ -1,0 +1,145 @@
+package MemoryRegisterReadStageFunctions {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+
+    function SelectOperand (
+        opType: input OpOperandType,
+        regV  : input DataPath,
+        immV  : input DataPath,
+        pcV   : input DataPath,
+    ) -> DataPath {
+        case opType {
+            OOT_IMM: {
+                return immV;
+            }
+            OOT_PC: {
+                return pcV;
+            }
+            default: {
+                return regV;
+            }
+        }
+    }
+}
+
+module MemoryRegisterReadStage (
+    port        : modport MemoryRegisterReadStageIF::ThisStage,
+    prev        : modport MemoryIssueStageIF::NextStage,
+    registerFile: modport RegisterFileIF::MemoryRegisterReadStage,
+    bypass      : modport BypassNetworkIF::MemoryRegisterReadStage,
+    recovery    : modport RecoveryManagerIF::MemoryRegisterReadStage,
+    ctrl        : modport ControllerIF::MemoryRegisterReadStage,
+    debug       : modport DebugIF::MemoryRegisterReadStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import CacheSystemTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import MemoryRegisterReadStageFunctions::*;
+
+    var pipeReg: MemoryRegisterReadStageRegPath [MEM_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MEM_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var nextStage: MemoryExecutionStageRegPath [MEM_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            var flushValue: logic;
+            var iqDataValue: MemIssueQueueEntry;
+            var memOpInfoValue: MemOpInfo;
+            var opSrcValue: OpSrc;
+            var opDstValue: OpDst;
+            var pcValue: AddrPath;
+            var immOutValue: DataPath;
+            var operandAValue: PRegDataPath;
+            var operandBValue: PRegDataPath;
+
+            iqDataValue = pipeReg[i].memQueueData;
+            memOpInfoValue = iqDataValue.memOpInfo;
+            opSrcValue = iqDataValue.opSrc;
+            opDstValue = iqDataValue.opDst;
+            pcValue = iqDataValue.pc;
+
+            registerFile.memSrcRegNumA[i] = opSrcValue.phySrcRegNumA;
+            registerFile.memSrcRegNumB[i] = opSrcValue.phySrcRegNumB;
+
+            bypass.memPhySrcRegNumA[i] = opSrcValue.phySrcRegNumA;
+            bypass.memPhySrcRegNumB[i] = opSrcValue.phySrcRegNumB;
+
+            bypass.memWriteReg[i] = opDstValue.writeReg & pipeReg[i].valid;
+            bypass.memPhyDstRegNum[i] = opDstValue.phyDstRegNum;
+            bypass.memReadRegA[i] = memOpInfoValue.operandTypeA == OOT_REG;
+            bypass.memReadRegB[i] = memOpInfoValue.operandTypeB == OOT_REG;
+
+            immOutValue = '0;
+            operandAValue.data = SelectOperand(
+                memOpInfoValue.operandTypeA,
+                registerFile.memSrcRegDataA[i].data,
+                immOutValue,
+                pcValue
+            );
+            operandBValue.data = SelectOperand(
+                memOpInfoValue.operandTypeB,
+                registerFile.memSrcRegDataB[i].data,
+                immOutValue,
+                pcValue
+            );
+            operandAValue.valid =
+                memOpInfoValue.operandTypeA != OOT_REG || registerFile.memSrcRegDataA[i].valid;
+            operandBValue.valid =
+                memOpInfoValue.operandTypeB != OOT_REG || registerFile.memSrcRegDataB[i].valid;
+
+            nextStage[i].opId = pipeReg[i].opId;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].memQueueData = pipeReg[i].memQueueData;
+            nextStage[i].operandA = operandAValue;
+            nextStage[i].operandB = operandBValue;
+            nextStage[i].bCtrl = bypass.memCtrlOut[i];
+            nextStage[i].replay = pipeReg[i].replay && pipeReg[i].valid;
+            nextStage[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+
+            debug.memRrReg[i].valid = pipeReg[i].valid;
+            debug.memRrReg[i].flush = flushValue;
+            debug.memRrReg[i].opId = pipeReg[i].opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

@@ -1,0 +1,42 @@
+interface IO_UnitIF {
+    import BasicTypes::*;
+    import LoadStoreUnitTypes::*;
+    import IO_UnitTypes::*;
+    import MemoryMapTypes::*;
+
+    var clk               : clock;
+    var rst               : logic;
+    var rstStart          : logic;
+    var serialWE          : logic;
+    var serialWriteDataOut: SerialDataPath;
+
+    var ioWE           : logic;
+    var ioWriteDataIn  : DataPath;
+    var ioWriteAddrIn  : PhyAddrPath;
+    var ioReadDataOut  : DataPath;
+    var ioReadAddrIn   : PhyAddrPath;
+
+    modport IO_Unit {
+        clk               : input ,
+        rst               : input ,
+        rstStart          : input ,
+        ioWE              : input ,
+        ioWriteDataIn     : input ,
+        ioWriteAddrIn     : input ,
+        ioReadAddrIn      : input ,
+        ioReadDataOut     : output,
+        serialWE          : output,
+        serialWriteDataOut: output,
+    }
+
+    modport MemoryAccessStage {
+        ioReadDataOut: input ,
+        ioReadAddrIn : output,
+    }
+
+    modport StoreCommitter {
+        ioWE         : output,
+        ioWriteDataIn: output,
+        ioWriteAddrIn: output,
+    }
+}

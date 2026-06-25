@@ -1,0 +1,39 @@
+module Memory #(
+    param INIT_HEX_FILE: string = "",
+) (
+    clk                : input  clock               ,
+    rst                : input  logic               ,
+    memAccessAddr      : input  AddrPath            ,
+    memAccessWriteData : input  MemoryEntryDataPath ,
+    memAccessRE        : input  logic               ,
+    memAccessWE        : input  logic               ,
+    memAccessBusy      : output logic               ,
+    nextMemReadSerial  : output MemAccessSerial     ,
+    nextMemWriteSerial : output MemWriteSerial      ,
+    memReadDataReady   : output logic               ,
+    memReadData        : output MemoryEntryDataPath ,
+    memReadSerial      : output MemAccessSerial     ,
+    memAccessResponse  : output MemAccessResponse   ,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryTypes::*;
+
+    inst body: $sv::Memory_SV #(
+        INIT_HEX_FILE: INIT_HEX_FILE,
+    ) (
+        clk               : clk,
+        rst               : rst,
+        memAccessAddr     : memAccessAddr,
+        memAccessWriteData: memAccessWriteData,
+        memAccessRE       : memAccessRE,
+        memAccessWE       : memAccessWE,
+        memAccessBusy     : memAccessBusy,
+        nextMemReadSerial : nextMemReadSerial,
+        nextMemWriteSerial: nextMemWriteSerial,
+        memReadDataReady  : memReadDataReady,
+        memReadData       : memReadData,
+        memReadSerial     : memReadSerial,
+        memAccessResponse : memAccessResponse,
+    );
+}

@@ -1,0 +1,168 @@
+package IntegerRegisterReadStageFunctions {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+
+    function RISCV_OpImm (
+        intOperandImm: input RISCV_IntOperandImmShift,
+    ) -> DataPath {
+        case intOperandImm.immType {
+            RISCV_IMM_U: {
+                return {intOperandImm.imm, 12'h0};
+            }
+            default: {
+                return {intOperandImm.imm[19] repeat 12, intOperandImm.imm};
+            }
+        }
+    }
+
+    function SelectOperandIntReg (
+        opType: input OpOperandType,
+        regV  : input DataPath,
+        immV  : input DataPath,
+        pcV   : input DataPath,
+    ) -> DataPath {
+        case opType {
+            OOT_IMM: {
+                return immV;
+            }
+            OOT_PC: {
+                return pcV;
+            }
+            default: {
+                return regV;
+            }
+        }
+    }
+}
+
+module IntegerRegisterReadStage (
+    port        : modport IntegerRegisterReadStageIF::ThisStage,
+    prev        : modport IntegerIssueStageIF::NextStage,
+    registerFile: modport RegisterFileIF::IntegerRegisterReadStage,
+    bypass      : modport BypassNetworkIF::IntegerRegisterReadStage,
+    recovery    : modport RecoveryManagerIF::IntegerRegisterReadStage,
+    ctrl        : modport ControllerIF::IntegerRegisterReadStage,
+    debug       : modport DebugIF::IntegerRegisterReadStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import IntegerRegisterReadStageFunctions::*;
+
+    var pipeReg: IntegerRegisterReadStageRegPath [INT_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                pipeReg[i].valid = FALSE;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var immOut: DataPath [INT_ISSUE_WIDTH];
+    var pc: AddrPath [INT_ISSUE_WIDTH];
+    var operandA: PRegDataPath [INT_ISSUE_WIDTH];
+    var operandB: PRegDataPath [INT_ISSUE_WIDTH];
+
+    var stall: logic;
+    var clear: logic;
+    var iqData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
+    var intSubInfo: IntOpSubInfo [INT_ISSUE_WIDTH];
+    var opSrc: OpSrc [INT_ISSUE_WIDTH];
+    var opDst: OpDst [INT_ISSUE_WIDTH];
+    var nextStage: IntegerExecutionStageRegPath [INT_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            var flushValue: logic;
+
+            iqData[i] = pipeReg[i].intQueueData;
+            intSubInfo[i] = iqData[i].intOpInfo.intSubInfo;
+            opSrc[i] = iqData[i].opSrc;
+            opDst[i] = iqData[i].opDst;
+            pc[i] = ToAddrFromPC(iqData[i].pc);
+
+            registerFile.intSrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            registerFile.intSrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+
+            bypass.intPhySrcRegNumA[i] = opSrc[i].phySrcRegNumA;
+            bypass.intPhySrcRegNumB[i] = opSrc[i].phySrcRegNumB;
+
+            bypass.intWriteReg[i] = opDst[i].writeReg & pipeReg[i].valid;
+            bypass.intPhyDstRegNum[i] = opDst[i].phyDstRegNum;
+            bypass.intReadRegA[i] = intSubInfo[i].operandTypeA == OOT_REG;
+            bypass.intReadRegB[i] = intSubInfo[i].operandTypeB == OOT_REG;
+
+            immOut[i] = RISCV_OpImm(intSubInfo[i].shiftIn);
+            operandA[i].data = SelectOperandIntReg(
+                intSubInfo[i].operandTypeA,
+                registerFile.intSrcRegDataA[i].data,
+                immOut[i],
+                pc[i]
+            );
+            operandB[i].data = SelectOperandIntReg(
+                intSubInfo[i].operandTypeB,
+                registerFile.intSrcRegDataB[i].data,
+                immOut[i],
+                pc[i]
+            );
+            operandA[i].valid =
+                (intSubInfo[i].operandTypeA != OOT_REG) || registerFile.intSrcRegDataA[i].valid;
+            operandB[i].valid =
+                (intSubInfo[i].operandTypeB != OOT_REG) || registerFile.intSrcRegDataB[i].valid;
+
+            nextStage[i].opId = pipeReg[i].opId;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqData[i].activeListPtr
+            );
+
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].operandA = operandA[i];
+            nextStage[i].operandB = operandB[i];
+            nextStage[i].intQueueData = pipeReg[i].intQueueData;
+            nextStage[i].bCtrl = bypass.intCtrlOut[i];
+
+            debug.intRrReg[i].valid = pipeReg[i].valid;
+            debug.intRrReg[i].flush = flushValue;
+            debug.intRrReg[i].opId = pipeReg[i].opId;
+        }
+        port.nextStage = nextStage;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 0; i < INT_ISSUE_WIDTH; i++) begin
+    //         `RSD_ASSERT_CLK(
+    //             port.clk,
+    //             intSubInfo[i].operandTypeA == iqData[i].intOpInfo.brSubInfo.operandTypeA &&
+    //             intSubInfo[i].operandTypeB == iqData[i].intOpInfo.brSubInfo.operandTypeB,
+    //             "Int sub info and Br sub info are inconsistent"
+    //         );
+    //     end
+    // endgenerate
+}

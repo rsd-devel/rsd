@@ -1,0 +1,55 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+module ResetController #(
+    param CYCLE_OF_RESET_SEQUENCE: u32 = 10000,
+) (
+    clk       : input  clock,
+    rstTrigger: input  reset,
+    locked    : input  logic,
+    rst       : output logic,
+    rstStart  : output logic,
+) {
+    import BasicTypes::*;
+
+    var count: logic<$clog2(CYCLE_OF_RESET_SEQUENCE) + 1>;
+
+    always_ff (clk, rstTrigger) {
+        // --- rst
+        // - rstTriggerがアサートされた後、
+        //   CYCLE_OF_RESET_SEQUENCEサイクルの間アサートされ続ける
+        if_reset {
+            count = 0;
+            rst   = TRUE;
+        } else if !locked {
+            count = 0;
+            rst   = TRUE;
+        } else if rst {
+            count = count + 1;
+            if count >= CYCLE_OF_RESET_SEQUENCE {
+                rst = FALSE;
+            } else {
+                rst = TRUE;
+            }
+        } else {
+            count = 0;
+            rst   = FALSE;
+        }
+    }
+
+    // --- rstStart
+    // - リセットの開始時に1サイクルだけアサートされる信号線。
+    //   RAMなどを初期化する回路は、
+    //   リセット信号がアサートされている間(CYCLE_OF_RESET_SEQUENCEサイクル)駆動するが、
+    //   その初期化回路もリセットを行う必要がある。
+    //   初期化回路はrstがアサートされている間動くので、
+    //   rstをリセット信号としては使用できない。
+    //   そこで、初期化回路のリセットにはrstStartを用いる。
+    always_comb {
+        if rst && count == 0 {
+            rstStart = TRUE;
+        } else {
+            rstStart = FALSE;
+        }
+    }
+}

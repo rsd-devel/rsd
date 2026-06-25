@@ -1,0 +1,124 @@
+module WakeupLogic (
+    port: modport WakeupSelectIF::WakeupLogic,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+
+    var dispatchedSrcRegValid: logic [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
+    var dispatchedSrcRegNum  : PRegNumPath [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
+
+    var dispatchedDstRegValid: logic [DISPATCH_WIDTH];
+    var dispatchedDstRegNum  : PRegNumPath [DISPATCH_WIDTH];
+
+    var wakeupDstRegValid: logic [WAKEUP_WIDTH];
+    var wakeupDstRegNum  : PRegNumPath [WAKEUP_WIDTH];
+
+    var dispatchedSrcRegReady: logic [DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM];
+
+    var wakeupDstVector: IssueQueueOneHotPath [WAKEUP_WIDTH];
+    var dispatchedSrcRegPtr: logic<DISPATCH_WIDTH, ISSUE_QUEUE_SRC_REG_NUM, ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH>;
+    var opMatrixReady: logic [ISSUE_QUEUE_ENTRY_NUM];
+
+    var dependStoreBitVector: IssueQueueOneHotPath [DISPATCH_WIDTH];
+    var storeBitVector   : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var storeBitVectorReg: logic<ISSUE_QUEUE_ENTRY_NUM>;
+
+    var dispatchStore: logic [DISPATCH_WIDTH];
+    var dispatchLoad : logic [DISPATCH_WIDTH];
+    var notIssued    : logic<ISSUE_QUEUE_ENTRY_NUM>;
+
+    var memDependencyPred: logic [DISPATCH_WIDTH];
+
+    inst regReadyBitTbl: ReadyBitTable #(
+        SRC_OP_NUM       : ISSUE_QUEUE_SRC_REG_NUM,
+        REG_NUM_BIT_WIDTH: PREG_NUM_BIT_WIDTH,
+        ENTRY_NUM        : PREG_NUM,
+    ) (
+        clk                : port.clk,
+        rst                : port.rst,
+        rstStart           : port.rstStart,
+        wakeup             : port.wakeup,
+        wakeupDstValid     : wakeupDstRegValid,
+        wakeupDstRegNum    : wakeupDstRegNum,
+        dispatch           : port.write,
+        dispatchedDstValid : dispatchedDstRegValid,
+        dispatchedDstRegNum: dispatchedDstRegNum,
+        dispatchedSrcValid : dispatchedSrcRegValid,
+        dispatchedSrcRegNum: dispatchedSrcRegNum,
+        dispatchedSrcReady : dispatchedSrcRegReady,
+    );
+
+    always_comb {
+        for i in 0..DISPATCH_WIDTH {
+            dispatchedDstRegValid[i] = port.writeDstTag[i].regTag.valid;
+            dispatchedDstRegNum[i] = port.writeDstTag[i].regTag.num;
+
+            dispatchedSrcRegNum[i][0] = port.writeSrcTag[i].regTag[0].num;
+            dispatchedSrcRegValid[i][0] = port.writeSrcTag[i].regTag[0].valid;
+            dispatchedSrcRegNum[i][1] = port.writeSrcTag[i].regTag[1].num;
+            dispatchedSrcRegValid[i][1] = port.writeSrcTag[i].regTag[1].valid;
+            dispatchedSrcRegNum[i][2] = port.writeSrcTag[i].regTag[2].num;
+            dispatchedSrcRegValid[i][2] = port.writeSrcTag[i].regTag[2].valid;
+        }
+
+        for i in 0..WAKEUP_WIDTH {
+            wakeupDstRegValid[i] = port.wakeupDstTag[i].regTag.valid;
+            wakeupDstRegNum[i] = port.wakeupDstTag[i].regTag.num;
+        }
+    }
+
+    inst producerMatrix: ProducerMatrix (
+        clk                  : port.clk,
+        dispatch             : port.write,
+        dispatchedSrcRegReady: dispatchedSrcRegReady,
+        dispatchedSrcRegPtr  : dispatchedSrcRegPtr,
+        dependStoreBitVector : dependStoreBitVector,
+        dispatchPtr          : port.writePtr,
+        wakeupDstVector      : wakeupDstVector,
+        opReady              : opMatrixReady,
+    );
+
+    always_ff (port.clk) {
+        if port.rst {
+            storeBitVectorReg = 0;
+        } else {
+            storeBitVectorReg = storeBitVector;
+        }
+    }
+
+    always_comb {
+        dispatchStore = port.dispatchStore;
+        dispatchLoad = port.dispatchLoad;
+        notIssued = port.notIssued;
+
+        for w in 0..WAKEUP_WIDTH {
+            wakeupDstVector[w] = port.wakeupVector[w];
+        }
+
+        for i in 0..DISPATCH_WIDTH {
+            dispatchedSrcRegPtr[i][0] = port.writeSrcTag[i].regPtr[0].ptr;
+            dispatchedSrcRegPtr[i][1] = port.writeSrcTag[i].regPtr[1].ptr;
+            dispatchedSrcRegPtr[i][2] = port.writeSrcTag[i].regPtr[2].ptr;
+        }
+
+        storeBitVector = storeBitVectorReg & notIssued;
+        memDependencyPred = port.memDependencyPred;
+
+        for i in 0..DISPATCH_WIDTH {
+            if dispatchStore[i] {
+                dependStoreBitVector[i] = 0;
+                storeBitVector[port.writePtr[i]] = TRUE;
+            } else if dispatchLoad[i] && memDependencyPred[i] {
+                dependStoreBitVector[i] = storeBitVector;
+            } else {
+                dependStoreBitVector[i] = 0;
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            port.opReady[i] = opMatrixReady[i];
+        }
+    }
+}

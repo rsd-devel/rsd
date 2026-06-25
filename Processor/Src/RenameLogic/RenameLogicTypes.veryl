@@ -1,0 +1,23 @@
+package RenameLogicTypes {
+    import MicroOpTypes::*;
+    import BasicTypes::*;
+    import LoadStoreUnitTypes::*;
+
+    const RMT_ENTRY_NUM: u32 = LREG_NUM;
+    const RMT_INDEX_BIT_SIZE: u32 = LREG_NUM_BIT_WIDTH;
+    const RMT_REG_OPERAND_NUM: u32 = 4;
+    const RMT_ENTRY_BIT_SIZE: u32 = PREG_NUM_BIT_WIDTH - 1;
+
+    const SCALAR_FREE_LIST_ENTRY_NUM: u32 = PSCALAR_NUM - LSCALAR_NUM;
+    const SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(SCALAR_FREE_LIST_ENTRY_NUM);
+    type ScalarFreeListIndexPath = logic<SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH>;
+    type ScalarFreeListCountPath = logic<SCALAR_FREE_LIST_ENTRY_NUM_BIT_WIDTH + 1>;
+
+    const SCALAR_FP_FREE_LIST_ENTRY_NUM: u32 = PSCALAR_FP_NUM - LSCALAR_FP_NUM;
+    const SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(SCALAR_FP_FREE_LIST_ENTRY_NUM);
+    type ScalarFPFreeListIndexPath = logic<SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH>;
+    type ScalarFPFreeListCountPath = logic<SCALAR_FP_FREE_LIST_ENTRY_NUM_BIT_WIDTH + 1>;
+
+    const RECOVERY_FROM_RRMT: u32 = FALSE;
+    const RECOVERY_FROM_ACTIVE_LIST: u32 = TRUE;
+}

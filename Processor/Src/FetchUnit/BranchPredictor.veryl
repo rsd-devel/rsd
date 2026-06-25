@@ -1,0 +1,14 @@
+module BranchPredictor (
+    port: modport NextPCStageIF::BranchPredictor,
+    next: modport FetchStageIF::BranchPredictor,
+    ctrl: modport ControllerIF::BranchPredictor,
+) {
+    import BasicTypes::*;
+    import FetchUnitTypes::*;
+
+    inst predictor: Gshare (
+        port: port,
+        next: next,
+        ctrl: ctrl,
+    );
+}

@@ -1,0 +1,158 @@
+module BTB (
+    port: modport NextPCStageIF::BTB,
+    next: modport FetchStageIF::BTB,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import FetchUnitTypes::*;
+
+    var btbWE: logic [INT_ISSUE_WIDTH];
+    var btbWA: BTB_IndexPath [INT_ISSUE_WIDTH];
+    var btbWV: BTB_Entry [INT_ISSUE_WIDTH];
+    var btbRA: BTB_IndexPath [FETCH_WIDTH];
+    var btbRV: BTB_Entry [FETCH_WIDTH];
+
+    var btbOut: PC_Path [FETCH_WIDTH];
+    var btbHit: logic [FETCH_WIDTH];
+    var readIsCondBr: logic [FETCH_WIDTH];
+
+    var pcIn: PC_Path;
+    var tagReg: PC_Path [FETCH_WIDTH];
+    var nextTagReg: PC_Path [FETCH_WIDTH];
+
+    var pushBtbQueue: logic;
+    var popBtbQueue: logic;
+    var full: logic;
+    var empty: logic;
+
+    var btbQueue: BTBQueueEntry [BTB_QUEUE_SIZE];
+    var headPtr: BTBQueuePointerPath;
+    var tailPtr: BTBQueuePointerPath;
+    var updateBtb: logic;
+
+    inst btbEntryArray: BlockMultiBankRAM #(
+        ENTRY_NUM     : BTB_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(BTB_Entry),
+        READ_NUM      : FETCH_WIDTH,
+        WRITE_NUM     : INT_ISSUE_WIDTH,
+    ) (
+        clk: port.clk,
+        we : btbWE,
+        wa : btbWA,
+        wv : btbWV,
+        ra : btbRA,
+        rv : btbRV,
+    );
+
+    inst btbQueuePointer: QueuePointer #(
+        SIZE: BTB_QUEUE_SIZE,
+    ) (
+        clk    : port.clk,
+        rst    : port.rst,
+        push   : pushBtbQueue,
+        pop    : popBtbQueue,
+        full   : full,
+        empty  : empty,
+        headPtr: headPtr,
+        tailPtr: tailPtr,
+    );
+
+    var resetIndex: BTB_IndexPath;
+
+    always_ff (port.clk) {
+        if port.rstStart {
+            resetIndex = 0;
+        } else {
+            resetIndex = resetIndex + 1;
+        }
+
+        if port.rst {
+            for i in 0..FETCH_WIDTH {
+                tagReg[i] = '0;
+            }
+        } else {
+            tagReg = nextTagReg;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWA = '0;
+            btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWV = '0;
+        } else if pushBtbQueue {
+            btbQueue[headPtr].btbWA = btbWA[INT_ISSUE_WIDTH - 1];
+            btbQueue[headPtr].btbWV = btbWV[INT_ISSUE_WIDTH - 1];
+        }
+    }
+
+    always_comb {
+        pcIn = port.predNextPC;
+
+        for i in 0..FETCH_WIDTH {
+            btbRA[i] = ToBTB_Index(pcIn + i * INSN_BYTE_WIDTH);
+            nextTagReg[i] = pcIn + i * INSN_BYTE_WIDTH;
+        }
+
+        for i in 0..FETCH_WIDTH {
+            btbHit[i] = btbRV[i].valid && (btbRV[i].tag == ToBTB_Tag(tagReg[i]));
+            btbOut[i] = ToRawAddrFromBTB_Addr(btbRV[i].data, tagReg[i]);
+            readIsCondBr[i] = btbRV[i].isCondBr;
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            btbWE[i] = FALSE;
+        }
+        updateBtb = FALSE;
+        pushBtbQueue = FALSE;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            if updateBtb {
+                pushBtbQueue = port.brResult[i].valid && port.brResult[i].execTaken;
+            } else {
+                btbWE[i] = port.brResult[i].valid && port.brResult[i].execTaken;
+                updateBtb = updateBtb | btbWE[i];
+            }
+
+            btbWA[i] = ToBTB_Index(port.brResult[i].brAddr);
+            btbWV[i].tag = ToBTB_Tag(port.brResult[i].brAddr);
+            btbWV[i].data = ToBTB_Addr(port.brResult[i].nextAddr);
+            btbWV[i].valid = TRUE;
+            btbWV[i].isCondBr = port.brResult[i].isCondBr;
+        }
+
+        if !empty && !updateBtb {
+            popBtbQueue = TRUE;
+            btbWE[0] = TRUE;
+            btbWA[0] = btbQueue[tailPtr].btbWA[BTB_ENTRY_NUM_BIT_WIDTH - 1:0];
+            btbWV[0] = btbQueue[tailPtr].btbWV;
+        } else {
+            popBtbQueue = FALSE;
+        }
+
+        if port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                if i == 0 {
+                    btbWE[i] = TRUE;
+                } else {
+                    btbWE[i] = FALSE;
+                }
+                btbWA[i] = resetIndex;
+                btbWV[i].tag = 0;
+                btbWV[i].data = 0;
+                btbWV[i].valid = FALSE;
+                btbWV[i].isCondBr = FALSE;
+            }
+
+            for i in 0..FETCH_WIDTH {
+                btbRA[i] = i;
+            }
+
+            pushBtbQueue = FALSE;
+            popBtbQueue = FALSE;
+        }
+
+        next.readIsCondBr = readIsCondBr;
+        next.btbOut = btbOut;
+        next.btbHit = btbHit;
+    }
+}

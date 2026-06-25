@@ -1,0 +1,169 @@
+module Controller (
+    port : modport ControllerIF::Controller,
+    debug: modport DebugIF::Controller,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var npStage : PipelineControll;
+    var ifStage : PipelineControll;
+    var pdStage : PipelineControll;
+    var idStage : PipelineControll;
+    var rnStage : PipelineControll;
+    var dsStage : PipelineControll;
+    var scStage : PipelineControll;
+    var isStage : PipelineControll;
+    var backEnd : PipelineControll;
+    var cmStage : PipelineControll;
+    var stallByDecodeStage: logic;
+
+    always_comb {
+        stallByDecodeStage = FALSE;
+
+        if port.rst {
+            npStage.stall = FALSE;
+            npStage.clear = TRUE;
+            ifStage.stall = FALSE;
+            ifStage.clear = TRUE;
+            pdStage.stall = FALSE;
+            pdStage.clear = TRUE;
+            idStage.stall = FALSE;
+            idStage.clear = TRUE;
+            rnStage.stall = FALSE;
+            rnStage.clear = TRUE;
+            dsStage.stall = FALSE;
+            dsStage.clear = TRUE;
+        } else {
+            npStage.stall = FALSE;
+            npStage.clear = FALSE;
+            ifStage.stall = FALSE;
+            ifStage.clear = FALSE;
+            pdStage.stall = FALSE;
+            pdStage.clear = FALSE;
+            idStage.stall = FALSE;
+            idStage.clear = FALSE;
+            rnStage.stall = FALSE;
+            rnStage.clear = FALSE;
+            dsStage.stall = FALSE;
+            dsStage.clear = FALSE;
+
+            if port.cmStageFlushUpper {
+                npStage.stall = FALSE;
+                npStage.clear = FALSE;
+                ifStage.stall = FALSE;
+                ifStage.clear = TRUE;
+                pdStage.stall = FALSE;
+                pdStage.clear = TRUE;
+                idStage.stall = FALSE;
+                idStage.clear = TRUE;
+                rnStage.stall = FALSE;
+                rnStage.clear = TRUE;
+                dsStage.stall = FALSE;
+                dsStage.clear = TRUE;
+            } else if port.rnStageSendBubbleLower {
+                npStage.stall = TRUE;
+                npStage.clear = FALSE;
+                ifStage.stall = TRUE;
+                ifStage.clear = FALSE;
+                pdStage.stall = TRUE;
+                pdStage.clear = FALSE;
+                idStage.stall = TRUE;
+                idStage.clear = FALSE;
+                rnStage.stall = TRUE;
+                rnStage.clear = TRUE;
+            } else if port.rnStageFlushUpper {
+                npStage.stall = FALSE;
+                npStage.clear = FALSE;
+                ifStage.stall = FALSE;
+                ifStage.clear = TRUE;
+                pdStage.stall = FALSE;
+                pdStage.clear = TRUE;
+                idStage.stall = FALSE;
+                idStage.clear = TRUE;
+            } else if port.idStageStallUpper {
+                npStage.stall = TRUE;
+                npStage.clear = FALSE;
+                ifStage.stall = TRUE;
+                ifStage.clear = FALSE;
+                pdStage.stall = TRUE;
+                pdStage.clear = FALSE;
+                idStage.stall = TRUE;
+                idStage.clear = FALSE;
+
+                stallByDecodeStage = TRUE;
+            } else if port.ifStageSendBubbleLower {
+                npStage.stall = TRUE;
+                npStage.clear = TRUE;
+                ifStage.stall = TRUE;
+                ifStage.clear = TRUE;
+            } else if port.npStageSendBubbleLower ||
+                      port.npStageSendBubbleLowerForInterrupt {
+                npStage.stall = TRUE;
+                npStage.clear = TRUE;
+            }
+        }
+
+        port.npStage = npStage;
+        port.ifStage = ifStage;
+        port.pdStage = pdStage;
+        port.idStage = idStage;
+        port.rnStage = rnStage;
+        port.dsStage = dsStage;
+        port.stallByDecodeStage = stallByDecodeStage;
+
+        if port.rst {
+            scStage.stall = FALSE;
+            scStage.clear = TRUE;
+            isStage.stall = FALSE;
+            isStage.clear = TRUE;
+            backEnd.stall = FALSE;
+            backEnd.clear = TRUE;
+            cmStage.stall = FALSE;
+            cmStage.clear = TRUE;
+        } else {
+            if port.isStageStallUpper {
+                scStage.stall = TRUE;
+                scStage.clear = FALSE;
+                isStage.stall = TRUE;
+                isStage.clear = FALSE;
+                backEnd.stall = FALSE;
+                backEnd.clear = FALSE;
+                cmStage.stall = FALSE;
+                cmStage.clear = FALSE;
+            } else {
+                scStage.stall = FALSE;
+                scStage.clear = FALSE;
+                isStage.stall = FALSE;
+                isStage.clear = FALSE;
+                backEnd.stall = FALSE;
+                backEnd.clear = FALSE;
+                cmStage.stall = FALSE;
+                cmStage.clear = FALSE;
+            }
+        }
+
+        port.scStage = scStage;
+        port.isStage = isStage;
+        port.backEnd = backEnd;
+        port.cmStage = cmStage;
+
+        port.wholePipelineEmpty =
+            npStage.clear &&
+            port.ifStageEmpty &&
+            port.pdStageEmpty &&
+            port.idStageEmpty &&
+            port.rnStageEmpty &&
+            port.activeListEmpty;
+
+        debug.npStagePipeCtrl = npStage;
+        debug.ifStagePipeCtrl = ifStage;
+        debug.pdStagePipeCtrl = pdStage;
+        debug.idStagePipeCtrl = idStage;
+        debug.rnStagePipeCtrl = rnStage;
+        debug.dsStagePipeCtrl = dsStage;
+        debug.backEndPipeCtrl = backEnd;
+        debug.cmStagePipeCtrl = cmStage;
+        debug.stallByDecodeStage = stallByDecodeStage;
+    }
+}

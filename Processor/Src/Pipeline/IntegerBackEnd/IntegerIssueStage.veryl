@@ -1,0 +1,100 @@
+module IntegerIssueStage (
+    port     : modport IntegerIssueStageIF::ThisStage,
+    prev     : modport ScheduleStageIF::IntNextStage,
+    scheduler: modport SchedulerIF::IntegerIssueStage,
+    recovery : modport RecoveryManagerIF::IntegerIssueStage,
+    ctrl     : modport ControllerIF::IntegerIssueStage,
+    debug    : modport DebugIF::IntegerIssueStage,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: IssueStageRegPath [INT_ISSUE_WIDTH];
+    var nextPipeReg: IssueStageRegPath [INT_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !ctrl.isStage.stall {
+            pipeReg = prev.intNextStage;
+        } else {
+            pipeReg = nextPipeReg;
+        }
+    }
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            if recovery.toRecoveryPhase {
+                nextPipeReg[i].valid =
+                    pipeReg[i].valid &&
+                    !SelectiveFlushDetector(
+                        recovery.toRecoveryPhase,
+                        recovery.flushRangeHeadPtr,
+                        recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
+                        scheduler.intIssuedData[i].activeListPtr
+                    );
+            } else {
+                nextPipeReg[i].valid = pipeReg[i].valid;
+            }
+            nextPipeReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var valid: logic [INT_ISSUE_WIDTH];
+    var nextStage: IntegerRegisterReadStageRegPath [INT_ISSUE_WIDTH];
+    var issuedData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
+    var issueQueuePtr: IssueQueueIndexPath [INT_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.isStage.stall;
+        clear = ctrl.isStage.clear;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            var flushValue: logic;
+
+            if scheduler.replay {
+                issuedData[i] = scheduler.intReplayData[i];
+                valid[i] = scheduler.intReplayEntry[i];
+            } else {
+                issuedData[i] = scheduler.intIssuedData[i];
+                valid[i] = !stall && pipeReg[i].valid;
+            }
+
+            issueQueuePtr[i] = pipeReg[i].issueQueuePtr;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                issuedData[i].activeListPtr
+            );
+
+            scheduler.intIssue[i] = !clear && valid[i] && !flushValue;
+            scheduler.intIssuePtr[i] = issueQueuePtr[i];
+
+            if clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+            nextStage[i].intQueueData = issuedData[i];
+            nextStage[i].opId = issuedData[i].opId;
+
+            debug.intIsReg[i].valid = valid[i];
+            debug.intIsReg[i].flush = flushValue;
+            debug.intIsReg[i].opId = issuedData[i].opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

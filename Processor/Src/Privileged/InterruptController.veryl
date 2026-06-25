@@ -1,0 +1,67 @@
+module InterruptController (
+    csrUnit        : modport CSR_UnitIF::InterruptController,
+    ctrl           : modport ControllerIF::InterruptController,
+    fetchStage     : modport NextPCStageIF::InterruptController,
+    recoveryManager: modport RecoveryManagerIF::InterruptController,
+) {
+    import BasicTypes::*;
+    import CSR_UnitTypes::*;
+    import MemoryMapTypes::*;
+
+    var reqInterrupt    : logic;
+    var triggerInterrupt: logic;
+    var interruptCode   : CSR_CAUSE_InterruptCodePath;
+    var interruptTargetAddr: PC_Path;
+    var csrReg: CSR_BodyPath;
+    var interruptVectorBase: logic<30>;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     RSD_CUSTOM_INTERRUPT_CODE_WIDTH + 1 == CSR_CAUSE_INTERRUPT_CODE_WIDTH,
+    //     "The width of an custom interrupt code and the code in the CSR do not match"
+    // );
+
+    always_comb {
+        csrReg = csrUnit.csrWholeOut;
+
+        reqInterrupt = 0;
+        interruptCode = 0;
+
+        if csrReg.mie.MTIE && csrReg.mip.MTIP {
+            reqInterrupt = 1;
+            interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
+        }
+
+        for i in 16..32 {
+            if csrReg.mie.CUSTOM[i - 16] && csrReg.mip.CUSTOM[i - 16] {
+                reqInterrupt = 1;
+                interruptCode = i;
+            }
+        }
+
+        reqInterrupt = reqInterrupt && (
+            (csrUnit.privilegeLevel <: PRIVILEGE_LEVEL_M) || csrReg.mstatus.MIE
+        );
+
+        ctrl.npStageSendBubbleLowerForInterrupt = reqInterrupt;
+
+        triggerInterrupt =
+            ctrl.wholePipelineEmpty &&
+            !recoveryManager.unableToStartRecovery &&
+            reqInterrupt;
+
+        csrUnit.triggerInterrupt = triggerInterrupt;
+        csrUnit.interruptRetAddr = fetchStage.pcOut;
+        csrUnit.interruptCode = interruptCode;
+
+        if csrReg.mtvec.mode == CSR_XTVEC_MODE_VECTORED {
+            interruptVectorBase = csrReg.mtvec.base + interruptCode;
+        } else {
+            interruptVectorBase = csrReg.mtvec.base;
+        }
+        interruptTargetAddr = ToPC_FromAddr({interruptVectorBase, CSR_XTVEC_BASE_PADDING});
+
+        fetchStage.interruptAddrWE = triggerInterrupt;
+        fetchStage.interruptAddrIn = interruptTargetAddr;
+    }
+}

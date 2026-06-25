@@ -1,0 +1,173 @@
+package BypassControllerTypes {
+    import BasicTypes::*;
+
+    struct BypassCtrlOperand {
+        dstRegNum: PRegNumPath,
+        writeReg : logic,
+    }
+}
+
+module BypassController (
+    port: modport BypassNetworkIF::BypassController,
+    ctrl: modport ControllerIF::BypassController,
+) {
+    import BasicTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import BypassTypes::*;
+    import BypassControllerTypes::*;
+
+    function SelectReg (
+        regNum: input PRegNumPath,
+        read  : input logic,
+        intEX : input BypassCtrlOperand<INT_ISSUE_WIDTH>,
+        intWB : input BypassCtrlOperand<INT_ISSUE_WIDTH>,
+        memMA : input BypassCtrlOperand<MEM_ISSUE_WIDTH>,
+        memWB : input BypassCtrlOperand<MEM_ISSUE_WIDTH>,
+    ) -> BypassSelect {
+        var ret: BypassSelect;
+        var foundInt: logic;
+        var foundMem: logic;
+
+        ret.valid = FALSE;
+        ret.stg = BYPASS_STAGE_INT_EX;
+        ret.lane.intLane = 0;
+        ret.lane.memLane = 0;
+        ret.lane.complexLane = 0;
+        ret.lane.fpLane = 0;
+        foundInt = FALSE;
+        foundMem = FALSE;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            if !foundInt && read && intEX[i].writeReg && regNum == intEX[i].dstRegNum {
+                ret.valid = TRUE;
+                ret.stg = BYPASS_STAGE_INT_EX;
+                ret.lane.intLane = i;
+                foundInt = TRUE;
+            }
+            if !foundInt && read && intWB[i].writeReg && regNum == intWB[i].dstRegNum {
+                ret.valid = TRUE;
+                ret.stg = BYPASS_STAGE_INT_WB;
+                ret.lane.intLane = i;
+                foundInt = TRUE;
+            }
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            if !foundMem && read && memMA[i].writeReg && regNum == memMA[i].dstRegNum {
+                ret.valid = TRUE;
+                ret.stg = BYPASS_STAGE_MEM_MA;
+                ret.lane.memLane = i;
+                foundMem = TRUE;
+            }
+            if !foundMem && read && memWB[i].writeReg && regNum == memWB[i].dstRegNum {
+                ret.valid = TRUE;
+                ret.stg = BYPASS_STAGE_MEM_WB;
+                ret.lane.memLane = i;
+                foundMem = TRUE;
+            }
+        }
+
+        return ret;
+    }
+
+    var intRR: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var intEX: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var intWB: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var memRR: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memEX: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memMT: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memMA: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memWB: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        for i in 0..INT_ISSUE_WIDTH {
+            if port.rst || ctrl.backEnd.clear {
+                intEX[i].dstRegNum = 0;
+                intEX[i].writeReg = FALSE;
+                intWB[i].dstRegNum = 0;
+                intWB[i].writeReg = FALSE;
+            } else if ctrl.backEnd.stall {
+                intEX[i] = intEX[i];
+                intWB[i] = intWB[i];
+            } else {
+                intEX[i] = intRR[i];
+                intWB[i] = intEX[i];
+            }
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            if port.rst || ctrl.backEnd.clear {
+                memEX[i].dstRegNum = 0;
+                memEX[i].writeReg = FALSE;
+                memMT[i].dstRegNum = 0;
+                memMT[i].writeReg = FALSE;
+                memMA[i].dstRegNum = 0;
+                memMA[i].writeReg = FALSE;
+                memWB[i].dstRegNum = 0;
+                memWB[i].writeReg = FALSE;
+            } else if ctrl.backEnd.stall {
+                memEX[i] = memEX[i];
+                memMT[i] = memMT[i];
+                memMA[i] = memMA[i];
+                memWB[i] = memWB[i];
+            } else {
+                memEX[i] = memRR[i];
+                memMT[i] = memEX[i];
+                memMA[i] = memMT[i];
+                memWB[i] = memMA[i];
+            }
+        }
+    }
+
+    var intBypassCtrl: BypassControll [INT_ISSUE_WIDTH];
+    var complexBypassCtrl: BypassControll [COMPLEX_ISSUE_WIDTH];
+    var memBypassCtrl: BypassControll [MEM_ISSUE_WIDTH];
+    var fpBypassCtrl: BypassControll [FP_ISSUE_WIDTH];
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            intRR[i].dstRegNum = port.intPhyDstRegNum[i];
+            intRR[i].writeReg = port.intWriteReg[i];
+
+            intBypassCtrl[i] = '0;
+            intBypassCtrl[i].rA =
+                SelectReg(port.intPhySrcRegNumA[i], port.intReadRegA[i], intEX, intWB, memMA, memWB);
+            intBypassCtrl[i].rB =
+                SelectReg(port.intPhySrcRegNumB[i], port.intReadRegB[i], intEX, intWB, memMA, memWB);
+        }
+        port.intCtrlOut = intBypassCtrl;
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            complexBypassCtrl[i] = '0;
+            complexBypassCtrl[i].rA =
+                SelectReg(port.complexPhySrcRegNumA[i], port.complexReadRegA[i], intEX, intWB, memMA, memWB);
+            complexBypassCtrl[i].rB =
+                SelectReg(port.complexPhySrcRegNumB[i], port.complexReadRegB[i], intEX, intWB, memMA, memWB);
+        }
+        port.complexCtrlOut = complexBypassCtrl;
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            memRR[i].dstRegNum = port.memPhyDstRegNum[i];
+            memRR[i].writeReg = port.memWriteReg[i];
+
+            memBypassCtrl[i] = '0;
+            memBypassCtrl[i].rA =
+                SelectReg(port.memPhySrcRegNumA[i], port.memReadRegA[i], intEX, intWB, memMA, memWB);
+            memBypassCtrl[i].rB =
+                SelectReg(port.memPhySrcRegNumB[i], port.memReadRegB[i], intEX, intWB, memMA, memWB);
+        }
+        port.memCtrlOut = memBypassCtrl;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            fpBypassCtrl[i] = '0;
+            fpBypassCtrl[i].rA =
+                SelectReg(port.fpPhySrcRegNumA[i], port.fpReadRegA[i], intEX, intWB, memMA, memWB);
+            fpBypassCtrl[i].rB =
+                SelectReg(port.fpPhySrcRegNumB[i], port.fpReadRegB[i], intEX, intWB, memMA, memWB);
+            fpBypassCtrl[i].rC =
+                SelectReg(port.fpPhySrcRegNumC[i], port.fpReadRegC[i], intEX, intWB, memMA, memWB);
+        }
+        port.fpCtrlOut = fpBypassCtrl;
+    }
+}

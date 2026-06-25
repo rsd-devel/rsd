@@ -1,0 +1,232 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Resolve branch misprediction on the decode stage.
+// This unit includes a simple return address stack.
+//
+
+package DecodedBranchResolverTypes {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    enum BranchTargetType: logic<2> {
+        BTT_NEXT = 0,
+        BTT_PC_RELATIVE = 1,
+        BTT_INDIRECT_JUMP = 2,
+        BTT_SERIALIZED = 3,
+    }
+
+    function GetBranchDisplacementFromCommon (
+        isf: input RISCV_ISF_Common,
+    ) -> BranchDisplacement {
+        return {isf.funct7[6] repeat 9, isf.rd[0], isf.funct7[5:0], isf.rd[4:1]};
+    }
+
+    function GetJALTargetFromCommon (
+        isf: input RISCV_ISF_Common,
+    ) -> BranchDisplacement {
+        return {isf.funct7[6], isf.rs1, isf.funct3, isf.rs2[0], isf.funct7[5:0], isf.rs2[4:1]};
+    }
+}
+
+module DecodedBranchResolver (
+    clk                : input  clock                                        ,
+    rst                : input  logic                                        ,
+    stall              : input  logic                                        ,
+    decodeComplete     : input  logic                                        ,
+    insnValidIn        : input  logic                          [DECODE_WIDTH],
+    isf                : input  RISCV_ISF_Common<DECODE_WIDTH>               ,
+    brPredIn           : input  BranchPred      <DECODE_WIDTH>               ,
+    pc                 : input  PC_Path                        [DECODE_WIDTH],
+    insnInfo           : input  InsnInfo        <DECODE_WIDTH>               ,
+    insnValidOut       : output logic                          [DECODE_WIDTH],
+    insnFlushed        : output logic                          [DECODE_WIDTH],
+    insnFlushTriggering: output logic                          [DECODE_WIDTH],
+    flushTriggered     : output logic                                        ,
+    brPredOut          : output BranchPred                     [DECODE_WIDTH],
+    recoveredPC        : output PC_Path                                      ,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import FetchUnitTypes::*;
+    import DecodedBranchResolverTypes::*;
+
+    // Return address stack.
+    const RAS_ENTRY_NUM: u32                                                  = 4;
+    type RAS_IndexPath = logic        <$clog2(RAS_ENTRY_NUM)>                ;
+    var ras          : PC_Path                              [RAS_ENTRY_NUM];
+    var nextRAS      : PC_Path                                             ;
+    var pushRAS      : logic                                               ;
+    var popRAS       : logic                                               ;
+    var rasPtr       : RAS_IndexPath                                       ;
+    var nextRAS_Ptr  : RAS_IndexPath                                       ;
+
+    always_ff (clk) {
+        if rst {
+            for i in 0..RAS_ENTRY_NUM {
+                ras[i] = '0;
+            }
+            rasPtr = '0;
+        } else if !stall && decodeComplete {
+            // 全 micro op のデコード完了時にだけ RAS を更新するようにしないと，
+            // 次のステージに送り込んだ micro op のターゲットと，ここから
+            // 出しているターゲットアドレスがずれて（ras の ptr が更新されるから）
+            // 正しく動かなくなる
+            if pushRAS {
+                ras[nextRAS_Ptr] = nextRAS;
+            }
+            rasPtr = nextRAS_Ptr;
+        }
+    }
+
+    var decodedPC: PC_Path [DECODE_WIDTH];
+    var nextPC   : PC_Path [DECODE_WIDTH];
+
+    var addrCheck    : logic                             ;
+    var addrIncorrect: logic                             ;
+    var addrCheckLane: DecodeLaneIndexPath               ;
+    var brTargetType : BranchTargetType    [DECODE_WIDTH];
+    var addrMismatch : logic               [DECODE_WIDTH];
+    var foundCheck   : logic                             ;
+    var foundFlush   : logic                             ;
+
+    always_comb {
+        // Initialize
+        flushTriggered = FALSE;
+        recoveredPC    = '0;
+
+        pushRAS     = FALSE;
+        popRAS      = FALSE;
+        nextRAS     = 0;
+        nextRAS_Ptr = rasPtr;
+
+        for i in 0..DECODE_WIDTH {
+            insnValidOut[i]        = insnValidIn[i];
+            insnFlushed[i]         = FALSE;
+            insnFlushTriggering[i] = FALSE;
+            brPredOut[i]           = brPredIn[i];
+        }
+
+        addrCheck     = FALSE;
+        addrIncorrect = FALSE;
+        addrCheckLane = '0;
+
+        // Determine the type of branch
+        for i in 0..DECODE_WIDTH {
+            if insnInfo[i].isRelBranch {
+                // Normal branch.
+                brTargetType[i] = BranchTargetType::BTT_PC_RELATIVE;
+            } else if insnInfo[i].writePC {
+                // Indirect branch
+                brTargetType[i] = BranchTargetType::BTT_INDIRECT_JUMP;
+            } else if insnInfo[i].isSerialized {
+                brTargetType[i] = BranchTargetType::BTT_SERIALIZED;
+            } else {
+                brTargetType[i] = BranchTargetType::BTT_NEXT;
+            }
+        }
+
+        // Detects possible  patterns where flash occurs
+        foundCheck = FALSE;
+        for i in 0..DECODE_WIDTH {
+            if !foundCheck {
+                if !insnValidIn[i] {
+                    foundCheck = TRUE;
+                } else if !insnInfo[i].writePC && brPredIn[i].predTaken {
+                    // Recovery if not branch instructions are predicted as branches.
+                    addrCheckLane = i;
+                    addrCheck     = TRUE;
+                    addrIncorrect = TRUE; // ミスが確定
+                    foundCheck    = TRUE;
+                } else if brTargetType[i] == BranchTargetType::BTT_PC_RELATIVE
+                    && (isf[i].opCode == RISCV_JAL || brPredIn[i].predTaken) {
+                    // Update the RAS.
+                    pushRAS = insnInfo[i].isCall;
+
+                    addrCheckLane = i;
+                    addrCheck     = TRUE;
+                    foundCheck    = TRUE;
+                } else if brTargetType[i] == BranchTargetType::BTT_INDIRECT_JUMP {
+                    // Update theRAS.
+                    pushRAS = insnInfo[i].isCall;
+                    popRAS  = insnInfo[i].isReturn;
+
+                    if popRAS {
+                        // Resolve branch pred using the PC read from RAS
+                        addrCheckLane = i;
+                        addrCheck     = TRUE;
+                        foundCheck    = TRUE;
+                    } else if pushRAS {
+                        // Push next PC to RAS．Do not resolve branch pred
+                        addrCheckLane = i;
+                        foundCheck    = TRUE;
+                    }
+                } else if brTargetType[i] == BranchTargetType::BTT_SERIALIZED {
+                    // The succeeding instructions are flushed.
+                    addrCheckLane = i;
+                    addrCheck     = TRUE;
+                    addrIncorrect = TRUE; // ミスが確定
+                    foundCheck    = TRUE;
+                }
+            }
+        }
+
+        // Calculate target PC
+        for i in 0..DECODE_WIDTH {
+            nextPC[i] = pc[i] + INSN_BYTE_WIDTH;
+            if brTargetType[i] == BranchTargetType::BTT_PC_RELATIVE {
+                // Calculate target PC from displacement
+                if isf[i].opCode == RISCV_JAL {
+                    decodedPC[i] = pc[i] + ExtendBranchDisplacement(GetJALTargetFromCommon(isf[i]));
+                } else {
+                    decodedPC[i] = pc[i] + ExtendBranchDisplacement(GetBranchDisplacementFromCommon(isf[i]));
+                }
+            } else if brTargetType[i] == BranchTargetType::BTT_INDIRECT_JUMP {
+                // Read branch target PC from RAS
+                decodedPC[i] = ras[rasPtr];
+            } else {
+                // non-branch instruction
+                decodedPC[i] = nextPC[i];
+            }
+        }
+
+        for i in 0..DECODE_WIDTH {
+            addrMismatch[i] = brPredIn[i].predAddr != decodedPC[i];
+        }
+
+        foundFlush = FALSE;
+        for i in 0..DECODE_WIDTH {
+            if !foundFlush && (((addrMismatch[i] && addrCheck) || addrIncorrect) && addrCheckLane == i) {
+                flushTriggered         = TRUE;
+                brPredOut[i].predAddr  = decodedPC[i];
+                brPredOut[i].predTaken = TRUE;
+                foundFlush             = TRUE;
+            }
+        }
+        recoveredPC = decodedPC[addrCheckLane];
+
+        // Update the RAS.
+        nextRAS = nextPC[addrCheckLane];
+        if pushRAS {
+            nextRAS_Ptr = rasPtr + 1;
+        } else if popRAS {
+            nextRAS_Ptr = rasPtr - 1;
+        } else {
+            nextRAS_Ptr = rasPtr;
+        }
+
+        if flushTriggered {
+            for i in 0..DECODE_WIDTH {
+                if i >: addrCheckLane {
+                    insnValidOut[i] = FALSE;
+                    insnFlushed[i]  = TRUE;
+                }
+            }
+            insnFlushTriggering[addrCheckLane] = TRUE;
+        }
+    }
+}

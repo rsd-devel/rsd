@@ -1,0 +1,39 @@
+package ActiveListIndexTypes {
+    import BasicTypes::*;
+    import MicroArchConf::*;
+
+    const ACTIVE_LIST_ENTRY_NUM          : u32 = CONF_ACTIVE_LIST_ENTRY_NUM;
+    const ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(ACTIVE_LIST_ENTRY_NUM);
+    type ActiveListIndexPath = logic<ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH>;
+    type ActiveListCountPath = logic<ACTIVE_LIST_ENTRY_NUM_BIT_WIDTH + 1>;
+
+    function SelectiveFlushDetector (
+        detectRange  : input logic,
+        headPtr      : input ActiveListIndexPath,
+        tailPtr      : input ActiveListIndexPath,
+        flushAllInsns: input logic,
+        opPtr        : input ActiveListIndexPath,
+    ) -> logic {
+        if !detectRange {
+            return FALSE;
+        } else if flushAllInsns {
+            return TRUE;
+        } else if detectRange && tailPtr >= headPtr {
+            if opPtr >= headPtr && opPtr <: tailPtr {
+                return TRUE;
+            } else {
+                return FALSE;
+            }
+        } else if detectRange && tailPtr <: headPtr {
+            if opPtr >= headPtr && opPtr >: tailPtr {
+                return TRUE;
+            } else if opPtr <: headPtr && opPtr <: tailPtr {
+                return TRUE;
+            } else {
+                return FALSE;
+            }
+        } else {
+            return FALSE;
+        }
+    }
+}

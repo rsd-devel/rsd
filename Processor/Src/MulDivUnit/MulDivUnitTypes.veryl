@@ -1,0 +1,11 @@
+package MulDivUnitTypes {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+
+    struct MulDivAcquireData {
+        activeListPtr: ActiveListIndexPath,
+        opDst        : OpDst,
+    }
+}

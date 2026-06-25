@@ -1,0 +1,56 @@
+// FlipFlop keeps its original SystemVerilog port names, including the reserved name "in".
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+module FlipFlop #(
+    param FF_WIDTH   : u32 = 32,
+    param RESET_VALUE: u32 = 0 ,
+) (
+    out : output logic<FF_WIDTH>,
+    r#in: input  logic<FF_WIDTH>,
+    clk : input  clock          ,
+    rst : input  logic          ,
+) {
+    import BasicTypes::*;
+
+    var body: logic<FF_WIDTH>;
+
+    // rst or write
+    always_ff (clk) {
+        if rst == 1 {
+            body = RESET_VALUE;
+        } else {
+            body = r#in;
+        }
+    }
+
+    assign out = body;
+}
+
+module FlipFlopWE #(
+    param FF_WIDTH   : u32 = 32,
+    param RESET_VALUE: u32 = 0 ,
+) (
+    out : output logic<FF_WIDTH>,
+    r#in: input  logic<FF_WIDTH>,
+    we  : input  logic          ,
+    clk : input  clock          ,
+    rst : input  logic          ,
+) {
+    import BasicTypes::*;
+
+    var body: logic<FF_WIDTH>;
+
+    // rst or write
+    always_ff (clk) {
+        if rst == 1 {
+            body = RESET_VALUE;
+        } else if we {
+            body = r#in;
+        } else {
+            body = body;
+        }
+    }
+
+    assign out = body;
+}

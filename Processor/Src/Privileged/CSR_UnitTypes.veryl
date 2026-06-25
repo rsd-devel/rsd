@@ -1,0 +1,543 @@
+package CSR_UnitTypes {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+
+    enum PrivilegeLevelType: logic<2> {
+        PRIVILEGE_LEVEL_M = 2'b11,
+        PRIVILEGE_LEVEL_S = 2'b01,
+        PRIVILEGE_LEVEL_U = 2'b00,
+    }
+    const PRIVILEGE_LEVEL_M: PrivilegeLevelType = PrivilegeLevelType::PRIVILEGE_LEVEL_M;
+    const PRIVILEGE_LEVEL_S: PrivilegeLevelType = PrivilegeLevelType::PRIVILEGE_LEVEL_S;
+    const PRIVILEGE_LEVEL_U: PrivilegeLevelType = PrivilegeLevelType::PRIVILEGE_LEVEL_U;
+
+    struct CSR_MSTATUS_Path {
+        padding_7: logic<9>,
+        TSR: logic,
+        padding_6: logic,
+        TVM: logic,
+        MXR: logic,
+        SUM: logic,
+        MPRV: logic,
+        padding_5: logic<4>,
+        MPP: PrivilegeLevelType,
+        padding_4: logic<2>,
+        SPP: logic,
+        MPIE: logic,
+        padding_3: logic,
+        SPIE: logic,
+        padding_2: logic,
+        MIE: logic,
+        padding_1: logic,
+        SIE: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_SSTATUS_Path {
+        padding_4: logic<12>,
+        MXR: logic,
+        SUM: logic,
+        padding_3: logic<9>,
+        SPP: logic,
+        padding_2: logic<2>,
+        SPIE: logic,
+        padding_1: logic<3>,
+        SIE: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_MISA_ExtensionsType {
+        Z: logic,
+        Y: logic,
+        X: logic,
+        W: logic,
+        V: logic,
+        U: logic,
+        T: logic,
+        S: logic,
+        R: logic,
+        Q: logic,
+        P: logic,
+        O: logic,
+        N: logic,
+        M: logic,
+        L: logic,
+        K: logic,
+        J: logic,
+        I: logic,
+        H: logic,
+        G: logic,
+        F: logic,
+        E: logic,
+        D: logic,
+        C: logic,
+        B: logic,
+        A: logic,
+    }
+
+    struct CSR_MISA_Path {
+        MXL: logic<2>,
+        padding_0: logic<4>,
+        EXTENSIONS: CSR_MISA_ExtensionsType,
+    }
+
+    struct CSR_MIP_Path {
+        CUSTOM: logic<16>,
+        padding_6: logic<4>,
+        MEIP: logic,
+        padding_5: logic,
+        SEIP: logic,
+        padding_4: logic,
+        MTIP: logic,
+        padding_3: logic,
+        STIP: logic,
+        padding_2: logic,
+        MSIP: logic,
+        padding_1: logic,
+        SSIP: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_SIP_Path {
+        CUSTOM: logic<16>,
+        padding_3: logic<6>,
+        SEIP: logic,
+        padding_2: logic<3>,
+        STIP: logic,
+        padding_1: logic<3>,
+        SSIP: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_MIE_Path {
+        CUSTOM: logic<16>,
+        padding_6: logic<4>,
+        MEIE: logic,
+        padding_5: logic,
+        SEIE: logic,
+        padding_4: logic,
+        MTIE: logic,
+        padding_3: logic,
+        STIE: logic,
+        padding_2: logic,
+        MSIE: logic,
+        padding_1: logic,
+        SSIE: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_SIE_Path {
+        CUSTOM: logic<16>,
+        padding_3: logic<6>,
+        SEIE: logic,
+        padding_2: logic<3>,
+        STIE: logic,
+        padding_1: logic<3>,
+        SSIE: logic,
+        padding_0: logic,
+    }
+
+    struct CSR_MIDELEG_Path {
+        CUSTOM: logic<16>,
+        padding_3: logic<6>,
+        SEI: logic,
+        padding_2: logic<3>,
+        STI: logic,
+        padding_1: logic<3>,
+        SSI: logic,
+        padding_0: logic,
+    }
+
+    enum CSR_CAUSE_TrapCodePath: logic<5> {
+        CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED = 0,
+        CSR_CAUSE_TRAP_CODE_INSN_VIOLATION = 1,
+        CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL = 2,
+        CSR_CAUSE_TRAP_CODE_BREAK = 3,
+        CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED = 4,
+        CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION = 5,
+        CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED = 6,
+        CSR_CAUSE_TRAP_CODE_STORE_VIOLATION = 7,
+        CSR_CAUSE_TRAP_CODE_UCALL = 8,
+        CSR_CAUSE_TRAP_CODE_SCALL = 9,
+        CSR_CAUSE_TRAP_CODE_MCALL = 11,
+        CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP = 16,
+        CSR_CAUSE_TRAP_CODE_UNKNOWN = 14,
+    }
+    const CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED;
+    const CSR_CAUSE_TRAP_CODE_INSN_VIOLATION: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_INSN_VIOLATION;
+    const CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL;
+    const CSR_CAUSE_TRAP_CODE_BREAK: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_BREAK;
+    const CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED;
+    const CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION;
+    const CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED;
+    const CSR_CAUSE_TRAP_CODE_STORE_VIOLATION: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_STORE_VIOLATION;
+    const CSR_CAUSE_TRAP_CODE_UCALL: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_UCALL;
+    const CSR_CAUSE_TRAP_CODE_SCALL: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_SCALL;
+    const CSR_CAUSE_TRAP_CODE_MCALL: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_MCALL;
+    const CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP;
+    const CSR_CAUSE_TRAP_CODE_UNKNOWN: CSR_CAUSE_TrapCodePath = CSR_CAUSE_TrapCodePath::CSR_CAUSE_TRAP_CODE_UNKNOWN;
+
+    const CSR_CAUSE_INTERRUPT_CODE_WIDTH: u32 = 5;
+
+    enum CSR_CAUSE_InterruptCodePath: logic<CSR_CAUSE_INTERRUPT_CODE_WIDTH> {
+        CSR_CAUSE_INTERRUPT_CODE_TIMER = 7,
+        CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL = 11,
+    }
+    const CSR_CAUSE_INTERRUPT_CODE_TIMER: CSR_CAUSE_InterruptCodePath = CSR_CAUSE_InterruptCodePath::CSR_CAUSE_INTERRUPT_CODE_TIMER;
+    const CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL: CSR_CAUSE_InterruptCodePath = CSR_CAUSE_InterruptCodePath::CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL;
+
+    union CSR_CAUSE_CodePath {
+        trapCode: CSR_CAUSE_TrapCodePath,
+        interruptCode: CSR_CAUSE_InterruptCodePath,
+    }
+
+    struct CSR_CAUSE_Path {
+        isInterrupt: logic,
+        padding: logic<26>,
+        code: CSR_CAUSE_CodePath,
+    }
+
+    enum CSR_XTVEC_ModePath: logic<2> {
+        CSR_XTVEC_MODE_BASE = 0,
+        CSR_XTVEC_MODE_VECTORED = 1,
+    }
+    const CSR_XTVEC_MODE_BASE: CSR_XTVEC_ModePath = CSR_XTVEC_ModePath::CSR_XTVEC_MODE_BASE;
+    const CSR_XTVEC_MODE_VECTORED: CSR_XTVEC_ModePath = CSR_XTVEC_ModePath::CSR_XTVEC_MODE_VECTORED;
+
+    struct CSR_XTVEC_Path {
+        base: logic<30>,
+        mode: CSR_XTVEC_ModePath,
+    }
+
+    struct CSR_FCSR_Path {
+        padding: logic<24>,
+        frm: Rounding_Mode,
+        fflags: FFlags_Path,
+    }
+
+    const CSR_XTVEC_BASE_PADDING: logic<2> = 2'b0;
+
+    union CSR_ValuePath {
+        sip: CSR_SIP_Path,
+        sie: CSR_SIE_Path,
+        stvec: CSR_XTVEC_Path,
+        sscratch: DataPath,
+        sepc: DataPath,
+        scause: CSR_CAUSE_Path,
+        stval: DataPath,
+        mstatus: CSR_MSTATUS_Path,
+        mip: CSR_MIP_Path,
+        mie: CSR_MIE_Path,
+        mcause: CSR_CAUSE_Path,
+        mtvec: CSR_XTVEC_Path,
+        mtval: DataPath,
+        mepc: DataPath,
+        mscratch: DataPath,
+        medeleg: DataPath,
+        medelegh: DataPath,
+        mideleg: CSR_MIDELEG_Path,
+        misa: CSR_MISA_Path,
+        mcycle: DataPath,
+        minstret: DataPath,
+        fcsr: CSR_FCSR_Path,
+    }
+
+    struct CSR_BodyPath {
+        sie: CSR_SIE_Path,
+        stvec: CSR_XTVEC_Path,
+        sscratch: DataPath,
+        sepc: DataPath,
+        scause: CSR_CAUSE_Path,
+        stval: DataPath,
+        mstatus: CSR_MSTATUS_Path,
+        mip: CSR_MIP_Path,
+        mie: CSR_MIE_Path,
+        mcause: CSR_CAUSE_Path,
+        mtvec: CSR_XTVEC_Path,
+        mtval: DataPath,
+        mepc: DataPath,
+        mscratch: DataPath,
+        medeleg: DataPath,
+        medelegh: DataPath,
+        mideleg: CSR_MIDELEG_Path,
+        misa: CSR_MISA_Path,
+        mcycle: DataPath,
+        minstret: DataPath,
+        fcsr: CSR_FCSR_Path,
+    }
+
+    const CSR_NUM_SSTATUS: u32 = 12'h100;
+
+    const CSR_NUM_SIE: u32 = 12'h104;
+
+    const CSR_NUM_STVEC: u32 = 12'h105;
+
+    const CSR_NUM_SCOUNTEREN: u32 = 12'h106;
+
+    const CSR_NUM_SENVCFG: u32 = 12'h10A;
+
+    const CSR_NUM_SCOUNTINHIBIT: u32 = 12'h120;
+
+    const CSR_NUM_SSCRATCH: u32 = 12'h140;
+
+    const CSR_NUM_SEPC: u32 = 12'h141;
+
+    const CSR_NUM_SCAUSE: u32 = 12'h142;
+
+    const CSR_NUM_STVAL: u32 = 12'h143;
+
+    const CSR_NUM_SIP: u32 = 12'h144;
+
+    const CSR_NUM_SCOUNTOVF: u32 = 12'hDA0;
+
+    const CSR_NUM_SATP: u32 = 12'h180;
+
+    const CSR_NUM_SCONTEXT: u32 = 12'h5A8;
+
+    const CSR_NUM_SSTATEEN0: u32 = 12'h10C;
+
+    const CSR_NUM_SSTATEEN1: u32 = 12'h10D;
+
+    const CSR_NUM_SSTATEEN2: u32 = 12'h10E;
+
+    const CSR_NUM_SSTATEEN3: u32 = 12'h10F;
+
+    const CSR_NUM_MVENDORID: u32 = 12'hF11;
+
+    const CSR_NUM_MARCHID: u32 = 12'hF12;
+
+    const CSR_NUM_MIMPID: u32 = 12'hF13;
+
+    const CSR_NUM_MHARTID: u32 = 12'hF14;
+
+    const CSR_NUM_MSTATUS: u32 = 12'h300;
+
+    const CSR_NUM_MISA: u32 = 12'h301;
+
+    const CSR_NUM_MEDELEG: u32 = 12'h302;
+
+    const CSR_NUM_MIDELEG: u32 = 12'h303;
+
+    const CSR_NUM_MIE: u32 = 12'h304;
+
+    const CSR_NUM_MTVEC: u32 = 12'h305;
+
+    const CSR_NUM_MCOUNTEREN: u32 = 12'h306;
+
+    const CSR_NUM_MSTATUSH: u32 = 12'h310;
+
+    const CSR_NUM_MEDELEGH: u32 = 12'h312;
+
+    const CSR_NUM_MSCRATCH: u32 = 12'h340;
+
+    const CSR_NUM_MEPC: u32 = 12'h341;
+
+    const CSR_NUM_MCAUSE: u32 = 12'h342;
+
+    const CSR_NUM_MTVAL: u32 = 12'h343;
+
+    const CSR_NUM_MIP: u32 = 12'h344;
+
+    const CSR_NUM_PMPCFG0: u32 = 12'h3A0;
+
+    const CSR_NUM_PMPCFG1: u32 = 12'h3A1;
+
+    const CSR_NUM_PMPCFG2: u32 = 12'h3A2;
+
+    const CSR_NUM_PMPCFG3: u32 = 12'h3A3;
+
+    const CSR_NUM_PMPADDR0: u32 = 12'h3B0;
+
+    const CSR_NUM_PMPADDR1: u32 = 12'h3B1;
+
+    const CSR_NUM_PMPADDR2: u32 = 12'h3B2;
+
+    const CSR_NUM_PMPADDR3: u32 = 12'h3B3;
+
+    const CSR_NUM_PMPADDR4: u32 = 12'h3B4;
+
+    const CSR_NUM_PMPADDR5: u32 = 12'h3B5;
+
+    const CSR_NUM_PMPADDR6: u32 = 12'h3B6;
+
+    const CSR_NUM_PMPADDR7: u32 = 12'h3B7;
+
+    const CSR_NUM_PMPADDR8: u32 = 12'h3B8;
+
+    const CSR_NUM_PMPADDR9: u32 = 12'h3B9;
+
+    const CSR_NUM_PMPADDR10: u32 = 12'h3BA;
+
+    const CSR_NUM_PMPADDR11: u32 = 12'h3BB;
+
+    const CSR_NUM_PMPADDR12: u32 = 12'h3BC;
+
+    const CSR_NUM_PMPADDR13: u32 = 12'h3BD;
+
+    const CSR_NUM_PMPADDR14: u32 = 12'h3BE;
+
+    const CSR_NUM_PMPADDR15: u32 = 12'h3BF;
+
+    const CSR_NUM_MCYCLE: u32 = 12'hB00;
+
+    const CSR_NUM_MINSTRET: u32 = 12'hB02;
+
+    const CSR_NUM_MHPMCOUNTER3: u32 = 12'hB03;
+
+    const CSR_NUM_MHPMCOUNTER4: u32 = 12'hB04;
+
+    const CSR_NUM_MHPMCOUNTER5: u32 = 12'hB05;
+
+    const CSR_NUM_MHPMCOUNTER6: u32 = 12'hB06;
+
+    const CSR_NUM_MHPMCOUNTER7: u32 = 12'hB07;
+
+    const CSR_NUM_MHPMCOUNTER8: u32 = 12'hB08;
+
+    const CSR_NUM_MHPMCOUNTER9: u32 = 12'hB09;
+
+    const CSR_NUM_MHPMCOUNTER10: u32 = 12'hB0A;
+
+    const CSR_NUM_MHPMCOUNTER11: u32 = 12'hB0B;
+
+    const CSR_NUM_MHPMCOUNTER12: u32 = 12'hB0C;
+
+    const CSR_NUM_MHPMCOUNTER13: u32 = 12'hB0D;
+
+    const CSR_NUM_MHPMCOUNTER14: u32 = 12'hB0E;
+
+    const CSR_NUM_MHPMCOUNTER15: u32 = 12'hB0F;
+
+    const CSR_NUM_MHPMCOUNTER31: u32 = 12'hB1F;
+
+    const CSR_NUM_MCYCLEH: u32 = 12'hB80;
+
+    const CSR_NUM_MINSTRETH: u32 = 12'hB82;
+
+    const CSR_NUM_MHPMCOUNTER3H: u32 = 12'hB83;
+
+    const CSR_NUM_MHPMCOUNTER4H: u32 = 12'hB84;
+
+    const CSR_NUM_MHPMCOUNTER5H: u32 = 12'hB85;
+
+    const CSR_NUM_MHPMCOUNTER6H: u32 = 12'hB86;
+
+    const CSR_NUM_MHPMCOUNTER7H: u32 = 12'hB87;
+
+    const CSR_NUM_MHPMCOUNTER8H: u32 = 12'hB88;
+
+    const CSR_NUM_MHPMCOUNTER9H: u32 = 12'hB89;
+
+    const CSR_NUM_MHPMCOUNTER10H: u32 = 12'hB8A;
+
+    const CSR_NUM_MHPMCOUNTER11H: u32 = 12'hB8B;
+
+    const CSR_NUM_MHPMCOUNTER12H: u32 = 12'hB8C;
+
+    const CSR_NUM_MHPMCOUNTER13H: u32 = 12'hB8D;
+
+    const CSR_NUM_MHPMCOUNTER14H: u32 = 12'hB8E;
+
+    const CSR_NUM_MHPMCOUNTER15H: u32 = 12'hB8F;
+
+    const CSR_NUM_MHPMCOUNTER31H: u32 = 12'hB9F;
+
+    const CSR_NUM_MHPMEVENT3: u32 = 12'h323;
+
+    const CSR_NUM_MHPMEVENT4: u32 = 12'h324;
+
+    const CSR_NUM_MHPMEVENT31: u32 = 12'h33F;
+
+    const CSR_NUM_TSELECT: u32 = 12'h7A0;
+
+    const CSR_NUM_TDATA1: u32 = 12'h7A1;
+
+    const CSR_NUM_TDATA2: u32 = 12'h7A2;
+
+    const CSR_NUM_TDATA3: u32 = 12'h7A3;
+
+    const CSR_NUM_DCSR: u32 = 12'h7B0;
+
+    const CSR_NUM_DPC: u32 = 12'h7B1;
+
+    const CSR_NUM_DSCRATCH: u32 = 12'h7B2;
+
+    const CSR_NUM_FFLAGS: u32 = 12'h001;
+
+    const CSR_NUM_FRM: u32 = 12'h002;
+
+    const CSR_NUM_FCSR: u32 = 12'h003;
+
+
+    function ToSstatusFromMstatus (
+        mstatus: input CSR_MSTATUS_Path,
+    ) -> CSR_SSTATUS_Path {
+        var value: CSR_SSTATUS_Path;
+        value = 0;
+        value.MXR = mstatus.MXR;
+        value.SUM = mstatus.SUM;
+        value.SPP = mstatus.SPP;
+        value.SPIE = mstatus.SPIE;
+        value.SIE = mstatus.SIE;
+        return value;
+    }
+
+    function ToMstatusFromSstatus (
+        sstatus       : input CSR_SSTATUS_Path,
+        currentMstatus: input CSR_MSTATUS_Path,
+    ) -> CSR_MSTATUS_Path {
+        var value: CSR_MSTATUS_Path;
+        value = currentMstatus;
+        value.MXR = sstatus.MXR;
+        value.SUM = sstatus.SUM;
+        value.SPP = sstatus.SPP;
+        value.SPIE = sstatus.SPIE;
+        value.SIE = sstatus.SIE;
+        return value;
+    }
+
+    function ToPrivilegeLevelFromSPP (
+        SPP: input logic,
+    ) -> PrivilegeLevelType {
+        if SPP {
+            return PRIVILEGE_LEVEL_S;
+        } else {
+            return PRIVILEGE_LEVEL_U;
+        }
+    }
+
+    function ToSPP_FromPrivilegeLevel (
+        privilegeLevel: input PrivilegeLevelType,
+    ) -> logic {
+        // NOT_TRANSPILED_TO_VERYL
+        // assert(privilegeLevel inside {PRIVILEGE_LEVEL_U, PRIVILEGE_LEVEL_S});
+        return privilegeLevel == PRIVILEGE_LEVEL_S;
+    }
+
+    function ToTrapCodeFromExecState (
+        state: input ExecutionState,
+        priv : input PrivilegeLevelType,
+    ) -> CSR_CAUSE_TrapCodePath {
+        case state {
+            EXEC_STATE_TRAP_ECALL: {
+                case priv {
+                    PRIVILEGE_LEVEL_U: { return CSR_CAUSE_TRAP_CODE_UCALL; }
+                    PRIVILEGE_LEVEL_S: { return CSR_CAUSE_TRAP_CODE_SCALL; }
+                    PRIVILEGE_LEVEL_M: { return CSR_CAUSE_TRAP_CODE_MCALL; }
+                    default          : { return CSR_CAUSE_TRAP_CODE_UNKNOWN; }
+                }
+            }
+            EXEC_STATE_TRAP_EBREAK: { return CSR_CAUSE_TRAP_CODE_BREAK; }
+            EXEC_STATE_FAULT_LOAD_MISALIGNED : { return CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED; }
+            EXEC_STATE_FAULT_LOAD_VIOLATION  : { return CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION; }
+            EXEC_STATE_FAULT_STORE_MISALIGNED: { return CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED; }
+            EXEC_STATE_FAULT_STORE_VIOLATION : { return CSR_CAUSE_TRAP_CODE_STORE_VIOLATION; }
+            EXEC_STATE_FAULT_INSN_ILLEGAL    : { return CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL; }
+            EXEC_STATE_FAULT_INSN_VIOLATION  : { return CSR_CAUSE_TRAP_CODE_INSN_VIOLATION; }
+            EXEC_STATE_FAULT_INSN_MISALIGNED : { return CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED; }
+            default                          : { return CSR_CAUSE_TRAP_CODE_UNKNOWN; }
+        }
+    }
+}

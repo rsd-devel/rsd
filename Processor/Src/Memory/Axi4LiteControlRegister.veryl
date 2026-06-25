@@ -1,0 +1,37 @@
+module Axi4LitePlToPsControlRegister (
+    port           : modport Axi4LiteControlRegisterIF::Axi4LiteRead,
+    we             : input  logic          ,
+    wv             : input  SerialDataPath ,
+    lastCommittedPC: input  PC_Path        ,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import IO_UnitTypes::*;
+
+    inst body: $sv::Axi4LitePlToPsControlRegister_SV (
+        port           : port,
+        we             : we,
+        wv             : wv,
+        lastCommittedPC: lastCommittedPC,
+    );
+}
+
+module Axi4LitePsToPlControlRegister (
+    port       : modport Axi4LiteControlRegisterIF::Axi4Lite,
+    memory_addr: output AddrPath           ,
+    memory_data: output MemoryEntryDataPath,
+    memory_we  : output logic              ,
+    done       : output logic              ,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import MemoryTypes::*;
+
+    inst body: $sv::Axi4LitePsToPlControlRegister_SV (
+        port       : port,
+        memory_addr: memory_addr,
+        memory_data: memory_data,
+        memory_we  : memory_we,
+        done       : done,
+    );
+}

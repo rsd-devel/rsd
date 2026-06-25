@@ -1,0 +1,67 @@
+module BitCounter (
+    fuOpA_In: input BasicTypes::DataPath,
+    dataOut : output BasicTypes::DataPath,
+) {
+    import BasicTypes::*;
+
+    var count: DataPath;
+    var found: logic;
+
+    always_comb {
+        count = DATA_WIDTH;
+        found = FALSE;
+        for i in 0..DATA_WIDTH {
+            if !found && fuOpA_In[DATA_WIDTH - i - 1] == TRUE {
+                count = i;
+                found = TRUE;
+            }
+        }
+        dataOut = count;
+    }
+}
+
+module PipelinedBitCounter #(
+    param PIPELINE_DEPTH: u32 = 3,
+) (
+    clk     : input clock,
+    rst     : input logic,
+    stall   : input logic,
+    fuOpA_In: input BasicTypes::DataPath,
+    dataOut : output BasicTypes::DataPath,
+) {
+    import BasicTypes::*;
+
+    #[sv("syn_pipeline=1")]
+    var pipeReg: DataPath [PIPELINE_DEPTH - 1];
+    var count: DataPath;
+    var found: logic;
+
+    always_comb {
+        count = DATA_WIDTH;
+        found = FALSE;
+        for i in 0..DATA_WIDTH {
+            if !found && fuOpA_In[DATA_WIDTH - i - 1] == TRUE {
+                count = i;
+                found = TRUE;
+            }
+        }
+        dataOut = pipeReg[PIPELINE_DEPTH - 2];
+    }
+
+    always_ff (clk) {
+        if rst {
+            for i in 0..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = '0;
+            }
+        } else if stall {
+            for i in 0..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i];
+            }
+        } else {
+            pipeReg[0] = count;
+            for i in 1..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i - 1];
+            }
+        }
+    }
+}

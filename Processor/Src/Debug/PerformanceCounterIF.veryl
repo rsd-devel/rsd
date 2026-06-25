@@ -1,0 +1,59 @@
+interface PerformanceCounterIF {
+    import BasicTypes::*;
+    import DebugTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var perfCounter: PerfCounterPath;
+
+    var icMiss: logic;
+
+    var loadMiss : logic [LOAD_ISSUE_WIDTH];
+    var storeMiss: logic [STORE_ISSUE_WIDTH];
+
+    var storeLoadForwardingFail: logic;
+    var memDepPredMiss: logic;
+
+    var branchPredMiss: logic;
+    var branchPredMissDetectedOnDecode: logic;
+
+    modport PerformanceCounter {
+        clk                            : input ,
+        rst                            : input ,
+        icMiss                         : input ,
+        loadMiss                       : input ,
+        storeMiss                      : input ,
+        storeLoadForwardingFail        : input ,
+        memDepPredMiss                 : input ,
+        branchPredMiss                 : input ,
+        branchPredMissDetectedOnDecode : input ,
+        perfCounter                    : output,
+    }
+
+    modport FetchStage {
+        icMiss: output,
+    }
+
+    modport DecodeStage {
+        branchPredMissDetectedOnDecode: output,
+    }
+
+    modport MemoryTagAccessStage {
+        loadMiss: output,
+    }
+
+    modport RecoveryManager {
+        storeLoadForwardingFail: output,
+        memDepPredMiss         : output,
+        branchPredMiss         : output,
+    }
+
+    modport StoreCommitter {
+        storeMiss: output,
+    }
+
+    modport CSR {
+        perfCounter: input,
+    }
+}

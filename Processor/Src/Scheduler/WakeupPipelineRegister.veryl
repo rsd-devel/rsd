@@ -1,0 +1,314 @@
+module WakeupPipelineRegister (
+    port    : modport WakeupSelectIF::WakeupPipelineRegister,
+    recovery: modport RecoveryManagerIF::WakeupPipelineRegister,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import MicroOpTypes::*;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     ISSUE_QUEUE_INT_LATENCY == 1,
+    //     "Int latency must be 1."
+    // );
+
+    struct WakeupPipeReg {
+        valid        : logic,
+        ptr          : IssueQueueIndexPath,
+        depVector    : IssueQueueOneHotPath,
+        activeListPtr: ActiveListIndexPath,
+    }
+
+    var intPipeReg: WakeupPipeReg<INT_ISSUE_WIDTH, ISSUE_QUEUE_INT_LATENCY>;
+    var memPipeReg: WakeupPipeReg<MEM_ISSUE_WIDTH, ISSUE_QUEUE_MEM_LATENCY>;
+    var nextIntPipeReg: WakeupPipeReg [INT_ISSUE_WIDTH];
+    var nextMemPipeReg: WakeupPipeReg [MEM_ISSUE_WIDTH];
+
+    var complexPipeReg: WakeupPipeReg<COMPLEX_ISSUE_WIDTH, ISSUE_QUEUE_COMPLEX_LATENCY>;
+    var nextComplexPipeReg: WakeupPipeReg [COMPLEX_ISSUE_WIDTH];
+    var canBeFlushedRegCountComplex: logic<$clog2(ISSUE_QUEUE_COMPLEX_LATENCY) + 1>;
+    var flushComplex: logic [COMPLEX_ISSUE_WIDTH];
+    var complexSelectedPtr: IssueQueueIndexPath [COMPLEX_ISSUE_WIDTH];
+
+    var fpPipeReg: WakeupPipeReg<FP_ISSUE_WIDTH, ISSUE_QUEUE_FP_LATENCY>;
+    var nextFPPipeReg: WakeupPipeReg [FP_ISSUE_WIDTH];
+    var canBeFlushedRegCountFP: logic<$clog2(ISSUE_QUEUE_FP_LATENCY) + 1>;
+    var flushFP: logic [FP_ISSUE_WIDTH];
+    var fpSelectedPtr: IssueQueueIndexPath [FP_ISSUE_WIDTH];
+
+    var canBeFlushedRegCountInt: logic<$clog2(ISSUE_QUEUE_INT_LATENCY) + 1>;
+    var canBeFlushedRegCountMem: logic<$clog2(ISSUE_QUEUE_MEM_LATENCY) + 1>;
+    var flushRangeHeadPtr: ActiveListIndexPath;
+    var flushRangeTailPtr: ActiveListIndexPath;
+    var flushAllInsns: logic;
+    var flushInt: logic [INT_ISSUE_WIDTH];
+    var flushMem: logic [MEM_ISSUE_WIDTH];
+    var intSelectedPtr: IssueQueueIndexPath [INT_ISSUE_WIDTH];
+    var memSelectedPtr: IssueQueueIndexPath [MEM_ISSUE_WIDTH];
+    var flushIQ_Entry: IssueQueueOneHotPath;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst || (recovery.toRecoveryPhase && !recovery.recoveryFromRwStage) {
+            for i in 0..INT_ISSUE_WIDTH {
+                for j in 0..ISSUE_QUEUE_INT_LATENCY {
+                    intPipeReg[i][j].valid = FALSE;
+                    intPipeReg[i][j].depVector = '0;
+                }
+            }
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                for j in 0..ISSUE_QUEUE_COMPLEX_LATENCY {
+                    complexPipeReg[i][j].valid = FALSE;
+                    complexPipeReg[i][j].depVector = '0;
+                }
+            }
+            for i in 0..MEM_ISSUE_WIDTH {
+                for j in 0..ISSUE_QUEUE_MEM_LATENCY {
+                    memPipeReg[i][j].valid = FALSE;
+                    memPipeReg[i][j].depVector = '0;
+                }
+            }
+            for i in 0..FP_ISSUE_WIDTH {
+                for j in 0..ISSUE_QUEUE_FP_LATENCY {
+                    fpPipeReg[i][j].valid = FALSE;
+                    fpPipeReg[i][j].depVector = '0;
+                }
+            }
+        } else if !port.stall {
+            for i in 0..INT_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_INT_LATENCY {
+                    intPipeReg[i][j - 1] = intPipeReg[i][j];
+                }
+                intPipeReg[i][ISSUE_QUEUE_INT_LATENCY - 1] = nextIntPipeReg[i];
+            }
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_COMPLEX_LATENCY {
+                    complexPipeReg[i][j - 1] = complexPipeReg[i][j];
+                }
+                complexPipeReg[i][ISSUE_QUEUE_COMPLEX_LATENCY - 1] = nextComplexPipeReg[i];
+            }
+            for i in 0..MEM_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_MEM_LATENCY {
+                    memPipeReg[i][j - 1] = memPipeReg[i][j];
+                }
+                memPipeReg[i][ISSUE_QUEUE_MEM_LATENCY - 1] = nextMemPipeReg[i];
+            }
+            for i in 0..FP_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_FP_LATENCY {
+                    fpPipeReg[i][j - 1] = fpPipeReg[i][j];
+                }
+                fpPipeReg[i][ISSUE_QUEUE_FP_LATENCY - 1] = nextFPPipeReg[i];
+            }
+        } else {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_COMPLEX_LATENCY - 1 {
+                    complexPipeReg[i][j - 1] = complexPipeReg[i][j];
+                }
+                complexPipeReg[i][ISSUE_QUEUE_COMPLEX_LATENCY - 2].valid = FALSE;
+                complexPipeReg[i][ISSUE_QUEUE_COMPLEX_LATENCY - 2].depVector = '0;
+            }
+            for i in 0..MEM_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_MEM_LATENCY - 1 {
+                    memPipeReg[i][j - 1] = memPipeReg[i][j];
+                }
+                memPipeReg[i][ISSUE_QUEUE_MEM_LATENCY - 2].valid = FALSE;
+                memPipeReg[i][ISSUE_QUEUE_MEM_LATENCY - 2].depVector = '0;
+            }
+            for i in 0..FP_ISSUE_WIDTH {
+                for j in 1..ISSUE_QUEUE_FP_LATENCY - 1 {
+                    fpPipeReg[i][j - 1] = fpPipeReg[i][j];
+                }
+                fpPipeReg[i][ISSUE_QUEUE_FP_LATENCY - 2].valid = FALSE;
+                fpPipeReg[i][ISSUE_QUEUE_FP_LATENCY - 2].depVector = '0;
+            }
+        }
+    }
+
+    always_comb {
+        flushIQ_Entry = recovery.flushIQ_Entry;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            intSelectedPtr[i] = port.selectedPtr[i];
+            nextIntPipeReg[i].valid = port.selected[i] && !flushIQ_Entry[intSelectedPtr[i]];
+            nextIntPipeReg[i].ptr = port.selectedPtr[i];
+            nextIntPipeReg[i].depVector = port.selectedVector[i] & ~flushIQ_Entry;
+            nextIntPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[i];
+        }
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            complexSelectedPtr[i] = port.selectedPtr[i + INT_ISSUE_WIDTH];
+            nextComplexPipeReg[i].valid = port.selected[i + INT_ISSUE_WIDTH] && !flushIQ_Entry[complexSelectedPtr[i]];
+            nextComplexPipeReg[i].ptr = port.selectedPtr[i + INT_ISSUE_WIDTH];
+            nextComplexPipeReg[i].depVector = port.selectedVector[i + INT_ISSUE_WIDTH] & ~flushIQ_Entry;
+            nextComplexPipeReg[i].activeListPtr = recovery.selectedActiveListPtr[i + INT_ISSUE_WIDTH];
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            memSelectedPtr[i] = port.selectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH];
+            nextMemPipeReg[i].valid =
+                port.selected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] && !flushIQ_Entry[memSelectedPtr[i]];
+            nextMemPipeReg[i].ptr = port.selectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH];
+            nextMemPipeReg[i].depVector =
+                port.selectedVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] & ~flushIQ_Entry;
+            nextMemPipeReg[i].activeListPtr =
+                recovery.selectedActiveListPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH];
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            fpSelectedPtr[i] = port.selectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
+            nextFPPipeReg[i].valid =
+                port.selected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] &&
+                !flushIQ_Entry[fpSelectedPtr[i]];
+            nextFPPipeReg[i].ptr =
+                port.selectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
+            nextFPPipeReg[i].depVector =
+                port.selectedVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] & ~flushIQ_Entry;
+            nextFPPipeReg[i].activeListPtr =
+                recovery.selectedActiveListPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            flushInt[i] = SelectiveFlushDetector(
+                canBeFlushedRegCountInt != 0,
+                flushRangeHeadPtr,
+                flushRangeTailPtr,
+                flushAllInsns,
+                intPipeReg[i][0].activeListPtr
+            );
+            port.wakeup[i] = intPipeReg[i][0].valid && !flushInt[i] && !port.stall;
+            port.wakeupPtr[i] = intPipeReg[i][0].ptr;
+            if !port.stall {
+                port.wakeupVector[i] = intPipeReg[i][0].depVector;
+            } else {
+                port.wakeupVector[i] = '0;
+            }
+        }
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            flushComplex[i] = SelectiveFlushDetector(
+                canBeFlushedRegCountComplex != 0,
+                flushRangeHeadPtr,
+                flushRangeTailPtr,
+                flushAllInsns,
+                complexPipeReg[i][0].activeListPtr
+            );
+            port.wakeup[i + INT_ISSUE_WIDTH] = complexPipeReg[i][0].valid && !flushComplex[i];
+            port.wakeupPtr[i + INT_ISSUE_WIDTH] = complexPipeReg[i][0].ptr;
+            port.wakeupVector[i + INT_ISSUE_WIDTH] = complexPipeReg[i][0].depVector;
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            flushMem[i] = SelectiveFlushDetector(
+                canBeFlushedRegCountMem != 0,
+                flushRangeHeadPtr,
+                flushRangeTailPtr,
+                flushAllInsns,
+                memPipeReg[i][0].activeListPtr
+            );
+            port.wakeup[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = memPipeReg[i][0].valid && !flushMem[i];
+            port.wakeupPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = memPipeReg[i][0].ptr;
+            port.wakeupVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = memPipeReg[i][0].depVector;
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            flushFP[i] = SelectiveFlushDetector(
+                canBeFlushedRegCountFP != 0,
+                flushRangeHeadPtr,
+                flushRangeTailPtr,
+                flushAllInsns,
+                fpPipeReg[i][0].activeListPtr
+            );
+            port.wakeup[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] =
+                fpPipeReg[i][0].valid && !flushFP[i];
+            port.wakeupPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] =
+                fpPipeReg[i][0].ptr;
+            port.wakeupVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] =
+                fpPipeReg[i][0].depVector;
+        }
+    }
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            port.releaseEntry[i] = intPipeReg[i][0].valid && !port.stall;
+            port.releasePtr[i] = intPipeReg[i][0].ptr;
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            port.releaseEntry[i + INT_ISSUE_WIDTH] = complexPipeReg[i][0].valid;
+            port.releasePtr[i + INT_ISSUE_WIDTH] = complexPipeReg[i][0].ptr;
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            port.releaseEntry[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = memPipeReg[i][0].valid;
+            port.releasePtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = memPipeReg[i][0].ptr;
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            port.releaseEntry[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpPipeReg[i][0].valid;
+            port.releasePtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpPipeReg[i][0].ptr;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            canBeFlushedRegCountInt = 0;
+            canBeFlushedRegCountComplex = 0;
+            canBeFlushedRegCountMem = 0;
+            canBeFlushedRegCountFP = 0;
+            flushRangeHeadPtr = 0;
+            flushRangeTailPtr = 0;
+            flushAllInsns = FALSE;
+        } else if recovery.toRecoveryPhase && recovery.recoveryFromRwStage {
+            canBeFlushedRegCountInt = ISSUE_QUEUE_INT_LATENCY;
+            canBeFlushedRegCountComplex = ISSUE_QUEUE_COMPLEX_LATENCY;
+            canBeFlushedRegCountMem = ISSUE_QUEUE_MEM_LATENCY;
+            canBeFlushedRegCountFP = ISSUE_QUEUE_FP_LATENCY;
+            flushRangeHeadPtr = recovery.flushRangeHeadPtr;
+            flushRangeTailPtr = recovery.flushRangeTailPtr;
+            flushAllInsns = recovery.flushAllInsns;
+        } else {
+            if canBeFlushedRegCountInt == ISSUE_QUEUE_INT_LATENCY {
+                if !port.stall {
+                    canBeFlushedRegCountInt = canBeFlushedRegCountInt - 1;
+                }
+            } else if canBeFlushedRegCountInt >: 0 {
+                canBeFlushedRegCountInt = canBeFlushedRegCountInt - 1;
+            }
+
+            if canBeFlushedRegCountComplex == ISSUE_QUEUE_COMPLEX_LATENCY {
+                if !port.stall {
+                    canBeFlushedRegCountComplex = canBeFlushedRegCountComplex - 1;
+                }
+            } else if canBeFlushedRegCountComplex >: 0 {
+                canBeFlushedRegCountComplex = canBeFlushedRegCountComplex - 1;
+            }
+
+            if canBeFlushedRegCountMem == ISSUE_QUEUE_MEM_LATENCY {
+                if !port.stall {
+                    canBeFlushedRegCountMem = canBeFlushedRegCountMem - 1;
+                }
+            } else if canBeFlushedRegCountMem >: 0 {
+                canBeFlushedRegCountMem = canBeFlushedRegCountMem - 1;
+            }
+
+            if canBeFlushedRegCountFP == ISSUE_QUEUE_FP_LATENCY {
+                if !port.stall {
+                    canBeFlushedRegCountFP = canBeFlushedRegCountFP - 1;
+                }
+            } else if canBeFlushedRegCountFP >: 0 {
+                canBeFlushedRegCountFP = canBeFlushedRegCountFP - 1;
+            }
+        }
+    }
+
+    always_comb {
+        recovery.wakeupPipelineRegFlushedOpExist =
+            (canBeFlushedRegCountInt != 0) ||
+            (canBeFlushedRegCountComplex != 0) ||
+            (canBeFlushedRegCountFP != 0) ||
+            (canBeFlushedRegCountMem != 0);
+    }
+}

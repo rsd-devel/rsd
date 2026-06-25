@@ -1,0 +1,213 @@
+module ComplexIntegerExecutionStage (
+    port      : modport ComplexIntegerExecutionStageIF::ThisStage,
+    prev      : modport ComplexIntegerRegisterReadStageIF::NextStage,
+    mulDivUnit: modport MulDivUnitIF::ComplexIntegerExecutionStage,
+    scheduler : modport SchedulerIF::ComplexIntegerExecutionStage,
+    bypass    : modport BypassNetworkIF::ComplexIntegerExecutionStage,
+    recovery  : modport RecoveryManagerIF::ComplexIntegerExecutionStage,
+    ctrl      : modport ControllerIF::ComplexIntegerExecutionStage,
+    debug     : modport DebugIF::ComplexIntegerExecutionStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var stall: logic;
+    var clear: logic;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(COMPLEX_ISSUE_WIDTH == MULDIV_ISSUE_WIDTH, "These muse be same");
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(COMPLEX_EXEC_STAGE_DEPTH == MULDIV_STAGE_DEPTH, "These muse be same");
+
+    struct LocalPipeReg {
+        opId            : OpId,
+        valid           : logic,
+        regValid        : logic,
+        complexQueueData: ComplexIssueQueueEntry,
+    }
+
+    var localPipeReg: LocalPipeReg<COMPLEX_ISSUE_WIDTH, COMPLEX_EXEC_STAGE_DEPTH - 1>;
+    var nextLocalPipeReg: LocalPipeReg<COMPLEX_ISSUE_WIDTH, COMPLEX_EXEC_STAGE_DEPTH - 1>;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst || clear {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                for j in 0..COMPLEX_EXEC_STAGE_DEPTH - 1 {
+                    localPipeReg[i][j].valid = '0;
+                    localPipeReg[i][j].regValid = '0;
+                }
+            }
+        } else if !ctrl.backEnd.stall {
+            localPipeReg = nextLocalPipeReg;
+        }
+    }
+
+    var pipeReg: ComplexIntegerExecutionStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var nextStage: ComplexIntegerRegisterWriteStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+        mulDivUnit.stall = stall;
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            var complexOpInfoValue: ComplexOpInfo;
+            var mulSubInfoValue: MulOpSubInfo;
+            var divSubInfoValue: DivOpSubInfo;
+            var fuOpAValue: PRegDataPath;
+            var fuOpBValue: PRegDataPath;
+            var regValidValue: logic;
+            var dataOutValue: PRegDataPath;
+            var isDivValue: logic;
+            var flushValue: logic<COMPLEX_EXEC_STAGE_DEPTH>;
+
+            complexOpInfoValue = pipeReg[i].complexQueueData.complexOpInfo;
+            mulSubInfoValue = complexOpInfoValue.mulSubInfo;
+            divSubInfoValue = complexOpInfoValue.divSubInfo;
+
+            if pipeReg[i].bCtrl.rA.valid {
+                fuOpAValue = bypass.complexSrcRegDataOutA[i];
+            } else {
+                fuOpAValue = pipeReg[i].operandA;
+            }
+
+            if pipeReg[i].bCtrl.rB.valid {
+                fuOpBValue = bypass.complexSrcRegDataOutB[i];
+            } else {
+                fuOpBValue = pipeReg[i].operandB;
+            }
+
+            mulDivUnit.dataInA[i] = fuOpAValue.data;
+            mulDivUnit.dataInB[i] = fuOpBValue.data;
+            mulDivUnit.divCode[i] = divSubInfoValue.divCode;
+            mulDivUnit.mulGetUpper[i] = mulSubInfoValue.mulGetUpper;
+            mulDivUnit.mulCode[i] = mulSubInfoValue.mulCode;
+
+            isDivValue = pipeReg[i].complexQueueData.opType == COMPLEX_MOP_TYPE_DIV;
+            mulDivUnit.divReq[i] =
+                mulDivUnit.divReserved[i] &&
+                pipeReg[i].valid &&
+                isDivValue &&
+                fuOpAValue.valid &&
+                fuOpBValue.valid;
+
+            flushValue[0] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                pipeReg[i].complexQueueData.activeListPtr
+            );
+
+            for j in 1..COMPLEX_EXEC_STAGE_DEPTH {
+                flushValue[j] = SelectiveFlushDetector(
+                    recovery.toRecoveryPhase,
+                    recovery.flushRangeHeadPtr,
+                    recovery.flushRangeTailPtr,
+                    recovery.flushAllInsns,
+                    localPipeReg[i][j - 1].complexQueueData.activeListPtr
+                );
+            }
+
+            regValidValue = fuOpAValue.valid && fuOpBValue.valid;
+
+            dataOutValue.valid = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].regValid;
+            case localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].complexQueueData.opType {
+                COMPLEX_MOP_TYPE_DIV: {
+                    dataOutValue.valid = FALSE;
+                    dataOutValue.data = '0;
+                }
+                default: {
+                    dataOutValue.data = mulDivUnit.mulDataOut[i];
+                }
+            }
+
+            bypass.complexCtrlIn[i] = pipeReg[i].bCtrl;
+            bypass.complexDstRegDataOut[i] = dataOutValue;
+
+            scheduler.complexRecordEntry[i] =
+                !stall &&
+                !clear &&
+                !flushValue[1] &&
+                localPipeReg[i][0].valid &&
+                !localPipeReg[i][0].regValid;
+            scheduler.complexRecordData[i] = localPipeReg[i][0].complexQueueData;
+
+            scheduler.divRecordEntry[i] =
+                localPipeReg[i][0].valid &&
+                localPipeReg[i][0].regValid &&
+                localPipeReg[i][0].complexQueueData.opType == COMPLEX_MOP_TYPE_DIV;
+            scheduler.divRecordData[i].activeListPtr = localPipeReg[i][0].complexQueueData.activeListPtr;
+            scheduler.divRecordData[i].opDst = localPipeReg[i][0].complexQueueData.opDst;
+
+            nextLocalPipeReg[i][0].opId = pipeReg[i].opId;
+            if flushValue[0] {
+                nextLocalPipeReg[i][0].valid = FALSE;
+            } else {
+                nextLocalPipeReg[i][0].valid = pipeReg[i].valid;
+            }
+            nextLocalPipeReg[i][0].complexQueueData = pipeReg[i].complexQueueData;
+            nextLocalPipeReg[i][0].regValid = regValidValue;
+
+            for j in 1..COMPLEX_EXEC_STAGE_DEPTH - 1 {
+                nextLocalPipeReg[i][j].opId = localPipeReg[i][j - 1].opId;
+                if flushValue[j] {
+                    nextLocalPipeReg[i][j].valid = FALSE;
+                } else {
+                    nextLocalPipeReg[i][j].valid = localPipeReg[i][j - 1].valid;
+                }
+                nextLocalPipeReg[i][j].regValid = localPipeReg[i][j - 1].regValid;
+                nextLocalPipeReg[i][j].complexQueueData = localPipeReg[i][j - 1].complexQueueData;
+            }
+
+            nextStage[i].opId = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].opId;
+            nextStage[i].complexQueueData = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].complexQueueData;
+
+            if stall || clear || port.rst || flushValue[COMPLEX_EXEC_STAGE_DEPTH - 1] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH - 2].valid;
+            }
+
+            nextStage[i].dataOut = dataOutValue;
+
+            debug.complexExReg[i].valid[0] = pipeReg[i].valid;
+            debug.complexExReg[i].flush[0] = flushValue[0];
+            debug.complexExReg[i].opId[0] = pipeReg[i].opId;
+            for j in 1..COMPLEX_EXEC_STAGE_DEPTH {
+                debug.complexExReg[i].valid[j] = localPipeReg[i][j - 1].valid;
+                debug.complexExReg[i].opId[j] = localPipeReg[i][j - 1].opId;
+                debug.complexExReg[i].flush[j] = flushValue[j];
+            }
+            debug.complexExReg[i].dataOut = dataOutValue.data;
+            debug.complexExReg[i].fuOpA = fuOpAValue.data;
+            debug.complexExReg[i].fuOpB = fuOpBValue.data;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

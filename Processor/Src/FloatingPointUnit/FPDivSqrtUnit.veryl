@@ -1,0 +1,122 @@
+module FPDivSqrtUnit (
+    port    : modport FPDivSqrtUnitIF::FPDivSqrtUnit,
+    recovery: modport RecoveryManagerIF::FPDivSqrtUnit,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import ActiveListIndexTypes::*;
+
+    enum DividerPhase: logic<2> {
+        DIVIDER_PHASE_FREE = 0,
+        DIVIDER_PHASE_RESERVED = 1,
+        DIVIDER_PHASE_PROCESSING = 2,
+        DIVIDER_PHASE_WAITING = 3,
+    }
+
+    var regPhase: DividerPhase [FP_DIVSQRT_ISSUE_WIDTH];
+    var nextPhase: DividerPhase [FP_DIVSQRT_ISSUE_WIDTH];
+    var finished: logic [FP_DIVSQRT_ISSUE_WIDTH];
+
+    var flush: logic [FP_DIVSQRT_ISSUE_WIDTH];
+    var rst_divider: logic [FP_DIVSQRT_ISSUE_WIDTH];
+    var regActiveListPtr: ActiveListIndexPath [FP_DIVSQRT_ISSUE_WIDTH];
+    var nextActiveListPtr: ActiveListIndexPath [FP_DIVSQRT_ISSUE_WIDTH];
+
+    for i in 0..FP_DIVSQRT_ISSUE_WIDTH : BlockDivUnit {
+        inst fpDivSqrter: FP32DivSqrter (
+            clk      : port.clk,
+            rst      : rst_divider[i],
+            lhs      : port.dataInA[i],
+            rhs      : port.dataInB[i],
+            is_divide: port.is_divide[i],
+            req      : port.Req[i],
+            finished : finished[i],
+            result   : port.DataOut[i],
+        );
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FP_DIVSQRT_ISSUE_WIDTH {
+                regPhase[i] = DividerPhase::DIVIDER_PHASE_FREE;
+                regActiveListPtr[i] = 0;
+            }
+        } else {
+            regPhase = nextPhase;
+            regActiveListPtr = nextActiveListPtr;
+        }
+    }
+
+    always_comb {
+        nextPhase = regPhase;
+        nextActiveListPtr = regActiveListPtr;
+
+        for i in 0..FP_DIVSQRT_ISSUE_WIDTH {
+            case regPhase[i] {
+                default: {
+                    nextPhase[i] = DividerPhase::DIVIDER_PHASE_FREE;
+                }
+                DividerPhase::DIVIDER_PHASE_FREE: {
+                    if port.Acquire[i] {
+                        nextPhase[i] = DividerPhase::DIVIDER_PHASE_RESERVED;
+                        nextActiveListPtr[i] = port.acquireActiveListPtr[i];
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_RESERVED: {
+                    if port.Req[i] {
+                        nextPhase[i] = DividerPhase::DIVIDER_PHASE_PROCESSING;
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_PROCESSING: {
+                    if finished[i] {
+                        nextPhase[i] = DividerPhase::DIVIDER_PHASE_WAITING;
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_WAITING: {
+                    if port.Release[i] {
+                        nextPhase[i] = DividerPhase::DIVIDER_PHASE_FREE;
+                    }
+                }
+            }
+
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                regActiveListPtr[i]
+            );
+
+            if flush[i] {
+                nextPhase[i] = DividerPhase::DIVIDER_PHASE_FREE;
+            }
+            rst_divider[i] = port.rst | flush[i];
+
+            if nextPhase[i] == DividerPhase::DIVIDER_PHASE_FREE {
+                port.Free[i] = TRUE;
+            } else {
+                port.Free[i] = FALSE;
+            }
+
+            if regPhase[i] == DividerPhase::DIVIDER_PHASE_WAITING {
+                port.Finished[i] = TRUE;
+            } else {
+                port.Finished[i] = FALSE;
+            }
+
+            if regPhase[i] == DividerPhase::DIVIDER_PHASE_PROCESSING {
+                port.Busy[i] = TRUE;
+            } else {
+                port.Busy[i] = FALSE;
+            }
+
+            if regPhase[i] == DividerPhase::DIVIDER_PHASE_RESERVED {
+                port.Reserved[i] = TRUE;
+            } else {
+                port.Reserved[i] = FALSE;
+            }
+
+            port.FFlagsOut[i] = '0;
+        }
+    }
+}

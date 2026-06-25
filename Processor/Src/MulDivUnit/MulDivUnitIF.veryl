@@ -1,0 +1,88 @@
+interface MulDivUnitIF {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import ActiveListIndexTypes::*;
+    import MulDivUnitTypes::*;
+
+    var clk  : clock;
+    var rst  : logic;
+    var dummy: logic;
+    var stall: logic;
+
+    var dataInA: DataPath [MULDIV_ISSUE_WIDTH];
+    var dataInB: DataPath [MULDIV_ISSUE_WIDTH];
+
+    var mulDataOut : DataPath    [MULDIV_ISSUE_WIDTH];
+    var mulGetUpper: logic       [MULDIV_ISSUE_WIDTH];
+    var mulCode    : IntMUL_Code [MULDIV_ISSUE_WIDTH];
+
+    var divCode    : IntDIV_Code [MULDIV_ISSUE_WIDTH];
+    var divReq     : logic       [MULDIV_ISSUE_WIDTH];
+    var divReserved: logic       [MULDIV_ISSUE_WIDTH];
+    var divBusy    : logic       [MULDIV_ISSUE_WIDTH];
+    var divFree    : logic       [MULDIV_ISSUE_WIDTH];
+
+    var divAcquire: logic [MULDIV_ISSUE_WIDTH];
+
+    var acquireData: MulDivAcquireData [MULDIV_ISSUE_WIDTH];
+
+    modport MulDivUnit {
+        clk        : input ,
+        rst        : input ,
+        stall      : input ,
+        dataInA    : input ,
+        dataInB    : input ,
+        mulGetUpper: input ,
+        mulCode    : input ,
+        divCode    : input ,
+        divReq     : input ,
+        divAcquire : input ,
+        acquireData: input ,
+        mulDataOut : output,
+        divBusy    : output,
+        divReserved: output,
+        divFree    : output,
+    }
+
+    modport ComplexIntegerIssueStage {
+        dummy: input,
+        divAcquire : output,
+        acquireData: output,
+    }
+
+    modport ComplexIntegerExecutionStage {
+        mulDataOut : input,
+        divBusy    : input,
+        divReserved: input,
+        divFree    : input,
+        stall      : output,
+        dataInA    : output,
+        dataInB    : output,
+        mulGetUpper: output,
+        mulCode    : output,
+        divCode    : output,
+        divReq     : output,
+    }
+
+    modport MemoryIssueStage {
+        dummy: input,
+    }
+
+    modport MemoryExecutionStage {
+        divBusy    : input,
+        divReserved: input,
+        divFree    : input,
+    }
+
+    modport MemoryAccessStage {
+        mulDataOut: input,
+    }
+
+    modport Scheduler {
+        divFree: input,
+    }
+
+    modport ReplayQueue {
+        divBusy: input,
+    }
+}

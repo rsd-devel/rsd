@@ -1,0 +1,227 @@
+package MicroOpTypes {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    const LINK_REGISTER: u32 = 5'h1;
+
+    const MICRO_OP_TMP_REGISTER: u32 = 4'hf;
+
+    const ZERO_REGISTER: u32 = 5'h0;
+
+    const MICRO_OP_MAX_NUM: u32 = 3;
+
+    const MICRO_OP_INDEX_BITS: u32 = 2;
+
+    type MicroOpIndex = logic<MICRO_OP_INDEX_BITS>;
+
+    type MicroOpCount = logic<(MICRO_OP_INDEX_BITS) + 1>;
+
+    const ALL_DECODED_MICRO_OP_WIDTH: u32 = MICRO_OP_MAX_NUM * DECODE_WIDTH;
+
+    const ALL_DECODED_MICRO_OP_WIDTH_BIT_SIZE: u32 = MICRO_OP_INDEX_BITS + DECODE_WIDTH_BIT_SIZE;
+
+    type AllDecodedMicroOpPath = logic<ALL_DECODED_MICRO_OP_WIDTH>;
+
+    type RemainingDecodedMicroOpPath = logic<ALL_DECODED_MICRO_OP_WIDTH-DECODE_WIDTH>;
+
+    type AllDecodedMicroOpIndex = logic<ALL_DECODED_MICRO_OP_WIDTH_BIT_SIZE>;
+
+    const MICRO_OP_SOURCE_REG_NUM: u32 = 3;
+
+    const SC_CODE_SUCCESS: u32 = 0;
+
+    const SC_CODE_FAIL: u32 = 1;
+
+    enum MicroOpType: logic<2> {
+        MOP_TYPE_INT = 2'b00,
+        MOP_TYPE_COMPLEX = 2'b01,
+        MOP_TYPE_MEM = 2'b10,
+        MOP_TYPE_FP = 2'b11,
+    }
+    const MOP_TYPE_INT: MicroOpType = MicroOpType::MOP_TYPE_INT;
+    const MOP_TYPE_COMPLEX: MicroOpType = MicroOpType::MOP_TYPE_COMPLEX;
+    const MOP_TYPE_MEM: MicroOpType = MicroOpType::MOP_TYPE_MEM;
+    const MOP_TYPE_FP: MicroOpType = MicroOpType::MOP_TYPE_FP;
+
+    enum IntMicroOpSubType: logic<3> {
+        INT_MOP_TYPE_ALU = 3'b000,
+        INT_MOP_TYPE_SHIFT = 3'b001,
+        INT_MOP_TYPE_BR = 3'b010,
+        INT_MOP_TYPE_RIJ = 3'b011,
+    }
+    const INT_MOP_TYPE_ALU: IntMicroOpSubType = IntMicroOpSubType::INT_MOP_TYPE_ALU;
+    const INT_MOP_TYPE_SHIFT: IntMicroOpSubType = IntMicroOpSubType::INT_MOP_TYPE_SHIFT;
+    const INT_MOP_TYPE_BR: IntMicroOpSubType = IntMicroOpSubType::INT_MOP_TYPE_BR;
+    const INT_MOP_TYPE_RIJ: IntMicroOpSubType = IntMicroOpSubType::INT_MOP_TYPE_RIJ;
+
+    enum ComplexMicroOpSubType: logic<3> {
+        COMPLEX_MOP_TYPE_MUL = 3'b000,
+        COMPLEX_MOP_TYPE_DIV = 3'b001,
+    }
+    const COMPLEX_MOP_TYPE_MUL: ComplexMicroOpSubType = ComplexMicroOpSubType::COMPLEX_MOP_TYPE_MUL;
+    const COMPLEX_MOP_TYPE_DIV: ComplexMicroOpSubType = ComplexMicroOpSubType::COMPLEX_MOP_TYPE_DIV;
+
+    enum MemMicroOpSubType: logic<3> {
+        MEM_MOP_TYPE_LOAD = 3'b000,
+        MEM_MOP_TYPE_STORE = 3'b001,
+        MEM_MOP_TYPE_MUL = 3'b010,
+        MEM_MOP_TYPE_DIV = 3'b011,
+        MEM_MOP_TYPE_CSR = 3'b100,
+        MEM_MOP_TYPE_FENCE = 3'b101,
+        MEM_MOP_TYPE_ENV = 3'b110,
+        MEM_MOP_TYPE_ZAAMO = 3'b111,
+    }
+    const MEM_MOP_TYPE_LOAD: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_LOAD;
+    const MEM_MOP_TYPE_STORE: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_STORE;
+    const MEM_MOP_TYPE_MUL: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_MUL;
+    const MEM_MOP_TYPE_DIV: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_DIV;
+    const MEM_MOP_TYPE_CSR: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_CSR;
+    const MEM_MOP_TYPE_FENCE: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_FENCE;
+    const MEM_MOP_TYPE_ENV: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_ENV;
+    const MEM_MOP_TYPE_ZAAMO: MemMicroOpSubType = MemMicroOpSubType::MEM_MOP_TYPE_ZAAMO;
+
+    enum FPMicroOpSubType: logic<3> {
+        FP_MOP_TYPE_ADD = 3'b000,
+        FP_MOP_TYPE_MUL = 3'b001,
+        FP_MOP_TYPE_DIV = 3'b010,
+        FP_MOP_TYPE_SQRT = 3'b011,
+        FP_MOP_TYPE_FMA = 3'b100,
+        FP_MOP_TYPE_OTHER = 3'b101,
+    }
+    const FP_MOP_TYPE_ADD: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_ADD;
+    const FP_MOP_TYPE_MUL: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_MUL;
+    const FP_MOP_TYPE_DIV: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_DIV;
+    const FP_MOP_TYPE_SQRT: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_SQRT;
+    const FP_MOP_TYPE_FMA: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_FMA;
+    const FP_MOP_TYPE_OTHER: FPMicroOpSubType = FPMicroOpSubType::FP_MOP_TYPE_OTHER;
+
+    union MicroOpSubType {
+        intType: IntMicroOpSubType,
+        complexType: ComplexMicroOpSubType,
+        memType: MemMicroOpSubType,
+        fpType: FPMicroOpSubType,
+    }
+
+    struct OpId {
+        sid: OpSerial,
+        mid: MicroOpIndex,
+    }
+
+    enum OpOperandType: logic<2> {
+        OOT_REG = 2'b00,
+        OOT_IMM = 2'b01,
+        OOT_PC = 2'b10,
+    }
+    const OOT_REG: OpOperandType = OpOperandType::OOT_REG;
+    const OOT_IMM: OpOperandType = OpOperandType::OOT_IMM;
+    const OOT_PC: OpOperandType = OpOperandType::OOT_PC;
+
+    struct IntMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        aluCode: IntALU_Code,
+        shiftType: ShiftOperandType,
+        shiftIn: ShifterPath,
+    }
+
+    struct MemMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        isAddAddr: logic,
+        isRegAddr: logic,
+        memAccessMode: MemAccessMode,
+        csrCtrl: CSR_CtrlPath,
+        isZalrsc: logic,
+        amoCode: MemZaamo_Code,
+        padding: logic<5>,
+        addrIn: AddrOperandImm,
+    }
+
+    struct BrMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        padding: logic<15>,
+        brDisp: BranchDisplacement,
+    }
+
+    struct ComplexMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        mulGetUpper: logic,
+        mulCode: IntMUL_Code,
+        divCode: IntDIV_Code,
+        padding: logic<16>,
+        riscv_padding: logic<14>,
+    }
+
+    struct MiscMemMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        fence: logic,
+        fenceI: logic,
+        padding: logic<15>,
+        riscv_padding: logic<18>,
+    }
+
+    struct SystemMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        envCode: ENV_Code,
+        isEnv: logic,
+        padding: logic<19>,
+        imm: logic<12>,
+    }
+
+    struct FPMicroOpOperand {
+        dstRegNum: LRegNumPath,
+        srcRegNumA: LRegNumPath,
+        srcRegNumB: LRegNumPath,
+        srcRegNumC: LRegNumPath,
+        fpuCode: FPU_Code,
+        rm: Rounding_Mode,
+        padding: logic<21>,
+    }
+
+    union MicroOpOperand {
+        intOp: IntMicroOpOperand,
+        memOp: MemMicroOpOperand,
+        brOp: BrMicroOpOperand,
+        complexOp: ComplexMicroOpOperand,
+        miscMemOp: MiscMemMicroOpOperand,
+        systemOp: SystemMicroOpOperand,
+        fpOp: FPMicroOpOperand,
+    }
+
+    struct OpInfo {
+        cond: CondCode,
+        mopType: MicroOpType,
+        mopSubType: MicroOpSubType,
+        operand: MicroOpOperand,
+        opTypeA: OpOperandType,
+        opTypeB: OpOperandType,
+        opTypeC: OpOperandType,
+        writeReg: logic,
+        undefined: logic,
+        unsupported: logic,
+        split: logic,
+        valid: logic,
+        last: logic,
+        mid: MicroOpIndex,
+        serialized: logic,
+    }
+
+    struct InsnInfo {
+        writePC: logic,
+        isCall: logic,
+        isReturn: logic,
+        isRelBranch: logic,
+        isSerialized: logic,
+    }
+
+}

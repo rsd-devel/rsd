@@ -1,0 +1,122 @@
+interface CSR_UnitIF {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import CSR_UnitTypes::*;
+
+    var clk               : clock;
+    var rst               : logic;
+    var rstStart          : logic;
+    var reqCustomInterrupt: logic;
+    var customInterruptCode: CustomInterruptCodePath;
+
+    var csrWE      : logic;
+    var csrNumber  : CSR_NumberPath;
+    var csrCode    : CSR_Code;
+    var csrReadOut : DataPath;
+    var csrWriteIn : DataPath;
+    var csrWholeOut: CSR_BodyPath;
+
+    var triggerExcpt      : logic;
+    var excptCause        : ExecutionState;
+    var excptCauseAddr    : PC_Path;
+    var excptTargetAddr   : AddrPath;
+    var excptCauseDataAddr: AddrPath;
+    var csrUnitTriggerExcpt: logic;
+
+    var triggerInterrupt: logic;
+    var interruptCode   : CSR_CAUSE_InterruptCodePath;
+    var interruptRetAddr: PC_Path;
+
+    var reqTimerInterrupt: logic;
+
+    var commitNum: CommitLaneCountPath;
+
+    var privilegeLevel: PrivilegeLevelType;
+
+    var fflags   : FFlags_Path;
+    var frm      : Rounding_Mode;
+    var fflagsWE : logic;
+    var fflagsData: FFlags_Path;
+
+    modport MemoryExecutionStage {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        csrWholeOut: input,
+        csrReadOut: input,
+        csrUnitTriggerExcpt: input,
+        privilegeLevel: input,
+        csrWE: output,
+        csrNumber: output,
+        csrCode: output,
+        csrWriteIn: output,
+    }
+
+    modport FPExecutionStage {
+        frm: input,
+    }
+
+    modport IO_Unit {
+        reqTimerInterrupt: output,
+    }
+
+    modport CommitStage {
+        fflags: input,
+        commitNum: output,
+        fflagsWE: output,
+        fflagsData: output,
+    }
+
+    modport RecoveryManager {
+        excptTargetAddr: input,
+        triggerExcpt: output,
+        excptCauseAddr: output,
+        excptCause: output,
+        excptCauseDataAddr: output,
+    }
+
+    modport CSR_Unit {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        csrWE: input,
+        csrNumber: input,
+        csrCode: input,
+        csrWriteIn: input,
+        triggerExcpt: input,
+        excptCauseAddr: input,
+        excptCause: input,
+        excptCauseDataAddr: input,
+        commitNum: input,
+        reqTimerInterrupt: input,
+        reqCustomInterrupt: input,
+        customInterruptCode: input,
+        triggerInterrupt: input,
+        interruptCode: input,
+        interruptRetAddr: input,
+        fflagsWE: input,
+        fflagsData: input,
+        fflags: output,
+        frm: output,
+        csrWholeOut: output,
+        csrReadOut: output,
+        csrUnitTriggerExcpt: output,
+        excptTargetAddr: output,
+        privilegeLevel: output,
+    }
+
+    modport InterruptController {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        csrWholeOut: input,
+        privilegeLevel: input,
+        triggerInterrupt: output,
+        interruptRetAddr: output,
+        interruptCode: output,
+    }
+}

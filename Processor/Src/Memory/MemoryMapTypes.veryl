@@ -1,0 +1,145 @@
+package MemoryMapTypes {
+    import BasicTypes::*;
+
+    const INSN_RESET_VECTOR: AddrPath = 32'h00001000;
+    const PC_GOAL          : AddrPath = 32'h80001004;
+
+    const PC_WIDTH: u32 = 19;
+    const PC_TAG  : u32 = ADDR_WIDTH - PC_WIDTH;
+    type PC_Path = logic<PC_WIDTH>;
+
+    function ToAddrFromPC (
+        pc: input PC_Path,
+    ) -> AddrPath {
+        return {pc[PC_WIDTH - 1], 1'b0 repeat PC_TAG, pc[PC_WIDTH - 2:0]};
+    }
+
+    function ToPC_FromAddr (
+        addr: input AddrPath,
+    ) -> PC_Path {
+        return {addr[ADDR_WIDTH - 1], addr[PC_WIDTH - 2:0]};
+    }
+
+    enum MemoryMapType: logic<2> {
+        MMT_MEMORY  = 2'b00,
+        MMT_IO      = 2'b01,
+        MMT_ILLEGAL = 2'b10,
+    }
+    const MMT_MEMORY : MemoryMapType = MemoryMapType::MMT_MEMORY;
+    const MMT_IO     : MemoryMapType = MemoryMapType::MMT_IO;
+    const MMT_ILLEGAL: MemoryMapType = MemoryMapType::MMT_ILLEGAL;
+
+    const PHY_ADDR_WIDTH         : u32 = 22;
+    const PHY_ADDR_WIDTH_BIT_SIZE: u32 = $clog2(PHY_ADDR_WIDTH);
+    const PHY_ADDR_BYTE_WIDTH    : u32 = PHY_ADDR_WIDTH / BYTE_WIDTH;
+
+    const PHY_RAW_ADDR_WIDTH         : u32 = PHY_ADDR_WIDTH - 2;
+    const PHY_RAW_ADDR_WIDTH_BIT_SIZE: u32 = $clog2(PHY_RAW_ADDR_WIDTH);
+    const PHY_RAW_ADDR_BYTE_WIDTH    : u32 = PHY_RAW_ADDR_WIDTH / BYTE_WIDTH;
+
+    type PhyRawAddrPath = logic<PHY_RAW_ADDR_WIDTH>;
+    struct PhyAddrPath {
+        isUncachable: logic,
+        isIO        : logic,
+        addr        : PhyRawAddrPath,
+    }
+
+    const LOG_ADDR_SECTION_0_BEGIN         : AddrPath = 32'h0000_1000;
+    const LOG_ADDR_SECTION_0_END           : AddrPath = 32'h0001_0000;
+    const LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH: u32 = 16;
+    const PHY_ADDR_SECTION_0_BASE          : PhyRawAddrPath = 20'h0_0000;
+
+    const LOG_ADDR_SECTION_1_BEGIN         : AddrPath = 32'h8000_0000;
+    const LOG_ADDR_SECTION_1_END           : AddrPath = 32'h8004_0000;
+    const LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH: u32 = 18;
+    const PHY_ADDR_SECTION_1_BASE          : PhyRawAddrPath = 20'h1_0000;
+
+    const LOG_ADDR_UNCACHABLE_BEGIN         : AddrPath = 32'h8004_0000;
+    const LOG_ADDR_UNCACHABLE_END           : AddrPath = 32'h8005_0000;
+    const LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH: u32 = 19;
+    const PHY_ADDR_UNCACHABLE_BASE          : PhyRawAddrPath = 20'h1_0000;
+
+    const LOG_ADDR_SERIAL_OUTPUT: AddrPath = 32'h4000_2000;
+    const PHY_ADDR_SERIAL_OUTPUT: PhyRawAddrPath = 20'h0_2000;
+
+    const LOG_ADDR_TIMER_BASE   : AddrPath = 32'h4000_0000;
+    const LOG_ADDR_TIMER_LOW    : AddrPath = LOG_ADDR_TIMER_BASE + 0;
+    const LOG_ADDR_TIMER_HI     : AddrPath = LOG_ADDR_TIMER_BASE + 4;
+    const LOG_ADDR_TIMER_CMP_LOW: AddrPath = LOG_ADDR_TIMER_BASE + 8;
+    const LOG_ADDR_TIMER_CMP_HI : AddrPath = LOG_ADDR_TIMER_BASE + 12;
+
+    const LOG_ADDR_TIMER_BEGIN: AddrPath = LOG_ADDR_TIMER_BASE;
+    const LOG_ADDR_TIMER_END  : AddrPath = LOG_ADDR_TIMER_BASE + 16;
+
+    const PHY_ADDR_TIMER_BASE   : PhyRawAddrPath = 20'h0_0000;
+    const PHY_ADDR_TIMER_LOW    : PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 0;
+    const PHY_ADDR_TIMER_HI     : PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 4;
+    const PHY_ADDR_TIMER_CMP_LOW: PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 8;
+    const PHY_ADDR_TIMER_CMP_HI : PhyRawAddrPath = PHY_ADDR_TIMER_BASE + 12;
+
+    const PHY_ADDR_TIMER_ZONE_BIT_WIDTH: u32 = 4;
+
+    function GetMemoryMapType (
+        addr: input AddrPath,
+    ) -> MemoryMapType {
+        if addr == LOG_ADDR_SERIAL_OUTPUT {
+            return MMT_IO;
+        } else if LOG_ADDR_TIMER_BEGIN <= addr && addr <: LOG_ADDR_TIMER_END {
+            return MMT_IO;
+        } else if LOG_ADDR_UNCACHABLE_BEGIN <= addr && addr <: LOG_ADDR_UNCACHABLE_END {
+            return MMT_MEMORY;
+        } else if LOG_ADDR_SECTION_0_BEGIN <= addr && addr <: LOG_ADDR_SECTION_0_END {
+            return MMT_MEMORY;
+        } else if LOG_ADDR_SECTION_1_BEGIN <= addr && addr <: LOG_ADDR_SECTION_1_END {
+            return MMT_MEMORY;
+        } else {
+            return MMT_ILLEGAL;
+        }
+    }
+
+    function ToPhyAddrFromLogical (
+        logAddr: input AddrPath,
+    ) -> PhyAddrPath {
+        var phyAddr: PhyAddrPath;
+
+        if logAddr == LOG_ADDR_SERIAL_OUTPUT {
+            phyAddr.isUncachable = TRUE;
+            phyAddr.isIO = TRUE;
+            phyAddr.addr = PHY_ADDR_SERIAL_OUTPUT;
+        } else if LOG_ADDR_TIMER_BEGIN <= logAddr && logAddr <: LOG_ADDR_TIMER_END {
+            phyAddr.isUncachable = TRUE;
+            phyAddr.isIO = TRUE;
+            phyAddr.addr = PHY_ADDR_TIMER_BASE + logAddr[PHY_ADDR_TIMER_ZONE_BIT_WIDTH - 1:0];
+        } else if LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr <: LOG_ADDR_UNCACHABLE_END {
+            phyAddr.isUncachable = TRUE;
+            phyAddr.isIO = FALSE;
+            phyAddr.addr = PHY_ADDR_UNCACHABLE_BASE + logAddr[LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH - 1:0];
+        } else if LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr <: LOG_ADDR_SECTION_0_END {
+            phyAddr.isUncachable = FALSE;
+            phyAddr.isIO = FALSE;
+            phyAddr.addr = PHY_ADDR_SECTION_0_BASE + logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH:0];
+        } else if LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr <: LOG_ADDR_SECTION_1_END {
+            phyAddr.isUncachable = FALSE;
+            phyAddr.isIO = FALSE;
+            phyAddr.addr = PHY_ADDR_SECTION_1_BASE + logAddr[LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH - 1:0];
+        } else {
+            phyAddr.isUncachable = FALSE;
+            phyAddr.isIO = FALSE;
+            phyAddr.addr = 20'hc_cccc;
+        }
+
+        return phyAddr;
+    }
+
+    function IsPhyAddrIO (
+        phyAddr: input PhyAddrPath,
+    ) -> logic {
+        return phyAddr.isIO;
+    }
+
+    function IsPhyAddrUncachable (
+        phyAddr: input PhyAddrPath,
+    ) -> logic {
+        return phyAddr.isUncachable;
+    }
+}

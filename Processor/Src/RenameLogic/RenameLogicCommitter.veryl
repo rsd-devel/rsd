@@ -1,0 +1,171 @@
+module RenameLogicCommitter (
+    port      : modport RenameLogicIF::RenameLogicCommitter,
+    activeList: modport ActiveListIF::RenameLogicCommitter,
+    recovery  : modport RecoveryManagerIF::RenameLogicCommitter,
+) {
+    import BasicTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    enum Phase: logic<2> {
+        PHASE_COMMIT    = 0,
+        PHASE_RECOVER_0 = 1,
+        PHASE_RECOVER_1 = 2,
+    }
+    const PHASE_COMMIT   : Phase = Phase::PHASE_COMMIT;
+    const PHASE_RECOVER_0: Phase = Phase::PHASE_RECOVER_0;
+    const PHASE_RECOVER_1: Phase = Phase::PHASE_RECOVER_1;
+
+    var phase    : Phase;
+    var nextPhase: Phase;
+
+    var recoveryCount    : ActiveListCountPath;
+    var nextRecoveryCount: ActiveListCountPath;
+
+    always_ff (port.clk) {
+        phase = nextPhase;
+        recoveryCount = nextRecoveryCount;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(recovery.toRecoveryPhase && phase != PHASE_COMMIT), "");
+
+    always_comb {
+        if port.rst {
+            nextPhase = PHASE_COMMIT;
+            nextRecoveryCount = 0;
+        } else if recovery.toRecoveryPhase {
+            nextPhase = PHASE_RECOVER_0;
+            nextRecoveryCount = 0;
+        } else if phase == PHASE_RECOVER_0 {
+            nextPhase = PHASE_RECOVER_1;
+            nextRecoveryCount = activeList.recoveryEntryNum;
+        } else if phase == PHASE_RECOVER_1 {
+            if recoveryCount == 0 {
+                nextPhase = PHASE_COMMIT;
+            } else {
+                nextPhase = PHASE_RECOVER_1;
+            }
+
+            if recoveryCount >: COMMIT_WIDTH {
+                nextRecoveryCount = recoveryCount - COMMIT_WIDTH;
+            } else {
+                nextRecoveryCount = 0;
+            }
+        } else {
+            nextPhase = phase;
+            nextRecoveryCount = recoveryCount;
+        }
+    }
+
+    struct ReleasedRegister {
+        releaseReg    : logic,
+        phyReleasedReg: PRegNumPath,
+    }
+    var regReleasedReg : ReleasedRegister [COMMIT_WIDTH];
+    var nextReleasedReg: ReleasedRegister [COMMIT_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..COMMIT_WIDTH {
+                regReleasedReg[i] = '0;
+            }
+        } else {
+            regReleasedReg = nextReleasedReg;
+        }
+    }
+
+    always_comb {
+        for i in 0..COMMIT_WIDTH {
+            port.releaseReg[i] = regReleasedReg[i].releaseReg;
+            port.phyReleasedReg[i] = regReleasedReg[i].phyReleasedReg;
+        }
+    }
+
+    var alReadData: ActiveListEntry [COMMIT_WIDTH];
+    var releaseNum: CommitLaneCountPath;
+    var flushNum  : CommitLaneCountPath;
+
+    always_comb {
+        alReadData = activeList.readData;
+        releaseNum = '0;
+        flushNum = '0;
+
+        if phase == PHASE_COMMIT {
+            activeList.popTailNum = 0;
+
+            if port.commit {
+                activeList.popHeadNum = port.commitNum;
+            } else {
+                activeList.popHeadNum = 0;
+            }
+
+            for i in 0..COMMIT_WIDTH {
+                if port.commit && i <: port.commitNum {
+                    nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
+                } else {
+                    nextReleasedReg[i].releaseReg = FALSE;
+                }
+
+                nextReleasedReg[i].phyReleasedReg = alReadData[i].phyPrevDstRegNum;
+            }
+
+            recovery.inRecoveryAL = FALSE;
+            flushNum = '0;
+        } else if phase == PHASE_RECOVER_0 {
+            activeList.popHeadNum = 0;
+            activeList.popTailNum = 0;
+            for i in 0..COMMIT_WIDTH {
+                nextReleasedReg[i].releaseReg = FALSE;
+                nextReleasedReg[i].phyReleasedReg = 0;
+            }
+            recovery.inRecoveryAL = TRUE;
+            flushNum = '0;
+        } else {
+            if RECOVERY_FROM_RRMT != 0 {
+                releaseNum = COMMIT_WIDTH;
+                if releaseNum >: recoveryCount {
+                    releaseNum = recoveryCount;
+                }
+                flushNum = releaseNum;
+                activeList.popHeadNum = releaseNum;
+                activeList.popTailNum = 0;
+
+                for i in 0..COMMIT_WIDTH {
+                    if i <: releaseNum {
+                        nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
+                    } else {
+                        nextReleasedReg[i].releaseReg = FALSE;
+                    }
+
+                    nextReleasedReg[i].phyReleasedReg = alReadData[i].phyDstRegNum;
+                }
+
+                recovery.inRecoveryAL = TRUE;
+            } else {
+                releaseNum = COMMIT_WIDTH;
+                if releaseNum >: recoveryCount {
+                    releaseNum = recoveryCount;
+                }
+                flushNum = releaseNum;
+                activeList.popHeadNum = 0;
+                activeList.popTailNum = releaseNum;
+
+                for i in 0..COMMIT_WIDTH {
+                    if i <: releaseNum {
+                        nextReleasedReg[i].releaseReg = alReadData[i].writeReg;
+                    } else {
+                        nextReleasedReg[i].releaseReg = FALSE;
+                    }
+
+                    nextReleasedReg[i].phyReleasedReg = alReadData[i].phyDstRegNum;
+                }
+
+                recovery.inRecoveryAL = TRUE;
+            }
+        }
+
+        port.flushNum = flushNum;
+    }
+}

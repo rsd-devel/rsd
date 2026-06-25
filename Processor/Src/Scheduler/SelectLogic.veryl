@@ -1,0 +1,144 @@
+module SelectLogic (
+    port    : modport WakeupSelectIF::SelectLogic,
+    recovery: modport RecoveryManagerIF::SelectLogic,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+
+    var intRequest   : IssueQueueOneHotPath;
+    var intGrant     : IssueQueueOneHotPath;
+    var intSelected  : logic [INT_ISSUE_WIDTH];
+    var intSelectedPtr: IssueQueueIndexPath [INT_ISSUE_WIDTH];
+
+    var compRequest   : IssueQueueOneHotPath;
+    var compGrant     : IssueQueueOneHotPath;
+    var compSelected  : logic [COMPLEX_ISSUE_WIDTH];
+    var compSelectedPtr: IssueQueueIndexPath [COMPLEX_ISSUE_WIDTH];
+
+    var loadRequest   : IssueQueueOneHotPath;
+    var storeRequest  : IssueQueueOneHotPath;
+    var loadGrant     : IssueQueueOneHotPath;
+    var storeGrant    : IssueQueueOneHotPath;
+    var loadSelected  : logic [LOAD_ISSUE_WIDTH];
+    var storeSelected : logic [STORE_ISSUE_WIDTH];
+    var loadSelectedPtr : IssueQueueIndexPath [LOAD_ISSUE_WIDTH];
+    var storeSelectedPtr: IssueQueueIndexPath [STORE_ISSUE_WIDTH];
+
+    var fpRequest   : IssueQueueOneHotPath;
+    var fpGrant     : IssueQueueOneHotPath;
+    var fpSelected  : logic [FP_ISSUE_WIDTH];
+    var fpSelectedPtr: IssueQueueIndexPath [FP_ISSUE_WIDTH];
+
+    var portSelected      : logic [ISSUE_WIDTH];
+    var portSelectedPtr   : IssueQueueIndexPath [ISSUE_WIDTH];
+    var portSelectedVector: IssueQueueOneHotPath [ISSUE_WIDTH];
+
+    var recoverySelected   : logic [ISSUE_WIDTH];
+    var recoverySelectedPtr: IssueQueueIndexPath [ISSUE_WIDTH];
+
+    inst intPicker: InterleavedPicker #(
+        ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
+        GRANT_NUM: INT_ISSUE_WIDTH,
+    ) (
+        req     : intRequest,
+        grant   : intGrant,
+        grantPtr: intSelectedPtr,
+        granted : intSelected,
+    );
+
+    inst compPicker: Picker #(
+        ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
+        GRANT_NUM: COMPLEX_ISSUE_WIDTH,
+    ) (
+        req     : compRequest,
+        grant   : compGrant,
+        grantPtr: compSelectedPtr,
+        granted : compSelected,
+    );
+
+    inst loadPicker: Picker #(
+        ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
+        GRANT_NUM: LOAD_ISSUE_WIDTH,
+    ) (
+        req     : loadRequest,
+        grant   : loadGrant,
+        grantPtr: loadSelectedPtr,
+        granted : loadSelected,
+    );
+
+    inst storePicker: Picker #(
+        ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
+        GRANT_NUM: STORE_ISSUE_WIDTH,
+    ) (
+        req     : storeRequest,
+        grant   : storeGrant,
+        grantPtr: storeSelectedPtr,
+        granted : storeSelected,
+    );
+
+    inst fpPicker: Picker #(
+        ENTRY_NUM: ISSUE_QUEUE_ENTRY_NUM,
+        GRANT_NUM: FP_ISSUE_WIDTH,
+    ) (
+        req     : fpRequest,
+        grant   : fpGrant,
+        grantPtr: fpSelectedPtr,
+        granted : fpSelected,
+    );
+
+    always_comb {
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            intRequest[i] = port.opReady[i] && port.intIssueReq[i];
+            loadRequest[i] = port.opReady[i] && port.loadIssueReq[i];
+            storeRequest[i] = port.opReady[i] && port.storeIssueReq[i];
+            compRequest[i] = port.opReady[i] && port.complexIssueReq[i];
+            fpRequest[i] = port.opReady[i] && port.fpIssueReq[i];
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            portSelected[i] = intSelected[i];
+            portSelectedPtr[i] = intSelectedPtr[i];
+            portSelectedVector[i] = intGrant;
+            recoverySelected[i] = intSelected[i];
+            recoverySelectedPtr[i] = intSelectedPtr[i];
+        }
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            portSelected[i + INT_ISSUE_WIDTH] = compSelected[i];
+            portSelectedPtr[i + INT_ISSUE_WIDTH] = compSelectedPtr[i];
+            portSelectedVector[i + INT_ISSUE_WIDTH] = compGrant;
+            recoverySelected[i + INT_ISSUE_WIDTH] = compSelected[i];
+            recoverySelectedPtr[i + INT_ISSUE_WIDTH] = compSelectedPtr[i];
+        }
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            portSelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = loadSelected[i];
+            portSelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = loadSelectedPtr[i];
+            portSelectedVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = loadGrant;
+            recoverySelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = loadSelected[i];
+            recoverySelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = loadSelectedPtr[i];
+        }
+
+        for i in 0..STORE_ISSUE_WIDTH {
+            portSelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH] = storeSelected[i];
+            portSelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH] = storeSelectedPtr[i];
+            portSelectedVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH] = storeGrant;
+            recoverySelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH] = storeSelected[i];
+            recoverySelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH] = storeSelectedPtr[i];
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            portSelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpSelected[i];
+            portSelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpSelectedPtr[i];
+            portSelectedVector[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpGrant;
+            recoverySelected[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpSelected[i];
+            recoverySelectedPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = fpSelectedPtr[i];
+        }
+
+        port.selected = portSelected;
+        port.selectedPtr = portSelectedPtr;
+        port.selectedVector = portSelectedVector;
+        recovery.selected = recoverySelected;
+        recovery.selectedPtr = recoverySelectedPtr;
+    }
+}

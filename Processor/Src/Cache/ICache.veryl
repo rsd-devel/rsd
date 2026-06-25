@@ -1,0 +1,482 @@
+package ICacheArrayTypes {
+    import CacheSystemTypes::*;
+
+    struct ICacheWayData {
+        data: ICacheLinePath,
+        meta: ICacheTagValidPath,
+    }
+}
+
+module ICacheArray (
+    clk          : input  clock                    ,
+    rst          : input  logic                    ,
+    rstStart     : input  logic                    ,
+    we           : input  logic                    ,
+    writeIndex   : input  CacheSystemTypes::ICacheIndexPath,
+    writeTag     : input  CacheSystemTypes::ICacheTagPath  ,
+    writeLineData: input  CacheSystemTypes::ICacheLinePath ,
+    readIndex    : input  CacheSystemTypes::ICacheIndexPath,
+    readTag      : input  CacheSystemTypes::ICacheTagPath  ,
+    readLineData : output CacheSystemTypes::ICacheLinePath ,
+    hit          : output logic                    ,
+    valid        : output logic                    ,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import ICacheArrayTypes::*;
+
+    var weWay        : logic          ;
+    var rstIndex     : ICacheIndexPath;
+    var writeWayIndex: ICacheIndexPath;
+    var readWayData  : ICacheWayData  ;
+    var writeWayData : ICacheWayData  ;
+
+    inst tagValidArray: BlockDualPortRAM #(
+        ENTRY_NUM     : ICACHE_INDEX_NUM    ,
+        ENTRY_BIT_SIZE: $bits(ICacheWayData),
+    ) (
+        clk: clk          ,
+        we : weWay        ,
+        wa : writeWayIndex,
+        wv : writeWayData ,
+        ra : readIndex    ,
+        rv : readWayData  ,
+    );
+
+    always_comb {
+        if rst {
+            weWay = TRUE;
+            writeWayIndex = rstIndex;
+            writeWayData.meta.valid = FALSE;
+        } else {
+            weWay = we;
+            writeWayIndex = writeIndex;
+            writeWayData.meta.valid = TRUE;
+        }
+
+        writeWayData.meta.tag = writeTag;
+        writeWayData.data = writeLineData;
+        readLineData = readWayData.data;
+        valid = readWayData.meta.valid;
+        hit = valid && (readWayData.meta.tag == readTag);
+    }
+
+    always_ff (clk) {
+        if rstStart {
+            rstIndex = '0;
+        } else {
+            rstIndex = rstIndex + 1;
+        }
+    }
+}
+
+module ICacheNRUStateArray (
+    clk          : input  clock                           ,
+    rst          : input  logic                           ,
+    rstStart     : input  logic                           ,
+    writeIndex   : input  CacheSystemTypes::ICacheIndexPath,
+    writeWay     : input  CacheSystemTypes::ICacheWayPath  ,
+    writeHit     : input  logic                           ,
+    writeNRUState: input  CacheSystemTypes::NRUAccessStatePath,
+    readIndex    : input  CacheSystemTypes::ICacheIndexPath,
+    readNRUState : output CacheSystemTypes::NRUAccessStatePath,
+    rstIndex     : output CacheSystemTypes::ICacheIndexPath,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var we                : logic             ;
+    var writeNRUStateIndex: ICacheIndexPath   ;
+    var writeNRUStateData : NRUAccessStatePath;
+
+    inst nruStateArray: BlockDualPortRAM #(
+        ENTRY_NUM     : ICACHE_INDEX_NUM          ,
+        ENTRY_BIT_SIZE: $bits(NRUAccessStatePath),
+    ) (
+        clk: clk               ,
+        we : we                ,
+        wa : writeNRUStateIndex,
+        wv : writeNRUStateData ,
+        ra : readIndex         ,
+        rv : readNRUState      ,
+    );
+
+    always_comb {
+        if rst {
+            we = TRUE;
+            writeNRUStateIndex = rstIndex;
+            writeNRUStateData = '0;
+        } else {
+            we = writeHit;
+            writeNRUStateIndex = writeIndex;
+            writeNRUStateData = writeNRUState;
+        }
+    }
+
+    always_ff (clk) {
+        if rstStart {
+            rstIndex = '0;
+        } else {
+            rstIndex = rstIndex + 1;
+        }
+    }
+}
+
+module ICacheHitLogic (
+    hitIn      : input  logic                                      ,
+    headWordPtr: input  CacheSystemTypes::ICacheLineInsnIndexPath ,
+    hitOut     : output logic [BasicTypes::FETCH_WIDTH]            ,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var wordPtr: ICacheLineInsnCountPath [FETCH_WIDTH];
+
+    always_comb {
+        for i in 0..FETCH_WIDTH {
+            wordPtr[i] = headWordPtr + i;
+            if wordPtr[i][$clog2(ICACHE_LINE_INSN_NUM)] {
+                hitOut[i] = FALSE;
+            } else {
+                hitOut[i] = hitIn;
+            }
+        }
+    }
+}
+
+package ICacheFunctions {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+
+    function ToRawPhyAddr (
+        addr: input PhyAddrPath,
+    ) -> logic<PHY_ADDR_WIDTH> {
+        return {addr.isUncachable, addr.isIO, addr.addr};
+    }
+
+    function ToPhyAddr (
+        raw: input logic<PHY_ADDR_WIDTH>,
+    ) -> PhyAddrPath {
+        var addr: PhyAddrPath;
+        addr.isUncachable = raw[PHY_ADDR_WIDTH - 1];
+        addr.isIO = raw[PHY_ADDR_WIDTH - 2];
+        addr.addr = raw[PHY_RAW_ADDR_WIDTH - 1:0];
+        return addr;
+    }
+
+    function GetFullPhyAddr (
+        index: input ICacheIndexPath,
+        tag  : input ICacheTagPath,
+    ) -> PhyAddrPath {
+        return ToPhyAddr({tag, index, 1'b0 repeat ICACHE_LINE_BYTE_NUM_BIT_WIDTH});
+    }
+
+    function GetICacheIndex (
+        addr: input PhyAddrPath,
+    ) -> ICacheIndexPath {
+        var raw: logic<PHY_ADDR_WIDTH>;
+        raw = ToRawPhyAddr(addr);
+        return raw[PHY_ADDR_WIDTH - ICACHE_TAG_BIT_WIDTH - 1:ICACHE_LINE_BYTE_NUM_BIT_WIDTH];
+    }
+
+    function GetICacheTag (
+        addr: input PhyAddrPath,
+    ) -> ICacheTagPath {
+        var raw: logic<PHY_ADDR_WIDTH>;
+        raw = ToRawPhyAddr(addr);
+        return raw[PHY_ADDR_WIDTH - 1:PHY_ADDR_WIDTH - ICACHE_TAG_BIT_WIDTH];
+    }
+
+    function GetICacheLineInsnIndex (
+        addr: input PhyAddrPath,
+    ) -> ICacheLineInsnIndexPath {
+        var raw: logic<PHY_ADDR_WIDTH>;
+        raw = ToRawPhyAddr(addr);
+        return raw[ICACHE_LINE_BYTE_NUM_BIT_WIDTH - 1:INSN_ADDR_BIT_WIDTH];
+    }
+
+    function UpdateNRUState (
+        NRUState: input NRUAccessStatePath,
+        way     : input ICacheWayPath,
+    ) -> NRUAccessStatePath {
+        if (NRUState | (1 << way)) == (1 << ICACHE_WAY_NUM) - 1 {
+            return 1 << way;
+        } else {
+            return NRUState | (1 << way);
+        }
+    }
+
+    function DecideWayToEvictByNRUState (
+        NRUState: input NRUAccessStatePath,
+    ) -> NRUAccessStatePath {
+        return (NRUState | (NRUState + 1)) ^ NRUState;
+    }
+}
+
+module ICache (
+    port       : modport NextPCStageIF::ICache,
+    next       : modport FetchStageIF::ICache,
+    cacheSystem: modport CacheSystemIF::ICache,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+    import ICacheFunctions::*;
+
+    enum ICachePhase: logic<3> {
+        ICACHE_PHASE_READ_CACHE = 0,
+        ICACHE_PHASE_MISS_READ_MEM_REQUEST = 1,
+        ICACHE_PHASE_MISS_READ_MEM_RECEIVE = 2,
+        ICACHE_PHASE_MISS_WRITE_CACHE = 3,
+        ICACHE_PHASE_FLUSH_PREPARE = 4,
+        ICACHE_PHASE_FLUSH_PROCESSING = 5,
+        ICACHE_PHASE_FLUSH_COMPLETE = 6,
+    }
+
+    var regPhase: ICachePhase;
+    var nextPhase: ICachePhase;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
+        } else {
+            regPhase = nextPhase;
+        }
+    }
+
+    var regFlushStart: logic;
+    var nextFlushStart: logic;
+    var regFlush: logic;
+    var nextFlush: logic;
+    var regFlushReqAck: logic;
+    var nextFlushReqAck: logic;
+    var flushComplete: logic;
+
+    var valid: logic [ICACHE_WAY_NUM];
+    var hit: logic;
+    var hitArray: logic<ICACHE_WAY_NUM>;
+    var hitWay: ICacheWayPath;
+    var we: logic [ICACHE_WAY_NUM];
+    var readIndex: ICacheIndexPath;
+    var writeIndex: ICacheIndexPath;
+    var nextReadIndex: ICacheIndexPath;
+    var readTag: ICacheTagPath;
+    var writeTag: ICacheTagPath;
+    var readLineInsnList: ICacheLineInsnPath [ICACHE_WAY_NUM];
+
+    for i in 0..ICACHE_WAY_NUM : Array {
+        inst array: ICacheArray (
+            clk          : port.clk,
+            rst          : port.rst || regFlush,
+            rstStart     : port.rstStart || regFlushStart,
+            we           : we[i],
+            writeIndex   : writeIndex,
+            writeTag     : writeTag,
+            writeLineData: cacheSystem.icMemAccessResult.data,
+            readIndex    : nextReadIndex,
+            readTag      : readTag,
+            hit          : hitArray[i],
+            valid        : valid[i],
+            readLineData : readLineInsnList[i],
+        );
+    }
+
+    var foundHit: logic;
+
+    always_comb {
+        readIndex = GetICacheIndex(next.icReadAddrIn);
+        readTag = GetICacheTag(next.icReadAddrIn);
+        nextReadIndex = GetICacheIndex(port.icNextReadAddrIn);
+
+        hit = |hitArray;
+        hitWay = '0;
+        foundHit = FALSE;
+        for i in 0..ICACHE_WAY_NUM {
+            if !foundHit && hitArray[i] {
+                hitWay = i;
+                foundHit = TRUE;
+            }
+        }
+    }
+
+    var updatedNRUState: NRUAccessStatePath;
+    var readNRUState: NRUAccessStatePath;
+    var wayToEvictOneHot: NRUAccessStatePath;
+    var wayToEvict: ICacheWayPath;
+    var nruStateWE: logic;
+    var rstIndex: ICacheIndexPath;
+
+    inst nruStateArray: ICacheNRUStateArray (
+        clk          : port.clk,
+        rst          : port.rst || regFlush,
+        rstStart     : port.rstStart || regFlushStart,
+        writeIndex   : readIndex,
+        writeWay     : hitWay,
+        writeHit     : nruStateWE,
+        writeNRUState: updatedNRUState,
+        readIndex    : nextReadIndex,
+        readNRUState : readNRUState,
+        rstIndex     : rstIndex,
+    );
+
+    var foundEvict: logic;
+
+    always_comb {
+        updatedNRUState = UpdateNRUState(readNRUState, hitWay);
+        wayToEvictOneHot = DecideWayToEvictByNRUState(readNRUState);
+        wayToEvict = '0;
+        foundEvict = FALSE;
+        for i in 0..ICACHE_WAY_NUM {
+            if !foundEvict && wayToEvictOneHot[i] {
+                wayToEvict = i;
+                foundEvict = TRUE;
+            }
+        }
+    }
+
+    var wordPtr: ICacheLineInsnIndexPath [FETCH_WIDTH];
+
+    inst iCacheHitLogic: ICacheHitLogic (
+        hitIn      : hit && regPhase == ICachePhase::ICACHE_PHASE_READ_CACHE && next.icRE,
+        headWordPtr: wordPtr[0],
+        hitOut     : next.icReadHit,
+    );
+
+    always_comb {
+        wordPtr[0] = GetICacheLineInsnIndex(next.icReadAddrIn);
+        for i in 1..FETCH_WIDTH {
+            wordPtr[i] = wordPtr[0] + i;
+        }
+
+        for i in 0..FETCH_WIDTH {
+            next.icReadDataOut[i] = readLineInsnList[hitWay][wordPtr[i]];
+        }
+    }
+
+    var regMissValid: logic;
+    var nextMissValid: logic;
+    var regMissIndex: ICacheIndexPath;
+    var nextMissIndex: ICacheIndexPath;
+    var regMissTag: ICacheTagPath;
+    var nextMissTag: ICacheTagPath;
+    var regSerial: MemAccessSerial;
+    var nextSerial: MemAccessSerial;
+
+    always_comb {
+        for i in 0..ICACHE_WAY_NUM {
+            we[i] = FALSE;
+        }
+        nruStateWE = FALSE;
+
+        nextPhase = regPhase;
+        nextMissValid = regMissValid;
+        nextMissIndex = regMissIndex;
+        nextMissTag = regMissTag;
+        nextSerial = regSerial;
+
+        nextFlushStart = regFlushStart;
+        nextFlush = regFlush;
+        nextFlushReqAck = regFlushReqAck;
+        flushComplete = FALSE;
+
+        case regPhase {
+            default: {
+                nextPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
+            }
+            ICachePhase::ICACHE_PHASE_READ_CACHE: {
+                if cacheSystem.icFlushReq {
+                    nextPhase = ICachePhase::ICACHE_PHASE_FLUSH_PREPARE;
+                    nextFlushStart = TRUE;
+                    nextFlush = TRUE;
+                    nextFlushReqAck = FALSE;
+                } else if next.icRE && !hit {
+                    nextPhase = ICachePhase::ICACHE_PHASE_MISS_READ_MEM_REQUEST;
+                    nextMissValid = TRUE;
+                    nextMissIndex = readIndex;
+                    nextMissTag = readTag;
+                    nextFlushReqAck = FALSE;
+                } else if next.icRE {
+                    nruStateWE = TRUE;
+                }
+            }
+            ICachePhase::ICACHE_PHASE_MISS_READ_MEM_REQUEST: {
+                if cacheSystem.icMemAccessReqAck.ack {
+                    nextPhase = ICachePhase::ICACHE_PHASE_MISS_READ_MEM_RECEIVE;
+                    nextMissValid = FALSE;
+                    nextSerial = cacheSystem.icMemAccessReqAck.serial;
+                }
+            }
+            ICachePhase::ICACHE_PHASE_MISS_READ_MEM_RECEIVE: {
+                if cacheSystem.icMemAccessResult.valid &&
+                   cacheSystem.icMemAccessResult.serial == regSerial {
+                    nextPhase = ICachePhase::ICACHE_PHASE_MISS_WRITE_CACHE;
+                    we[wayToEvict] = TRUE;
+                }
+            }
+            ICachePhase::ICACHE_PHASE_MISS_WRITE_CACHE: {
+                nextFlushReqAck = TRUE;
+                nextPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
+            }
+            ICachePhase::ICACHE_PHASE_FLUSH_PREPARE: {
+                nextFlushStart = FALSE;
+                nextMissTag = '0;
+                nextPhase = ICachePhase::ICACHE_PHASE_FLUSH_PROCESSING;
+            }
+            ICachePhase::ICACHE_PHASE_FLUSH_PROCESSING: {
+                if rstIndex == ICACHE_INDEX_NUM - 1 {
+                    nextFlush = FALSE;
+                    nextPhase = ICachePhase::ICACHE_PHASE_FLUSH_COMPLETE;
+                }
+            }
+            ICachePhase::ICACHE_PHASE_FLUSH_COMPLETE: {
+                flushComplete = TRUE;
+                if cacheSystem.flushComplete {
+                    nextFlushReqAck = TRUE;
+                    nextPhase = ICachePhase::ICACHE_PHASE_READ_CACHE;
+                }
+            }
+        }
+
+        writeIndex = regMissIndex;
+        writeTag = regMissTag;
+
+        cacheSystem.icMemAccessReq.valid = regMissValid;
+        cacheSystem.icMemAccessReq.addr = GetFullPhyAddr(regMissIndex, regMissTag);
+
+        cacheSystem.icFlushReqAck = regFlushReqAck;
+        cacheSystem.icFlushComplete = flushComplete;
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            regMissValid = FALSE;
+            regMissIndex = '0;
+            regMissTag = '0;
+            regSerial = '0;
+        } else {
+            regMissValid = nextMissValid;
+            regMissIndex = nextMissIndex;
+            regMissTag = nextMissTag;
+            regSerial = nextSerial;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            regFlush = FALSE;
+            regFlushStart = FALSE;
+            regFlushReqAck = TRUE;
+        } else {
+            regFlush = nextFlush;
+            regFlushStart = nextFlushStart;
+            regFlushReqAck = nextFlushReqAck;
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, $onehot0(we), "Signal we is not one-hot or 0.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, $onehot0(hit), "Signal hit is not one-hot or 0.")
+}

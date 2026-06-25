@@ -1,0 +1,347 @@
+module FP32PipelinedAdder #(
+    param PIPELINE_DEPTH: u32 = 5,
+) (
+    clk   : input  clock    ,
+    lhs   : input  logic<32>,
+    rhs   : input  logic<32>,
+    result: output logic<32>,
+) {
+    import FPUTypes::*;
+
+    var stg0Out: FAddStage1RegPath    ;
+    var stg1Out: FAddStage2RegPath    ;
+    var stg2Out: logic            <32>;
+
+    inst stg0: FAddStage0 (
+        lhs    : lhs    ,
+        rhs    : rhs    ,
+        stg0Out: stg0Out,
+    );
+    inst stg1: FAddStage1 (
+        clk    : clk    ,
+        stg1In : stg0Out,
+        stg1Out: stg1Out,
+    );
+    inst stg2: FAddStage2 (
+        clk   : clk    ,
+        stg2In: stg1Out,
+        result: stg2Out,
+    );
+
+    var pipeReg: logic<32> [PIPELINE_DEPTH - 3];
+
+    always_comb {
+        if PIPELINE_DEPTH >: 3 {
+            result = pipeReg[0];
+        } else {
+            result = stg2Out;
+        }
+    }
+
+    always_ff (clk) {
+        if PIPELINE_DEPTH >: 3 {
+            pipeReg[PIPELINE_DEPTH - 4] = stg2Out;
+            for i in 1..PIPELINE_DEPTH - 3 {
+                pipeReg[i - 1] = pipeReg[i];
+            }
+        }
+    }
+}
+
+module FAddStage0 (
+    lhs    : input  logic            <32>,
+    rhs    : input  logic            <32>,
+    stg0Out: output FAddStage1RegPath    ,
+) {
+    import FPUTypes::*;
+
+    var lhs_sign      : logic    ;
+    var rhs_sign      : logic    ;
+    var lhs_expo      : logic<8> ;
+    var rhs_expo      : logic<8> ;
+    var lhs_mant      : logic<23>;
+    var rhs_mant      : logic<23>;
+    var lhs_is_nan    : logic    ;
+    var rhs_is_nan    : logic    ;
+    var lhs_is_inf    : logic    ;
+    var rhs_is_inf    : logic    ;
+    var res_is_nan    : logic    ;
+    var s_lhs         : logic<32>;
+    var s_rhs         : logic<32>;
+    var s_lhs_expo    : logic<8> ;
+    var s_rhs_expo    : logic<8> ;
+    var s_lhs_offs    : logic<8> ;
+    var s_rhs_offs    : logic<8> ;
+    var s_lhs_mant    : logic<24>;
+    var s_rhs_mant    : logic<24>;
+    var swap_is_needed: logic    ;
+    var prec_loss     : logic    ;
+    var is_subtraction: logic    ;
+    var nan           : logic<32>;
+
+    always_comb {
+        lhs_sign = lhs[31];
+        lhs_expo = lhs[30:23];
+        lhs_mant = lhs[22:0];
+        rhs_sign = rhs[31];
+        rhs_expo = rhs[30:23];
+        rhs_mant = rhs[22:0];
+
+        // Nan handling
+        lhs_is_nan = (lhs_expo == 8'hff) & (lhs_mant != 0);
+        rhs_is_nan = (rhs_expo == 8'hff) & (rhs_mant != 0);
+        lhs_is_inf = (lhs_expo == 8'hff) & (lhs_mant == 0);
+        rhs_is_inf = (rhs_expo == 8'hff) & (rhs_mant == 0);
+        res_is_nan = lhs_is_nan | rhs_is_nan | ((lhs_sign != rhs_sign) & lhs_is_inf & rhs_is_inf);
+        nan        = 32'h7fc00000;
+
+        // Preparation
+        swap_is_needed = lhs[30:0] <: rhs[30:0];
+        is_subtraction = lhs_sign != rhs_sign;
+        if swap_is_needed {
+            s_lhs = rhs;
+            s_rhs = lhs;
+        } else {
+            s_lhs = lhs;
+            s_rhs = rhs;
+        }
+        s_lhs_expo = s_lhs[30:23];
+        s_rhs_expo = s_rhs[30:23];
+        if s_lhs_expo == 0 {
+            s_lhs_offs = 1;
+        } else {
+            s_lhs_offs = s_lhs_expo;
+        }
+        if s_rhs_expo == 0 {
+            s_rhs_offs = 1;
+        } else {
+            s_rhs_offs = s_rhs_expo;
+        }
+        s_lhs_mant = {s_lhs_expo != 8'h00, s_lhs[22:0]};
+        s_rhs_mant = {s_rhs_expo != 8'h00, s_rhs[22:0]};
+        prec_loss  = is_subtraction & ((s_lhs_expo - s_rhs_expo) <= 1) & (s_lhs_expo != 8'hff);
+
+        // to next stage
+        stg0Out.lhs.sign       = s_lhs[31];
+        stg0Out.lhs.expo       = s_lhs_expo;
+        stg0Out.lhs.offs       = s_lhs_offs;
+        stg0Out.lhs.mant       = s_lhs_mant;
+        stg0Out.rhs.sign       = s_rhs[31];
+        stg0Out.rhs.expo       = s_rhs_expo;
+        stg0Out.rhs.offs       = s_rhs_offs;
+        stg0Out.rhs.mant       = s_rhs_mant;
+        stg0Out.is_subtraction = is_subtraction;
+        stg0Out.prec_loss      = prec_loss;
+        stg0Out.res_is_nan     = res_is_nan;
+        stg0Out.nan            = nan;
+    }
+}
+
+module FAddStage1 (
+    clk    : input  clock            ,
+    stg1In : input  FAddStage1RegPath,
+    stg1Out: output FAddStage2RegPath,
+) {
+    import FPUTypes::*;
+
+    function LeadingZeroCounter (
+        x: input logic<25>,
+    ) -> logic<5> {
+        var count: logic<5>;
+        var found: logic   ;
+
+        count = 0;
+        found = 0;
+        for i in 0..25 {
+            if !found && x[24 - i] {
+                count = i;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    var pipeReg: FAddStage1RegPath;
+
+    always_ff (clk) {
+        pipeReg = stg1In;
+    }
+
+    var lhs           : FAddDataPath    ;
+    var rhs           : FAddDataPath    ;
+    var is_subtraction: logic           ;
+    var prec_loss     : logic           ;
+    var res_is_nan    : logic           ;
+    var nan           : logic       <32>;
+    var adder_lhs     : logic       <27>;
+    var adder_rhs     : logic       <27>;
+    var large_diff    : logic           ;
+    var offs_diff     : logic       <5> ;
+    var shifted_rhs   : logic       <49>;
+    var suber_lhs     : logic       <25>;
+    var suber_rhs     : logic       <25>;
+    var suber_result  : logic       <25>;
+    var lz_count      : logic       <5> ;
+
+    always_comb {
+        lhs            = pipeReg.lhs;
+        rhs            = pipeReg.rhs;
+        is_subtraction = pipeReg.is_subtraction;
+        prec_loss      = pipeReg.prec_loss;
+        res_is_nan     = pipeReg.res_is_nan;
+        nan            = pipeReg.nan;
+
+        // When precision loss does not occur
+        if is_subtraction {
+            adder_lhs = {lhs.mant, 1'b0, 2'b0};
+        } else {
+            adder_lhs = {1'b0, lhs.mant, 2'b0};
+        }
+        large_diff = (lhs.expo - rhs.expo) >: 31;
+        if large_diff {
+            offs_diff = 31;
+        } else {
+            offs_diff = lhs.offs[4:0] - rhs.offs[4:0];
+        }
+        shifted_rhs = ({rhs.mant, 25'h0} >> offs_diff) >> !is_subtraction;
+        adder_rhs   = {shifted_rhs[48:24], shifted_rhs[23], shifted_rhs[22:0] != 0};
+
+        // When precision loss occurs
+        suber_lhs    = {lhs.mant, 1'b0};
+        suber_rhs    = {rhs.mant, 1'b0} >> (lhs.offs[0] != rhs.offs[0]);
+        suber_result = suber_lhs - suber_rhs;
+        lz_count     = LeadingZeroCounter(suber_result);
+
+        // to next stage
+        stg1Out.is_subtraction = is_subtraction;
+        stg1Out.adder_lhs      = adder_lhs;
+        stg1Out.adder_rhs      = adder_rhs;
+        stg1Out.lhs_sign       = lhs.sign;
+        stg1Out.lhs_expo       = lhs.expo;
+        stg1Out.lhs_offs       = lhs.offs;
+        stg1Out.suber_result   = suber_result;
+        stg1Out.lz_count       = lz_count;
+        stg1Out.prec_loss      = prec_loss;
+        stg1Out.res_is_nan     = res_is_nan;
+        stg1Out.nan            = nan;
+    }
+}
+
+module FAddStage2 (
+    clk   : input  clock                ,
+    stg2In: input  FAddStage2RegPath    ,
+    result: output logic            <32>,
+) {
+    import FPUTypes::*;
+
+    var pipeReg: FAddStage2RegPath;
+
+    always_ff (clk) {
+        pipeReg = stg2In;
+    }
+
+    var adder_lhs     : logic<27>;
+    var adder_rhs     : logic<27>;
+    var lhs_sign      : logic    ;
+    var lhs_expo      : logic<8> ;
+    var lhs_offs      : logic<8> ;
+    var suber_result  : logic<25>;
+    var lz_count      : logic<5> ;
+    var is_subtraction: logic    ;
+    var prec_loss     : logic    ;
+    var res_is_nan    : logic    ;
+    var nan           : logic<32>;
+    var adder_result  : logic<27>;
+    var round_to_away : logic    ;
+    var exp_plus_one  : logic    ;
+    var round_away    : logic    ;
+    var subnormal     : logic    ;
+    var res_is_zero   : logic    ;
+    var res_is_inf    : logic    ;
+    var inf           : logic<32>;
+    var zero          : logic<32>;
+    var final_mant_a  : logic<23>;
+    var final_mant_s  : logic<23>;
+    var final_expo_a  : logic<8> ;
+    var final_expo_s  : logic<8> ;
+    var final_result_a: logic<32>;
+    var final_result_s: logic<32>;
+
+    always_comb {
+        is_subtraction = pipeReg.is_subtraction;
+        adder_lhs      = pipeReg.adder_lhs;
+        adder_rhs      = pipeReg.adder_rhs;
+        lhs_sign       = pipeReg.lhs_sign;
+        lhs_expo       = pipeReg.lhs_expo;
+        lhs_offs       = pipeReg.lhs_offs;
+        suber_result   = pipeReg.suber_result;
+        lz_count       = pipeReg.lz_count;
+        prec_loss      = pipeReg.prec_loss;
+        res_is_nan     = pipeReg.res_is_nan;
+        nan            = pipeReg.nan;
+
+        // When precision loss does not occur
+        if is_subtraction {
+            adder_result = adder_lhs - adder_rhs;
+        } else {
+            adder_result = adder_lhs + adder_rhs;
+        }
+        if adder_result[26] {
+            round_to_away = adder_result[2] & (adder_result[3] | adder_result[1] | adder_result[0]);
+        } else {
+            round_to_away = adder_result[1] & (adder_result[2] | adder_result[0]);
+        }
+        exp_plus_one = ((lhs_expo == 8'h00) & adder_result[25]) | (adder_result >= 27'h3fffffe);
+
+        if adder_result[26] {
+            final_mant_a = adder_result[25:3] + {22'h0, round_to_away};
+        } else {
+            final_mant_a = adder_result[24:2] + {22'h0, round_to_away};
+        }
+        final_expo_a = lhs_expo + {7'h0, exp_plus_one} - {7'h0, is_subtraction};
+        res_is_inf   = (lhs_expo == 8'hff) | (final_expo_a == 8'hff);
+        inf          = {lhs_sign, 8'hff, 23'h0};
+
+        if res_is_inf {
+            final_result_a = inf;
+        } else {
+            final_result_a = {lhs_sign, final_expo_a, final_mant_a};
+        }
+
+        // When precision loss occurs
+        round_away = suber_result[1] & suber_result[0];
+        subnormal  = {3'b0, lz_count} >= lhs_offs;
+
+        if lhs_offs == 1 {
+            final_mant_s = suber_result[23:1];
+        } else if subnormal {
+            final_mant_s = suber_result[22:0] << (lhs_offs - 2);
+        } else if lz_count == 0 {
+            final_mant_s = suber_result[23:1] + {22'h0, round_away};
+        } else {
+            final_mant_s = suber_result[22:0] << (lz_count - 1);
+        }
+        if subnormal {
+            final_expo_s = 0;
+        } else {
+            final_expo_s = lhs_offs - {3'b0, lz_count};
+        }
+        res_is_zero = suber_result == 0;
+        zero        = 32'h00000000;
+
+        if res_is_zero {
+            final_result_s = zero;
+        } else {
+            final_result_s = {lhs_sign, final_expo_s, final_mant_s};
+        }
+
+        // Ouptut result
+        if res_is_nan {
+            result = nan;
+        } else if prec_loss {
+            result = final_result_s;
+        } else {
+            result = final_result_a;
+        }
+    }
+}

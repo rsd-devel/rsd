@@ -1,0 +1,7 @@
+module Axi4LiteDualPortBlockRAM (
+    port: modport Axi4LiteControlMemoryIF::Axi4Lite,
+) {
+    inst body: $sv::Axi4LiteDualPortBlockRAM_SV (
+        port: port,
+    );
+}

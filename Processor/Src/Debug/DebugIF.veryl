@@ -1,0 +1,189 @@
+interface DebugIF {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import DebugTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+    import PipelineTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var debugRegister: DebugRegister;
+
+    var npReg: NextPCStageDebugRegister [FETCH_WIDTH];
+    var ifReg: FetchStageDebugRegister [FETCH_WIDTH];
+    var pdReg: PreDecodeStageDebugRegister [DECODE_WIDTH];
+    var idReg: DecodeStageDebugRegister [DECODE_WIDTH];
+    var rnReg: RenameStageDebugRegister [RENAME_WIDTH];
+    var dsReg: DispatchStageDebugRegister [DISPATCH_WIDTH];
+
+    var intIsReg: IntegerIssueStageDebugRegister [INT_ISSUE_WIDTH];
+    var intRrReg: IntegerRegisterReadStageDebugRegister [INT_ISSUE_WIDTH];
+    var intExReg: IntegerExecutionStageDebugRegister [INT_ISSUE_WIDTH];
+    var intRwReg: IntegerRegisterWriteStageDebugRegister [INT_ISSUE_WIDTH];
+
+    var complexIsReg: ComplexIntegerIssueStageDebugRegister [COMPLEX_ISSUE_WIDTH];
+    var complexRrReg: ComplexIntegerRegisterReadStageDebugRegister [COMPLEX_ISSUE_WIDTH];
+    var complexExReg: ComplexIntegerExecutionStageDebugRegister [COMPLEX_ISSUE_WIDTH];
+    var complexRwReg: ComplexIntegerRegisterWriteStageDebugRegister [COMPLEX_ISSUE_WIDTH];
+
+    var memIsReg: MemoryIssueStageDebugRegister [MEM_ISSUE_WIDTH];
+    var memRrReg: MemoryRegisterReadStageDebugRegister [MEM_ISSUE_WIDTH];
+    var memExReg: MemoryExecutionStageDebugRegister [MEM_ISSUE_WIDTH];
+    var mtReg: MemoryTagAccessStageDebugRegister [MEM_ISSUE_WIDTH];
+    var maReg: MemoryAccessStageDebugRegister [MEM_ISSUE_WIDTH];
+    var memRwReg: MemoryRegisterWriteStageDebugRegister [MEM_ISSUE_WIDTH];
+
+    var fpIsReg: FPIssueStageDebugRegister [FP_ISSUE_WIDTH];
+    var fpRrReg: FPRegisterReadStageDebugRegister [FP_ISSUE_WIDTH];
+    var fpExReg: FPExecutionStageDebugRegister [FP_ISSUE_WIDTH];
+    var fpRwReg: FPRegisterWriteStageDebugRegister [FP_ISSUE_WIDTH];
+
+    var cmReg: CommitStageDebugRegister [COMMIT_WIDTH];
+
+    var scheduler: SchedulerDebugRegister [ISSUE_QUEUE_ENTRY_NUM];
+    var issueQueue: IssueQueueDebugRegister [ISSUE_QUEUE_ENTRY_NUM];
+
+    var lastCommittedPC: PC_Path;
+    var recover: logic;
+    var toRecoveryPhase: logic;
+    var activeListHeadPtr: ActiveListIndexPath;
+    var activeListCount: ActiveListCountPath;
+
+    var npStagePipeCtrl: PipelineControll;
+    var ifStagePipeCtrl: PipelineControll;
+    var pdStagePipeCtrl: PipelineControll;
+    var idStagePipeCtrl: PipelineControll;
+    var rnStagePipeCtrl: PipelineControll;
+    var dsStagePipeCtrl: PipelineControll;
+    var backEndPipeCtrl: PipelineControll;
+    var cmStagePipeCtrl: PipelineControll;
+    var stallByDecodeStage: logic;
+
+    var loadStoreUnitAllocatable: logic;
+    var storeCommitterPhase: logic;
+    var storeQueueCount: StoreQueueCountPath;
+    var busyInRecovery: logic;
+    var storeQueueEmpty: logic;
+
+    var perfCounter: PerfCounterPath;
+
+    modport Debug {
+        clk                     : input ,
+        rst                     : input ,
+        npReg                   : input ,
+        ifReg                   : input ,
+        pdReg                   : input ,
+        idReg                   : input ,
+        rnReg                   : input ,
+        dsReg                   : input ,
+        intIsReg                : input ,
+        intRrReg                : input ,
+        intExReg                : input ,
+        intRwReg                : input ,
+        complexIsReg            : input ,
+        complexRrReg            : input ,
+        complexExReg            : input ,
+        complexRwReg            : input ,
+        memIsReg                : input ,
+        memRrReg                : input ,
+        memExReg                : input ,
+        maReg                   : input ,
+        mtReg                   : input ,
+        memRwReg                : input ,
+        fpIsReg                 : input ,
+        fpRrReg                 : input ,
+        fpExReg                 : input ,
+        fpRwReg                 : input ,
+        cmReg                   : input ,
+        scheduler               : input ,
+        issueQueue              : input ,
+        recover                 : input ,
+        toRecoveryPhase         : input ,
+        activeListHeadPtr       : input ,
+        activeListCount         : input ,
+        lastCommittedPC         : input ,
+        npStagePipeCtrl         : input ,
+        ifStagePipeCtrl         : input ,
+        pdStagePipeCtrl         : input ,
+        idStagePipeCtrl         : input ,
+        rnStagePipeCtrl         : input ,
+        dsStagePipeCtrl         : input ,
+        backEndPipeCtrl         : input ,
+        cmStagePipeCtrl         : input ,
+        stallByDecodeStage      : input ,
+        loadStoreUnitAllocatable: input ,
+        storeCommitterPhase     : input ,
+        storeQueueCount         : input ,
+        busyInRecovery          : input ,
+        storeQueueEmpty         : input ,
+        perfCounter             : input ,
+        debugRegister           : output,
+    }
+
+    modport StoreCommitter {
+        loadStoreUnitAllocatable: output,
+        storeCommitterPhase     : output,
+        storeQueueCount         : output,
+        busyInRecovery          : output,
+        storeQueueEmpty         : output,
+    }
+
+    modport Controller {
+        npStagePipeCtrl   : output,
+        ifStagePipeCtrl   : output,
+        pdStagePipeCtrl   : output,
+        idStagePipeCtrl   : output,
+        rnStagePipeCtrl   : output,
+        dsStagePipeCtrl   : output,
+        backEndPipeCtrl   : output,
+        cmStagePipeCtrl   : output,
+        stallByDecodeStage: output,
+    }
+
+    modport ActiveList {
+        activeListHeadPtr: output,
+        activeListCount  : output,
+    }
+
+    modport Scheduler { scheduler: output, }
+    modport IssueQueue { issueQueue: output, }
+    modport NextPCStage { npReg: output, }
+    modport FetchStage { ifReg: output, }
+    modport PreDecodeStage { pdReg: output, }
+    modport DecodeStage { idReg: output, }
+    modport RenameStage { rnReg: output, }
+    modport DispatchStage { dsReg: output, }
+    modport IntegerIssueStage { intIsReg: output, }
+    modport IntegerRegisterReadStage { intRrReg: output, }
+    modport IntegerExecutionStage { intExReg: output, }
+    modport IntegerRegisterWriteStage { intRwReg: output, }
+    modport ComplexIntegerIssueStage { complexIsReg: output, }
+    modport ComplexIntegerRegisterReadStage { complexRrReg: output, }
+    modport ComplexIntegerExecutionStage { complexExReg: output, }
+    modport ComplexIntegerRegisterWriteStage { complexRwReg: output, }
+    modport MemoryIssueStage { memIsReg: output, }
+    modport MemoryRegisterReadStage { memRrReg: output, }
+    modport MemoryExecutionStage { memExReg: output, }
+    modport MemoryTagAccessStage { mtReg: output, }
+    modport MemoryAccessStage { maReg: output, }
+    modport MemoryRegisterWriteStage { memRwReg: output, }
+    modport FPIssueStage { fpIsReg: output, }
+    modport FPRegisterReadStage { fpRrReg: output, }
+    modport FPExecutionStage { fpExReg: output, }
+    modport FPRegisterWriteStage { fpRwReg: output, }
+
+    modport CommitStage {
+        lastCommittedPC: output,
+        recover        : output,
+        toRecoveryPhase: output,
+        cmReg          : output,
+    }
+
+    modport PerformanceCounter {
+        perfCounter: output,
+    }
+}

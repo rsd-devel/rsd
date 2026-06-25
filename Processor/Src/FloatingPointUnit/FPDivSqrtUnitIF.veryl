@@ -1,0 +1,75 @@
+interface FPDivSqrtUnitIF {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var clk  : clock;
+    var rst  : logic;
+    var stall: logic;
+
+    var dataInA: DataPath [FP_DIVSQRT_ISSUE_WIDTH];
+    var dataInB: DataPath [FP_DIVSQRT_ISSUE_WIDTH];
+
+    var DataOut  : DataPath    [FP_DIVSQRT_ISSUE_WIDTH];
+    var FFlagsOut: FFlags_Path [FP_DIVSQRT_ISSUE_WIDTH];
+    var is_divide: logic       [FP_DIVSQRT_ISSUE_WIDTH];
+    var rm       : Rounding_Mode [FP_DIVSQRT_ISSUE_WIDTH];
+    var Req      : logic       [FP_DIVSQRT_ISSUE_WIDTH];
+    var Reserved : logic       [FP_DIVSQRT_ISSUE_WIDTH];
+    var Finished : logic       [FP_DIVSQRT_ISSUE_WIDTH];
+    var Busy     : logic       [FP_DIVSQRT_ISSUE_WIDTH];
+    var Free     : logic       [FP_DIVSQRT_ISSUE_WIDTH];
+
+    var Acquire: logic [FP_DIVSQRT_ISSUE_WIDTH];
+    var Release: logic [FP_DIVSQRT_ISSUE_WIDTH];
+    var acquireActiveListPtr: ActiveListIndexPath [FP_DIVSQRT_ISSUE_WIDTH];
+
+    modport FPDivSqrtUnit {
+        clk                 : input ,
+        rst                 : input ,
+        stall               : input ,
+        dataInA             : input ,
+        dataInB             : input ,
+        is_divide           : input ,
+        rm                  : input ,
+        Req                 : input ,
+        Acquire             : input ,
+        Release             : input ,
+        acquireActiveListPtr: input ,
+        DataOut             : output,
+        FFlagsOut           : output,
+        Finished            : output,
+        Busy                : output,
+        Reserved            : output,
+        Free                : output,
+    }
+
+    modport FPIssueStage {
+        Acquire             : output,
+        acquireActiveListPtr: output,
+    }
+
+    modport FPExecutionStage {
+        DataOut  : input ,
+        Finished : input ,
+        Busy     : input ,
+        Reserved : input ,
+        Free     : input ,
+        FFlagsOut: input ,
+        stall    : output,
+        dataInA  : output,
+        dataInB  : output,
+        is_divide: output,
+        rm       : output,
+        Req      : output,
+        Release  : output,
+    }
+
+    modport Scheduler {
+        Free: input,
+    }
+
+    modport ReplayQueue {
+        Busy: input,
+    }
+}

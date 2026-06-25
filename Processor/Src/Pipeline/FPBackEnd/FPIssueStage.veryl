@@ -1,0 +1,112 @@
+module FPIssueStage (
+    port         : modport FPIssueStageIF::ThisStage,
+    prev         : modport ScheduleStageIF::FPNextStage,
+    scheduler    : modport SchedulerIF::FPIssueStage,
+    recovery     : modport RecoveryManagerIF::FPIssueStage,
+    fpDivSqrtUnit: modport FPDivSqrtUnitIF::FPIssueStage,
+    ctrl         : modport ControllerIF::FPIssueStage,
+    debug        : modport DebugIF::FPIssueStage,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg    : IssueStageRegPath [FP_ISSUE_WIDTH];
+    var nextPipeReg: IssueStageRegPath [FP_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FP_ISSUE_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !ctrl.isStage.stall {
+            pipeReg = prev.fpNextStage;
+        } else {
+            pipeReg = nextPipeReg;
+        }
+    }
+
+    always_comb {
+        for i in 0..FP_ISSUE_WIDTH {
+            if recovery.toRecoveryPhase {
+                nextPipeReg[i].valid =
+                    pipeReg[i].valid &&
+                    !SelectiveFlushDetector(
+                        recovery.toRecoveryPhase,
+                        recovery.flushRangeHeadPtr,
+                        recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
+                        scheduler.fpIssuedData[i].activeListPtr
+                    );
+            } else {
+                nextPipeReg[i].valid = pipeReg[i].valid;
+            }
+            nextPipeReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [FP_ISSUE_WIDTH];
+    var valid: logic [FP_ISSUE_WIDTH];
+    var nextStage: FPRegisterReadStageRegPath [FP_ISSUE_WIDTH];
+    var issuedData: FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var issueQueuePtr: IssueQueueIndexPath [FP_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.isStage.stall;
+        clear = ctrl.isStage.clear;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            if scheduler.replay {
+                issuedData[i] = scheduler.fpReplayData[i];
+                valid[i] = scheduler.fpReplayEntry[i];
+            } else {
+                issuedData[i] = scheduler.fpIssuedData[i];
+                valid[i] = !stall && pipeReg[i].valid;
+            }
+
+            issueQueuePtr[i] = pipeReg[i].issueQueuePtr;
+
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                issuedData[i].activeListPtr
+            );
+
+            scheduler.fpIssue[i] = !clear && valid[i] && !flush[i];
+            scheduler.fpIssuePtr[i] = issueQueuePtr[i];
+
+            fpDivSqrtUnit.Acquire[i] =
+                !clear && valid[i] && !flush[i] &&
+                (
+                    issuedData[i].fpOpInfo.opType == FP_MOP_TYPE_DIV ||
+                    issuedData[i].fpOpInfo.opType == FP_MOP_TYPE_SQRT
+                );
+            scheduler.fpDivSqrtIsIssued[i] = fpDivSqrtUnit.Acquire[i];
+            fpDivSqrtUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
+
+            if clear || port.rst || flush[i] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+            nextStage[i].fpQueueData = issuedData[i];
+            nextStage[i].replay = scheduler.replay;
+            nextStage[i].opId = issuedData[i].opId;
+        }
+
+        port.nextStage = nextStage;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            debug.fpIsReg[i].valid = valid[i];
+            debug.fpIsReg[i].flush = flush[i];
+            debug.fpIsReg[i].opId = issuedData[i].opId;
+        }
+    }
+}

@@ -1,0 +1,113 @@
+module MemoryAccessController (
+    port                : modport CacheSystemIF::MemoryAccessController,
+    nextMemReadSerial   : input  MemAccessSerial                       ,
+    nextMemWriteSerial  : input  MemWriteSerial                        ,
+    memReadData         : input  MemoryTypes::MemoryEntryDataPath       ,
+    memReadDataReady    : input  logic                                  ,
+    memReadSerial       : input  MemAccessSerial                       ,
+    memAccessResponse   : input  MemAccessResponse                     ,
+    memAccessReadBusy   : input  logic                                  ,
+    memAccessWriteBusy  : input  logic                                  ,
+    memAccessAddr       : output MemoryMapTypes::PhyAddrPath            ,
+    memAccessWriteData  : output MemoryTypes::MemoryEntryDataPath       ,
+    memAccessRE         : output logic                                  ,
+    memAccessWE         : output logic                                  ,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryTypes::*;
+    import MemoryMapTypes::*;
+
+    var icAck: logic;
+    var dcAck: logic;
+
+    var reqSerial       : MemAccessSerial;
+    var nextReqSerial   : MemAccessSerial;
+    var resultSerial    : MemAccessSerial;
+    var nextResultSerial: MemAccessSerial;
+
+    always_ff (port.clk) {
+        if port.rst {
+            reqSerial = '0;
+            resultSerial = '0;
+        } else {
+            reqSerial = nextReqSerial;
+            resultSerial = nextResultSerial;
+        }
+    }
+
+    always_comb {
+        icAck = FALSE;
+        dcAck = FALSE;
+
+        if !memAccessReadBusy && port.icMemAccessReq.valid {
+            icAck = TRUE;
+        } else if !memAccessReadBusy && port.dcMemAccessReq.valid && (port.dcMemAccessReq.we == FALSE) {
+            dcAck = TRUE;
+        } else if !memAccessWriteBusy && port.dcMemAccessReq.valid && (port.dcMemAccessReq.we == TRUE) {
+            dcAck = TRUE;
+        }
+
+        if icAck {
+            memAccessAddr = port.icMemAccessReq.addr;
+            memAccessWriteData = '0;
+            memAccessRE = TRUE;
+            memAccessWE = FALSE;
+        } else if dcAck {
+            memAccessAddr = port.dcMemAccessReq.addr;
+            memAccessWriteData = port.dcMemAccessReq.data;
+            if port.dcMemAccessReq.we {
+                memAccessRE = FALSE;
+                memAccessWE = TRUE;
+            } else {
+                memAccessRE = TRUE;
+                memAccessWE = FALSE;
+            }
+        } else {
+            memAccessAddr = '0;
+            memAccessWriteData = '0;
+            memAccessRE = FALSE;
+            memAccessWE = FALSE;
+        }
+
+        port.icMemAccessReqAck.ack = icAck;
+        port.icMemAccessReqAck.serial = nextMemReadSerial;
+        port.dcMemAccessReqAck.ack = dcAck;
+        port.dcMemAccessReqAck.serial = nextMemReadSerial;
+        port.dcMemAccessReqAck.wserial = nextMemWriteSerial;
+    }
+
+    always_comb {
+        port.icMemAccessResult.valid = memReadDataReady;
+        port.icMemAccessResult.serial = memReadSerial;
+        port.icMemAccessResult.data = memReadData;
+        port.dcMemAccessResult.valid = memReadDataReady;
+        port.dcMemAccessResult.serial = memReadSerial;
+        port.dcMemAccessResult.data = memReadData;
+        port.dcMemAccessResponse = memAccessResponse;
+    }
+
+    always_comb {
+        nextReqSerial = reqSerial;
+        nextResultSerial = resultSerial;
+
+        if icAck || (dcAck && port.dcMemAccessReq.we == FALSE) {
+            nextReqSerial = reqSerial + 1;
+        }
+
+        if memReadDataReady {
+            nextResultSerial = resultSerial + 1;
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     $bits(ICacheLinePath) == $bits(MemoryEntryDataPath),
+    //     ("The data width of a cache line(%x) and a memory entry(%x) are not matched.", $bits(ICacheLinePath), $bits(MemoryEntryDataPath))
+    // );
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     $bits(DCacheLinePath) == $bits(MemoryEntryDataPath),
+    //     ("The data width of a cache line(%x) and a memory entry(%x) are not matched.", $bits(DCacheLinePath), $bits(MemoryEntryDataPath))
+    // );
+}

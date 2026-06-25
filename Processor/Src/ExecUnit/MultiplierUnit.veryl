@@ -1,0 +1,143 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Multiplier Unit
+// This unit performs 32bit*32bit = 32bit,
+// and return upper or lower 32 bit
+//
+
+// Multiplier Unit
+module MultiplierUnit (
+    fuOpA_In: input  DataPath,
+    fuOpB_In: input  DataPath,
+    getUpper: input  logic   , // If TRUE, the multiplication result 33-64 bit is set to mulDataOut
+    dataOut : output DataPath,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+
+    var mulResult: logic<2 * DATA_WIDTH>;
+
+    inst mul: Multiplier #(
+        BIT_WIDTH: $bits(DataPath),
+    ) (
+        srcA: fuOpA_In ,
+        srcB: fuOpB_In ,
+        dst : mulResult,
+    );
+
+    always_comb {
+        if getUpper {
+            dataOut = mulResult[2 * DATA_WIDTH - 1:DATA_WIDTH];
+        } else {
+            dataOut = mulResult[DATA_WIDTH - 1:0];
+        }
+    }
+}
+
+package MultiplierUnitTypes {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    struct MultiplierUnitPipeReg {
+        getUpper  : logic      ,
+        mulCode   : IntMUL_Code,
+        fuOpA_sign: logic      ,
+        fuOpB_sign: logic      ,
+    }
+}
+
+// Pipelined Multiplier Unit
+module PipelinedMultiplierUnit #(
+    param BIT_WIDTH     : u32 = 32,
+    param PIPELINE_DEPTH: u32 = 3 ,
+) (
+    clk     : input  clock      ,
+    stall   : input  logic      ,
+    fuOpA_In: input  DataPath   ,
+    fuOpB_In: input  DataPath   ,
+    getUpper: input  logic      , // If TRUE, the multiplication result 33-64 bit is set to mulDataOut
+    mulCode : input  IntMUL_Code,
+    dataOut : output DataPath   ,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+    import MultiplierUnitTypes::*;
+
+    var pipeReg: MultiplierUnitPipeReg [PIPELINE_DEPTH - 1];
+
+    var mulResult : logic<2 * DATA_WIDTH>;
+    var fuOpA_sign: logic                ;
+    var fuOpB_sign: logic                ;
+    var signA     : logic                ;
+    var signB     : logic                ;
+    var srcA      : logic<DATA_WIDTH>    ;
+    var srcB      : logic<DATA_WIDTH>    ;
+
+    inst mul: PipelinedMultiplier #(
+        BIT_WIDTH     : $bits(DataPath),
+        PIPELINE_DEPTH: PIPELINE_DEPTH ,
+    ) (
+        clk  : clk      ,
+        stall: stall    ,
+        srcA : srcA     ,
+        srcB : srcB     ,
+        signA: signA    ,
+        signB: signB    ,
+        dst  : mulResult,
+    );
+
+    // Make src operands unsigned(plus) value.
+    always_comb {
+        fuOpA_sign = '0;
+        fuOpB_sign = '0;
+
+        if mulCode == AC_MULHU {
+            // MULHU takes srcA as unsigned.
+            signA = '0;
+        } else {
+            signA = '1;
+        }
+
+        if (mulCode == AC_MULHU) || (mulCode == AC_MULHSU) {
+            // MULHU and MULHSU take srcB as unsigned.
+            signB = '0;
+        } else {
+            signB = '1;
+        }
+
+        srcA = fuOpA_In;
+        srcB = fuOpB_In;
+    }
+
+    always_comb {
+        if pipeReg[PIPELINE_DEPTH - 2].getUpper {
+            dataOut = mulResult[2 * DATA_WIDTH - 1:DATA_WIDTH];
+        } else {
+            dataOut = mulResult[DATA_WIDTH - 1:0];
+        }
+    }
+
+    always_ff (clk) {
+        if stall {
+            for i in 0..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i];
+            }
+        } else {
+            pipeReg[0].getUpper   = getUpper;
+            pipeReg[0].mulCode    = mulCode;
+            pipeReg[0].fuOpA_sign = fuOpA_sign;
+            pipeReg[0].fuOpB_sign = fuOpB_sign;
+            for i in 1..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i - 1];
+            }
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+}

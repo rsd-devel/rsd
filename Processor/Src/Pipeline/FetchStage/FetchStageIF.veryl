@@ -1,0 +1,80 @@
+interface FetchStageIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import FetchUnitTypes::*;
+    import MemoryMapTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+
+    var fetchStageIsValid: logic   [FETCH_WIDTH];
+    var fetchStagePC     : PC_Path [FETCH_WIDTH];
+
+    var btbOut      : PC_Path [FETCH_WIDTH];
+    var btbHit      : logic   [FETCH_WIDTH];
+    var readIsCondBr: logic   [FETCH_WIDTH];
+
+    var updateBrHistory: logic                   [FETCH_WIDTH];
+    var brPredTaken    : logic                   [FETCH_WIDTH];
+    var brGlobalHistory: BranchGlobalHistoryPath [FETCH_WIDTH];
+    var phtPrevValue   : PHT_EntryPath           [FETCH_WIDTH];
+
+    var icReadHit    : logic       [FETCH_WIDTH];
+    var icRE         : logic;
+    var icReadDataOut: InsnPath    [FETCH_WIDTH];
+    var icReadAddrIn : PhyAddrPath;
+
+    var nextStage: PreDecodeStageRegPath [FETCH_WIDTH];
+
+    modport ThisStage {
+        clk                : input ,
+        rst                : input ,
+        icReadHit          : input ,
+        icReadDataOut      : input ,
+        btbOut             : input ,
+        brPredTaken        : input ,
+        brGlobalHistory    : input ,
+        phtPrevValue       : input ,
+        fetchStageIsValid  : output,
+        fetchStagePC       : output,
+        updateBrHistory    : output,
+        nextStage          : output,
+        icRE               : output,
+        icReadAddrIn       : output,
+    }
+
+    modport NextPCStage {
+        fetchStageIsValid: input,
+        fetchStagePC     : input,
+        btbOut           : input,
+        btbHit           : input,
+        brPredTaken      : input,
+    }
+
+    modport NextStage {
+        nextStage: input,
+    }
+
+    modport ICache {
+        icRE         : input ,
+        icReadAddrIn : input ,
+        icReadHit    : output,
+        icReadDataOut: output,
+    }
+
+    modport BTB {
+        btbOut      : output,
+        btbHit      : output,
+        readIsCondBr: output,
+    }
+
+    modport BranchPredictor {
+        updateBrHistory: input ,
+        btbOut         : input ,
+        btbHit         : input ,
+        readIsCondBr   : input ,
+        brPredTaken    : output,
+        brGlobalHistory: output,
+        phtPrevValue   : output,
+    }
+}

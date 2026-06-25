@@ -1,0 +1,163 @@
+module MulDivUnit (
+    port        : modport MulDivUnitIF::MulDivUnit,
+    recovery    : modport RecoveryManagerIF::MulDivUnit,
+    registerFile: modport RegisterFileIF::MulDivUnit,
+    activeList  : modport ActiveListIF::MulDivUnit,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import ActiveListIndexTypes::*;
+    import MulDivUnitTypes::*;
+    import SchedulerTypes::*;
+
+    for i in 0..MULDIV_ISSUE_WIDTH : BlockMulUnit {
+        inst mulUnit: PipelinedMultiplierUnit #(
+            BIT_WIDTH     : DATA_WIDTH,
+            PIPELINE_DEPTH: MULDIV_STAGE_DEPTH,
+        ) (
+            clk      : port.clk,
+            stall    : port.stall,
+            fuOpA_In : port.dataInA[i],
+            fuOpB_In : port.dataInB[i],
+            getUpper : port.mulGetUpper[i],
+            mulCode  : port.mulCode[i],
+            dataOut  : port.mulDataOut[i],
+        );
+    }
+
+    enum DividerPhase: logic<2> {
+        DIVIDER_PHASE_FREE = 0,
+        DIVIDER_PHASE_RESERVED = 1,
+        DIVIDER_PHASE_PROCESSING = 2,
+        DIVIDER_PHASE_REGISTER_WRITE = 3,
+    }
+
+    var regPhase: DividerPhase [MULDIV_ISSUE_WIDTH];
+    var nextPhase: DividerPhase [MULDIV_ISSUE_WIDTH];
+    var finished: logic [MULDIV_ISSUE_WIDTH];
+    var divDataOut: DataPath [MULDIV_ISSUE_WIDTH];
+
+    var rst_divider: logic [MULDIV_ISSUE_WIDTH];
+    var regAcquireData: MulDivAcquireData [MULDIV_ISSUE_WIDTH];
+    var nextAcquireData: MulDivAcquireData [MULDIV_ISSUE_WIDTH];
+
+    for i in 0..MULDIV_ISSUE_WIDTH : BlockDivUnit {
+        inst divUnit: DividerUnit (
+            clk      : port.clk,
+            rst      : rst_divider[i],
+            req      : port.divReq[i],
+            fuOpA_In : port.dataInA[i],
+            fuOpB_In : port.dataInB[i],
+            divCode  : port.divCode[i],
+            finished : finished[i],
+            dataOut  : divDataOut[i],
+        );
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MULDIV_ISSUE_WIDTH {
+                regPhase[i] = DividerPhase::DIVIDER_PHASE_FREE;
+                regAcquireData[i] = '0;
+            }
+        } else {
+            regPhase = nextPhase;
+            regAcquireData = nextAcquireData;
+        }
+    }
+
+    always_comb {
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            var nextPhaseValue: DividerPhase;
+            var nextAcquireDataValue: MulDivAcquireData;
+            var flushValue: logic;
+            var divWriteDataValue: ActiveListWriteData;
+            var divDstRegDataValue: PRegDataPath;
+
+            nextPhaseValue = regPhase[i];
+            nextAcquireDataValue = regAcquireData[i];
+            divWriteDataValue = '0;
+            divDstRegDataValue = '0;
+
+            registerFile.divDstRegWE[i] = FALSE;
+            registerFile.divDstRegNum[i] = '0;
+            registerFile.divDstRegData[i] = '0;
+            activeList.divWrite[i] = FALSE;
+            activeList.divWriteData[i] = '0;
+
+            case regPhase[i] {
+                default: {
+                    nextPhaseValue = DividerPhase::DIVIDER_PHASE_FREE;
+                }
+                DividerPhase::DIVIDER_PHASE_FREE: {
+                    if port.divAcquire[i] {
+                        nextPhaseValue = DividerPhase::DIVIDER_PHASE_RESERVED;
+                        nextAcquireDataValue = port.acquireData[i];
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_RESERVED: {
+                    if port.divReq[i] {
+                        nextPhaseValue = DividerPhase::DIVIDER_PHASE_PROCESSING;
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_PROCESSING: {
+                    if finished[i] {
+                        nextPhaseValue = DividerPhase::DIVIDER_PHASE_REGISTER_WRITE;
+                    }
+                }
+                DividerPhase::DIVIDER_PHASE_REGISTER_WRITE: {
+                    nextPhaseValue = DividerPhase::DIVIDER_PHASE_FREE;
+
+                    divDstRegDataValue.valid = TRUE;
+                    divDstRegDataValue.data = divDataOut[i];
+
+                    registerFile.divDstRegWE[i] = regAcquireData[i].opDst.writeReg;
+                    registerFile.divDstRegNum[i] = regAcquireData[i].opDst.phyDstRegNum;
+                    registerFile.divDstRegData[i] = divDstRegDataValue;
+
+                    divWriteDataValue.ptr = regAcquireData[i].activeListPtr;
+                    divWriteDataValue.state = EXEC_STATE_SUCCESS;
+                    activeList.divWrite[i] = TRUE;
+                    activeList.divWriteData[i] = divWriteDataValue;
+                }
+            }
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                regAcquireData[i].activeListPtr
+            );
+
+            if flushValue {
+                registerFile.divDstRegWE[i] = FALSE;
+                activeList.divWrite[i] = FALSE;
+                nextPhaseValue = DividerPhase::DIVIDER_PHASE_FREE;
+            }
+
+            rst_divider[i] = port.rst | flushValue;
+
+            if nextPhaseValue == DividerPhase::DIVIDER_PHASE_FREE {
+                port.divFree[i] = TRUE;
+            } else {
+                port.divFree[i] = FALSE;
+            }
+
+            if nextPhaseValue == DividerPhase::DIVIDER_PHASE_PROCESSING {
+                port.divBusy[i] = TRUE;
+            } else {
+                port.divBusy[i] = FALSE;
+            }
+
+            if regPhase[i] == DividerPhase::DIVIDER_PHASE_RESERVED {
+                port.divReserved[i] = TRUE;
+            } else {
+                port.divReserved[i] = FALSE;
+            }
+
+            nextPhase[i] = nextPhaseValue;
+            nextAcquireData[i] = nextAcquireDataValue;
+        }
+    }
+}

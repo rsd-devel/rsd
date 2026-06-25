@@ -1,0 +1,130 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Ready bit table.
+// This table is used for checking already ready source operands on dispatch.
+//
+
+module ReadyBitTable #(
+    param SRC_OP_NUM       : u32 = 2 ,
+    param REG_NUM_BIT_WIDTH: u32 = 5 ,
+    param ENTRY_NUM        : u32 = 32,
+) (
+    // input
+    clk                : input clock                                                ,
+    rst                : input logic                                                ,
+    rstStart           : input logic                                                ,
+    wakeup             : input logic                    [WAKEUP_WIDTH]              ,
+    wakeupDstValid     : input logic                    [WAKEUP_WIDTH]              ,
+    wakeupDstRegNum    : input logic<REG_NUM_BIT_WIDTH> [WAKEUP_WIDTH]              ,
+    dispatch           : input logic                    [DISPATCH_WIDTH]            ,
+    dispatchedDstValid : input logic                    [DISPATCH_WIDTH]            ,
+    dispatchedDstRegNum: input logic<REG_NUM_BIT_WIDTH> [DISPATCH_WIDTH]            ,
+    dispatchedSrcValid : input logic                    [DISPATCH_WIDTH, SRC_OP_NUM],
+    dispatchedSrcRegNum: input logic<REG_NUM_BIT_WIDTH> [DISPATCH_WIDTH, SRC_OP_NUM],
+    // output
+    dispatchedSrcReady: output logic [DISPATCH_WIDTH, SRC_OP_NUM],
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import MicroOpTypes::*;
+
+    const READY_WRITE_NUM: u32 = WAKEUP_WIDTH + DISPATCH_WIDTH;
+    const READY_READ_NUM : u32 = DISPATCH_WIDTH * SRC_OP_NUM;
+
+    type RegNumPath = logic<REG_NUM_BIT_WIDTH>;
+
+    var readyWE: logic      [READY_WRITE_NUM];
+    var readyWV: logic      [READY_WRITE_NUM];
+    var readyWA: RegNumPath [READY_WRITE_NUM];
+    var readyRV: logic      [READY_READ_NUM] ;
+    var readyRA: RegNumPath [READY_READ_NUM] ;
+
+    inst radyBitTable: DistributedMultiPortRAM #(
+        ENTRY_NUM     : 1 << REG_NUM_BIT_WIDTH,
+        ENTRY_BIT_SIZE: 1                     ,
+        READ_NUM      : READY_READ_NUM        ,
+        WRITE_NUM     : READY_WRITE_NUM       ,
+    ) (
+        clk: clk    ,
+        we : readyWE,
+        wa : readyWA,
+        wv : readyWV,
+        ra : readyRA,
+        rv : readyRV,
+    );
+
+    var resetIndex: RegNumPath;
+
+    always_ff (clk) {
+        if rstStart {
+            resetIndex = 0;
+        } else {
+            resetIndex = resetIndex + 1;
+        }
+    }
+
+    always_comb {
+        for i in 0..WAKEUP_WIDTH {
+            readyWA[i] = wakeupDstRegNum[i];
+            readyWV[i] = TRUE;
+            readyWE[i] = wakeup[i] && wakeupDstValid[i];
+            //if(wakeup[i] && wakeupDstValid[i]) begin
+            //    ready[ wakeupDstRegNum[i] ] <= TRUE;
+        }
+
+        for i in 0..DISPATCH_WIDTH {
+            readyWA[i + WAKEUP_WIDTH] = dispatchedDstRegNum[i];
+            readyWV[i + WAKEUP_WIDTH] = FALSE;
+            readyWE[i + WAKEUP_WIDTH] = dispatch[i] && dispatchedDstValid[i];
+            //if( dispatch[i] && dispatchedDstValid[i] ) begin
+            //    ready[ dispatchedDstRegNum[i] ] <= FALSE;
+        }
+
+        // On reset, all entries are set to be ready.
+        // On flush, the ready bits are treated in the same way as the reset
+        //  case because all allocated entries are ready and non-allocated
+        // entries are never referred after flush.
+        if rst {
+            // In a reset phase, indefinite signals may reach and destroy initialized ready bits.
+            for i in 0..READY_WRITE_NUM {
+                readyWE[i] = FALSE;
+            }
+
+            // A write port 0 is used for reset.
+            readyWA[0] = resetIndex;
+            readyWV[0] = TRUE;
+            readyWE[0] = TRUE;
+        }
+
+        for i in 0..DISPATCH_WIDTH {
+            for j in 0..SRC_OP_NUM {
+                readyRA[i * SRC_OP_NUM + j] = dispatchedSrcRegNum[i][j];
+
+                if dispatchedSrcValid[i][j] == FALSE {
+                    dispatchedSrcReady[i][j] = TRUE;
+                } else {
+                    //dispatchedSrcReady[i][j] = ready[ dispatchedSrcRegNum[i][j] ];
+                    dispatchedSrcReady[i][j] = readyRV[i * SRC_OP_NUM + j];
+
+                    // Bypass wakeup signals.
+                    for k in 0..WAKEUP_WIDTH {
+                        if wakeup[k] && wakeupDstValid[k] && wakeupDstRegNum[k] == dispatchedSrcRegNum[i][j] {
+                            dispatchedSrcReady[i][j] = TRUE;
+                        }
+                    }
+
+                    // Bypass dispatched instruction's destination registers
+                    for k in 0..i {
+                        if dispatch[k] && dispatchedDstValid[k] && dispatchedSrcRegNum[i][j] == dispatchedDstRegNum[k] {
+                            dispatchedSrcReady[i][j] = FALSE;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,126 @@
+module IntegerRegisterWriteStage (
+    prev        : modport IntegerExecutionStageIF::NextStage,
+    scheduler   : modport SchedulerIF::IntegerRegisterWriteStage,
+    ifStage     : modport NextPCStageIF::IntegerRegisterWriteStage,
+    registerFile: modport RegisterFileIF::IntegerRegisterWriteStage,
+    activeList  : modport ActiveListIF::IntegerRegisterWriteStage,
+    recovery    : modport RecoveryManagerIF::IntegerRegisterWriteStage,
+    ctrl        : modport ControllerIF::IntegerRegisterWriteStage,
+    debug       : modport DebugIF::IntegerRegisterWriteStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import FetchUnitTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: IntegerRegisterWriteStageRegPath [INT_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (ctrl.clk) {
+        if ctrl.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                pipeReg[i].valid = FALSE;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var brResult: BranchResult [INT_ISSUE_WIDTH];
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [INT_ISSUE_WIDTH];
+    var update: logic [INT_ISSUE_WIDTH];
+    var valid: logic [INT_ISSUE_WIDTH];
+    var regValid: logic [INT_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            var alWriteDataValue: ActiveListWriteData;
+            var iqDataValue: IntIssueQueueEntry;
+            var brResultValue: BranchResult;
+            var updateValue: logic;
+            var regValidValue: logic;
+
+            iqDataValue = pipeReg[i].intQueueData;
+            regValidValue = pipeReg[i].dataOut.valid;
+            regValid[i] = regValidValue;
+
+            valid[i] = pipeReg[i].valid;
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+            updateValue = !stall && !clear && valid[i] && !flush[i];
+            update[i] = updateValue;
+
+            registerFile.intDstRegWE[i] = updateValue && iqDataValue.opDst.writeReg;
+            registerFile.intDstRegNum[i] = iqDataValue.opDst.phyDstRegNum;
+            registerFile.intDstRegData[i] = pipeReg[i].dataOut;
+
+            alWriteDataValue.ptr = iqDataValue.activeListPtr;
+            alWriteDataValue.loadQueuePtr = iqDataValue.loadQueueRecoveryPtr;
+            alWriteDataValue.storeQueuePtr = iqDataValue.storeQueueRecoveryPtr;
+            alWriteDataValue.pc = pipeReg[i].brResult.nextAddr;
+            alWriteDataValue.dataAddr = '0;
+            alWriteDataValue.isBranch =
+                iqDataValue.opType == INT_MOP_TYPE_BR ||
+                iqDataValue.opType == INT_MOP_TYPE_RIJ;
+            alWriteDataValue.isStore = FALSE;
+
+            brResultValue = pipeReg[i].brResult;
+            brResultValue.valid = pipeReg[i].brResult.valid && updateValue && regValidValue;
+
+            if updateValue {
+                if regValidValue {
+                    if pipeReg[i].brMissPred {
+                        alWriteDataValue.state = EXEC_STATE_REFETCH_NEXT;
+                    } else {
+                        alWriteDataValue.state = EXEC_STATE_SUCCESS;
+                    }
+                } else {
+                    alWriteDataValue.state = EXEC_STATE_NOT_FINISHED;
+                }
+            } else {
+                alWriteDataValue.state = EXEC_STATE_NOT_FINISHED;
+            }
+
+            if alWriteDataValue.state == EXEC_STATE_REFETCH_NEXT || alWriteDataValue.state == EXEC_STATE_SUCCESS {
+                if brResultValue.nextAddr[INSN_ADDR_BIT_WIDTH - 1:0] != 0 && brResultValue.valid {
+                    alWriteDataValue.state = EXEC_STATE_FAULT_INSN_MISALIGNED;
+                    alWriteDataValue.dataAddr = brResultValue.nextAddr;
+                }
+            }
+
+            activeList.intWrite[i] = updateValue;
+            activeList.intWriteData[i] = alWriteDataValue;
+
+            scheduler.intRecordEntry[i] = updateValue && !regValidValue;
+            scheduler.intRecordData[i] = pipeReg[i].intQueueData;
+
+            brResult[i] = brResultValue;
+        }
+
+        ifStage.brResult = brResult;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            debug.intRwReg[i].valid = valid[i];
+            debug.intRwReg[i].flush = flush[i];
+            debug.intRwReg[i].opId = pipeReg[i].opId;
+        }
+    }
+}

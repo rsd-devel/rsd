@@ -1,0 +1,347 @@
+module FP32DivSqrter (
+    clk      : input  clock    ,
+    rst      : input  logic    ,
+    lhs      : input  logic<32>,
+    rhs      : input  logic<32>,
+    is_divide: input  logic    ,
+    req      : input  logic    ,
+    finished : output logic    ,
+    result   : output logic<32>,
+) {
+    import FPUTypes::*;
+
+    function srt_table (
+        rem: input logic<6>,
+        div: input logic<4>,
+    ) -> logic<3> {
+        var th12: logic<6>;
+        var th01: logic<6>;
+        var ret : logic<3>;
+
+        if div <: 1 {
+            th12 = 6;
+        } else if div <: 2 {
+            th12 = 7;
+        } else if div <: 4 {
+            th12 = 8;
+        } else if div <: 5 {
+            th12 = 9;
+        } else if div <: 6 {
+            th12 = 10;
+        } else {
+            th12 = 11;
+        }
+
+        if div <: 2 {
+            th01 = 2;
+        } else if div <: 6 {
+            th01 = 3;
+        } else {
+            th01 = 4;
+        }
+
+        if $signed(rem) <: $signed(0 - th12) {
+            ret = 3'b110;
+        } else if $signed(rem) <: $signed(0 - th01) {
+            ret = 3'b111;
+        } else if $signed(rem) <: $signed(th01) {
+            ret = 3'b000;
+        } else if $signed(rem) <: $signed(th12) {
+            ret = 3'b001;
+        } else {
+            ret = 3'b010;
+        }
+        return ret;
+    }
+
+    function leading_zeros_count (
+        x: input logic<23>,
+    ) -> logic<10> {
+        var count: logic<10>;
+        var found: logic    ;
+
+        count = 0;
+        found = 0;
+        for i in 0..23 {
+            if !found && (x >> (22 - i)) != 0 {
+                count = i;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    enum Phase: logic<2> {
+        PHASE_FINISHED = 0,
+        PHASE_PREPARATION = 1,
+        PHASE_PROCESSING = 2,
+        PHASE_ROUNDING = 3,
+    }
+
+    var regPhase   : Phase              ;
+    var nextPhase  : Phase              ;
+    var regCounter : logic          <5> ;
+    var nextCounter: logic          <5> ;
+    var regData    : FDivSqrtRegPath    ;
+    var nextData   : FDivSqrtRegPath    ;
+    var regResult  : logic          <32>;
+    var nextResult : logic          <32>;
+
+    var lhs_sign          : logic    ;
+    var rhs_sign          : logic    ;
+    var lhs_expo          : logic<8> ;
+    var rhs_expo          : logic<8> ;
+    var lhs_mant          : logic<23>;
+    var rhs_mant          : logic<23>;
+    var lhs_is_zero       : logic    ;
+    var rhs_is_zero       : logic    ;
+    var lhs_is_inf        : logic    ;
+    var rhs_is_inf        : logic    ;
+    var lhs_is_nan        : logic    ;
+    var rhs_is_nan        : logic    ;
+    var lhs_is_neg        : logic    ;
+    var res_is_nan        : logic    ;
+    var nan               : logic<32>;
+    var result_sign       : logic    ;
+    var v_lhs_expo        : logic<10>;
+    var v_rhs_expo        : logic<10>;
+    var v_lhs_mant        : logic<24>;
+    var v_rhs_mant        : logic<24>;
+    var dividend_normalize: logic    ;
+    var virtual_expo      : logic<10>;
+    var subnormal         : logic    ;
+    var res_is_zero       : logic    ;
+    var rem_0             : logic<27>;
+    var quo_0             : logic<26>;
+    var q                 : logic<3> ;
+    var div               : logic<4> ;
+    var rem               : logic<27>;
+    var quo               : logic<26>;
+    var before_round      : logic<48>;
+    var round_away        : logic    ;
+    var exp_plus_one      : logic    ;
+    var result_mant       : logic<23>;
+    var result_expo       : logic<8> ;
+    var res_is_inf        : logic    ;
+    var inf               : logic<32>;
+    var zero              : logic<32>;
+    var final_result      : logic<32>;
+
+    always_ff (clk) {
+        if rst {
+            regPhase   = Phase::PHASE_FINISHED;
+            regCounter = '0;
+            regData    = '0;
+            regResult  = '0;
+        } else {
+            regPhase   = nextPhase;
+            regCounter = nextCounter;
+            regData    = nextData;
+            regResult  = nextResult;
+        }
+    }
+
+    always_comb {
+        lhs_sign = lhs[31];
+        rhs_sign = rhs[31];
+        lhs_expo = lhs[30:23];
+        rhs_expo = rhs[30:23];
+        lhs_mant = lhs[22:0];
+        rhs_mant = rhs[22:0];
+
+        // NaN handling
+        lhs_is_zero = (lhs_expo == 8'h00) & (lhs_mant == 0);
+        rhs_is_zero = (rhs_expo == 8'h00) & (rhs_mant == 0);
+        lhs_is_inf  = (lhs_expo == 8'hff) & (lhs_mant == 0);
+        rhs_is_inf  = (rhs_expo == 8'hff) & (rhs_mant == 0);
+        lhs_is_nan  = (lhs_expo == 8'hff) & (lhs_mant != 0);
+        rhs_is_nan  = (rhs_expo == 8'hff) & (rhs_mant != 0);
+        lhs_is_neg  = lhs_sign & (lhs != 32'h80000000);
+        if is_divide {
+            res_is_nan = lhs_is_nan | rhs_is_nan | (lhs_is_zero & rhs_is_zero) | (lhs_is_inf & rhs_is_inf);
+        } else {
+            res_is_nan = lhs_is_nan | lhs_is_neg;
+        }
+        nan = 32'h7fc00000;
+
+        // Preparation
+        result_sign = is_divide & (lhs_sign ^ rhs_sign);
+        if lhs_expo == 0 {
+            v_lhs_expo = 0 - leading_zeros_count(lhs_mant);
+            v_lhs_mant = {lhs_mant, 1'b0} << leading_zeros_count(lhs_mant);
+        } else {
+            v_lhs_expo = {2'b0, lhs_expo};
+            v_lhs_mant = {1'b1, lhs_mant};
+        }
+        if rhs_expo == 0 {
+            v_rhs_expo = 0 - leading_zeros_count(rhs_mant);
+            v_rhs_mant = {rhs_mant, 1'b0} << leading_zeros_count(rhs_mant);
+        } else {
+            v_rhs_expo = {2'b0, rhs_expo};
+            v_rhs_mant = {1'b1, rhs_mant};
+        }
+
+        dividend_normalize = regData.v_lhs_mant <: regData.v_rhs_mant;
+        virtual_expo       = regData.v_lhs_expo - regData.v_rhs_expo + 127 - {8'h0, dividend_normalize};
+        subnormal          = regData.is_divide & ($signed(virtual_expo) <= 0);
+        if regData.is_divide {
+            res_is_zero = ($signed(virtual_expo) <= -24) | regData.res_is_zero;
+        } else {
+            res_is_zero = regData.res_is_zero;
+        }
+
+        // The SRT loop. rem needs 27 bits. 24(mantissa)+2(x8/3,SRT)+1(sign)
+        if regData.is_divide {
+            if dividend_normalize {
+                rem_0 = {2'b00, regData.v_lhs_mant, 1'b0};
+            } else {
+                rem_0 = {3'b000, regData.v_lhs_mant};
+            }
+            quo_0 = 26'h0;
+        } else {
+            if regData.v_lhs_expo[0] {
+                rem_0 = {2'b0, regData.v_lhs_mant, 1'b0} - 27'h1e40000;
+                quo_0 = 26'h1600000;
+            } else {
+                rem_0 = {1'b0, regData.v_lhs_mant, 2'b0} - 27'h2400000;
+                quo_0 = 26'h1800000;
+            }
+        }
+
+        if regData.is_divide {
+            div = {1'b0, regData.v_rhs_mant[22:20]};
+        } else {
+            div = {regData.quo[25], regData.quo[23:21]};
+        }
+        q = srt_table(regData.rem[26:21], div);
+        case q {
+            3'b010: {
+                if regData.is_divide {
+                    rem = (regData.rem << 2) - {regData.v_rhs_mant, 3'b000};
+                } else {
+                    rem = (regData.rem << 2) - {regData.quo[24:0], 2'b00} - (27'd4 << regCounter);
+                }
+            }
+            3'b001: {
+                if regData.is_divide {
+                    rem = (regData.rem << 2) - {1'b0, regData.v_rhs_mant, 2'b00};
+                } else {
+                    rem = (regData.rem << 2) - {regData.quo, 1'b0} - (27'd1 << regCounter);
+                }
+            }
+            3'b111: {
+                if regData.is_divide {
+                    rem = (regData.rem << 2) + {1'b0, regData.v_rhs_mant, 2'b00};
+                } else {
+                    rem = (regData.rem << 2) + {regData.quo, 1'b0} - (27'd1 << regCounter);
+                }
+            }
+            3'b110: {
+                if regData.is_divide {
+                    rem = (regData.rem << 2) + {regData.v_rhs_mant, 3'b000};
+                } else {
+                    rem = (regData.rem << 2) + {regData.quo[24:0], 2'b00} - (27'd4 << regCounter);
+                }
+            }
+            default: {
+                rem = regData.rem << 2;
+            }
+        }
+        quo = regData.quo + ({q[2] repeat 23, q} << regCounter);
+
+        if regData.subnormal {
+            before_round = {1'b1, regData.quo[23:0], 23'h0} >> (0 - regData.virtual_expo);
+        } else {
+            before_round = {regData.quo[23:0], 24'h0};
+        }
+        round_away   = before_round[24]
+            & (((before_round[23:0] == 0) & (regData.rem == 0) & before_round[25]) | (before_round[23:0] != 0)
+                | ($signed(regData.rem) >: 0));
+        exp_plus_one = (before_round[47:25] == 23'h7fffff) & round_away;
+        result_mant  = before_round[47:25] + {22'h0, round_away};
+        if regData.is_divide {
+            if subnormal {
+                result_expo = 8'h00 + {7'h0, exp_plus_one};
+            } else {
+                result_expo = regData.virtual_expo[7:0] + {7'h0, exp_plus_one};
+            }
+        } else {
+            result_expo = regData.v_lhs_expo[8:1] + {7'b0, regData.v_lhs_expo[0]} + 63;
+        }
+        if regData.is_divide {
+            res_is_inf = ($signed(regData.virtual_expo) >= 255) | regData.res_is_inf | (result_expo == 8'hff);
+        } else {
+            res_is_inf = regData.res_is_inf;
+        }
+        inf = {regData.result_sign, 8'hff, 23'h0};
+        if regData.is_divide {
+            zero = {regData.result_sign, 8'h00, 23'h0};
+        } else {
+            zero = {regData.lhs_sign, 8'h00, 23'h0};
+        }
+
+        if regData.res_is_nan {
+            final_result = regData.nan;
+        } else if regData.res_is_zero {
+            final_result = zero;
+        } else if res_is_inf {
+            final_result = inf;
+        } else {
+            final_result = {regData.result_sign, result_expo, result_mant};
+        }
+
+        nextCounter = regCounter;
+        nextData    = regData;
+        nextResult  = regResult;
+        if req && (regPhase == Phase::PHASE_FINISHED) {
+            nextData.v_lhs_expo  = v_lhs_expo;
+            nextData.v_lhs_mant  = v_lhs_mant;
+            nextData.v_rhs_expo  = v_rhs_expo;
+            nextData.v_rhs_mant  = v_rhs_mant;
+            nextData.result_sign = result_sign;
+            nextData.lhs_sign    = lhs_sign;
+            nextData.is_divide   = is_divide;
+            nextData.res_is_nan  = res_is_nan;
+            if is_divide {
+                nextData.res_is_inf  = lhs_is_inf | rhs_is_zero;
+                nextData.res_is_zero = lhs_is_zero | rhs_is_inf;
+            } else {
+                nextData.res_is_inf  = (!lhs_sign) & lhs_is_inf;
+                nextData.res_is_zero = lhs_is_zero;
+            }
+            nextData.nan = nan;
+            nextPhase    = Phase::PHASE_PREPARATION;
+        } else if regPhase == Phase::PHASE_PREPARATION {
+            nextData.virtual_expo = virtual_expo;
+            nextData.subnormal    = subnormal;
+            nextData.res_is_zero  = res_is_zero;
+            nextData.rem          = rem_0;
+            nextData.quo          = quo_0;
+            nextPhase             = Phase::PHASE_PROCESSING;
+            if regData.is_divide {
+                nextCounter = 24;
+            } else {
+                nextCounter = 22;
+            }
+        } else if regPhase == Phase::PHASE_PROCESSING {
+            nextData.rem = rem;
+            nextData.quo = quo;
+            nextCounter  = regCounter - 2;
+            if regCounter == 0 {
+                nextPhase = Phase::PHASE_ROUNDING;
+            } else {
+                nextPhase = Phase::PHASE_PROCESSING;
+            }
+        } else if regPhase == Phase::PHASE_ROUNDING {
+            nextResult  = final_result;
+            nextPhase   = Phase::PHASE_FINISHED;
+            nextCounter = '0;
+            nextData    = '0;
+        } else {
+            nextPhase = regPhase;
+        }
+
+        finished = regPhase == Phase::PHASE_FINISHED;
+        result   = regResult;
+    }
+}

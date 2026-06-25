@@ -1,0 +1,103 @@
+module CacheFlushManager (
+    port       : modport CacheFlushManagerIF::CacheFlushManager,
+    cacheSystem: modport CacheSystemIF::CacheFlushManager      ,
+) {
+    import BasicTypes::*;
+
+    enum CacheFlushPhase: logic<2> {
+        PHASE_FREE         = 2'd0,
+        PHASE_SEND_REQUEST = 2'd1,
+        PHASE_PROCESSING   = 2'd2,
+        PHASE_WAITING      = 2'd3,
+    }
+
+    const PHASE_FREE        : CacheFlushPhase = CacheFlushPhase::PHASE_FREE;
+    const PHASE_SEND_REQUEST: CacheFlushPhase = CacheFlushPhase::PHASE_SEND_REQUEST;
+    const PHASE_PROCESSING  : CacheFlushPhase = CacheFlushPhase::PHASE_PROCESSING;
+    const PHASE_WAITING     : CacheFlushPhase = CacheFlushPhase::PHASE_WAITING;
+
+    var icFlushReq: logic;
+    var dcFlushReq: logic;
+
+    var regPhase : CacheFlushPhase;
+    var nextPhase: CacheFlushPhase;
+    var regIcFlushComplete : logic;
+    var nextIcFlushComplete: logic;
+    var regDcFlushComplete : logic;
+    var nextDcFlushComplete: logic;
+
+    var cacheFlushComplete: logic;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regPhase = PHASE_FREE;
+        } else {
+            regPhase = nextPhase;
+        }
+    }
+
+    always_comb {
+        nextPhase = regPhase;
+        nextIcFlushComplete = regIcFlushComplete;
+        nextDcFlushComplete = regDcFlushComplete;
+
+        icFlushReq = FALSE;
+        dcFlushReq = FALSE;
+        cacheFlushComplete = FALSE;
+
+        case regPhase {
+            default: {
+                nextPhase = PHASE_FREE;
+            }
+            PHASE_FREE: {
+                if port.cacheFlushReq {
+                    nextPhase = PHASE_SEND_REQUEST;
+                }
+            }
+            PHASE_SEND_REQUEST: {
+                if cacheSystem.icFlushReqAck && cacheSystem.dcFlushReqAck {
+                    icFlushReq = TRUE;
+                    dcFlushReq = TRUE;
+                    nextIcFlushComplete = FALSE;
+                    nextDcFlushComplete = FALSE;
+                    nextPhase = PHASE_PROCESSING;
+                }
+            }
+            PHASE_PROCESSING: {
+                if cacheSystem.icFlushComplete {
+                    nextIcFlushComplete = TRUE;
+                }
+                if cacheSystem.dcFlushComplete {
+                    nextDcFlushComplete = TRUE;
+                }
+
+                if (nextIcFlushComplete || regIcFlushComplete) &&
+                   (nextDcFlushComplete || regDcFlushComplete) {
+                    nextPhase = PHASE_WAITING;
+                }
+            }
+            PHASE_WAITING: {
+                cacheFlushComplete = TRUE;
+                if port.cacheFlushReq {
+                    nextPhase = PHASE_FREE;
+                }
+            }
+        }
+
+        cacheSystem.icFlushReq = icFlushReq;
+        cacheSystem.dcFlushReq = dcFlushReq;
+        cacheSystem.flushComplete = cacheFlushComplete;
+
+        port.cacheFlushComplete = cacheFlushComplete;
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            regIcFlushComplete = FALSE;
+            regDcFlushComplete = FALSE;
+        } else {
+            regIcFlushComplete = nextIcFlushComplete;
+            regDcFlushComplete = nextDcFlushComplete;
+        }
+    }
+}

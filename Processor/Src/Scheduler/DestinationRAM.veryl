@@ -1,0 +1,76 @@
+module DestinationRAM (
+    port: modport WakeupSelectIF::DestinationRAM,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+
+    struct Entry {
+        regTag: SchedulerRegTag,
+    }
+
+    var write    : logic [DISPATCH_WIDTH];
+    var writePtr : IssueQueueIndexPath [DISPATCH_WIDTH];
+    var writeData: Entry [DISPATCH_WIDTH];
+    var readPtr  : IssueQueueIndexPath [WAKEUP_WIDTH];
+    var readData : Entry [WAKEUP_WIDTH];
+
+    inst dstRAM: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(Entry),
+        READ_NUM      : WAKEUP_WIDTH,
+        WRITE_NUM     : DISPATCH_WIDTH,
+    ) (
+        clk: port.clk,
+        we : write,
+        wa : writePtr,
+        wv : writeData,
+        ra : readPtr,
+        rv : readData,
+    );
+
+    var rstIndex: IssueQueueIndexPath;
+
+    always_ff (port.clk) {
+        if port.rstStart || rstIndex >= ISSUE_QUEUE_ENTRY_NUM - 1 {
+            rstIndex = 0;
+        } else {
+            rstIndex = rstIndex + 1;
+        }
+    }
+
+    always_comb {
+        for i in 0..DISPATCH_WIDTH {
+            write[i] = port.write[i];
+            writePtr[i] = port.writePtr[i];
+            writeData[i].regTag = port.writeDstTag[i].regTag;
+        }
+
+        for i in 0..WAKEUP_WIDTH {
+            port.wakeupDstTag[i].regTag = readData[i].regTag;
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            readPtr[i] = port.wakeupPtr[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            readPtr[i + INT_ISSUE_WIDTH] = port.wakeupPtr[i + INT_ISSUE_WIDTH];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            readPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] =
+                port.wakeupPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            readPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] =
+                port.wakeupPtr[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
+        }
+
+        if port.rst {
+            for i in 0..DISPATCH_WIDTH {
+                write[i] = FALSE;
+            }
+            write[0] = TRUE;
+            writePtr[0] = rstIndex;
+            writeData[0] = '0;
+        }
+    }
+}

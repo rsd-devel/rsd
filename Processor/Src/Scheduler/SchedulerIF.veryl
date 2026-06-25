@@ -1,0 +1,229 @@
+interface SchedulerIF {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var allocate    : logic [RENAME_WIDTH];
+    var allocatedPtr: IssueQueueIndexPath [RENAME_WIDTH];
+    var allocatable : logic;
+
+    var write             : logic [DISPATCH_WIDTH];
+    var writePtr          : IssueQueueIndexPath [DISPATCH_WIDTH];
+    var writeAL_Ptr       : ActiveListIndexPath [DISPATCH_WIDTH];
+    var intWriteData      : IntIssueQueueEntry [DISPATCH_WIDTH];
+    var memWriteData      : MemIssueQueueEntry [DISPATCH_WIDTH];
+    var writeSchedulerData: SchedulerEntry [DISPATCH_WIDTH];
+
+    var selected   : logic [ISSUE_WIDTH];
+    var selectedPtr: IssueQueueIndexPath [ISSUE_WIDTH];
+
+    var intIssue     : logic [INT_ISSUE_WIDTH];
+    var intIssuePtr  : IssueQueueIndexPath [INT_ISSUE_WIDTH];
+    var intIssuedData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
+
+    var memIssue     : logic [MEM_ISSUE_WIDTH];
+    var memIssuePtr  : IssueQueueIndexPath [MEM_ISSUE_WIDTH];
+    var memIssuedData: MemIssueQueueEntry [MEM_ISSUE_WIDTH];
+
+    var intRecordEntry: logic [INT_ISSUE_WIDTH];
+    var intReplayEntry: logic [INT_ISSUE_WIDTH];
+    var intRecordData : IntIssueQueueEntry [INT_ISSUE_WIDTH];
+    var intReplayData : IntIssueQueueEntry [INT_ISSUE_WIDTH];
+
+    var complexWriteData : ComplexIssueQueueEntry [DISPATCH_WIDTH];
+    var complexIssue     : logic [COMPLEX_ISSUE_WIDTH];
+    var complexIssuePtr  : IssueQueueIndexPath [COMPLEX_ISSUE_WIDTH];
+    var complexIssuedData: ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
+    var complexRecordEntry: logic [COMPLEX_ISSUE_WIDTH];
+    var complexReplayEntry: logic [COMPLEX_ISSUE_WIDTH];
+    var complexRecordData : ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
+    var complexReplayData : ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
+    var divIsIssued       : logic [COMPLEX_ISSUE_WIDTH];
+
+    var fpWriteData : FPIssueQueueEntry [DISPATCH_WIDTH];
+    var fpIssue     : logic [FP_ISSUE_WIDTH];
+    var fpIssuePtr  : IssueQueueIndexPath [FP_ISSUE_WIDTH];
+    var fpIssuedData: FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var fpRecordEntry: logic [FP_ISSUE_WIDTH];
+    var fpReplayEntry: logic [FP_ISSUE_WIDTH];
+    var fpRecordData : FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var fpReplayData : FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var fpDivSqrtIsIssued: logic [FP_ISSUE_WIDTH];
+
+    var memRecordEntry : logic [MEM_ISSUE_WIDTH];
+    var memReplayEntry : logic [MEM_ISSUE_WIDTH];
+    var memRecordData  : MemIssueQueueEntry [MEM_ISSUE_WIDTH];
+    var memReplayData  : MemIssueQueueEntry [MEM_ISSUE_WIDTH];
+    var replay         : logic;
+
+    var divRecordEntry: logic [MULDIV_ISSUE_WIDTH];
+    var divRecordData : DivRecordEntry [MULDIV_ISSUE_WIDTH];
+
+    var stall: logic;
+
+    var allocated: logic [DISPATCH_WIDTH];
+
+    var memDependencyPred: logic [DISPATCH_WIDTH];
+
+    modport IssueQueue {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        allocate: input,
+        write: input,
+        writePtr: input,
+        writeAL_Ptr: input,
+        intWriteData: input,
+        complexWriteData: input,
+        complexIssue: input,
+        complexIssuePtr: input,
+        fpWriteData: input,
+        fpIssue: input,
+        fpIssuePtr: input,
+        memWriteData: input,
+        intIssue: input,
+        intIssuePtr: input,
+        memIssue: input,
+        memIssuePtr: input,
+        allocated: input,
+        allocatable: output,
+        allocatedPtr: output,
+        intIssuedData: output,
+        complexIssuedData: output,
+        memIssuedData: output,
+        fpIssuedData: output,
+    }
+
+    modport Scheduler {
+        clk: input,
+        rst: input,
+        stall: input,
+        write: input,
+        writePtr: input,
+        writeSchedulerData: input,
+        memDependencyPred: input,
+        selected: output,
+        selectedPtr: output,
+    }
+
+    modport ReplayQueue {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        stall: input,
+        intRecordEntry: input,
+        intRecordData: input,
+        complexRecordEntry: input,
+        complexRecordData: input,
+        memRecordEntry: input,
+        memRecordData: input,
+        fpRecordEntry: input,
+        fpRecordData: input,
+        divRecordEntry: input,
+        divRecordData: input,
+        intReplayEntry: output,
+        intReplayData: output,
+        complexReplayEntry: output,
+        complexReplayData: output,
+        memReplayEntry: output,
+        memReplayData: output,
+        fpReplayEntry: output,
+        fpReplayData: output,
+        replay: output,
+    }
+
+    modport RenameStage {
+        allocatedPtr: input,
+        allocatable: input,
+        allocate: output,
+    }
+
+    modport DispatchStage {
+        write: output,
+        writePtr: output,
+        writeAL_Ptr: output,
+        intWriteData: output,
+        complexWriteData: output,
+        memWriteData: output,
+        fpWriteData: output,
+        writeSchedulerData: output,
+        allocated: output,
+        memDependencyPred: output,
+    }
+
+    modport ScheduleStage {
+        selected: input,
+        selectedPtr: input,
+        stall: output,
+    }
+
+    modport IntegerIssueStage {
+        intIssuedData: input,
+        intReplayEntry: input,
+        intReplayData: input,
+        replay: input,
+        intIssuePtr: output,
+        intIssue: output,
+    }
+
+    modport IntegerRegisterWriteStage {
+        intRecordEntry: output,
+        intRecordData: output,
+    }
+
+    modport ComplexIntegerIssueStage {
+        complexIssuedData: input,
+        complexReplayEntry: input,
+        complexReplayData: input,
+        replay: input,
+        complexIssuePtr: output,
+        complexIssue: output,
+        divIsIssued: output,
+    }
+
+    modport ComplexIntegerExecutionStage {
+        divIsIssued: input,
+        complexRecordEntry: output,
+        complexRecordData: output,
+        divRecordEntry: output,
+        divRecordData: output,
+    }
+
+    modport FPIssueStage {
+        fpIssuedData: input,
+        fpReplayEntry: input,
+        fpReplayData: input,
+        replay: input,
+        fpIssuePtr: output,
+        fpIssue: output,
+        fpDivSqrtIsIssued: output,
+    }
+
+    modport FPExecutionStage {
+        fpDivSqrtIsIssued: input,
+        fpRecordEntry: output,
+        fpRecordData: output,
+    }
+
+    modport MemoryIssueStage {
+        memIssuedData: input,
+        memReplayEntry: input,
+        memReplayData: input,
+        replay: input,
+        memIssuePtr: output,
+        memIssue: output,
+    }
+
+    modport MemoryTagAccessStage {
+        memRecordEntry: output,
+        memRecordData: output,
+    }
+}

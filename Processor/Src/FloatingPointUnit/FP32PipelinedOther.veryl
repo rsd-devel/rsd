@@ -1,0 +1,413 @@
+package FP32PipelinedOtherTypes {
+    import OpFormatTypes::*;
+    import BasicTypes::*;
+
+    struct FP32OtherPipeReg {
+        result: logic      <32>,
+        fflags: FFlags_Path    ,
+    }
+
+    function leading_zeros_count (
+        x: input logic<32>,
+    ) -> logic<6> {
+        var count: logic<6>;
+        var found: logic   ;
+
+        count = 0;
+        found = 0;
+        for i in 0..32 {
+            if !found && (x >> (31 - i)) != 0 {
+                count = i;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    function FP32CVT_I2F (
+        result      : output logic        <32>,
+        fflags      : output FFlags_Path      ,
+        lhs         : input  logic        <32>,
+        fmt_unsigned: input  logic            ,
+        rm          : input  Rounding_Mode    ,
+    ) {
+        var lhs_is_neg  : logic    ;
+        var lzc         : logic<6> ;
+        var abs_lhs     : logic<32>;
+        var shifted_lhs : logic<32>;
+        var expo        : logic<8> ;
+        var mant        : logic<23>;
+        var round_up    : logic    ;
+        var exp_plus_one: logic    ;
+        var lsb_bit     : logic    ;
+        var guard       : logic    ;
+        var sticky      : logic    ;
+
+        lhs_is_neg = ~fmt_unsigned & lhs[31];
+        if lhs_is_neg {
+            abs_lhs = 0 - lhs;
+        } else {
+            abs_lhs = lhs;
+        }
+        lzc         = leading_zeros_count(abs_lhs);
+        shifted_lhs = abs_lhs << lzc;
+        mant        = shifted_lhs[30:8];
+        if abs_lhs == '0 {
+            expo = 0;
+        } else {
+            expo = 8'd127 + 8'd31 - lzc;
+        }
+        lsb_bit = shifted_lhs[8];
+        guard   = shifted_lhs[7];
+        sticky  = |shifted_lhs[6:0];
+
+        case rm {
+            RM_RNE: {
+                round_up = guard & (lsb_bit | sticky);
+            }
+            RM_RTZ: {
+                round_up = FALSE;
+            }
+            RM_RDN: {
+                round_up = (guard | sticky) & lhs_is_neg;
+            }
+            RM_RUP: {
+                round_up = (guard | sticky) & ~lhs_is_neg;
+            }
+            RM_RMM: {
+                round_up = guard;
+            }
+            default: {
+                round_up = FALSE;
+            }
+        }
+
+        exp_plus_one = round_up & (&mant);
+        expo         = expo + {7'h0, exp_plus_one};
+        mant         = mant + {22'h0, round_up};
+        result       = {lhs_is_neg, expo, mant};
+
+        // fflag update
+        fflags = '0;
+        if guard | sticky {
+            fflags.NX = TRUE;
+        }
+    }
+
+    function FP32CVT_F2I (
+        result      : output logic        <32>,
+        fflags      : output FFlags_Path      ,
+        lhs         : input  logic        <32>,
+        fmt_unsigned: input  logic            ,
+        rm          : input  Rounding_Mode    ,
+    ) {
+        var sign        : logic    ;
+        var expo        : logic<8> ;
+        var mant        : logic<23>;
+        var shift_amount: logic<5> ;
+        var int_result  : logic<32>;
+        var lower_bits  : logic<23>;
+        var round_up    : logic    ;
+        var lsb_bit     : logic    ;
+        var guard       : logic    ;
+        var sticky      : logic    ;
+        var is_invalid  : logic    ;
+        var lhs_is_neg  : logic    ;
+        var lhs_is_nan  : logic    ;
+
+        sign         = lhs[31];
+        expo         = lhs[30:23];
+        mant         = lhs[22:0];
+        shift_amount = 158 - expo;
+        lhs_is_neg   = sign;
+        lhs_is_nan   = (expo == 8'hff) & (mant != 0);
+
+        if expo <= 126 {
+            int_result = 0;
+            lsb_bit    = 0;
+            if expo == 126 {
+                guard = 1;
+            } else {
+                guard = 0;
+            }
+            if (expo == 0) || (expo == 126) {
+                sticky = |mant;
+            } else {
+                sticky = 1;
+            }
+            lower_bits = '0;
+        } else if expo <= 157 {
+            {int_result, lower_bits} = {1'b1, mant, 31'h0} >> shift_amount;
+            lsb_bit                  = int_result[0];
+            guard                    = lower_bits[22];
+            sticky                   = |lower_bits[21:0];
+        } else if expo == 158 {
+            if fmt_unsigned {
+                if lhs_is_neg {
+                    int_result = 32'h00000000;
+                } else {
+                    int_result = {1'b1, mant, 8'h0};
+                }
+            } else {
+                if lhs_is_neg {
+                    int_result = 32'h80000000;
+                } else {
+                    int_result = 32'h7fffffff;
+                }
+            }
+            lsb_bit    = 0;
+            guard      = 0;
+            sticky     = 0;
+            lower_bits = '0;
+        } else {
+            if fmt_unsigned {
+                if (~lhs_is_nan & lhs_is_neg) {
+                    int_result = 32'h00000000;
+                } else {
+                    int_result = 32'hffffffff;
+                }
+            } else {
+                if (~lhs_is_nan & lhs_is_neg) {
+                    int_result = 32'h80000000;
+                } else {
+                    int_result = 32'h7fffffff;
+                }
+            }
+            lsb_bit    = 0;
+            guard      = 0;
+            sticky     = 0;
+            lower_bits = '0;
+        }
+
+        case rm {
+            RM_RNE: {
+                round_up = guard & (lsb_bit | sticky);
+            }
+            RM_RTZ: {
+                round_up = FALSE;
+            }
+            RM_RDN: {
+                round_up = (guard | sticky) & lhs_is_neg;
+            }
+            RM_RUP: {
+                round_up = (guard | sticky) & ~lhs_is_neg;
+            }
+            RM_RMM: {
+                round_up = guard;
+            }
+            default: {
+                round_up = FALSE;
+            }
+        }
+
+        if expo <= 157 {
+            int_result = int_result + {31'h0, round_up};
+            if lhs_is_neg {
+                if fmt_unsigned {
+                    result = 32'h0;
+                } else {
+                    result = 0 - int_result;
+                }
+            } else {
+                result = int_result;
+            }
+        } else {
+            result = int_result;
+        }
+
+        fflags     = '0;
+        is_invalid = (expo >= 159) | ((~fmt_unsigned) & (expo == 158) & ((~lhs_is_neg) | (lhs_is_neg & (mant != 0))))
+            | (fmt_unsigned & lhs_is_neg & ((expo >= 127) | round_up));
+        if is_invalid {
+            fflags.NV = TRUE;
+        } else if guard | sticky {
+            fflags.NX = TRUE;
+        }
+    }
+}
+
+module FP32PipelinedOther #(
+    param PIPELINE_DEPTH: u32 = 5,
+) (
+    clk    : input  clock            ,
+    lhs    : input  logic        <32>,
+    rhs    : input  logic        <32>,
+    fpuCode: input  FPU_Code         ,
+    rm     : input  Rounding_Mode    ,
+    result : output logic        <32>,
+    fflags : output FFlags_Path      ,
+) {
+    import OpFormatTypes::*;
+    import BasicTypes::*;
+    import FP32PipelinedOtherTypes::*;
+
+    var resultOut: logic           <32>                     ;
+    var fflagsOut: FFlags_Path                              ;
+    var pipeReg  : FP32OtherPipeReg     [PIPELINE_DEPTH - 1];
+
+    // just a buffer
+    always_comb {
+        if PIPELINE_DEPTH >: 1 {
+            result = pipeReg[0].result;
+            fflags = pipeReg[0].fflags;
+        } else {
+            result = resultOut;
+            fflags = fflagsOut;
+        }
+    }
+
+    always_ff (clk) {
+        if PIPELINE_DEPTH >: 1 {
+            pipeReg[PIPELINE_DEPTH - 2].result = resultOut;
+            pipeReg[PIPELINE_DEPTH - 2].fflags = fflagsOut;
+            for i in 1..PIPELINE_DEPTH - 1 {
+                pipeReg[i - 1] = pipeReg[i];
+            }
+        }
+    }
+
+    // exec unit
+    var lhs_sign        : logic    ;
+    var rhs_sign        : logic    ;
+    var lhs_expo        : logic<8> ;
+    var rhs_expo        : logic<8> ;
+    var lhs_mant        : logic<23>;
+    var rhs_mant        : logic<23>;
+    var lhs_is_zero     : logic    ;
+    var rhs_is_zero     : logic    ;
+    var lhs_is_inf      : logic    ;
+    var rhs_is_inf      : logic    ;
+    var lhs_is_nan      : logic    ;
+    var rhs_is_nan      : logic    ;
+    var lhs_is_snan     : logic    ;
+    var rhs_is_snan     : logic    ;
+    var lhs_is_subnormal: logic    ;
+    var lhs_is_normal   : logic    ;
+    var lhs_is_smaller  : logic    ;
+    var lhs_equal_rhs   : logic    ;
+    var fmt_unsigned    : logic    ;
+
+    always_comb {
+        lhs_sign = lhs[31];
+        lhs_expo = lhs[30:23];
+        lhs_mant = lhs[22:0];
+        rhs_sign = rhs[31];
+        rhs_expo = rhs[30:23];
+        rhs_mant = rhs[22:0];
+
+        lhs_is_zero      = (lhs_expo == 8'h00) & (lhs_mant == 0);
+        rhs_is_zero      = (rhs_expo == 8'h00) & (rhs_mant == 0);
+        lhs_is_inf       = (lhs_expo == 8'hff) & (lhs_mant == 0);
+        rhs_is_inf       = (rhs_expo == 8'hff) & (rhs_mant == 0);
+        lhs_is_nan       = (lhs_expo == 8'hff) & (lhs_mant != 0);
+        rhs_is_nan       = (rhs_expo == 8'hff) & (rhs_mant != 0);
+        lhs_is_snan      = lhs_is_nan & (lhs_mant[22] == 0);
+        rhs_is_snan      = rhs_is_nan & (rhs_mant[22] == 0);
+        lhs_is_subnormal = (lhs_expo == 0) & (lhs_mant != 0);
+        lhs_is_normal    = ~(lhs_is_zero | lhs_is_inf | lhs_is_nan | lhs_is_subnormal);
+        lhs_is_smaller   = (lhs <: rhs) ^ (lhs_sign | rhs_sign);
+        // +0 normally compares as equal to -0
+        lhs_equal_rhs = (lhs == rhs) | (lhs_is_zero && rhs_is_zero);
+        fmt_unsigned  = (fpuCode == FC_FCVT_SWU) || (fpuCode == FC_FCVT_WUS);
+
+        fflagsOut = '0;
+        case fpuCode {
+            FC_SGNJ: {
+                resultOut = {rhs_sign, lhs_expo, lhs_mant};
+            }
+            FC_SGNJN: {
+                resultOut = {~rhs_sign, lhs_expo, lhs_mant};
+            }
+            FC_SGNJX: {
+                resultOut = {lhs_sign ^ rhs_sign, lhs_expo, lhs_mant};
+            }
+            FC_FMIN: {
+                if lhs_is_nan & rhs_is_nan {
+                    resultOut = 32'h7fc00000;
+                } else if lhs_is_nan {
+                    resultOut = rhs;
+                } else if rhs_is_nan {
+                    resultOut = lhs;
+                } else if lhs_is_smaller {
+                    resultOut = lhs;
+                } else {
+                    resultOut = rhs;
+                }
+                if lhs_is_snan || rhs_is_snan {
+                    fflagsOut.NV = TRUE;
+                }
+            }
+            FC_FMAX: {
+                if lhs_is_nan & rhs_is_nan {
+                    resultOut = 32'h7fc00000;
+                } else if lhs_is_nan {
+                    resultOut = rhs;
+                } else if rhs_is_nan {
+                    resultOut = lhs;
+                } else if lhs_is_smaller {
+                    resultOut = rhs;
+                } else {
+                    resultOut = lhs;
+                }
+                if lhs_is_snan || rhs_is_snan {
+                    fflagsOut.NV = TRUE;
+                }
+            }
+            FC_FMV_WX: {
+                resultOut = lhs;
+            }
+            FC_FMV_XW: {
+                resultOut = lhs;
+            }
+            FC_FCVT_SW: {
+                FP32CVT_I2F(resultOut, fflagsOut, lhs, fmt_unsigned, rm);
+            }
+            FC_FCVT_SWU: {
+                FP32CVT_I2F(resultOut, fflagsOut, lhs, fmt_unsigned, rm);
+            }
+            FC_FCVT_WS: {
+                FP32CVT_F2I(resultOut, fflagsOut, lhs, fmt_unsigned, rm);
+            }
+            FC_FCVT_WUS: {
+                FP32CVT_F2I(resultOut, fflagsOut, lhs, fmt_unsigned, rm);
+            }
+            FC_FEQ: {
+                if lhs_is_nan || rhs_is_nan {
+                    resultOut = 0;
+                } else {
+                    resultOut = lhs_equal_rhs;
+                }
+                if lhs_is_snan || rhs_is_snan {
+                    fflagsOut.NV = TRUE;
+                }
+            }
+            FC_FLT: {
+                if lhs_is_nan || rhs_is_nan {
+                    resultOut    = 0;
+                    fflagsOut.NV = TRUE;
+                } else {
+                    resultOut = lhs_is_smaller & ~lhs_equal_rhs;
+                }
+            }
+            FC_FLE: {
+                if lhs_is_nan || rhs_is_nan {
+                    resultOut    = 0;
+                    fflagsOut.NV = TRUE;
+                } else {
+                    resultOut = lhs_is_smaller | lhs_equal_rhs;
+                }
+            }
+            FC_FCLASS: {
+                resultOut = {
+                    22'h0, lhs_is_nan & ~lhs_is_snan, lhs_is_snan, ~lhs_sign & lhs_is_inf, ~lhs_sign & lhs_is_normal,
+                    ~lhs_sign & lhs_is_subnormal, ~lhs_sign & lhs_is_zero, lhs_sign & lhs_is_zero,
+                    lhs_sign & lhs_is_subnormal, lhs_sign & lhs_is_normal, lhs_sign & lhs_is_inf
+                };
+            }
+            default: {
+                resultOut = '0;
+                fflagsOut = '0;
+            }
+        }
+    }
+}

@@ -1,0 +1,987 @@
+package OpFormatTypes {
+    import BasicTypes::*;
+
+    const PC_OPERAND_OFFSET: u32 = 4;
+
+    enum CondCode: logic<3> {
+        COND_EQ = 3'b000,
+        COND_NE = 3'b001,
+        COND_LT = 3'b100,
+        COND_GE = 3'b101,
+        COND_LTU = 3'b110,
+        COND_GEU = 3'b111,
+        COND_AL = 3'b010,
+    }
+    const COND_EQ: CondCode = CondCode::COND_EQ;
+    const COND_NE: CondCode = CondCode::COND_NE;
+    const COND_LT: CondCode = CondCode::COND_LT;
+    const COND_GE: CondCode = CondCode::COND_GE;
+    const COND_LTU: CondCode = CondCode::COND_LTU;
+    const COND_GEU: CondCode = CondCode::COND_GEU;
+    const COND_AL: CondCode = CondCode::COND_AL;
+
+    enum OpCode: logic<3> {
+        OC_INT_REG = 3'b000,
+        OC_INT_IMM = 3'b001,
+        OC_MEM_IMM = 3'b010,
+        OC_MEM_REG = 3'b011,
+        OC_MEM_MUL = 3'b100,
+        OC_BR = 3'b101,
+    }
+    const OC_INT_REG: OpCode = OpCode::OC_INT_REG;
+    const OC_INT_IMM: OpCode = OpCode::OC_INT_IMM;
+    const OC_MEM_IMM: OpCode = OpCode::OC_MEM_IMM;
+    const OC_MEM_REG: OpCode = OpCode::OC_MEM_REG;
+    const OC_MEM_MUL: OpCode = OpCode::OC_MEM_MUL;
+    const OC_BR: OpCode = OpCode::OC_BR;
+
+    enum OpFunct3: logic<3> {
+        OP_FUNCT3_ADD_SUB = 3'b000,
+        OP_FUNCT3_SLT = 3'b010,
+        OP_FUNCT3_SLTU = 3'b011,
+        OP_FUNCT3_EOR = 3'b100,
+        OP_FUNCT3_OR = 3'b110,
+        OP_FUNCT3_AND = 3'b111,
+        OP_FUNCT3_SLL = 3'b001,
+        OP_FUNCT3_SRL_SRA = 3'b101,
+    }
+    const OP_FUNCT3_ADD_SUB: OpFunct3 = OpFunct3::OP_FUNCT3_ADD_SUB;
+    const OP_FUNCT3_SLT: OpFunct3 = OpFunct3::OP_FUNCT3_SLT;
+    const OP_FUNCT3_SLTU: OpFunct3 = OpFunct3::OP_FUNCT3_SLTU;
+    const OP_FUNCT3_EOR: OpFunct3 = OpFunct3::OP_FUNCT3_EOR;
+    const OP_FUNCT3_OR: OpFunct3 = OpFunct3::OP_FUNCT3_OR;
+    const OP_FUNCT3_AND: OpFunct3 = OpFunct3::OP_FUNCT3_AND;
+    const OP_FUNCT3_SLL: OpFunct3 = OpFunct3::OP_FUNCT3_SLL;
+    const OP_FUNCT3_SRL_SRA: OpFunct3 = OpFunct3::OP_FUNCT3_SRL_SRA;
+
+    enum OpFunct7: logic<7> {
+        OP_FUNCT7_ADD = 7'b0000000,
+        OP_FUNCT7_SUB = 7'b0100000,
+    }
+    const OP_FUNCT7_ADD: OpFunct7 = OpFunct7::OP_FUNCT7_ADD;
+    const OP_FUNCT7_SUB: OpFunct7 = OpFunct7::OP_FUNCT7_SUB;
+
+    enum ShiftFunct7: logic<7> {
+        SHIFT_FUNCT7_SRL = 7'b0000000,
+        SHIFT_FUNCT7_SRA = 7'b0100000,
+    }
+    const SHIFT_FUNCT7_SRL: ShiftFunct7 = ShiftFunct7::SHIFT_FUNCT7_SRL;
+    const SHIFT_FUNCT7_SRA: ShiftFunct7 = ShiftFunct7::SHIFT_FUNCT7_SRA;
+
+    enum RV32MFunct7: logic<7> {
+        RV32M_FUNCT7_ALL = 7'b0000001,
+    }
+    const RV32M_FUNCT7_ALL: RV32MFunct7 = RV32MFunct7::RV32M_FUNCT7_ALL;
+
+    enum RVAFunct5: logic<5> {
+        RVA_FUNCT5_LR = 5'b00010,
+        RVA_FUNCT5_SC = 5'b00011,
+        RVA_FUNCT5_AMOSWAP = 5'b00001,
+        RVA_FUNCT5_AMOADD = 5'b00000,
+        RVA_FUNCT5_AMOXOR = 5'b00100,
+        RVA_FUNCT5_AMOAND = 5'b01100,
+        RVA_FUNCT5_AMOOR = 5'b01000,
+        RVA_FUNCT5_AMOMIN = 5'b10000,
+        RVA_FUNCT5_AMOMAX = 5'b10100,
+        RVA_FUNCT5_AMOMINU = 5'b11000,
+        RVA_FUNCT5_AMOMAXU = 5'b11100,
+    }
+    const RVA_FUNCT5_LR: RVAFunct5 = RVAFunct5::RVA_FUNCT5_LR;
+    const RVA_FUNCT5_SC: RVAFunct5 = RVAFunct5::RVA_FUNCT5_SC;
+    const RVA_FUNCT5_AMOSWAP: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOSWAP;
+    const RVA_FUNCT5_AMOADD: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOADD;
+    const RVA_FUNCT5_AMOXOR: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOXOR;
+    const RVA_FUNCT5_AMOAND: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOAND;
+    const RVA_FUNCT5_AMOOR: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOOR;
+    const RVA_FUNCT5_AMOMIN: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMIN;
+    const RVA_FUNCT5_AMOMAX: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMAX;
+    const RVA_FUNCT5_AMOMINU: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMINU;
+    const RVA_FUNCT5_AMOMAXU: RVAFunct5 = RVAFunct5::RVA_FUNCT5_AMOMAXU;
+
+    enum BrFunct3: logic<3> {
+        BRANCH_FUNCT3_BEQ = 3'b000,
+        BRANCH_FUNCT3_BNE = 3'b001,
+        BRANCH_FUNCT3_BLT = 3'b100,
+        BRANCH_FUNCT3_BGE = 3'b101,
+        BRANCH_FUNCT3_BLTU = 3'b110,
+        BRANCH_FUNCT3_BGEU = 3'b111,
+    }
+    const BRANCH_FUNCT3_BEQ: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BEQ;
+    const BRANCH_FUNCT3_BNE: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BNE;
+    const BRANCH_FUNCT3_BLT: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BLT;
+    const BRANCH_FUNCT3_BGE: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BGE;
+    const BRANCH_FUNCT3_BLTU: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BLTU;
+    const BRANCH_FUNCT3_BGEU: BrFunct3 = BrFunct3::BRANCH_FUNCT3_BGEU;
+
+    enum MemFunct3: logic<3> {
+        MEM_FUNCT3_SIGNED_BYTE = 3'b000,
+        MEM_FUNCT3_SIGNED_HALF_WORD = 3'b001,
+        MEM_FUNCT3_WORD = 3'b010,
+        MEM_FUNCT3_UNSIGNED_BYTE = 3'b100,
+        MEM_FUNCT3_UNSIGNED_HALF_WORD = 3'b101,
+    }
+    const MEM_FUNCT3_SIGNED_BYTE: MemFunct3 = MemFunct3::MEM_FUNCT3_SIGNED_BYTE;
+    const MEM_FUNCT3_SIGNED_HALF_WORD: MemFunct3 = MemFunct3::MEM_FUNCT3_SIGNED_HALF_WORD;
+    const MEM_FUNCT3_WORD: MemFunct3 = MemFunct3::MEM_FUNCT3_WORD;
+    const MEM_FUNCT3_UNSIGNED_BYTE: MemFunct3 = MemFunct3::MEM_FUNCT3_UNSIGNED_BYTE;
+    const MEM_FUNCT3_UNSIGNED_HALF_WORD: MemFunct3 = MemFunct3::MEM_FUNCT3_UNSIGNED_HALF_WORD;
+
+    enum RV32MFunct3: logic<3> {
+        RV32M_FUNCT3_MUL = 3'b000,
+        RV32M_FUNCT3_MULH = 3'b001,
+        RV32M_FUNCT3_MULHSU = 3'b010,
+        RV32M_FUNCT3_MULHU = 3'b011,
+        RV32M_FUNCT3_DIV = 3'b100,
+        RV32M_FUNCT3_DIVU = 3'b101,
+        RV32M_FUNCT3_REM = 3'b110,
+        RV32M_FUNCT3_REMU = 3'b111,
+    }
+    const RV32M_FUNCT3_MUL: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_MUL;
+    const RV32M_FUNCT3_MULH: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_MULH;
+    const RV32M_FUNCT3_MULHSU: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_MULHSU;
+    const RV32M_FUNCT3_MULHU: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_MULHU;
+    const RV32M_FUNCT3_DIV: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_DIV;
+    const RV32M_FUNCT3_DIVU: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_DIVU;
+    const RV32M_FUNCT3_REM: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_REM;
+    const RV32M_FUNCT3_REMU: RV32MFunct3 = RV32MFunct3::RV32M_FUNCT3_REMU;
+
+    enum MiscMemFunct3: logic<3> {
+        MISC_MEM_FUNCT3_FENCE = 3'b000,
+        MISC_MEM_FUNCT3_FENCE_I = 3'b001,
+    }
+    const MISC_MEM_FUNCT3_FENCE: MiscMemFunct3 = MiscMemFunct3::MISC_MEM_FUNCT3_FENCE;
+    const MISC_MEM_FUNCT3_FENCE_I: MiscMemFunct3 = MiscMemFunct3::MISC_MEM_FUNCT3_FENCE_I;
+
+    enum SystemFunct3: logic<3> {
+        SYSTEM_FUNCT3_PRIV = 3'b000,
+        SYSTEM_FUNCT3_CSR_RW = 3'b001,
+        SYSTEM_FUNCT3_CSR_RS = 3'b010,
+        SYSTEM_FUNCT3_CSR_RC = 3'b011,
+        SYSTEM_FUNCT3_UNDEFINED = 3'b100,
+        SYSTEM_FUNCT3_CSR_RW_I = 3'b101,
+        SYSTEM_FUNCT3_CSR_RS_I = 3'b110,
+        SYSTEM_FUNCT3_CSR_RC_I = 3'b111,
+    }
+    const SYSTEM_FUNCT3_PRIV: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_PRIV;
+    const SYSTEM_FUNCT3_CSR_RW: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RW;
+    const SYSTEM_FUNCT3_CSR_RS: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RS;
+    const SYSTEM_FUNCT3_CSR_RC: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RC;
+    const SYSTEM_FUNCT3_UNDEFINED: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_UNDEFINED;
+    const SYSTEM_FUNCT3_CSR_RW_I: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RW_I;
+    const SYSTEM_FUNCT3_CSR_RS_I: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RS_I;
+    const SYSTEM_FUNCT3_CSR_RC_I: SystemFunct3 = SystemFunct3::SYSTEM_FUNCT3_CSR_RC_I;
+
+    enum SystemFunct12: logic<12> {
+        SYSTEM_FUNCT12_ECALL = 12'b0000_0000_0000,
+        SYSTEM_FUNCT12_EBREAK = 12'b0000_0000_0001,
+        SYSTEM_FUNCT12_SRET = 12'b0001_0000_0010,
+        SYSTEM_FUNCT12_MRET = 12'b0011_0000_0010,
+        SYSTEM_FUNCT12_WFI = 12'b0001_0000_0101,
+    }
+    const SYSTEM_FUNCT12_ECALL: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_ECALL;
+    const SYSTEM_FUNCT12_EBREAK: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_EBREAK;
+    const SYSTEM_FUNCT12_SRET: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_SRET;
+    const SYSTEM_FUNCT12_MRET: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_MRET;
+    const SYSTEM_FUNCT12_WFI: SystemFunct12 = SystemFunct12::SYSTEM_FUNCT12_WFI;
+
+    enum RV32FFunct7: logic<7> {
+        RV32F_FUNCT7_FADD = 7'b0000000,
+        RV32F_FUNCT7_FSUB = 7'b0000100,
+        RV32F_FUNCT7_FMUL = 7'b0001000,
+        RV32F_FUNCT7_FDIV = 7'b0001100,
+        RV32F_FUNCT7_FSQRT = 7'b0101100,
+        RV32F_FUNCT7_FSGNJ = 7'b0010000,
+        RV32F_FUNCT7_FMIN_FMAX = 7'b0010100,
+        RV32F_FUNCT7_FCVT_WS = 7'b1100000,
+        RV32F_FUNCT7_FCLASS_FMV_XW = 7'b1110000,
+        RV32F_FUNCT7_FEQ_FLT_FLE = 7'b1010000,
+        RV32F_FUNCT7_FCVT_SW = 7'b1101000,
+        RV32F_FUNCT7_FMV_WX = 7'b1111000,
+    }
+    const RV32F_FUNCT7_FADD: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FADD;
+    const RV32F_FUNCT7_FSUB: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FSUB;
+    const RV32F_FUNCT7_FMUL: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FMUL;
+    const RV32F_FUNCT7_FDIV: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FDIV;
+    const RV32F_FUNCT7_FSQRT: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FSQRT;
+    const RV32F_FUNCT7_FSGNJ: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FSGNJ;
+    const RV32F_FUNCT7_FMIN_FMAX: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FMIN_FMAX;
+    const RV32F_FUNCT7_FCVT_WS: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FCVT_WS;
+    const RV32F_FUNCT7_FCLASS_FMV_XW: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FCLASS_FMV_XW;
+    const RV32F_FUNCT7_FEQ_FLT_FLE: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FEQ_FLT_FLE;
+    const RV32F_FUNCT7_FCVT_SW: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FCVT_SW;
+    const RV32F_FUNCT7_FMV_WX: RV32FFunct7 = RV32FFunct7::RV32F_FUNCT7_FMV_WX;
+
+    enum FSGNJFunct3: logic<3> {
+        FSGNJ_FUNCT3_FSGNJ = 3'b000,
+        FSGNJ_FUNCT3_FSGNJN = 3'b001,
+        FSGNJ_FUNCT3_FSGNJX = 3'b010,
+    }
+    const FSGNJ_FUNCT3_FSGNJ: FSGNJFunct3 = FSGNJFunct3::FSGNJ_FUNCT3_FSGNJ;
+    const FSGNJ_FUNCT3_FSGNJN: FSGNJFunct3 = FSGNJFunct3::FSGNJ_FUNCT3_FSGNJN;
+    const FSGNJ_FUNCT3_FSGNJX: FSGNJFunct3 = FSGNJFunct3::FSGNJ_FUNCT3_FSGNJX;
+
+    enum FMINFMAXFunct3: logic<3> {
+        FMIN_FMAX_FUNCT3_FMIN = 3'b000,
+        FMIN_FMAX_FUNCT3_FMAX = 3'b001,
+    }
+    const FMIN_FMAX_FUNCT3_FMIN: FMINFMAXFunct3 = FMINFMAXFunct3::FMIN_FMAX_FUNCT3_FMIN;
+    const FMIN_FMAX_FUNCT3_FMAX: FMINFMAXFunct3 = FMINFMAXFunct3::FMIN_FMAX_FUNCT3_FMAX;
+
+    enum FCVTFunct5: logic<5> {
+        FCVT_FUNCT5_SIGNED = 5'b00000,
+        FCVT_FUNCT5_UNSIGNED = 5'b00001,
+    }
+    const FCVT_FUNCT5_SIGNED: FCVTFunct5 = FCVTFunct5::FCVT_FUNCT5_SIGNED;
+    const FCVT_FUNCT5_UNSIGNED: FCVTFunct5 = FCVTFunct5::FCVT_FUNCT5_UNSIGNED;
+
+    enum FCLASSFMVFunct3: logic<3> {
+        FCLASS_FMV_FUNCT3_FMV_XW = 3'b000,
+        FCLASS_FMV_FUNCT3_FCLASS = 3'b001,
+    }
+    const FCLASS_FMV_FUNCT3_FMV_XW: FCLASSFMVFunct3 = FCLASSFMVFunct3::FCLASS_FMV_FUNCT3_FMV_XW;
+    const FCLASS_FMV_FUNCT3_FCLASS: FCLASSFMVFunct3 = FCLASSFMVFunct3::FCLASS_FMV_FUNCT3_FCLASS;
+
+    enum FCMPFunct3: logic<3> {
+        FCMP_FEQ = 3'b010,
+        FCMP_FLT = 3'b001,
+        FCMP_FLE = 3'b000,
+    }
+    const FCMP_FEQ: FCMPFunct3 = FCMPFunct3::FCMP_FEQ;
+    const FCMP_FLT: FCMPFunct3 = FCMPFunct3::FCMP_FLT;
+    const FCMP_FLE: FCMPFunct3 = FCMPFunct3::FCMP_FLE;
+
+    union RV32FFunct3 {
+        fsgnjFunct3: FSGNJFunct3,
+        fminfmaxFunct3: FMINFMAXFunct3,
+        fclassfmvFunct3: FCLASSFMVFunct3,
+        fcmpFunct3: FCMPFunct3,
+    }
+
+    enum ShiftOperandType: logic<1> {
+        SOT_IMM_SHIFT = 1'b0,
+        SOT_REG_SHIFT = 1'b1,
+    }
+    const SOT_IMM_SHIFT: ShiftOperandType = ShiftOperandType::SOT_IMM_SHIFT;
+    const SOT_REG_SHIFT: ShiftOperandType = ShiftOperandType::SOT_REG_SHIFT;
+
+    enum ShiftType: logic<2> {
+        ST_LSL = 2'b00,
+        ST_LSR = 2'b01,
+        ST_ASR = 2'b10,
+        ST_ROR = 2'b11,
+    }
+    const ST_LSL: ShiftType = ShiftType::ST_LSL;
+    const ST_LSR: ShiftType = ShiftType::ST_LSR;
+    const ST_ASR: ShiftType = ShiftType::ST_ASR;
+    const ST_ROR: ShiftType = ShiftType::ST_ROR;
+
+    enum RISCV_ImmType: logic<2> {
+        RISCV_IMM_R = 2'b00,
+        RISCV_IMM_I = 2'b01,
+        RISCV_IMM_S = 2'b10,
+        RISCV_IMM_U = 2'b11,
+    }
+    const RISCV_IMM_R: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_R;
+    const RISCV_IMM_I: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_I;
+    const RISCV_IMM_S: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_S;
+    const RISCV_IMM_U: RISCV_ImmType = RISCV_ImmType::RISCV_IMM_U;
+
+    struct RISCV_IntOperandImmShift {
+        shift: logic<5>,
+        shiftType: ShiftType,
+        isRegShift: logic,
+        imm: logic<20>,
+        immType: RISCV_ImmType,
+    }
+
+    const ADDR_OPERAND_IMM_WIDTH: u32 = 12;
+
+    const ADDR_SIGN_EXTENTION_WIDTH: u32 = ADDR_WIDTH - ADDR_OPERAND_IMM_WIDTH;
+
+    struct AddrOperandImm {
+        imm: logic<12>,
+    }
+
+    enum MemAccessSizeType: logic<2> {
+        MEM_ACCESS_SIZE_BYTE = 2'b00,
+        MEM_ACCESS_SIZE_HALF_WORD = 2'b01,
+        MEM_ACCESS_SIZE_WORD = 2'b10,
+        MEM_ACCESS_SIZE_VEC = 2'b11,
+    }
+    const MEM_ACCESS_SIZE_BYTE: MemAccessSizeType = MemAccessSizeType::MEM_ACCESS_SIZE_BYTE;
+    const MEM_ACCESS_SIZE_HALF_WORD: MemAccessSizeType = MemAccessSizeType::MEM_ACCESS_SIZE_HALF_WORD;
+    const MEM_ACCESS_SIZE_WORD: MemAccessSizeType = MemAccessSizeType::MEM_ACCESS_SIZE_WORD;
+    const MEM_ACCESS_SIZE_VEC: MemAccessSizeType = MemAccessSizeType::MEM_ACCESS_SIZE_VEC;
+
+
+    function IsMisalignedAddress (
+        addr: input AddrPath,
+        size: input MemAccessSizeType,
+    ) -> logic {
+        if size == MEM_ACCESS_SIZE_BYTE || size == MEM_ACCESS_SIZE_VEC {
+            return FALSE;
+        } else if size == MEM_ACCESS_SIZE_HALF_WORD {
+            return addr[0] != 1'b0;
+        } else if size == MEM_ACCESS_SIZE_WORD {
+            return addr[1:0] != 2'b00;
+        } else {
+            return FALSE;
+        }
+    }
+    struct MemAccessMode {
+        isSigned: logic,
+        size: MemAccessSizeType,
+    }
+
+    const BR_DISP_WIDTH: u32 = 20;
+
+    type BranchDisplacement = logic<BR_DISP_WIDTH>;
+
+    const BR_DISP_SIGN_EXTENTION_WIDTH: u32 = ADDR_WIDTH - BR_DISP_WIDTH;
+
+    enum IntALU_Code: logic<4> {
+        AC_ADD = 4'b0000,
+        AC_SUB = 4'b0001,
+        AC_SLT = 4'b0010,
+        AC_SLTU = 4'b0011,
+        AC_EOR = 4'b0100,
+        AC_ORR = 4'b0110,
+        AC_AND = 4'b0111,
+        AC_SH1ADD = 4'b1010,
+        AC_SH2ADD = 4'b1011,
+        AC_SH3ADD = 4'b1100,
+        AC_EQZ = 4'b1000,
+        AC_NEZ = 4'b1001,
+    }
+    const AC_ADD: IntALU_Code = IntALU_Code::AC_ADD;
+    const AC_SUB: IntALU_Code = IntALU_Code::AC_SUB;
+    const AC_SLT: IntALU_Code = IntALU_Code::AC_SLT;
+    const AC_SLTU: IntALU_Code = IntALU_Code::AC_SLTU;
+    const AC_EOR: IntALU_Code = IntALU_Code::AC_EOR;
+    const AC_ORR: IntALU_Code = IntALU_Code::AC_ORR;
+    const AC_AND: IntALU_Code = IntALU_Code::AC_AND;
+    const AC_SH1ADD: IntALU_Code = IntALU_Code::AC_SH1ADD;
+    const AC_SH2ADD: IntALU_Code = IntALU_Code::AC_SH2ADD;
+    const AC_SH3ADD: IntALU_Code = IntALU_Code::AC_SH3ADD;
+    const AC_EQZ: IntALU_Code = IntALU_Code::AC_EQZ;
+    const AC_NEZ: IntALU_Code = IntALU_Code::AC_NEZ;
+
+    enum IntMUL_Code: logic<2> {
+        AC_MUL = 2'b00,
+        AC_MULH = 2'b01,
+        AC_MULHSU = 2'b10,
+        AC_MULHU = 2'b11,
+    }
+    const AC_MUL: IntMUL_Code = IntMUL_Code::AC_MUL;
+    const AC_MULH: IntMUL_Code = IntMUL_Code::AC_MULH;
+    const AC_MULHSU: IntMUL_Code = IntMUL_Code::AC_MULHSU;
+    const AC_MULHU: IntMUL_Code = IntMUL_Code::AC_MULHU;
+
+    enum IntDIV_Code: logic<2> {
+        AC_DIV = 2'b00,
+        AC_DIVU = 2'b01,
+        AC_REM = 2'b10,
+        AC_REMU = 2'b11,
+    }
+    const AC_DIV: IntDIV_Code = IntDIV_Code::AC_DIV;
+    const AC_DIVU: IntDIV_Code = IntDIV_Code::AC_DIVU;
+    const AC_REM: IntDIV_Code = IntDIV_Code::AC_REM;
+    const AC_REMU: IntDIV_Code = IntDIV_Code::AC_REMU;
+
+    enum CSR_Code: logic<2> {
+        CSR_UNKNOWN = 2'b00,
+        CSR_WRITE = 2'b01,
+        CSR_SET = 2'b10,
+        CSR_CLEAR = 2'b11,
+    }
+    const CSR_UNKNOWN: CSR_Code = CSR_Code::CSR_UNKNOWN;
+    const CSR_WRITE: CSR_Code = CSR_Code::CSR_WRITE;
+    const CSR_SET: CSR_Code = CSR_Code::CSR_SET;
+    const CSR_CLEAR: CSR_Code = CSR_Code::CSR_CLEAR;
+
+    enum MemZaamo_Code: logic<4> {
+        MEM_ZAAMO_SWAP = 4'b0000,
+        MEM_ZAAMO_ADD = 4'b0001,
+        MEM_ZAAMO_XOR = 4'b0010,
+        MEM_ZAAMO_AND = 4'b0011,
+        MEM_ZAAMO_OR = 4'b0100,
+        MEM_ZAAMO_MIN = 4'b0101,
+        MEM_ZAAMO_MAX = 4'b0110,
+        MEM_ZAAMO_MINU = 4'b0111,
+        MEM_ZAAMO_MAXU = 4'b1000,
+    }
+    const MEM_ZAAMO_SWAP: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_SWAP;
+    const MEM_ZAAMO_ADD: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_ADD;
+    const MEM_ZAAMO_XOR: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_XOR;
+    const MEM_ZAAMO_AND: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_AND;
+    const MEM_ZAAMO_OR: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_OR;
+    const MEM_ZAAMO_MIN: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_MIN;
+    const MEM_ZAAMO_MAX: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_MAX;
+    const MEM_ZAAMO_MINU: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_MINU;
+    const MEM_ZAAMO_MAXU: MemZaamo_Code = MemZaamo_Code::MEM_ZAAMO_MAXU;
+
+    const CSR_NUMBER_WIDTH: u32 = 12;
+
+    type CSR_NumberPath = logic<CSR_NUMBER_WIDTH>;
+
+    const CSR_IMM_WIDTH: u32 = 5;
+
+    type CSR_ImmPath = logic<CSR_IMM_WIDTH>;
+
+    struct CSR_CtrlPath {
+        imm: CSR_ImmPath,
+        isImm: logic,
+        code: CSR_Code,
+    }
+
+    enum ENV_Code: logic<3> {
+        ENV_CALL = 3'b000,
+        ENV_BREAK = 3'b001,
+        ENV_SRET = 3'b010,
+        ENV_MRET = 3'b011,
+        ENV_INSN_ILLEGAL = 3'b100,
+        ENV_INSN_VIOLATION = 3'b101,
+        ENV_UNKNOWN = 3'b110,
+    }
+    const ENV_CALL: ENV_Code = ENV_Code::ENV_CALL;
+    const ENV_BREAK: ENV_Code = ENV_Code::ENV_BREAK;
+    const ENV_SRET: ENV_Code = ENV_Code::ENV_SRET;
+    const ENV_MRET: ENV_Code = ENV_Code::ENV_MRET;
+    const ENV_INSN_ILLEGAL: ENV_Code = ENV_Code::ENV_INSN_ILLEGAL;
+    const ENV_INSN_VIOLATION: ENV_Code = ENV_Code::ENV_INSN_VIOLATION;
+    const ENV_UNKNOWN: ENV_Code = ENV_Code::ENV_UNKNOWN;
+
+    enum FPU_Code: logic<5> {
+        FC_ADD = 5'b00000,
+        FC_SUB = 5'b00001,
+        FC_MUL = 5'b00010,
+        FC_DIV = 5'b00011,
+        FC_SQRT = 5'b00100,
+        FC_SGNJ = 5'b00101,
+        FC_SGNJN = 5'b00110,
+        FC_SGNJX = 5'b00111,
+        FC_FMIN = 5'b01000,
+        FC_FMAX = 5'b01001,
+        FC_FCVT_WS = 5'b01010,
+        FC_FCVT_WUS = 5'b01011,
+        FC_FMV_XW = 5'b01100,
+        FC_FEQ = 5'b01101,
+        FC_FLT = 5'b01110,
+        FC_FLE = 5'b01111,
+        FC_FCLASS = 5'b10000,
+        FC_FCVT_SW = 5'b10001,
+        FC_FCVT_SWU = 5'b10010,
+        FC_FMV_WX = 5'b10011,
+        FC_FMADD = 5'b10100,
+        FC_FMSUB = 5'b10101,
+        FC_FNMSUB = 5'b10110,
+        FC_FNMADD = 5'b10111,
+    }
+    const FC_ADD: FPU_Code = FPU_Code::FC_ADD;
+    const FC_SUB: FPU_Code = FPU_Code::FC_SUB;
+    const FC_MUL: FPU_Code = FPU_Code::FC_MUL;
+    const FC_DIV: FPU_Code = FPU_Code::FC_DIV;
+    const FC_SQRT: FPU_Code = FPU_Code::FC_SQRT;
+    const FC_SGNJ: FPU_Code = FPU_Code::FC_SGNJ;
+    const FC_SGNJN: FPU_Code = FPU_Code::FC_SGNJN;
+    const FC_SGNJX: FPU_Code = FPU_Code::FC_SGNJX;
+    const FC_FMIN: FPU_Code = FPU_Code::FC_FMIN;
+    const FC_FMAX: FPU_Code = FPU_Code::FC_FMAX;
+    const FC_FCVT_WS: FPU_Code = FPU_Code::FC_FCVT_WS;
+    const FC_FCVT_WUS: FPU_Code = FPU_Code::FC_FCVT_WUS;
+    const FC_FMV_XW: FPU_Code = FPU_Code::FC_FMV_XW;
+    const FC_FEQ: FPU_Code = FPU_Code::FC_FEQ;
+    const FC_FLT: FPU_Code = FPU_Code::FC_FLT;
+    const FC_FLE: FPU_Code = FPU_Code::FC_FLE;
+    const FC_FCLASS: FPU_Code = FPU_Code::FC_FCLASS;
+    const FC_FCVT_SW: FPU_Code = FPU_Code::FC_FCVT_SW;
+    const FC_FCVT_SWU: FPU_Code = FPU_Code::FC_FCVT_SWU;
+    const FC_FMV_WX: FPU_Code = FPU_Code::FC_FMV_WX;
+    const FC_FMADD: FPU_Code = FPU_Code::FC_FMADD;
+    const FC_FMSUB: FPU_Code = FPU_Code::FC_FMSUB;
+    const FC_FNMSUB: FPU_Code = FPU_Code::FC_FNMSUB;
+    const FC_FNMADD: FPU_Code = FPU_Code::FC_FNMADD;
+
+    enum Rounding_Mode: logic<3> {
+        RM_RNE = 3'b000,
+        RM_RTZ = 3'b001,
+        RM_RDN = 3'b010,
+        RM_RUP = 3'b011,
+        RM_RMM = 3'b100,
+        RM_DYN = 3'b111,
+    }
+    const RM_RNE: Rounding_Mode = Rounding_Mode::RM_RNE;
+    const RM_RTZ: Rounding_Mode = Rounding_Mode::RM_RTZ;
+    const RM_RDN: Rounding_Mode = Rounding_Mode::RM_RDN;
+    const RM_RUP: Rounding_Mode = Rounding_Mode::RM_RUP;
+    const RM_RMM: Rounding_Mode = Rounding_Mode::RM_RMM;
+    const RM_DYN: Rounding_Mode = Rounding_Mode::RM_DYN;
+
+    struct FFlags_Path {
+        NV: logic,
+        DZ: logic,
+        OF: logic,
+        UF: logic,
+        NX: logic,
+    }
+
+    enum ZbaFunct7: logic<7> {
+        ZBA_FUNCT7_SHADD = 7'b0010000,
+    }
+    const ZBA_FUNCT7_SHADD: ZbaFunct7 = ZbaFunct7::ZBA_FUNCT7_SHADD;
+
+    enum ZicondFunct7: logic<7> {
+        ZICOND_FUNCT7_CZERO = 7'b0000111,
+    }
+    const ZICOND_FUNCT7_CZERO: ZicondFunct7 = ZicondFunct7::ZICOND_FUNCT7_CZERO;
+
+    enum ZbaFunct3: logic<3> {
+        ZBA_FUCNT3_SH1ADD = 3'b010,
+        ZBA_FUCNT3_SH2ADD = 3'b100,
+        ZBA_FUCNT3_SH3ADD = 3'b110,
+    }
+    const ZBA_FUCNT3_SH1ADD: ZbaFunct3 = ZbaFunct3::ZBA_FUCNT3_SH1ADD;
+    const ZBA_FUCNT3_SH2ADD: ZbaFunct3 = ZbaFunct3::ZBA_FUCNT3_SH2ADD;
+    const ZBA_FUCNT3_SH3ADD: ZbaFunct3 = ZbaFunct3::ZBA_FUCNT3_SH3ADD;
+
+    enum CZeroFunct3: logic<3> {
+        CZERO_FUCNT3_EQZ = 3'b101,
+        CZERO_FUNCT3_NEZ = 3'b111,
+    }
+    const CZERO_FUCNT3_EQZ: CZeroFunct3 = CZeroFunct3::CZERO_FUCNT3_EQZ;
+    const CZERO_FUNCT3_NEZ: CZeroFunct3 = CZeroFunct3::CZERO_FUNCT3_NEZ;
+
+    enum RISCV_OpCode: logic<7> {
+        RISCV_OP_IMM = 7'b0010011,
+        RISCV_OP = 7'b0110011,
+        RISCV_LUI = 7'b0110111,
+        RISCV_AUIPC = 7'b0010111,
+        RISCV_JAL = 7'b1101111,
+        RISCV_JALR = 7'b1100111,
+        RISCV_BR = 7'b1100011,
+        RISCV_LD = 7'b0000011,
+        RISCV_ST = 7'b0100011,
+        RISCV_AMO = 7'b0101111,
+        RISCV_MISC_MEM = 7'b0001111,
+        RISCV_SYSTEM = 7'b1110011,
+        RISCV_F_OP = 7'b1010011,
+        RISCV_F_FMADD = 7'b1000011,
+        RISCV_F_FMSUB = 7'b1000111,
+        RISCV_F_FNMSUB = 7'b1001011,
+        RISCV_F_FNMADD = 7'b1001111,
+        RISCV_F_LD = 7'b0000111,
+        RISCV_F_ST = 7'b0100111,
+    }
+    const RISCV_OP_IMM: RISCV_OpCode = RISCV_OpCode::RISCV_OP_IMM;
+    const RISCV_OP: RISCV_OpCode = RISCV_OpCode::RISCV_OP;
+    const RISCV_LUI: RISCV_OpCode = RISCV_OpCode::RISCV_LUI;
+    const RISCV_AUIPC: RISCV_OpCode = RISCV_OpCode::RISCV_AUIPC;
+    const RISCV_JAL: RISCV_OpCode = RISCV_OpCode::RISCV_JAL;
+    const RISCV_JALR: RISCV_OpCode = RISCV_OpCode::RISCV_JALR;
+    const RISCV_BR: RISCV_OpCode = RISCV_OpCode::RISCV_BR;
+    const RISCV_LD: RISCV_OpCode = RISCV_OpCode::RISCV_LD;
+    const RISCV_ST: RISCV_OpCode = RISCV_OpCode::RISCV_ST;
+    const RISCV_AMO: RISCV_OpCode = RISCV_OpCode::RISCV_AMO;
+    const RISCV_MISC_MEM: RISCV_OpCode = RISCV_OpCode::RISCV_MISC_MEM;
+    const RISCV_SYSTEM: RISCV_OpCode = RISCV_OpCode::RISCV_SYSTEM;
+    const RISCV_F_OP: RISCV_OpCode = RISCV_OpCode::RISCV_F_OP;
+    const RISCV_F_FMADD: RISCV_OpCode = RISCV_OpCode::RISCV_F_FMADD;
+    const RISCV_F_FMSUB: RISCV_OpCode = RISCV_OpCode::RISCV_F_FMSUB;
+    const RISCV_F_FNMSUB: RISCV_OpCode = RISCV_OpCode::RISCV_F_FNMSUB;
+    const RISCV_F_FNMADD: RISCV_OpCode = RISCV_OpCode::RISCV_F_FNMADD;
+    const RISCV_F_LD: RISCV_OpCode = RISCV_OpCode::RISCV_F_LD;
+    const RISCV_F_ST: RISCV_OpCode = RISCV_OpCode::RISCV_F_ST;
+
+    struct RISCV_ISF_Common {
+        funct7: logic<7>,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_R {
+        funct7: logic<7>,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_R_A {
+        funct5: logic<5>,
+        aq: logic,
+        rl: logic,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_I {
+        imm: logic<12>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_S {
+        imm2: logic<7>,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        imm1: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_U {
+        imm: logic<20>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_B {
+        imm12: logic,
+        imm10_5: logic<6>,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        imm4_1: logic<4>,
+        imm11: logic,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_J {
+        imm20: logic,
+        imm10_1: logic<10>,
+        imm11: logic,
+        imm19_12: logic<8>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_MISC_MEM {
+        reserved: logic<4>,
+        pi: logic,
+        po: logic,
+        pr: logic,
+        pw: logic,
+        si: logic,
+        so: logic,
+        sr: logic,
+        sw: logic,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_SYSTEM {
+        funct12: logic<12>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+    struct RISCV_ISF_R4 {
+        rs3: logic<5>,
+        funct2: logic<2>,
+        rs2: logic<5>,
+        rs1: logic<5>,
+        funct3: logic<3>,
+        rd: logic<5>,
+        opCode: RISCV_OpCode,
+    }
+
+
+    function RISCV_DecodeOpImmFunct3 (
+        aluCode: output IntALU_Code,
+        funct3 : input OpFunct3,
+    ) {
+        case funct3 {
+            OP_FUNCT3_ADD_SUB: { aluCode = AC_ADD; }
+            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }
+            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; }
+            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }
+            OP_FUNCT3_OR     : { aluCode = AC_ORR; }
+            OP_FUNCT3_AND    : { aluCode = AC_AND; }
+            OP_FUNCT3_SLL    : { aluCode = AC_AND; }
+            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }
+            default          : { aluCode = AC_AND; }
+        }
+    }
+
+    function RISCV_DecodeOpFunct3 (
+        aluCode: output IntALU_Code,
+        funct3 : input OpFunct3,
+        funct7 : input OpFunct7,
+    ) {
+        case funct3 {
+            OP_FUNCT3_ADD_SUB: {
+                if funct7 == OP_FUNCT7_ADD {
+                    aluCode = AC_ADD;
+                } else {
+                    aluCode = AC_SUB;
+                }
+            }
+            OP_FUNCT3_SLT    : { aluCode = AC_SLT; }
+            OP_FUNCT3_SLTU   : { aluCode = AC_SLTU; }
+            OP_FUNCT3_EOR    : { aluCode = AC_EOR; }
+            OP_FUNCT3_OR     : { aluCode = AC_ORR; }
+            OP_FUNCT3_AND    : { aluCode = AC_AND; }
+            OP_FUNCT3_SLL    : { aluCode = AC_AND; }
+            OP_FUNCT3_SRL_SRA: { aluCode = AC_AND; }
+            default          : { aluCode = AC_AND; }
+        }
+    }
+
+    function RISCV_DecodeBrFunct3 (
+        condCode: output CondCode,
+        funct3  : input BrFunct3,
+    ) {
+        case funct3 {
+            BRANCH_FUNCT3_BEQ : { condCode = COND_EQ; }
+            BRANCH_FUNCT3_BNE : { condCode = COND_NE; }
+            BRANCH_FUNCT3_BLT : { condCode = COND_LT; }
+            BRANCH_FUNCT3_BGE : { condCode = COND_GE; }
+            BRANCH_FUNCT3_BLTU: { condCode = COND_LTU; }
+            BRANCH_FUNCT3_BGEU: { condCode = COND_GEU; }
+            default           : { condCode = COND_AL; }
+        }
+    }
+
+    function RISCV_DecodeMemAccessMode (
+        memAccessMode: output MemAccessMode,
+        funct3       : input MemFunct3,
+    ) {
+        case funct3 {
+            MEM_FUNCT3_SIGNED_BYTE: {
+                memAccessMode.isSigned = TRUE;
+                memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
+            }
+            MEM_FUNCT3_SIGNED_HALF_WORD: {
+                memAccessMode.isSigned = TRUE;
+                memAccessMode.size = MEM_ACCESS_SIZE_HALF_WORD;
+            }
+            MEM_FUNCT3_WORD: {
+                memAccessMode.isSigned = TRUE;
+                memAccessMode.size = MEM_ACCESS_SIZE_WORD;
+            }
+            MEM_FUNCT3_UNSIGNED_BYTE: {
+                memAccessMode.isSigned = FALSE;
+                memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
+            }
+            MEM_FUNCT3_UNSIGNED_HALF_WORD: {
+                memAccessMode.isSigned = FALSE;
+                memAccessMode.size = MEM_ACCESS_SIZE_HALF_WORD;
+            }
+            default: {
+                memAccessMode.isSigned = TRUE;
+                memAccessMode.size = MEM_ACCESS_SIZE_BYTE;
+            }
+        }
+    }
+
+    function RISCV_DecodeRVAFunct5 (
+        undefined: output logic,
+        isLR     : output logic,
+        isSC     : output logic,
+        amoCode  : output MemZaamo_Code,
+        funct5   : input RVAFunct5,
+    ) {
+        undefined = FALSE;
+        isLR = FALSE;
+        isSC = FALSE;
+        amoCode = MEM_ZAAMO_SWAP;
+        case funct5 {
+            RVA_FUNCT5_LR     : { isLR = TRUE; }
+            RVA_FUNCT5_SC     : { isSC = TRUE; }
+            RVA_FUNCT5_AMOSWAP: { amoCode = MEM_ZAAMO_SWAP; }
+            RVA_FUNCT5_AMOADD : { amoCode = MEM_ZAAMO_ADD; }
+            RVA_FUNCT5_AMOXOR : { amoCode = MEM_ZAAMO_XOR; }
+            RVA_FUNCT5_AMOAND : { amoCode = MEM_ZAAMO_AND; }
+            RVA_FUNCT5_AMOOR  : { amoCode = MEM_ZAAMO_OR; }
+            RVA_FUNCT5_AMOMIN : { amoCode = MEM_ZAAMO_MIN; }
+            RVA_FUNCT5_AMOMAX : { amoCode = MEM_ZAAMO_MAX; }
+            RVA_FUNCT5_AMOMINU: { amoCode = MEM_ZAAMO_MINU; }
+            RVA_FUNCT5_AMOMAXU: { amoCode = MEM_ZAAMO_MAXU; }
+            default           : { undefined = TRUE; }
+        }
+    }
+
+    function RISCV_DecodeComplexOpFunct3 (
+        mulCode: output IntMUL_Code,
+        divCode: output IntDIV_Code,
+        funct3 : input RV32MFunct3,
+    ) {
+        case funct3 {
+            RV32M_FUNCT3_MUL: {
+                mulCode = AC_MUL;
+                divCode = AC_DIV;
+            }
+            RV32M_FUNCT3_MULH: {
+                mulCode = AC_MULH;
+                divCode = AC_DIV;
+            }
+            RV32M_FUNCT3_MULHSU: {
+                mulCode = AC_MULHSU;
+                divCode = AC_DIV;
+            }
+            RV32M_FUNCT3_MULHU: {
+                mulCode = AC_MULHU;
+                divCode = AC_DIV;
+            }
+            RV32M_FUNCT3_DIV: {
+                mulCode = AC_MUL;
+                divCode = AC_DIV;
+            }
+            RV32M_FUNCT3_DIVU: {
+                mulCode = AC_MUL;
+                divCode = AC_DIVU;
+            }
+            RV32M_FUNCT3_REM: {
+                mulCode = AC_MUL;
+                divCode = AC_REM;
+            }
+            RV32M_FUNCT3_REMU: {
+                mulCode = AC_MUL;
+                divCode = AC_REMU;
+            }
+            default: {
+                mulCode = AC_MUL;
+                divCode = AC_DIV;
+            }
+        }
+    }
+
+    function GetBranchDisplacement (
+        isfBr: input RISCV_ISF_B,
+    ) -> BranchDisplacement {
+        return {isfBr.imm12 repeat 9, isfBr.imm11, isfBr.imm10_5, isfBr.imm4_1};
+    }
+
+    function GetJAL_Target (
+        isfJAL: input RISCV_ISF_J,
+    ) -> BranchDisplacement {
+        return {isfJAL.imm20, isfJAL.imm19_12, isfJAL.imm11, isfJAL.imm10_1};
+    }
+
+    function GetJALR_Target (
+        isfJALR: input RISCV_ISF_I,
+    ) -> BranchDisplacement {
+        return {isfJALR.imm[11] repeat 8, isfJALR.imm};
+    }
+
+    function ShamtExtention (
+        isfR: input RISCV_ISF_R,
+    ) -> logic<20> {
+        return {15'h0, isfR.rs2};
+    }
+
+    function I_TypeImmExtention (
+        isfI: input RISCV_ISF_I,
+    ) -> logic<20> {
+        return {isfI.imm[11] repeat 8, isfI.imm};
+    }
+
+    function ExtendBranchDisplacement (
+        brDisp: input BranchDisplacement,
+    ) -> AddrPath {
+        return {brDisp[BR_DISP_WIDTH - 1] repeat (ADDR_WIDTH - BR_DISP_WIDTH - 1), brDisp, 1'b0};
+    }
+
+    function ExtendJALR_Target (
+        brDisp: input BranchDisplacement,
+    ) -> AddrPath {
+        return {brDisp[BR_DISP_WIDTH - 1] repeat (ADDR_WIDTH - BR_DISP_WIDTH), brDisp};
+    }
+
+    function AddJALR_TargetOffset (
+        data: input AddrPath,
+        disp: input BranchDisplacement,
+    ) -> AddrPath {
+        var target: AddrPath;
+        target = data + ExtendJALR_Target(disp);
+        target[0] = 1'b0;
+        return target;
+    }
+
+    function RISCV_DecodeFPOpFunct3 (
+        fpuCode    : output FPU_Code,
+        rv32ffunct3: input RV32FFunct3,
+        rv32ffunct7: input RV32FFunct7,
+        fcvtfunct5 : input FCVTFunct5,
+    ) {
+        case rv32ffunct7 {
+            RV32F_FUNCT7_FADD: { fpuCode = FC_ADD; }
+            RV32F_FUNCT7_FSUB: { fpuCode = FC_SUB; }
+            RV32F_FUNCT7_FMUL: { fpuCode = FC_MUL; }
+            RV32F_FUNCT7_FDIV: { fpuCode = FC_DIV; }
+            RV32F_FUNCT7_FSQRT: { fpuCode = FC_SQRT; }
+            RV32F_FUNCT7_FSGNJ: {
+                case rv32ffunct3.fsgnjFunct3 {
+                    FSGNJ_FUNCT3_FSGNJ : { fpuCode = FC_SGNJ; }
+                    FSGNJ_FUNCT3_FSGNJN: { fpuCode = FC_SGNJN; }
+                    FSGNJ_FUNCT3_FSGNJX: { fpuCode = FC_SGNJX; }
+                    default            : { fpuCode = FC_SGNJX; }
+                }
+            }
+            RV32F_FUNCT7_FMIN_FMAX: {
+                if rv32ffunct3.fminfmaxFunct3 == FMIN_FMAX_FUNCT3_FMIN {
+                    fpuCode = FC_FMIN;
+                } else {
+                    fpuCode = FC_FMAX;
+                }
+            }
+            RV32F_FUNCT7_FCVT_WS: {
+                if fcvtfunct5 == FCVT_FUNCT5_SIGNED {
+                    fpuCode = FC_FCVT_WS;
+                } else {
+                    fpuCode = FC_FCVT_WUS;
+                }
+            }
+            RV32F_FUNCT7_FCLASS_FMV_XW: {
+                if rv32ffunct3.fclassfmvFunct3 == FCLASS_FMV_FUNCT3_FCLASS {
+                    fpuCode = FC_FCLASS;
+                } else {
+                    fpuCode = FC_FMV_XW;
+                }
+            }
+            RV32F_FUNCT7_FEQ_FLT_FLE: {
+                case rv32ffunct3.fcmpFunct3 {
+                    FCMP_FEQ: { fpuCode = FC_FEQ; }
+                    FCMP_FLT: { fpuCode = FC_FLT; }
+                    FCMP_FLE: { fpuCode = FC_FLE; }
+                    default : { fpuCode = FC_FLE; }
+                }
+            }
+            RV32F_FUNCT7_FCVT_SW: {
+                if fcvtfunct5 == FCVT_FUNCT5_SIGNED {
+                    fpuCode = FC_FCVT_SW;
+                } else {
+                    fpuCode = FC_FCVT_SWU;
+                }
+            }
+            RV32F_FUNCT7_FMV_WX: { fpuCode = FC_FMV_WX; }
+            default            : { fpuCode = FC_FMV_WX; }
+        }
+    }
+
+    function RISCV_DecodeFPFMAOpFunct3 (
+        fpuCode: output FPU_Code,
+        opCode : input RISCV_OpCode,
+    ) {
+        case opCode {
+            RISCV_F_FMADD : { fpuCode = FC_FMADD; }
+            RISCV_F_FMSUB : { fpuCode = FC_FMSUB; }
+            RISCV_F_FNMSUB: { fpuCode = FC_FNMSUB; }
+            RISCV_F_FNMADD: { fpuCode = FC_FNMADD; }
+            default       : { fpuCode = FC_FMADD; }
+        }
+    }
+}

@@ -1,0 +1,17 @@
+module PC (
+    port: modport NextPCStageIF::PC,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+
+    inst body: FlipFlopWE #(
+        FF_WIDTH   : PC_WIDTH,
+        RESET_VALUE: 4096,
+    ) (
+        out : port.pcOut,
+        r#in: port.pcIn,
+        we  : port.pcWE,
+        clk : port.clk,
+        rst : port.rst,
+    );
+}

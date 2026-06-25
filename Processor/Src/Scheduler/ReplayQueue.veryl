@@ -1,0 +1,517 @@
+package ReplayQueueFunctions {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+
+    function IsSrcIncludeDst (
+        opSrc: input OpSrc,
+        opDst: input OpDst,
+    ) -> logic {
+        return opSrc.phySrcRegNumA.regNum == opDst.phyDstRegNum.regNum ||
+               opSrc.phySrcRegNumB.regNum == opDst.phyDstRegNum.regNum ||
+               opSrc.phySrcRegNumC.regNum == opDst.phyDstRegNum.regNum;
+    }
+}
+
+module ReplayQueue (
+    port         : modport SchedulerIF::ReplayQueue        ,
+    mshr         : modport LoadStoreUnitIF::ReplayQueue    ,
+    mulDivUnit   : modport MulDivUnitIF::ReplayQueue       ,
+    fpDivSqrtUnit: modport FPDivSqrtUnitIF::ReplayQueue    ,
+    cacheFlush   : modport CacheFlushManagerIF::ReplayQueue,
+    recovery     : modport RecoveryManagerIF::ReplayQueue  ,
+    ctrl         : modport ControllerIF::ReplayQueue       ,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import CacheSystemTypes::*;
+    import RenameLogicTypes::*;
+    import LoadStoreUnitTypes::*;
+    import ReplayQueueFunctions::*;
+
+    const REPLAY_QUEUE_MAX_INTERVAL: u32 = ISSUE_QUEUE_FP_LATENCY;
+    const REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH: u32 = $clog2(REPLAY_QUEUE_MAX_INTERVAL + 1);
+    type ReplayQueueIntervalPath = logic<REPLAY_QUEUE_MAX_INTERVAL_BIT_WIDTH>;
+
+    struct ReplayQueueEntry {
+        intValid      : logic<INT_ISSUE_WIDTH>,
+        intData       : IntIssueQueueEntry<INT_ISSUE_WIDTH>,
+        complexValid  : logic<COMPLEX_ISSUE_WIDTH>,
+        complexData   : ComplexIssueQueueEntry<COMPLEX_ISSUE_WIDTH>,
+        memValid      : logic<MEM_ISSUE_WIDTH>,
+        memData       : MemIssueQueueEntry<MEM_ISSUE_WIDTH>,
+        fpValid       : logic<FP_ISSUE_WIDTH>,
+        fpData        : FPIssueQueueEntry<FP_ISSUE_WIDTH>,
+        replayInterval: ReplayQueueIntervalPath,
+    }
+
+    var recordData    : ReplayQueueEntry;
+    var replayEntryOut: ReplayQueueEntry;
+
+    var headPtr: ReplayQueueIndexPath;
+    var tailPtr: ReplayQueueIndexPath;
+    var full   : logic;
+    var empty  : logic;
+
+    var pushEntry : logic;
+    var popEntry  : logic;
+    var almostFull: logic;
+    var count     : ReplayQueueCountPath;
+
+    var regHeadStorage : ReplayQueueIndexPath;
+    var nextHeadStorage: ReplayQueueIndexPath;
+    var regTailStorage : ReplayQueueIndexPath;
+    var nextTailStorage: ReplayQueueIndexPath;
+    var regCount       : ReplayQueueCountPath;
+    var nextCount      : ReplayQueueCountPath;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regHeadStorage = 0;
+            regTailStorage = 0;
+            regCount = 0;
+        } else {
+            regHeadStorage = nextHeadStorage;
+            regTailStorage = nextTailStorage;
+            regCount = nextCount;
+        }
+    }
+
+    always_comb {
+        if regCount == REPLAY_QUEUE_ENTRY_NUM {
+            full = TRUE;
+        } else {
+            full = FALSE;
+        }
+        if regCount == 0 {
+            empty = TRUE;
+        } else {
+            empty = FALSE;
+        }
+
+        nextHeadStorage = regHeadStorage;
+        nextTailStorage = regTailStorage;
+        nextCount = regCount;
+
+        if pushEntry {
+            if regTailStorage == REPLAY_QUEUE_ENTRY_NUM - 1 {
+                nextTailStorage = 0;
+            } else {
+                nextTailStorage = nextTailStorage + 1;
+            }
+            nextCount = nextCount + 1;
+        }
+
+        if popEntry {
+            if regHeadStorage == REPLAY_QUEUE_ENTRY_NUM - 1 {
+                nextHeadStorage = 0;
+            } else {
+                nextHeadStorage = nextHeadStorage + 1;
+            }
+            nextCount = nextCount - 1;
+        }
+
+        headPtr = regHeadStorage;
+        tailPtr = regTailStorage;
+        count = regCount;
+    }
+
+    var replayQueueStorage: ReplayQueueEntry [1 << REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH];
+
+    always_ff (port.clk) {
+        if pushEntry {
+            replayQueueStorage[tailPtr as u32] = recordData;
+        }
+    }
+
+    always_comb {
+        replayEntryOut = replayQueueStorage[headPtr as u32];
+    }
+
+    var divRecordValidIn    : logic [MULDIV_ISSUE_WIDTH];
+    var divRecordDataIn     : DivRecordEntry [MULDIV_ISSUE_WIDTH];
+    var currentDivRecordValid: logic [MULDIV_ISSUE_WIDTH];
+    var currentDivRecordData : DivRecordEntry [MULDIV_ISSUE_WIDTH];
+    var nextDivRecordValid   : logic [MULDIV_ISSUE_WIDTH];
+    var nextDivRecordData    : DivRecordEntry [MULDIV_ISSUE_WIDTH];
+
+    var replayEntryValidIn : logic;
+    var replayEntryValidOut: logic;
+
+    var noValidInst       : logic;
+    var validInstCount    : ReplayQueueCountPath;
+    var validInstCountNext: ReplayQueueCountPath;
+
+    var intervalIn       : ReplayQueueIntervalPath;
+    var nextIntervalIn   : ReplayQueueIntervalPath;
+    var intervalCount    : ReplayQueueIntervalPath;
+    var nextIntervalCount: ReplayQueueIntervalPath;
+
+    var canBeFlushedEntryCount: ReplayQueueCountPath;
+    var flushRangeHeadPtr     : ActiveListIndexPath;
+    var flushRangeTailPtr     : ActiveListIndexPath;
+    var flushAllInsns         : logic;
+
+    var flushInt    : logic [INT_ISSUE_WIDTH];
+    var flushMem    : logic [MEM_ISSUE_WIDTH];
+    var flushComplex: logic [COMPLEX_ISSUE_WIDTH];
+    var flushFP     : logic [FP_ISSUE_WIDTH];
+    var flushDiv    : logic [MULDIV_ISSUE_WIDTH];
+
+    var replayEntryReg : ReplayQueueEntry;
+    var nextReplayEntry: ReplayQueueEntry;
+    var replayReg      : logic;
+    var nextReplay     : logic;
+
+    var mshrNotReady   : logic<MEM_ISSUE_WIDTH>;
+    var targetMSHRValid: logic<MEM_ISSUE_WIDTH>;
+    var mshrID         : MSHR_IndexPath [MEM_ISSUE_WIDTH];
+
+    var mshrValid: logic [MSHR_NUM];
+    var mshrPhase: MSHR_Phase [MSHR_NUM];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+    always_ff (port.clk) {
+        if port.rst {
+            replayEntryReg.intValid = '0;
+            replayEntryReg.complexValid = '0;
+            replayEntryReg.memValid = '0;
+            replayEntryReg.fpValid = '0;
+            replayReg = '0;
+            intervalIn = '0;
+            intervalCount = '0;
+        } else {
+            replayEntryReg = nextReplayEntry;
+            replayReg = nextReplay;
+            intervalIn = nextIntervalIn;
+            intervalCount = nextIntervalCount;
+        }
+    }
+
+    always_ff (port.clk) {
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            if port.rst {
+                currentDivRecordValid[i] = '0;
+                currentDivRecordData[i] = '0;
+            } else {
+                currentDivRecordValid[i] = nextDivRecordValid[i];
+                currentDivRecordData[i] = nextDivRecordData[i];
+            }
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            validInstCount = 0;
+        } else {
+            validInstCount = validInstCountNext;
+        }
+    }
+
+    always_comb {
+        noValidInst = validInstCount == 0;
+        validInstCountNext = validInstCount;
+        if pushEntry && replayEntryValidIn {
+            validInstCountNext = validInstCountNext + 1;
+        }
+        if popEntry && replayEntryValidOut {
+            validInstCountNext = validInstCountNext - 1;
+        }
+    }
+
+    always_comb {
+        for i in 0..MSHR_NUM {
+            mshrValid[i] = mshr.mshrValid[i];
+            mshrPhase[i] = mshr.mshrPhase[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            mshrID[i] = replayEntryOut.memData[i].mshrID;
+        }
+    }
+
+    always_comb {
+        for i in 0..MEM_ISSUE_WIDTH {
+            var mshrIDValue: MSHR_IndexPath;
+            mshrIDValue = mshrID[i];
+            if port.rst {
+                mshrNotReady[i] = FALSE;
+                targetMSHRValid[i] = FALSE;
+            } else {
+                mshrNotReady[i] = mshrPhase[mshrIDValue as u32] <: MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                targetMSHRValid[i] = mshrValid[mshrIDValue as u32];
+            }
+        }
+    }
+
+    always_comb {
+        nextIntervalIn = intervalIn;
+        if pushEntry {
+            nextIntervalIn = '0;
+        } else if intervalIn <: REPLAY_QUEUE_MAX_INTERVAL {
+            nextIntervalIn = intervalIn + 1;
+        }
+    }
+
+    always_comb {
+        nextIntervalCount = intervalCount;
+        if popEntry {
+            nextIntervalCount = '0;
+        } else if intervalCount <: REPLAY_QUEUE_MAX_INTERVAL {
+            nextIntervalCount = intervalCount + 1;
+        }
+    }
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            recordData.intValid[i] = port.intRecordEntry[i];
+            recordData.intData[i] = port.intRecordData[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            recordData.complexValid[i] = port.complexRecordEntry[i];
+            recordData.complexData[i] = port.complexRecordData[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            recordData.memValid[i] = port.memRecordEntry[i];
+            recordData.memData[i] = port.memRecordData[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            recordData.fpValid[i] = port.fpRecordEntry[i];
+            recordData.fpData[i] = port.fpRecordData[i];
+        }
+        recordData.replayInterval = intervalIn;
+
+        if port.rst {
+            recordData.intValid = '0;
+            recordData.complexValid = '0;
+            recordData.memValid = '0;
+            recordData.fpValid = '0;
+            recordData.replayInterval = '0;
+        }
+
+        replayEntryValidIn = FALSE;
+        replayEntryValidOut = FALSE;
+        if !port.rst {
+            for i in 0..INT_ISSUE_WIDTH {
+                if recordData.intValid[i] {
+                    replayEntryValidIn = TRUE;
+                }
+                if replayEntryOut.intValid[i] {
+                    replayEntryValidOut = TRUE;
+                }
+            }
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                if recordData.complexValid[i] {
+                    replayEntryValidIn = TRUE;
+                }
+                if replayEntryOut.complexValid[i] {
+                    replayEntryValidOut = TRUE;
+                }
+            }
+            for i in 0..MEM_ISSUE_WIDTH {
+                if recordData.memValid[i] {
+                    replayEntryValidIn = TRUE;
+                }
+                if replayEntryOut.memValid[i] {
+                    replayEntryValidOut = TRUE;
+                }
+            }
+            for i in 0..FP_ISSUE_WIDTH {
+                if recordData.fpValid[i] {
+                    replayEntryValidIn = TRUE;
+                }
+                if replayEntryOut.fpValid[i] {
+                    replayEntryValidOut = TRUE;
+                }
+            }
+        }
+
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            if port.rst {
+                divRecordValidIn[i] = FALSE;
+            } else {
+                divRecordValidIn[i] = port.divRecordEntry[i];
+            }
+            divRecordDataIn[i] = port.divRecordData[i];
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            flushInt[i] = SelectiveFlushDetector(canBeFlushedEntryCount != 0, flushRangeHeadPtr, flushRangeTailPtr, flushAllInsns, replayEntryOut.intData[i].activeListPtr) ||
+                          SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, replayEntryOut.intData[i].activeListPtr);
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            flushComplex[i] = SelectiveFlushDetector(canBeFlushedEntryCount != 0, flushRangeHeadPtr, flushRangeTailPtr, flushAllInsns, replayEntryOut.complexData[i].activeListPtr) ||
+                              SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, replayEntryOut.complexData[i].activeListPtr);
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            flushMem[i] = SelectiveFlushDetector(canBeFlushedEntryCount != 0, flushRangeHeadPtr, flushRangeTailPtr, flushAllInsns, replayEntryOut.memData[i].activeListPtr) ||
+                          SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, replayEntryOut.memData[i].activeListPtr);
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            flushFP[i] = SelectiveFlushDetector(canBeFlushedEntryCount != 0, flushRangeHeadPtr, flushRangeTailPtr, flushAllInsns, replayEntryOut.fpData[i].activeListPtr) ||
+                         SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, replayEntryOut.fpData[i].activeListPtr);
+        }
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            flushDiv[i] = SelectiveFlushDetector(recovery.toRecoveryPhase, recovery.flushRangeHeadPtr, recovery.flushRangeTailPtr, recovery.flushAllInsns, currentDivRecordData[i].activeListPtr);
+        }
+    }
+
+    always_comb {
+        if port.rst || full || (!replayEntryValidIn && noValidInst) {
+            pushEntry = FALSE;
+        } else {
+            pushEntry = FALSE;
+            for i in 0..INT_ISSUE_WIDTH {
+                if recordData.intValid[i] {
+                    pushEntry = TRUE;
+                }
+            }
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                if recordData.complexValid[i] {
+                    pushEntry = TRUE;
+                }
+            }
+            for i in 0..MEM_ISSUE_WIDTH {
+                if recordData.memValid[i] {
+                    pushEntry = TRUE;
+                }
+            }
+            for i in 0..FP_ISSUE_WIDTH {
+                if recordData.fpValid[i] {
+                    pushEntry = TRUE;
+                }
+            }
+        }
+
+        if port.rst || empty || intervalCount <: replayEntryOut.replayInterval {
+            popEntry = FALSE;
+        } else if !replayEntryValidOut {
+            popEntry = TRUE;
+        } else {
+            popEntry = TRUE;
+            for i in 0..MEM_ISSUE_WIDTH {
+                if replayEntryOut.memValid[i] && !flushMem[i] &&
+                   (replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_LOAD ||
+                    replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_ZAAMO) &&
+                   replayEntryOut.memData[i].hasAllocatedMSHR &&
+                   targetMSHRValid[i] &&
+                   mshrNotReady[i] {
+                    popEntry = FALSE;
+                }
+            }
+
+            if replayEntryOut.memValid[0] && !flushMem[0] &&
+               replayEntryOut.memData[0].memOpInfo.opType == MEM_MOP_TYPE_FENCE &&
+               replayEntryOut.memData[0].memOpInfo.isFenceI &&
+               !cacheFlush.cacheFlushComplete {
+                popEntry = FALSE;
+            }
+
+            for i in 0..MULDIV_ISSUE_WIDTH {
+                if currentDivRecordValid[i] && !flushDiv[i] && mulDivUnit.divBusy[i] && currentDivRecordData[i].opDst.writeReg {
+                    for j in 0..INT_ISSUE_WIDTH {
+                        if replayEntryOut.intValid[j] && !flushInt[j] && IsSrcIncludeDst(replayEntryOut.intData[j].opSrc, currentDivRecordData[i].opDst) {
+                            popEntry = FALSE;
+                        }
+                    }
+                    for j in 0..COMPLEX_ISSUE_WIDTH {
+                        if replayEntryOut.complexValid[j] && !flushComplex[j] && IsSrcIncludeDst(replayEntryOut.complexData[j].opSrc, currentDivRecordData[i].opDst) {
+                            popEntry = FALSE;
+                        }
+                    }
+                    for j in 0..MEM_ISSUE_WIDTH {
+                        if replayEntryOut.memValid[j] && !flushMem[j] && IsSrcIncludeDst(replayEntryOut.memData[j].opSrc, currentDivRecordData[i].opDst) {
+                            popEntry = FALSE;
+                        }
+                    }
+                    for j in 0..FP_ISSUE_WIDTH {
+                        if replayEntryOut.fpValid[j] && !flushFP[j] && IsSrcIncludeDst(replayEntryOut.fpData[j].opSrc, currentDivRecordData[i].opDst) {
+                            popEntry = FALSE;
+                        }
+                    }
+                }
+            }
+
+            for i in 0..FP_ISSUE_WIDTH {
+                if replayEntryOut.fpValid[i] && !flushFP[i] &&
+                   (replayEntryOut.fpData[i].fpOpInfo.opType == FP_MOP_TYPE_DIV ||
+                    replayEntryOut.fpData[i].fpOpInfo.opType == FP_MOP_TYPE_SQRT) &&
+                   fpDivSqrtUnit.Busy[i] {
+                    popEntry = FALSE;
+                }
+            }
+        }
+
+        almostFull = count >= REPLAY_QUEUE_ENTRY_NUM - ISSUE_QUEUE_MEM_LATENCY;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            nextReplayEntry.intValid[i] = popEntry && replayEntryOut.intValid[i] && !flushInt[i];
+            nextReplayEntry.intData[i] = replayEntryOut.intData[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            nextReplayEntry.complexValid[i] = popEntry && replayEntryOut.complexValid[i] && !flushComplex[i];
+            nextReplayEntry.complexData[i] = replayEntryOut.complexData[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            nextReplayEntry.memValid[i] = popEntry && replayEntryOut.memValid[i] && !flushMem[i];
+            nextReplayEntry.memData[i] = replayEntryOut.memData[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            nextReplayEntry.fpValid[i] = popEntry && replayEntryOut.fpValid[i] && !flushFP[i];
+            nextReplayEntry.fpData[i] = replayEntryOut.fpData[i];
+        }
+        nextReplayEntry.replayInterval = replayEntryOut.replayInterval;
+
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            if divRecordValidIn[i] {
+                nextDivRecordValid[i] = TRUE;
+                nextDivRecordData[i] = divRecordDataIn[i];
+            } else {
+                nextDivRecordValid[i] = currentDivRecordValid[i] && !flushDiv[i] && mulDivUnit.divBusy[i];
+                nextDivRecordData[i] = currentDivRecordData[i];
+            }
+        }
+
+        nextReplay = popEntry && replayEntryValidOut;
+
+        for i in 0..INT_ISSUE_WIDTH {
+            port.intReplayEntry[i] = replayEntryReg.intValid[i];
+            port.intReplayData[i] = replayEntryReg.intData[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            port.complexReplayEntry[i] = replayEntryReg.complexValid[i];
+            port.complexReplayData[i] = replayEntryReg.complexData[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            port.memReplayEntry[i] = replayEntryReg.memValid[i];
+            port.memReplayData[i] = replayEntryReg.memData[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            port.fpReplayEntry[i] = replayEntryReg.fpValid[i];
+            port.fpReplayData[i] = replayEntryReg.fpData[i];
+        }
+
+        ctrl.isStageStallUpper = replayReg || almostFull;
+        port.replay = replayReg;
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            canBeFlushedEntryCount = 0;
+        } else if recovery.toRecoveryPhase {
+            canBeFlushedEntryCount = count;
+            flushRangeHeadPtr = recovery.flushRangeHeadPtr;
+            flushRangeTailPtr = recovery.flushRangeTailPtr;
+            flushAllInsns = recovery.flushAllInsns;
+        } else if canBeFlushedEntryCount >: 0 && replayReg {
+            canBeFlushedEntryCount = canBeFlushedEntryCount - 1;
+        }
+    }
+
+    always_comb {
+        recovery.replayQueueFlushedOpExist = canBeFlushedEntryCount != 0;
+    }
+}

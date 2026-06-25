@@ -1,0 +1,106 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Source Register CAM module for Wakeup Logic
+//
+
+module SourceCAM #(
+    param SRC_OP_NUM       : u32 = 1,
+    param REG_NUM_BIT_WIDTH: u32 = 1,
+) (
+    // input
+    clk                : input clock                                                                              ,
+    rst                : input logic                                                                              ,
+    dispatch           : input logic                                                  [DISPATCH_WIDTH]            ,
+    dispatchPtr        : input SchedulerTypes::IssueQueueIndexPath                    [DISPATCH_WIDTH]            ,
+    dispatchedSrcRegNum: input logic                              <REG_NUM_BIT_WIDTH> [DISPATCH_WIDTH, SRC_OP_NUM],
+    dispatchedSrcReady : input logic                                                  [DISPATCH_WIDTH, SRC_OP_NUM],
+    wakeup             : input logic                                                  [WAKEUP_WIDTH]              ,
+    wakeupDstValid     : input logic                                                  [WAKEUP_WIDTH]              ,
+    wakeupDstRegNum    : input logic                              <REG_NUM_BIT_WIDTH> [WAKEUP_WIDTH]              ,
+    // output
+    opReady: output SchedulerTypes::IssueQueueOneHotPath,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+
+    type RegNumPath = logic<REG_NUM_BIT_WIDTH>;
+
+    // A bit array of a CAM wake-up logic rdyL / rdyR.
+    var srcReady    : logic [ISSUE_QUEUE_ENTRY_NUM, SRC_OP_NUM];
+    var nextSrcReady: logic [ISSUE_QUEUE_ENTRY_NUM, SRC_OP_NUM];
+
+    // # of source register : key entries of the CAM.
+    var srcRegNum: RegNumPath [ISSUE_QUEUE_ENTRY_NUM, SRC_OP_NUM];
+
+    // Match lines of CAM.
+    var match: logic [ISSUE_QUEUE_ENTRY_NUM, SRC_OP_NUM];
+
+    always_ff (clk) {
+        // rdyL / rdyR
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            for j in 0..SRC_OP_NUM {
+                if rst {
+                    srcReady[i][j] = FALSE;
+                } else {
+                    srcReady[i][j] = nextSrcReady[i][j];
+                }
+            }
+        }
+
+        if rst {
+            for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+                for j in 0..SRC_OP_NUM {
+                    srcRegNum[i][j] = 0;
+                }
+            }
+        } else {
+            // Dispatch
+            for i in 0..DISPATCH_WIDTH {
+                if dispatch[i] {
+                    for j in 0..SRC_OP_NUM {
+                        srcRegNum[dispatchPtr[i]][j] = dispatchedSrcRegNum[i][j];
+                    }
+                }
+            }
+        }
+    }
+
+    always_comb {
+        // Tag match
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            for j in 0..SRC_OP_NUM {
+                match[i][j] = FALSE;
+                // Test all broadcasted tags.
+                for k in 0..WAKEUP_WIDTH {
+                    if wakeup[k] && wakeupDstValid[k] {
+                        match[i][j] = match[i][j] || (wakeupDstRegNum[k] == srcRegNum[i][j]);
+                    }
+                }
+            }
+        }
+
+        // Output ready information of each op.
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            opReady[i] = TRUE;
+            for j in 0..SRC_OP_NUM {
+                opReady[i] = opReady[i] && (match[i][j] || srcReady[i][j]);
+            }
+        }
+
+        // Set nextSrcReady
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            for j in 0..SRC_OP_NUM {
+                nextSrcReady[i][j] = srcReady[i][j] || match[i][j];
+            }
+        }
+        for i in 0..DISPATCH_WIDTH {
+            for j in 0..SRC_OP_NUM {
+                if dispatch[i] {
+                    nextSrcReady[dispatchPtr[i]][j] = dispatchedSrcReady[i][j];
+                }
+            }
+        }
+    }
+}

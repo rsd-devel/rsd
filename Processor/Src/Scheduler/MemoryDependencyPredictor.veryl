@@ -1,0 +1,70 @@
+module MemoryDependencyPredictor (
+    port         : modport RenameStageIF::MemoryDependencyPredictor,
+    loadStoreUnit: modport LoadStoreUnitIF::MemoryDependencyPredictor,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var mdtWE: logic [STORE_ISSUE_WIDTH];
+    var mdtWA: MDT_IndexPath [STORE_ISSUE_WIDTH];
+    var mdtWV: MDT_Entry [STORE_ISSUE_WIDTH];
+    var mdtRA: MDT_IndexPath [RENAME_WIDTH];
+    var mdtRV: MDT_Entry [RENAME_WIDTH];
+
+    var prediction: logic [RENAME_WIDTH];
+
+    inst mdt: BlockMultiBankRAM #(
+        ENTRY_NUM     : MDT_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(MDT_Entry),
+        READ_NUM      : RENAME_WIDTH,
+        WRITE_NUM     : STORE_ISSUE_WIDTH,
+    ) (
+        clk: port.clk,
+        we : mdtWE,
+        wa : mdtWA,
+        wv : mdtWV,
+        ra : mdtRA,
+        rv : mdtRV,
+    );
+
+    var resetIndex: MDT_IndexPath;
+
+    always_ff (port.clk) {
+        if port.rstStart {
+            resetIndex = 0;
+        } else {
+            resetIndex = resetIndex + 1;
+        }
+    }
+
+    always_comb {
+        for i in 0..RENAME_WIDTH {
+            mdtRA[i] = ToMDT_Index(port.pc[0] + i * INSN_BYTE_WIDTH);
+        }
+
+        for i in 0..RENAME_WIDTH {
+            prediction[i] = mdtRV[i].counter;
+        }
+
+        port.memDependencyPred = prediction;
+
+        for i in 0..STORE_ISSUE_WIDTH {
+            mdtWE[i] = loadStoreUnit.memAccessOrderViolation[i];
+            mdtWA[i] = ToMDT_Index(loadStoreUnit.conflictLoadPC[i]);
+            mdtWV[i].counter = TRUE;
+        }
+
+        if port.rst {
+            for i in 0..STORE_ISSUE_WIDTH {
+                mdtWE[i] = i == 0;
+                mdtWA[i] = resetIndex;
+                mdtWV[i].counter = FALSE;
+            }
+
+            for i in 0..RENAME_WIDTH {
+                mdtRA[i] = i;
+            }
+        }
+    }
+}

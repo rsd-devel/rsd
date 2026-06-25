@@ -8,7 +8,7 @@
 import BasicTypes::*;
 import MemoryTypes::*;
 
-module Axi4LiteDualPortBlockRAM
+module Axi4LiteDualPortBlockRAM_SV
 (
     Axi4LiteControlMemoryIF.Axi4Lite port
 );
@@ -281,5 +281,4 @@ module Axi4LiteDualPortBlockRAM
         reg_data_out
     );
 
-endmodule : Axi4LiteDualPortBlockRAM
-
+endmodule : Axi4LiteDualPortBlockRAM_SV

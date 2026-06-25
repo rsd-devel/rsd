@@ -1,0 +1,199 @@
+interface BypassNetworkIF {
+    import BasicTypes::*;
+    import BypassTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var intPhySrcRegNumA: PRegNumPath [INT_ISSUE_WIDTH];
+    var intPhySrcRegNumB: PRegNumPath [INT_ISSUE_WIDTH];
+    var intPhyDstRegNum : PRegNumPath [INT_ISSUE_WIDTH];
+    var intReadRegA     : logic [INT_ISSUE_WIDTH];
+    var intReadRegB     : logic [INT_ISSUE_WIDTH];
+    var intWriteReg     : logic [INT_ISSUE_WIDTH];
+    var intCtrlOut      : BypassControll [INT_ISSUE_WIDTH];
+    var intCtrlIn       : BypassControll [INT_ISSUE_WIDTH];
+    var intSrcRegDataOutA: PRegDataPath [INT_ISSUE_WIDTH];
+    var intSrcRegDataOutB: PRegDataPath [INT_ISSUE_WIDTH];
+    var intDstRegDataOut : PRegDataPath [INT_ISSUE_WIDTH];
+
+    var complexPhySrcRegNumA: PRegNumPath [COMPLEX_ISSUE_WIDTH];
+    var complexPhySrcRegNumB: PRegNumPath [COMPLEX_ISSUE_WIDTH];
+    var complexPhyDstRegNum : PRegNumPath [COMPLEX_ISSUE_WIDTH];
+    var complexReadRegA     : logic [COMPLEX_ISSUE_WIDTH];
+    var complexReadRegB     : logic [COMPLEX_ISSUE_WIDTH];
+    var complexWriteReg     : logic [COMPLEX_ISSUE_WIDTH];
+    var complexCtrlOut      : BypassControll [COMPLEX_ISSUE_WIDTH];
+    var complexCtrlIn       : BypassControll [COMPLEX_ISSUE_WIDTH];
+    var complexSrcRegDataOutA: PRegDataPath [COMPLEX_ISSUE_WIDTH];
+    var complexSrcRegDataOutB: PRegDataPath [COMPLEX_ISSUE_WIDTH];
+    var complexDstRegDataOut : PRegDataPath [COMPLEX_ISSUE_WIDTH];
+
+    var memPhySrcRegNumA: PRegNumPath [MEM_ISSUE_WIDTH];
+    var memPhySrcRegNumB: PRegNumPath [MEM_ISSUE_WIDTH];
+    var memPhyDstRegNum : PRegNumPath [MEM_ISSUE_WIDTH];
+    var memReadRegA     : logic [MEM_ISSUE_WIDTH];
+    var memReadRegB     : logic [MEM_ISSUE_WIDTH];
+    var memWriteReg     : logic [MEM_ISSUE_WIDTH];
+    var memCtrlOut      : BypassControll [MEM_ISSUE_WIDTH];
+    var memCtrlIn       : BypassControll [MEM_ISSUE_WIDTH];
+    var memSrcRegDataOutA: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memSrcRegDataOutB: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memDstRegDataOut : PRegDataPath [MEM_ISSUE_WIDTH];
+
+    var fpPhySrcRegNumA: PRegNumPath [FP_ISSUE_WIDTH];
+    var fpPhySrcRegNumB: PRegNumPath [FP_ISSUE_WIDTH];
+    var fpPhySrcRegNumC: PRegNumPath [FP_ISSUE_WIDTH];
+    var fpPhyDstRegNum : PRegNumPath [FP_ISSUE_WIDTH];
+    var fpReadRegA     : logic [FP_ISSUE_WIDTH];
+    var fpReadRegB     : logic [FP_ISSUE_WIDTH];
+    var fpReadRegC     : logic [FP_ISSUE_WIDTH];
+    var fpWriteReg     : logic [FP_ISSUE_WIDTH];
+    var fpCtrlOut      : BypassControll [FP_ISSUE_WIDTH];
+    var fpCtrlIn       : BypassControll [FP_ISSUE_WIDTH];
+    var fpSrcRegDataOutA: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpSrcRegDataOutB: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpSrcRegDataOutC: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpDstRegDataOut : PRegDataPath [FP_ISSUE_WIDTH];
+
+    modport BypassController {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        intPhySrcRegNumA: input,
+        intPhySrcRegNumB: input,
+        intPhyDstRegNum: input,
+        intReadRegA: input,
+        intReadRegB: input,
+        intWriteReg: input,
+        complexPhySrcRegNumA: input,
+        complexPhySrcRegNumB: input,
+        complexPhyDstRegNum: input,
+        complexReadRegA: input,
+        complexReadRegB: input,
+        complexWriteReg: input,
+        memPhySrcRegNumA: input,
+        memPhySrcRegNumB: input,
+        memPhyDstRegNum: input,
+        memReadRegA: input,
+        memReadRegB: input,
+        memWriteReg: input,
+        fpPhySrcRegNumA: input,
+        fpPhySrcRegNumB: input,
+        fpPhySrcRegNumC: input,
+        fpPhyDstRegNum: input,
+        fpReadRegA: input,
+        fpReadRegB: input,
+        fpReadRegC: input,
+        fpWriteReg: input,
+        intCtrlOut: output,
+        complexCtrlOut: output,
+        memCtrlOut: output,
+        fpCtrlOut: output,
+    }
+
+    modport BypassNetwork {
+        clk: input,
+        rst: input,
+        intCtrlIn: input,
+        intDstRegDataOut: input,
+        complexCtrlIn: input,
+        complexDstRegDataOut: input,
+        memCtrlIn: input,
+        memDstRegDataOut: input,
+        fpCtrlIn: input,
+        fpDstRegDataOut: input,
+        intSrcRegDataOutA: output,
+        intSrcRegDataOutB: output,
+        complexSrcRegDataOutA: output,
+        complexSrcRegDataOutB: output,
+        memSrcRegDataOutA: output,
+        memSrcRegDataOutB: output,
+        fpSrcRegDataOutA: output,
+        fpSrcRegDataOutB: output,
+        fpSrcRegDataOutC: output,
+    }
+
+    modport IntegerRegisterReadStage {
+        clk: input,
+        rst: input,
+        intCtrlOut: input,
+        intPhySrcRegNumA: output,
+        intPhySrcRegNumB: output,
+        intPhyDstRegNum: output,
+        intReadRegA: output,
+        intReadRegB: output,
+        intWriteReg: output,
+    }
+
+    modport IntegerExecutionStage {
+        intSrcRegDataOutA: input,
+        intSrcRegDataOutB: input,
+        intCtrlIn: output,
+        intDstRegDataOut: output,
+    }
+
+    modport ComplexIntegerRegisterReadStage {
+        clk: input,
+        rst: input,
+        complexCtrlOut: input,
+        complexPhySrcRegNumA: output,
+        complexPhySrcRegNumB: output,
+        complexPhyDstRegNum: output,
+        complexReadRegA: output,
+        complexReadRegB: output,
+        complexWriteReg: output,
+    }
+
+    modport ComplexIntegerExecutionStage {
+        complexSrcRegDataOutA: input,
+        complexSrcRegDataOutB: input,
+        complexCtrlIn: output,
+        complexDstRegDataOut: output,
+    }
+
+    modport MemoryRegisterReadStage {
+        clk: input,
+        rst: input,
+        memCtrlOut: input,
+        memPhySrcRegNumA: output,
+        memPhySrcRegNumB: output,
+        memPhyDstRegNum: output,
+        memReadRegA: output,
+        memReadRegB: output,
+        memWriteReg: output,
+    }
+
+    modport MemoryExecutionStage {
+        memSrcRegDataOutA: input,
+        memSrcRegDataOutB: input,
+        memCtrlIn: output,
+    }
+
+    modport MemoryAccessStage {
+        memDstRegDataOut: output,
+    }
+
+    modport FPRegisterReadStage {
+        clk: input,
+        rst: input,
+        fpCtrlOut: input,
+        fpPhySrcRegNumA: output,
+        fpPhySrcRegNumB: output,
+        fpPhySrcRegNumC: output,
+        fpPhyDstRegNum: output,
+        fpReadRegA: output,
+        fpReadRegB: output,
+        fpReadRegC: output,
+        fpWriteReg: output,
+    }
+
+    modport FPExecutionStage {
+        fpSrcRegDataOutA: input,
+        fpSrcRegDataOutB: input,
+        fpSrcRegDataOutC: input,
+        fpCtrlIn: output,
+        fpDstRegDataOut: output,
+    }
+}

@@ -1,0 +1,612 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Controller implementation of a queue (FIFO).
+//
+
+//
+// 1-input/1-output queue.
+// The "tailPtr" points the address of a next pushed entry.
+//
+module QueuePointer #(
+    param SIZE            : u32 = 1,
+    param INITIAL_HEAD_PTR: u32 = 0,
+    param INITIAL_TAIL_PTR: u32 = 0,
+    param INITIAL_COUNT   : u32 = 0,
+) (
+    clk    : input  clock              ,
+    rst    : input  logic              ,
+    push   : input  logic              ,
+    pop    : input  logic              ,
+    full   : output logic              ,
+    empty  : output logic              ,
+    headPtr: output logic<$clog2(SIZE)>,
+    tailPtr: output logic<$clog2(SIZE)>,
+) {
+    import BasicTypes::*;
+
+    const BIT_WIDTH: u32                  = $clog2(SIZE);
+    type IndexPath = logic<BIT_WIDTH>    ;
+    type CountPath = logic<BIT_WIDTH + 1>;
+
+    var regHeadStorage : IndexPath;
+    var nextHeadStorage: IndexPath;
+    var regTailStorage : IndexPath;
+    var nextTailStorage: IndexPath;
+    var regCount       : CountPath;
+    var nextCount      : CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHeadStorage = INITIAL_HEAD_PTR;
+            regTailStorage = INITIAL_TAIL_PTR;
+            regCount       = INITIAL_COUNT;
+
+            //assert( INITIAL_HEAD + INITIAL_COUNT == INITIAL_TAIL );
+        } else {
+            regHeadStorage = nextHeadStorage;
+            regTailStorage = nextTailStorage;
+            regCount       = nextCount;
+        }
+    }
+
+    always_comb {
+        if regCount == SIZE {
+            full = TRUE;
+        } else {
+            full = FALSE;
+        }
+        if regCount == 0 {
+            empty = TRUE;
+        } else {
+            empty = FALSE;
+        }
+
+        nextHeadStorage = regHeadStorage;
+        nextTailStorage = regTailStorage;
+        nextCount       = regCount;
+
+        if push {
+            if regTailStorage == SIZE - 1 {
+                nextTailStorage = 0;
+            } else {
+                nextTailStorage = nextTailStorage + 1;
+            }
+
+            nextCount = nextCount + 1;
+        }
+
+        if pop {
+            if regHeadStorage == SIZE - 1 {
+                nextHeadStorage = 0;
+            } else {
+                nextHeadStorage = nextHeadStorage + 1;
+            }
+
+            nextCount = nextCount - 1;
+        }
+
+        headPtr = regHeadStorage;
+        tailPtr = regTailStorage;
+    }
+
+    // Assertion
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, !(full && push), "Push to a full queue.");
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, !(empty && pop), "Pop from an empty queue.");
+}
+
+//
+// 1-input/1-output queue with its entry count.
+// The "tailPtr" points the address of a next pushed entry.
+//
+module QueuePointerWithEntryCount #(
+    param SIZE            : u32 = 1,
+    param INITIAL_HEAD_PTR: u32 = 0,
+    param INITIAL_TAIL_PTR: u32 = 0,
+    param INITIAL_COUNT   : u32 = 0,
+) (
+    clk    : input  clock                  ,
+    rst    : input  logic                  ,
+    push   : input  logic                  ,
+    pop    : input  logic                  ,
+    full   : output logic                  ,
+    empty  : output logic                  ,
+    headPtr: output logic<$clog2(SIZE)>    ,
+    tailPtr: output logic<$clog2(SIZE)>    ,
+    count  : output logic<$clog2(SIZE) + 1>,
+) {
+    import BasicTypes::*;
+
+    const BIT_WIDTH: u32                  = $clog2(SIZE);
+    type IndexPath = logic<BIT_WIDTH>    ;
+    type CountPath = logic<BIT_WIDTH + 1>;
+
+    var regHeadStorage : IndexPath;
+    var nextHeadStorage: IndexPath;
+    var regTailStorage : IndexPath;
+    var nextTailStorage: IndexPath;
+    var regCount       : CountPath;
+    var nextCount      : CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHeadStorage = INITIAL_HEAD_PTR;
+            regTailStorage = INITIAL_TAIL_PTR;
+            regCount       = INITIAL_COUNT;
+
+            //assert( INITIAL_HEAD + INITIAL_COUNT == INITIAL_TAIL );
+        } else {
+            regHeadStorage = nextHeadStorage;
+            regTailStorage = nextTailStorage;
+            regCount       = nextCount;
+        }
+    }
+
+    always_comb {
+        if regCount == SIZE {
+            full = TRUE;
+        } else {
+            full = FALSE;
+        }
+        if regCount == 0 {
+            empty = TRUE;
+        } else {
+            empty = FALSE;
+        }
+
+        nextHeadStorage = regHeadStorage;
+        nextTailStorage = regTailStorage;
+        nextCount       = regCount;
+
+        if push {
+            if regTailStorage == SIZE - 1 {
+                nextTailStorage = 0;
+            } else {
+                nextTailStorage = nextTailStorage + 1;
+            }
+
+            nextCount = nextCount + 1;
+        }
+        if pop {
+            if regHeadStorage == SIZE - 1 {
+                nextHeadStorage = 0;
+            } else {
+                nextHeadStorage = nextHeadStorage + 1;
+            }
+
+            nextCount = nextCount - 1;
+        }
+
+        headPtr = regHeadStorage;
+        tailPtr = regTailStorage;
+        count   = regCount;
+    }
+
+    // Assertion
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, !(full && push), "Push to a full queue.");
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, !(empty && pop), "Pop from an empty queue.");
+}
+
+//
+// N-input/N-output queue.
+// The "tailPtr" points the address of a next pushed entry.
+//
+module MultiWidthQueuePointer #(
+    param SIZE                      : u32 = 1,
+    param INITIAL_HEAD_PTR          : u32 = 0,
+    param INITIAL_TAIL_PTR          : u32 = 0,
+    param INITIAL_COUNT             : u32 = 0,
+    param PUSH_WIDTH                : u32 = 1,
+    param POP_WIDTH                 : u32 = 1,
+    param ENABLE_SPECIFIED_ENTRY_NUM: u32 = 0,
+) (
+    clk      : input  clock                        ,
+    rst      : input  logic                        ,
+    push     : input  logic                        ,
+    pop      : input  logic                        ,
+    pushCount: input  logic<$clog2(PUSH_WIDTH) + 1>,
+    popCount : input  logic<$clog2(POP_WIDTH) + 1> ,
+    headPtr  : output logic<$clog2(SIZE)>          ,
+    tailPtr  : output logic<$clog2(SIZE)>          ,
+    count    : output logic<$clog2(SIZE) + 1>      ,
+) {
+    import BasicTypes::*;
+
+    const INDEX_BIT_WIDTH: u32                        = $clog2(SIZE);
+    type IndexPath       = logic<INDEX_BIT_WIDTH>    ;
+    type CountPath       = logic<INDEX_BIT_WIDTH + 1>;
+
+    var regHead  : IndexPath;
+    var nextHead : IndexPath;
+    var regTail  : IndexPath;
+    var nextTail : IndexPath;
+    var regCount : CountPath;
+    var nextCount: CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHead  = INITIAL_HEAD_PTR;
+            regTail  = INITIAL_TAIL_PTR;
+            regCount = INITIAL_COUNT;
+        } else {
+            regHead  = nextHead;
+            regTail  = nextTail;
+            regCount = nextCount;
+        }
+    }
+
+    always_comb {
+        nextTail = regTail;
+        if push {
+            nextTail = nextTail + pushCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail - SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextHead = regHead;
+        if pop {
+            nextHead = nextHead + popCount;
+
+            if nextHead >= SIZE {
+                nextHead = nextHead - SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextCount = regCount;
+        if push {
+            nextCount = nextCount + pushCount;
+        }
+        if pop {
+            nextCount = nextCount - popCount;
+        }
+
+        headPtr = regHead;
+        tailPtr = regTail;
+        count   = regCount;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
+}
+
+//
+// N-input/N-output queue.
+// The "tailPtr" points the address of a next pushed entry.
+// Tail pointer and count is recovered in one cycle.
+//
+module SetTailMultiWidthQueuePointer #(
+    param SIZE            : u32 = 1,
+    param INITIAL_HEAD_PTR: u32 = 0,
+    param INITIAL_TAIL_PTR: u32 = 0,
+    param INITIAL_COUNT   : u32 = 0,
+    param PUSH_WIDTH      : u32 = 1,
+    param POP_WIDTH       : u32 = 1,
+) (
+    clk       : input  clock                        ,
+    rst       : input  logic                        ,
+    push      : input  logic                        ,
+    pop       : input  logic                        ,
+    pushCount : input  logic<$clog2(PUSH_WIDTH) + 1>,
+    popCount  : input  logic<$clog2(POP_WIDTH) + 1> ,
+    setTail   : input  logic                        ,
+    setTailPtr: input  logic<$clog2(SIZE)>          ,
+    headPtr   : output logic<$clog2(SIZE)>          ,
+    tailPtr   : output logic<$clog2(SIZE)>          ,
+    count     : output logic<$clog2(SIZE) + 1>      ,
+) {
+    import BasicTypes::*;
+
+    const INDEX_BIT_WIDTH: u32                        = $clog2(SIZE);
+    type IndexPath       = logic<INDEX_BIT_WIDTH>    ;
+    type CountPath       = logic<INDEX_BIT_WIDTH + 1>;
+
+    var regHead          : IndexPath;
+    var nextHead         : IndexPath;
+    var regTail          : IndexPath;
+    var nextTail         : IndexPath;
+    var roundedSetTailPtr: IndexPath;
+    var regCount         : CountPath;
+    var nextCount        : CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHead  = INITIAL_HEAD_PTR;
+            regTail  = INITIAL_TAIL_PTR;
+            regCount = INITIAL_COUNT;
+
+            //assert( INITIAL_HEAD + INITIAL_COUNT == INITIAL_TAIL );
+        } else {
+            regHead  = nextHead;
+            regTail  = nextTail;
+            regCount = nextCount;
+        }
+    }
+
+    always_comb {
+        nextTail = regTail;
+        if push {
+            nextTail = nextTail + pushCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail - SIZE;
+            }
+        } else if setTail {
+            nextTail = roundedSetTailPtr;
+        }
+    }
+
+    always_comb {
+        nextHead = regHead;
+        if pop {
+            nextHead = nextHead + popCount;
+
+            if nextHead >= SIZE {
+                nextHead = nextHead - SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextCount         = regCount;
+        roundedSetTailPtr = setTailPtr;
+        if push {
+            nextCount = nextCount + pushCount;
+        } else if setTail {
+            if setTailPtr >= SIZE {
+                roundedSetTailPtr = setTailPtr - SIZE;
+            }
+
+            if regHead <= roundedSetTailPtr {
+                nextCount = roundedSetTailPtr - regHead;
+            } else {
+                nextCount = SIZE + roundedSetTailPtr - regHead;
+            }
+        }
+        if pop {
+            nextCount = nextCount - popCount;
+        }
+
+        headPtr = regHead;
+        tailPtr = regTail;
+        count   = regCount;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
+}
+
+//
+// N-input/N-output queue.
+// In this queue, the tail pointer can be popped and pushed.
+// The "tailPtr" points the address of a next pushed entry.
+//
+module BiTailMultiWidthQueuePointer #(
+    param SIZE            : u32 = 1,
+    param INITIAL_HEAD_PTR: u32 = 0,
+    param INITIAL_TAIL_PTR: u32 = 0,
+    param INITIAL_COUNT   : u32 = 0,
+    param PUSH_WIDTH      : u32 = 1,
+    param POP_WIDTH       : u32 = 1,
+) (
+    clk          : input  clock                        ,
+    rst          : input  logic                        ,
+    pushTail     : input  logic                        ,
+    popTail      : input  logic                        ,
+    popHead      : input  logic                        ,
+    pushTailCount: input  logic<$clog2(PUSH_WIDTH) + 1>,
+    popTailCount : input  logic<$clog2(POP_WIDTH) + 1> ,
+    popHeadCount : input  logic<$clog2(POP_WIDTH) + 1> ,
+    headPtr      : output logic<$clog2(SIZE)>          ,
+    tailPtr      : output logic<$clog2(SIZE)>          ,
+    count        : output logic<$clog2(SIZE) + 1>      ,
+) {
+    import BasicTypes::*;
+
+    const INDEX_BIT_WIDTH: u32                        = $clog2(SIZE);
+    type IndexPath       = logic<INDEX_BIT_WIDTH>    ;
+    type CountPath       = logic<INDEX_BIT_WIDTH + 1>;
+
+    var regHead  : IndexPath;
+    var nextHead : IndexPath;
+    var regTail  : IndexPath;
+    var nextTail : IndexPath;
+    var regCount : CountPath;
+    var nextCount: CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHead  = INITIAL_HEAD_PTR;
+            regTail  = INITIAL_TAIL_PTR;
+            regCount = INITIAL_COUNT;
+        } else {
+            regHead  = nextHead;
+            regTail  = nextTail;
+            regCount = nextCount;
+        }
+    }
+
+    always_comb {
+        nextHead = regHead;
+
+        if popHead {
+            nextHead = nextHead + popHeadCount;
+            if nextHead >= SIZE {
+                nextHead = nextHead - SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextTail = regTail;
+
+        if pushTail {
+            nextTail = nextTail + pushTailCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail - SIZE;
+            }
+        } else if popTail {
+            nextTail = nextTail - popTailCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail + SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextCount = regCount;
+        if pushTail {
+            nextCount = nextCount + pushTailCount;
+        } else if popTail {
+            nextCount = nextCount - popTailCount;
+        }
+
+        if popHead {
+            nextCount = nextCount - popHeadCount;
+        }
+
+        headPtr = regHead;
+        tailPtr = regTail;
+        count   = regCount;
+    }
+
+    // Assertion
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || !(pushTail && popTail), "BiTailMultiWidthQueuePointer is pushed and popped simultaneously.");
+}
+
+//
+// N-input/N-output queue.
+// In this queue, the tail pointer can be popped and pushed.
+// The "tailPtr" points the address of a next pushed entry.
+// Tail pointer and count is recovered in one cycle.
+//
+module SetTailBiTailMultiWidthQueuePointer #(
+    param SIZE            : u32 = 1,
+    param INITIAL_HEAD_PTR: u32 = 0,
+    param INITIAL_TAIL_PTR: u32 = 0,
+    param INITIAL_COUNT   : u32 = 0,
+    param PUSH_WIDTH      : u32 = 1,
+    param POP_WIDTH       : u32 = 1,
+) (
+    clk          : input  clock                        ,
+    rst          : input  logic                        ,
+    pushTail     : input  logic                        ,
+    popTail      : input  logic                        ,
+    popHead      : input  logic                        ,
+    pushTailCount: input  logic<$clog2(PUSH_WIDTH) + 1>,
+    popTailCount : input  logic<$clog2(POP_WIDTH) + 1> ,
+    popHeadCount : input  logic<$clog2(POP_WIDTH) + 1> ,
+    setTail      : input  logic                        ,
+    setTailPtr   : input  logic<$clog2(SIZE)>          ,
+    headPtr      : output logic<$clog2(SIZE)>          ,
+    tailPtr      : output logic<$clog2(SIZE)>          ,
+    count        : output logic<$clog2(SIZE) + 1>      ,
+) {
+    import BasicTypes::*;
+
+    const INDEX_BIT_WIDTH: u32                        = $clog2(SIZE);
+    type IndexPath       = logic<INDEX_BIT_WIDTH>    ;
+    type CountPath       = logic<INDEX_BIT_WIDTH + 1>;
+
+    var regHead          : IndexPath;
+    var nextHead         : IndexPath;
+    var regTail          : IndexPath;
+    var nextTail         : IndexPath;
+    var roundedSetTailPtr: IndexPath;
+    var regCount         : CountPath;
+    var nextCount        : CountPath;
+
+    always_ff (clk) {
+        if rst {
+            regHead  = INITIAL_HEAD_PTR;
+            regTail  = INITIAL_TAIL_PTR;
+            regCount = INITIAL_COUNT;
+
+            //assert( INITIAL_HEAD + INITIAL_COUNT == INITIAL_TAIL );
+        } else {
+            regHead  = nextHead;
+            regTail  = nextTail;
+            regCount = nextCount;
+        }
+    }
+
+    always_comb {
+        nextHead = regHead;
+
+        if popHead {
+            nextHead = nextHead + popHeadCount;
+            if nextHead >= SIZE {
+                nextHead = nextHead - SIZE;
+            }
+        }
+    }
+
+    always_comb {
+        nextTail = regTail;
+
+        if pushTail {
+            nextTail = nextTail + pushTailCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail - SIZE;
+            }
+        } else if popTail {
+            nextTail = nextTail - popTailCount;
+
+            if nextTail >= SIZE {
+                nextTail = nextTail + SIZE;
+            }
+        } else if setTail {
+            nextTail = roundedSetTailPtr;
+        }
+    }
+
+    always_comb {
+        nextCount         = regCount;
+        roundedSetTailPtr = setTailPtr;
+
+        if pushTail {
+            nextCount = nextCount + pushTailCount;
+        } else if popTail {
+            nextCount = nextCount - popTailCount;
+        } else if setTail {
+            if setTailPtr >= SIZE {
+                roundedSetTailPtr = setTailPtr - SIZE;
+            }
+
+            if regHead <= roundedSetTailPtr {
+                nextCount = roundedSetTailPtr - regHead;
+            } else {
+                nextCount = SIZE + roundedSetTailPtr - regHead;
+            }
+        }
+
+        if popHead {
+            nextCount = nextCount - popHeadCount;
+        }
+
+        headPtr = regHead;
+        tailPtr = regTail;
+        count   = regCount;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || regCount <= SIZE, "The count of a queue exceeds its size.");
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(clk, rst || !(pushTail && popTail), "BiTailMultiWidthQueuePointer is pushed and popped simultaneously.");
+}

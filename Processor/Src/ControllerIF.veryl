@@ -1,0 +1,228 @@
+interface ControllerIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var npStage : PipelineControll;
+    var ifStage : PipelineControll;
+    var pdStage : PipelineControll;
+    var idStage : PipelineControll;
+    var rnStage : PipelineControll;
+    var dsStage : PipelineControll;
+    var scStage : PipelineControll;
+    var isStage : PipelineControll;
+    var backEnd : PipelineControll;
+    var cmStage : PipelineControll;
+
+    var ifStageEmpty      : logic;
+    var pdStageEmpty      : logic;
+    var idStageEmpty      : logic;
+    var rnStageEmpty      : logic;
+    var activeListEmpty   : logic;
+    var wholePipelineEmpty: logic;
+
+    var npStageSendBubbleLower            : logic;
+    var npStageSendBubbleLowerForInterrupt: logic;
+    var ifStageSendBubbleLower            : logic;
+    var idStageStallUpper                 : logic;
+    var rnStageFlushUpper                 : logic;
+    var rnStageSendBubbleLower            : logic;
+    var cmStageFlushUpper                 : logic;
+    var isStageStallUpper                 : logic;
+
+    var stallByDecodeStage: logic;
+
+    modport Controller {
+        clk: input,
+        rst: input,
+        cmStageFlushUpper: input,
+        rnStageSendBubbleLower: input,
+        idStageStallUpper: input,
+        rnStageFlushUpper: input,
+        npStageSendBubbleLower: input,
+        ifStageSendBubbleLower: input,
+        npStageSendBubbleLowerForInterrupt: input,
+        isStageStallUpper: input,
+        ifStageEmpty: input,
+        pdStageEmpty: input,
+        idStageEmpty: input,
+        rnStageEmpty: input,
+        activeListEmpty: input,
+        npStage: output,
+        ifStage: output,
+        pdStage: output,
+        idStage: output,
+        rnStage: output,
+        dsStage: output,
+        isStage: output,
+        scStage: output,
+        backEnd: output,
+        cmStage: output,
+        stallByDecodeStage: output,
+        wholePipelineEmpty: output,
+    }
+
+    modport NextPCStage {
+        npStage: input,
+        npStageSendBubbleLower: output,
+    }
+
+    modport FetchStage {
+        ifStage: input,
+        ifStageSendBubbleLower: output,
+        ifStageEmpty: output,
+    }
+
+    modport DecodeStage {
+        idStage: input,
+        stallByDecodeStage: input,
+        idStageStallUpper: output,
+        idStageEmpty: output,
+    }
+
+    modport PreDecodeStage {
+        pdStage: input,
+        pdStageEmpty: output,
+    }
+
+    modport RenameStage {
+        rnStage: input,
+        rnStageFlushUpper: output,
+        rnStageSendBubbleLower: output,
+        rnStageEmpty: output,
+    }
+
+    modport DispatchStage {
+        clk: input,
+        rst: input,
+        dsStage: input,
+    }
+
+    modport ScheduleStage {
+        scStage: input,
+    }
+
+    modport IntegerIssueStage {
+        isStage: input,
+        isStageStallUpper: input,
+    }
+
+    modport IntegerRegisterReadStage {
+        backEnd: input,
+    }
+
+    modport IntegerExecutionStage {
+        backEnd: input,
+    }
+
+    modport IntegerRegisterWriteStage {
+        clk: input,
+        rst: input,
+        backEnd: input,
+    }
+
+    modport ComplexIntegerIssueStage {
+        isStage: input,
+    }
+
+    modport ComplexIntegerRegisterReadStage {
+        backEnd: input,
+    }
+
+    modport ComplexIntegerExecutionStage {
+        backEnd: input,
+    }
+
+    modport ComplexIntegerRegisterWriteStage {
+        clk: input,
+        rst: input,
+        backEnd: input,
+    }
+
+    modport MemoryIssueStage {
+        isStage: input,
+    }
+
+    modport MemoryRegisterReadStage {
+        backEnd: input,
+    }
+
+    modport MemoryExecutionStage {
+        backEnd: input,
+    }
+
+    modport MemoryTagAccessStage {
+        backEnd: input,
+    }
+
+    modport MemoryAccessStage {
+        backEnd: input,
+    }
+
+    modport MemoryRegisterWriteStage {
+        clk: input,
+        rst: input,
+        backEnd: input,
+    }
+
+    modport FPIssueStage {
+        isStage: input,
+    }
+
+    modport FPRegisterReadStage {
+        backEnd: input,
+    }
+
+    modport FPExecutionStage {
+        backEnd: input,
+    }
+
+    modport FPRegisterWriteStage {
+        clk: input,
+        rst: input,
+        backEnd: input,
+    }
+
+    modport CommitStage {
+        cmStage: input,
+    }
+
+    modport BypassController {
+        backEnd: input,
+    }
+
+    modport BypassNetwork {
+        backEnd: input,
+    }
+
+    modport DCache {
+        backEnd: input,
+    }
+
+    modport LoadStoreUnit {
+        backEnd: input,
+    }
+
+    modport ReplayQueue {
+        isStageStallUpper: output,
+    }
+
+    modport BranchPredictor {
+        ifStage: input,
+    }
+
+    modport RecoveryManager {
+        cmStageFlushUpper: output,
+    }
+
+    modport ActiveList {
+        activeListEmpty: output,
+    }
+
+    modport InterruptController {
+        wholePipelineEmpty: input,
+        npStageSendBubbleLowerForInterrupt: output,
+    }
+}

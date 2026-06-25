@@ -1,0 +1,79 @@
+interface Axi4LiteControlMemoryIF {
+    const PS_PL_MEMORY_DATA_BIT_SIZE: u32 = 32;
+    const PS_PL_MEMORY_ADDR_BIT_SIZE: u32 = 11;
+
+    var S_AXI_ACLK   : logic;
+    var S_AXI_ARESETN: logic;
+    var S_AXI_AWADDR : logic<PS_PL_MEMORY_ADDR_BIT_SIZE>;
+    var S_AXI_AWPROT : logic<3>;
+    var S_AXI_AWVALID: logic;
+    var S_AXI_AWREADY: logic;
+    var S_AXI_WDATA  : logic<PS_PL_MEMORY_DATA_BIT_SIZE>;
+    var S_AXI_WSTRB  : logic<PS_PL_MEMORY_DATA_BIT_SIZE / 8>;
+    var S_AXI_WVALID : logic;
+    var S_AXI_WREADY : logic;
+    var S_AXI_BRESP  : logic<2>;
+    var S_AXI_BVALID : logic;
+    var S_AXI_BREADY : logic;
+    var S_AXI_ARADDR : logic<PS_PL_MEMORY_ADDR_BIT_SIZE>;
+    var S_AXI_ARPROT : logic<3>;
+    var S_AXI_ARVALID: logic;
+    var S_AXI_ARREADY: logic;
+    var S_AXI_RDATA  : logic<PS_PL_MEMORY_DATA_BIT_SIZE>;
+    var S_AXI_RRESP  : logic<2>;
+    var S_AXI_RVALID : logic;
+    var S_AXI_RREADY : logic;
+
+    modport Axi4Lite {
+        S_AXI_ACLK   : input ,
+        S_AXI_ARESETN: input ,
+        S_AXI_AWADDR : input ,
+        S_AXI_AWPROT : input ,
+        S_AXI_AWVALID: input ,
+        S_AXI_AWREADY: output,
+        S_AXI_WDATA  : input ,
+        S_AXI_WSTRB  : input ,
+        S_AXI_WVALID : input ,
+        S_AXI_WREADY : output,
+        S_AXI_BRESP  : output,
+        S_AXI_BVALID : output,
+        S_AXI_BREADY : input ,
+        S_AXI_ARADDR : input ,
+        S_AXI_ARPROT : input ,
+        S_AXI_ARVALID: input ,
+        S_AXI_ARREADY: output,
+        S_AXI_RDATA  : output,
+        S_AXI_RRESP  : output,
+        S_AXI_RVALID : output,
+        S_AXI_RREADY : input ,
+    }
+
+    modport Axi4LiteWrite {
+        S_AXI_ACLK   : input ,
+        S_AXI_ARESETN: input ,
+        S_AXI_AWADDR : input ,
+        S_AXI_AWPROT : input ,
+        S_AXI_AWVALID: input ,
+        S_AXI_AWREADY: output,
+        S_AXI_WDATA  : input ,
+        S_AXI_WSTRB  : input ,
+        S_AXI_WVALID : input ,
+        S_AXI_WREADY : output,
+        S_AXI_BRESP  : output,
+        S_AXI_BVALID : output,
+        S_AXI_BREADY : input ,
+    }
+
+    modport Axi4LiteRead {
+        S_AXI_ACLK   : input ,
+        S_AXI_ARESETN: input ,
+        S_AXI_ARADDR : input ,
+        S_AXI_ARPROT : input ,
+        S_AXI_ARVALID: input ,
+        S_AXI_ARREADY: output,
+        S_AXI_RDATA  : output,
+        S_AXI_RRESP  : output,
+        S_AXI_RVALID : output,
+        S_AXI_RREADY : input ,
+    }
+}

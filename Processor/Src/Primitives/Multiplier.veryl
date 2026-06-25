@@ -1,0 +1,107 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Multiplier implementation.
+//
+
+// 符号付き乗算器を生成するモジュール
+module Multiplier #(
+    param BIT_WIDTH: u32 = 32,
+) (
+    srcA: input  signed logic<BIT_WIDTH>    ,
+    srcB: input  signed logic<BIT_WIDTH>    ,
+    dst : output signed logic<2 * BIT_WIDTH>,
+) {
+    assign dst = srcA * srcB; // synthesis syn_dspstyle = "dsp48"
+}
+
+module SignExtender #(
+    param BIT_WIDTH: u32 = 32,
+) (
+    r#in: input  logic<BIT_WIDTH>    ,
+    sign: input  logic               ,
+    out : output logic<BIT_WIDTH + 1>,
+) {
+    always_comb {
+        if sign {
+            out = {r#in[BIT_WIDTH - 1], r#in};
+        } else {
+            out = {1'b0, r#in};
+        }
+    }
+}
+
+// パイプライン化された乗算器
+// PIPELINE_DEPTHは2以上でなければならない
+module PipelinedMultiplier #(
+    param BIT_WIDTH     : u32 = 32,
+    param PIPELINE_DEPTH: u32 = 3 ,
+) (
+    clk  : input  clock               ,
+    stall: input  logic               ,
+    srcA : input  logic<BIT_WIDTH>    ,
+    srcB : input  logic<BIT_WIDTH>    ,
+    signA: input  logic               ,
+    signB: input  logic               ,
+    dst  : output logic<2 * BIT_WIDTH>,
+) {
+    const RESULT_PIPELINE_DEPTH: u32 = PIPELINE_DEPTH - 2;
+
+    #[sv("syn_pipeline=1")]
+    var pipeReg   : signed logic<2 * BIT_WIDTH + 2> [RESULT_PIPELINE_DEPTH];
+    var mulResult : signed logic<2 * BIT_WIDTH + 2>                        ;
+    var exSrcA    : signed logic<BIT_WIDTH + 1>                            ;
+    var exSrcB    : signed logic<BIT_WIDTH + 1>                            ;
+    var exSrcA_Reg: signed logic<BIT_WIDTH + 1>                            ;
+    var exSrcB_Reg: signed logic<BIT_WIDTH + 1>                            ;
+
+    inst signExtenderA: SignExtender #(
+        BIT_WIDTH: BIT_WIDTH,
+    ) (
+        r#in: srcA  ,
+        sign: signA ,
+        out : exSrcA,
+    );
+
+    inst signExtenderB: SignExtender #(
+        BIT_WIDTH: BIT_WIDTH,
+    ) (
+        r#in: srcB  ,
+        sign: signB ,
+        out : exSrcB,
+    );
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(PIPELINE_DEPTH > 2, "A pipeline depth of a PipelinedMultiplier module must be more than 2.")
+
+    always_comb {
+        mulResult = exSrcA_Reg * exSrcB_Reg; // synthesis syn_dspstyle = "dsp48"
+        dst       = pipeReg[RESULT_PIPELINE_DEPTH - 1][2 * BIT_WIDTH - 1:0];
+    }
+
+    always_ff (clk) {
+        if stall {
+            exSrcA_Reg = exSrcA_Reg;
+            exSrcB_Reg = exSrcB_Reg;
+            for i in 0..RESULT_PIPELINE_DEPTH {
+                pipeReg[i] = pipeReg[i];
+            }
+        } else {
+            // At the first stage, only sign extension is performed,
+            // because automatic pipeline synthesize may be applicable to
+            // pure multiplication operation.
+            exSrcA_Reg = exSrcA;
+            exSrcB_Reg = exSrcB;
+
+            pipeReg[0] = mulResult;
+            for i in 1..RESULT_PIPELINE_DEPTH {
+                pipeReg[i] = pipeReg[i - 1];
+            }
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+}

@@ -1,0 +1,386 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Divider Unit
+// This unit performs 32bit/32bit = 32bit using the nonrestoring division method
+//
+
+module Divider (
+    clk      : input  clock   ,
+    rst      : input  logic   ,
+    req      : input  logic   ,
+    dividend : input  DataPath,
+    divisor  : input  DataPath,
+    isSigned : input  logic   ,
+    finished : output logic   ,
+    quotient : output DataPath,
+    remainder: output DataPath,
+) {
+    import BasicTypes::*;
+
+    const LOOP_COUNT   : u32                           = DATA_WIDTH + 1;
+    const DIVIDER_WIDTH: u32                           = LOOP_COUNT + 1;
+    type DividerPath   = logic<DIVIDER_WIDTH>         ;
+    type CounterPath   = logic<$clog2(LOOP_COUNT + 1)>;
+
+    const DATA_MINUS_ONE: u32 = (1 << DATA_WIDTH) - 1;
+    const DATA_MINIMUM  : u32 = (1 << (DATA_WIDTH - 1));
+
+    var regZ       : DividerPath;
+    var nextZ      : DividerPath;
+    var regD       : DividerPath;
+    var nextD      : DividerPath;
+    var regQ       : DividerPath;
+    var nextQ      : DividerPath;
+    var regR       : DividerPath;
+    var nextR      : DividerPath;
+    var regSigned  : logic      ;
+    var nextSigned : logic      ;
+    var regCounter : CounterPath;
+    var nextCounter: CounterPath;
+    var stepR      : DividerPath;
+    var compR      : DividerPath;
+    var compQ      : DividerPath;
+
+    enum Phase: logic<2> {
+        PHASE_FINISHED = 0,
+        PHASE_PROCESSING = 1,
+        PHASE_COMPENSATING = 2,
+    }
+    var regPhase : Phase;
+    var nextPhase: Phase;
+
+    always_ff (clk) {
+        if rst {
+            regZ       = 0;
+            regD       = 0;
+            regQ       = 0;
+            regR       = 0;
+            regPhase   = Phase::PHASE_FINISHED;
+            regCounter = 0;
+            regSigned  = FALSE;
+        } else {
+            regZ       = nextZ;
+            regD       = nextD;
+            regQ       = nextQ;
+            regR       = nextR;
+            regPhase   = nextPhase;
+            regCounter = nextCounter;
+            regSigned  = nextSigned;
+        }
+    }
+
+    always_comb {
+        finished = regPhase == Phase::PHASE_FINISHED;
+
+        nextZ       = regZ;
+        nextD       = regD;
+        nextQ       = regQ;
+        nextR       = regR;
+        nextSigned  = regSigned;
+        nextCounter = regCounter;
+        nextPhase   = regPhase;
+        stepR       = regR;
+        compR       = regR;
+        compQ       = regQ;
+
+        if req {
+            // A request is accepted regardless of the current phase
+            if isSigned {
+                // Sign extend
+                // 2 bits are added because DIVIDER_WIDTH = DATA_WIDTH + 2
+                if dividend[DATA_WIDTH - 1] {
+                    nextZ = {2'b11, dividend};
+                } else {
+                    nextZ = {2'b00, dividend};
+                }
+                if divisor[DATA_WIDTH - 1] {
+                    nextD = {2'b11, divisor};
+                } else {
+                    nextD = {2'b00, divisor};
+                }
+            } else {
+                nextZ = {2'b00, dividend};
+                nextD = {2'b00, divisor};
+            }
+
+            nextQ = 0;
+            if nextZ[DIVIDER_WIDTH - 1] {
+                nextR = -1;
+            } else {
+                nextR = 0;
+            }
+
+            nextSigned  = isSigned;
+            nextPhase   = Phase::PHASE_PROCESSING;
+            nextCounter = 0;
+        } else {
+            if regPhase == Phase::PHASE_PROCESSING {
+                stepR = (regR << 1) | regZ[LOOP_COUNT - 1 - regCounter];
+
+                if stepR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
+                    nextR = stepR + regD;
+                    nextQ = regQ << 1;
+                } else {
+                    nextR = stepR - regD;
+                    nextQ = (regQ << 1) | 1;
+                }
+
+                nextCounter = regCounter + 1;
+                if nextCounter >= LOOP_COUNT {
+                    nextPhase = Phase::PHASE_COMPENSATING;
+                } else {
+                    nextPhase = Phase::PHASE_PROCESSING;
+                }
+            } else if regPhase == Phase::PHASE_COMPENSATING {
+                compQ = (regQ << 1) + 1;
+                compR = regR;
+
+                if regR[DATA_WIDTH + 1 - 1:0] == 0 {
+                    compQ = compQ;
+                    compR = compR;
+                } else {
+                    if regR[DATA_WIDTH + 1 - 1:0] == regD[DATA_WIDTH + 1 - 1:0] {
+                        compR = compR - regD;
+                        compQ = compQ + 1;
+                    } else if (regR[DATA_WIDTH + 1 - 1:0] + regD[DATA_WIDTH + 1 - 1:0]) == 0 {
+                        compR = compR + regD;
+                        compQ = compQ - 1;
+                    } else if regZ[DATA_WIDTH + 1 - 1] != regR[DATA_WIDTH + 1 - 1] {
+                        if regR[DATA_WIDTH + 1 - 1] != regD[DATA_WIDTH + 1 - 1] {
+                            compR = compR + regD;
+                            compQ = compQ - 1;
+                        } else {
+                            compR = compR - regD;
+                            compQ = compQ + 1;
+                        }
+                    }
+
+                    if regD == 0 {
+                        compQ = -1;
+                        compR = regZ;
+                    } else if regSigned && (regZ == DATA_MINIMUM) && (regD == DATA_MINUS_ONE) {
+                        compQ = regZ;
+                        compR = 0;
+                    }
+                }
+                nextQ     = compQ;
+                nextR     = compR;
+                nextPhase = Phase::PHASE_FINISHED;
+            } else {
+                nextPhase = regPhase;
+            }
+        }
+
+        quotient  = regQ;
+        remainder = regR;
+    }
+}
+
+module QuickDivider (
+    clk      : input  clock   ,
+    rst      : input  logic   ,
+    req      : input  logic   ,
+    dividend : input  DataPath,
+    divisor  : input  DataPath,
+    isSigned : input  logic   ,
+    finished : output logic   ,
+    quotient : output DataPath,
+    remainder: output DataPath,
+) {
+    import BasicTypes::*;
+
+    const DIVIDER_WIDTH : u32                               = DATA_WIDTH + 1;
+    type DividerPath    = logic<DIVIDER_WIDTH>             ;
+    const MAX_LOOP_COUNT: u32                               = DATA_WIDTH + 1;
+    type CounterPath    = logic<$clog2(MAX_LOOP_COUNT + 1)>;
+
+    function CountSignificantBits (
+        dividend: input DividerPath,
+    ) -> CounterPath {
+        var count: CounterPath;
+        var found: logic      ;
+        count = 1;
+        found = 0;
+        for i in 0..DIVIDER_WIDTH - 1 {
+            if !found && (dividend[DIVIDER_WIDTH - 1] != dividend[DIVIDER_WIDTH - 2 - i]) {
+                count = (DIVIDER_WIDTH - 2 - i) + 2;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    const DATA_MINUS_ONE: u32 = (1 << DATA_WIDTH) - 1;
+    const DATA_MINIMUM  : u32 = (1 << (DATA_WIDTH - 1));
+
+    var regZ       : DividerPath;
+    var nextZ      : DividerPath;
+    var regD       : DividerPath;
+    var nextD      : DividerPath;
+    var regQ       : DividerPath;
+    var nextQ      : DividerPath;
+    var regR       : DividerPath;
+    var nextR      : DividerPath;
+    var regSigned  : logic      ;
+    var nextSigned : logic      ;
+    var regCounter : CounterPath;
+    var nextCounter: CounterPath;
+    var stepR      : DividerPath;
+    var compR      : DividerPath;
+    var compQ      : DividerPath;
+
+    enum QuickPhase: logic<2> {
+        PHASE_FINISHED = 0,
+        PHASE_FIRSTBIT = 1,
+        PHASE_PROCESSING = 2,
+        PHASE_COMPENSATING = 3,
+    }
+    var regPhase : QuickPhase;
+    var nextPhase: QuickPhase;
+
+    always_ff (clk) {
+        if rst {
+            regZ       = 0;
+            regD       = 0;
+            regQ       = 0;
+            regR       = 0;
+            regPhase   = QuickPhase::PHASE_FINISHED;
+            regCounter = 0;
+            regSigned  = FALSE;
+        } else {
+            regZ       = nextZ;
+            regD       = nextD;
+            regQ       = nextQ;
+            regR       = nextR;
+            regPhase   = nextPhase;
+            regCounter = nextCounter;
+            regSigned  = nextSigned;
+        }
+    }
+
+    always_comb {
+        finished = regPhase == QuickPhase::PHASE_FINISHED;
+
+        nextZ       = regZ;
+        nextD       = regD;
+        nextQ       = regQ;
+        nextR       = regR;
+        nextSigned  = regSigned;
+        nextCounter = regCounter;
+        nextPhase   = regPhase;
+        stepR       = regR;
+        compR       = regR;
+        compQ       = regQ;
+
+        if req {
+            // A request is accepted regardless of the current phase
+            if isSigned {
+                // Sign extend
+                // 1 bits are added because DIVIDER_WIDTH = DATA_WIDTH + 1
+                if dividend[DATA_WIDTH - 1] {
+                    nextZ = {1'b1, dividend};
+                } else {
+                    nextZ = {1'b0, dividend};
+                }
+                if divisor[DATA_WIDTH - 1] {
+                    nextD = {1'b1, divisor};
+                } else {
+                    nextD = {1'b0, divisor};
+                }
+            } else {
+                nextZ = {1'b0, dividend};
+                nextD = {1'b0, divisor};
+            }
+
+            nextQ = 0;
+            if nextZ[DIVIDER_WIDTH - 1] {
+                nextR = -1;
+            } else {
+                nextR = 0;
+            }
+
+            nextSigned  = isSigned;
+            nextPhase   = QuickPhase::PHASE_FIRSTBIT;
+            nextCounter = CountSignificantBits(nextZ);
+        } else {
+            if regPhase == QuickPhase::PHASE_FIRSTBIT {
+                stepR = (regR << 1) | regZ[regCounter - 1];
+
+                if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
+                    nextR = stepR + regD;
+                    nextQ = -1;
+                } else {
+                    nextR = stepR - regD;
+                    nextQ = 0;
+                }
+
+                nextCounter = regCounter - 1;
+                if nextCounter == 0 {
+                    nextPhase = QuickPhase::PHASE_COMPENSATING;
+                } else {
+                    nextPhase = QuickPhase::PHASE_PROCESSING;
+                }
+            } else if regPhase == QuickPhase::PHASE_PROCESSING {
+                stepR = (regR << 1) | regZ[regCounter - 1];
+
+                if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
+                    nextR = stepR + regD;
+                    nextQ = regQ << 1;
+                } else {
+                    nextR = stepR - regD;
+                    nextQ = (regQ << 1) | 1;
+                }
+
+                nextCounter = regCounter - 1;
+                if nextCounter == 0 {
+                    nextPhase = QuickPhase::PHASE_COMPENSATING;
+                } else {
+                    nextPhase = QuickPhase::PHASE_PROCESSING;
+                }
+            } else if regPhase == QuickPhase::PHASE_COMPENSATING {
+                compQ = (regQ << 1) + 1;
+                compR = regR;
+
+                if regR == 0 {
+                    compQ = compQ;
+                    compR = compR;
+                } else {
+                    if regR == regD {
+                        compR = compR - regD;
+                        compQ = compQ + 1;
+                    } else if regR == (0 - regD) {
+                        compR = compR + regD;
+                        compQ = compQ - 1;
+                    } else if regR[DIVIDER_WIDTH - 1] != regZ[DIVIDER_WIDTH - 1] {
+                        if regR[DIVIDER_WIDTH - 1] != regD[DIVIDER_WIDTH - 1] {
+                            compR = compR + regD;
+                            compQ = compQ - 1;
+                        } else {
+                            compR = compR - regD;
+                            compQ = compQ + 1;
+                        }
+                    }
+                }
+
+                if regD == 0 {
+                    compQ = -1;
+                    compR = regZ;
+                } else if regSigned && (regZ == DATA_MINIMUM) && (regD == DATA_MINUS_ONE) {
+                    compQ = regZ;
+                    compR = 0;
+                }
+
+                nextQ     = compQ;
+                nextR     = compR;
+                nextPhase = QuickPhase::PHASE_FINISHED;
+            } else {
+                nextPhase = regPhase;
+            }
+        }
+
+        quotient  = regQ;
+        remainder = regR;
+    }
+}

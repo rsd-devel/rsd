@@ -1,0 +1,88 @@
+module BypassNetwork (
+    port: modport BypassNetworkIF::BypassNetwork,
+    ctrl: modport ControllerIF::BypassNetwork,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import BypassTypes::*;
+
+    function SelectData (
+        sel  : input BypassSelect,
+        intEX: input PRegDataPath<INT_ISSUE_WIDTH>,
+        intWB: input PRegDataPath<INT_ISSUE_WIDTH>,
+        memMA: input PRegDataPath<MEM_ISSUE_WIDTH>,
+        memWB: input PRegDataPath<MEM_ISSUE_WIDTH>,
+    ) -> PRegDataPath {
+        if sel.stg == BYPASS_STAGE_INT_EX {
+            return intEX[sel.lane.intLane];
+        } else if sel.stg == BYPASS_STAGE_INT_WB {
+            return intWB[sel.lane.intLane];
+        } else if sel.stg == BYPASS_STAGE_MEM_MA {
+            return memMA[sel.lane.memLane];
+        } else if sel.stg == BYPASS_STAGE_MEM_WB {
+            return memWB[sel.lane.memLane];
+        } else {
+            return '0;
+        }
+    }
+
+    var intEX: PRegDataPath [INT_ISSUE_WIDTH];
+    var intWB: PRegDataPath [INT_ISSUE_WIDTH];
+    var memMA: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memWB: PRegDataPath [MEM_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        for i in 0..INT_ISSUE_WIDTH {
+            if port.rst || ctrl.backEnd.clear {
+                intEX[i].data = 0;
+                intEX[i].valid = 0;
+                intWB[i].data = 0;
+                intWB[i].valid = 0;
+            } else if ctrl.backEnd.stall {
+                intEX[i] = intEX[i];
+                intWB[i] = intWB[i];
+            } else {
+                intEX[i] = port.intDstRegDataOut[i];
+                intWB[i] = intEX[i];
+            }
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            if port.rst || ctrl.backEnd.clear {
+                memMA[i].data = 0;
+                memMA[i].valid = 0;
+                memWB[i].data = 0;
+                memWB[i].valid = 0;
+            } else if ctrl.backEnd.stall {
+                memMA[i] = memMA[i];
+                memWB[i] = memWB[i];
+            } else {
+                memMA[i] = port.memDstRegDataOut[i];
+                memWB[i] = memMA[i];
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            port.intSrcRegDataOutA[i] = SelectData(port.intCtrlIn[i].rA, intEX, intWB, memMA, memWB);
+            port.intSrcRegDataOutB[i] = SelectData(port.intCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+        }
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            port.complexSrcRegDataOutA[i] = SelectData(port.complexCtrlIn[i].rA, intEX, intWB, memMA, memWB);
+            port.complexSrcRegDataOutB[i] = SelectData(port.complexCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            port.memSrcRegDataOutA[i] = SelectData(port.memCtrlIn[i].rA, intEX, intWB, memMA, memWB);
+            port.memSrcRegDataOutB[i] = SelectData(port.memCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            port.fpSrcRegDataOutA[i] = SelectData(port.fpCtrlIn[i].rA, intEX, intWB, memMA, memWB);
+            port.fpSrcRegDataOutB[i] = SelectData(port.fpCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+            port.fpSrcRegDataOutC[i] = SelectData(port.fpCtrlIn[i].rC, intEX, intWB, memMA, memWB);
+        }
+    }
+}

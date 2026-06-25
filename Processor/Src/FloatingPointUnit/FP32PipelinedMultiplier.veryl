@@ -1,0 +1,310 @@
+module FP32PipelinedMultiplier #(
+    param PIPELINE_DEPTH: u32 = 5,
+) (
+    clk   : input  clock    ,
+    lhs   : input  logic<32>,
+    rhs   : input  logic<32>,
+    result: output logic<32>,
+) {
+    import FPUTypes::*;
+
+    var stg0Out: FMulStage1RegPath    ;
+    var stg1Out: FMulStage2RegPath    ;
+    var stg2Out: logic            <32>;
+
+    inst stg0: FMulStage0 (
+        lhs    : lhs    ,
+        rhs    : rhs    ,
+        stg0Out: stg0Out,
+    );
+    inst stg1: FMulStage1 (
+        clk    : clk    ,
+        stg1In : stg0Out,
+        stg1Out: stg1Out,
+    );
+    inst stg2: FMulStage2 (
+        clk   : clk    ,
+        stg2In: stg1Out,
+        result: stg2Out,
+    );
+
+    var pipeReg: logic<32> [PIPELINE_DEPTH - 3];
+
+    always_comb {
+        if PIPELINE_DEPTH >: 3 {
+            result = pipeReg[0];
+        } else {
+            result = stg2Out;
+        }
+    }
+
+    always_ff (clk) {
+        if PIPELINE_DEPTH >: 3 {
+            pipeReg[PIPELINE_DEPTH - 4] = stg2Out;
+            for i in 1..PIPELINE_DEPTH - 3 {
+                pipeReg[i - 1] = pipeReg[i];
+            }
+        }
+    }
+}
+
+module FMulStage0 (
+    lhs    : input  logic            <32>,
+    rhs    : input  logic            <32>,
+    stg0Out: output FMulStage1RegPath    ,
+) {
+    import FPUTypes::*;
+
+    function leading_zeros_count (
+        x: input logic<23>,
+    ) -> logic<10> {
+        var count: logic<10>;
+        var found: logic    ;
+
+        count = 0;
+        found = 0;
+        for i in 0..23 {
+            if !found && (x >> (22 - i)) != 0 {
+                count = i;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    var lhs_sign: logic    ;
+    var rhs_sign: logic    ;
+    var lhs_expo: logic<8> ;
+    var rhs_expo: logic<8> ;
+    var lhs_mant: logic<23>;
+    var rhs_mant: logic<23>;
+
+    var lhs_is_zero: logic    ;
+    var rhs_is_zero: logic    ;
+    var lhs_is_inf : logic    ;
+    var rhs_is_inf : logic    ;
+    var lhs_is_nan : logic    ;
+    var rhs_is_nan : logic    ;
+    var res_is_nan : logic    ;
+    var nan        : logic<32>;
+
+    var result_sign : logic    ;
+    var v_lhs_expo  : logic<10>;
+    var v_rhs_expo  : logic<10>;
+    var virtual_expo: logic<10>;
+    var subnormal   : logic    ;
+    var res_is_zero : logic    ;
+    var res_is_inf  : logic    ;
+
+    always_comb {
+        lhs_sign = lhs[31];
+        rhs_sign = rhs[31];
+        lhs_expo = lhs[30:23];
+        rhs_expo = rhs[30:23];
+        lhs_mant = lhs[22:0];
+        rhs_mant = rhs[22:0];
+
+        // NaN handling
+        lhs_is_zero = (lhs_expo == 8'h00) & (lhs_mant == 0);
+        rhs_is_zero = (rhs_expo == 8'h00) & (rhs_mant == 0);
+        lhs_is_inf  = (lhs_expo == 8'hff) & (lhs_mant == 0);
+        rhs_is_inf  = (rhs_expo == 8'hff) & (rhs_mant == 0);
+        lhs_is_nan  = (lhs_expo == 8'hff) & (lhs_mant != 0);
+        rhs_is_nan  = (rhs_expo == 8'hff) & (rhs_mant != 0);
+        res_is_nan  = lhs_is_nan | rhs_is_nan | (lhs_is_zero & rhs_is_inf) | (lhs_is_inf & rhs_is_zero);
+        nan         = 32'h7fc00000;
+
+        // Preparation
+        result_sign = lhs_sign ^ rhs_sign;
+        if lhs_expo == 0 {
+            v_lhs_expo = 0 - leading_zeros_count(lhs_mant);
+        } else {
+            v_lhs_expo = {2'b0, lhs_expo};
+        }
+        if rhs_expo == 0 {
+            v_rhs_expo = 0 - leading_zeros_count(rhs_mant);
+        } else {
+            v_rhs_expo = {2'b0, rhs_expo};
+        }
+        virtual_expo = v_lhs_expo + v_rhs_expo - 127;
+        subnormal    = $signed(virtual_expo) <= 0;
+        res_is_zero  = ($signed(virtual_expo) <= -25) | lhs_is_zero | rhs_is_zero;
+        res_is_inf   = ($signed(virtual_expo) >= 255) | lhs_is_inf | rhs_is_inf;
+
+        stg0Out = {
+            {lhs_expo, v_lhs_expo, lhs_mant}, {rhs_expo, v_rhs_expo, rhs_mant}, virtual_expo, result_sign, subnormal,
+            res_is_zero, res_is_nan, res_is_inf, nan
+        };
+    }
+}
+
+module FMulStage1 (
+    clk    : input  clock            ,
+    stg1In : input  FMulStage1RegPath,
+    stg1Out: output FMulStage2RegPath,
+) {
+    import FPUTypes::*;
+
+    var pipeReg: FMulStage1RegPath;
+
+    always_ff (clk) {
+        pipeReg = stg1In;
+    }
+
+    var lhs_expo                 : logic<8> ;
+    var rhs_expo                 : logic<8> ;
+    var v_lhs_expo               : logic<10>;
+    var v_rhs_expo               : logic<10>;
+    var lhs_mant                 : logic<23>;
+    var rhs_mant                 : logic<23>;
+    var virtual_expo             : logic<10>;
+    var result_sign              : logic    ;
+    var subnormal                : logic    ;
+    var res_is_zero              : logic    ;
+    var res_is_nan               : logic    ;
+    var res_is_inf               : logic    ;
+    var nan                      : logic<32>;
+    var generate_subnormal       : logic    ;
+    var remaining_subnormal      : logic    ;
+    var escape_subnormal         : logic    ;
+    var generate_subnormal_shift : logic<6> ;
+    var remaining_subnormal_shift: logic<6> ;
+    var escape_subnormal_shift   : logic<6> ;
+    var subnormal_shift          : logic<6> ;
+    var multiplier_lhs           : logic<48>;
+    var multiplier_rhs           : logic<48>;
+    var multiplier_result        : logic<48>;
+
+    always_comb {
+        lhs_expo     = pipeReg.lhs.expo;
+        v_lhs_expo   = pipeReg.lhs.v_expo;
+        lhs_mant     = pipeReg.lhs.mant;
+        rhs_expo     = pipeReg.rhs.expo;
+        v_rhs_expo   = pipeReg.rhs.v_expo;
+        rhs_mant     = pipeReg.rhs.mant;
+        virtual_expo = pipeReg.virtual_expo;
+        result_sign  = pipeReg.result_sign;
+        subnormal    = pipeReg.subnormal;
+        res_is_zero  = pipeReg.res_is_zero;
+        res_is_nan   = pipeReg.res_is_nan;
+        res_is_inf   = pipeReg.res_is_inf;
+        nan          = pipeReg.nan;
+
+        // Determine shift amount
+        generate_subnormal       = subnormal & (lhs_expo != 0) & (rhs_expo != 0);
+        remaining_subnormal      = subnormal & ((lhs_expo == 0) | (rhs_expo == 0));
+        escape_subnormal         = !subnormal & ((lhs_expo == 0) | (rhs_expo == 0));
+        generate_subnormal_shift = 0 - virtual_expo;
+        if lhs_expo == 0 {
+            remaining_subnormal_shift = 126 - rhs_expo;
+            escape_subnormal_shift    = 1 - v_lhs_expo;
+        } else {
+            remaining_subnormal_shift = 126 - lhs_expo;
+            escape_subnormal_shift    = 1 - v_rhs_expo;
+        }
+        if generate_subnormal {
+            subnormal_shift = 23 + generate_subnormal_shift;
+        } else if remaining_subnormal {
+            subnormal_shift = 23 + remaining_subnormal_shift;
+        } else if escape_subnormal {
+            subnormal_shift = 23 - escape_subnormal_shift;
+        } else {
+            subnormal_shift = 23;
+        }
+
+        // Multiplier
+        multiplier_lhs    = {24'h0, lhs_expo != 8'h00, lhs_mant};
+        multiplier_rhs    = {24'h0, rhs_expo != 8'h00, rhs_mant};
+        multiplier_result = multiplier_lhs * multiplier_rhs;
+
+        stg1Out = {
+            multiplier_result, subnormal_shift, virtual_expo, result_sign, subnormal, res_is_zero, res_is_nan,
+            res_is_inf, nan
+        };
+    }
+}
+
+module FMulStage2 (
+    clk   : input  clock                ,
+    stg2In: input  FMulStage2RegPath    ,
+    result: output logic            <32>,
+) {
+    import FPUTypes::*;
+
+    var pipeReg: FMulStage2RegPath;
+
+    always_ff (clk) {
+        pipeReg = stg2In;
+    }
+
+    var multiplier_result: logic<48>;
+    var subnormal_shift  : logic<6> ;
+    var virtual_expo     : logic<10>;
+    var result_sign      : logic    ;
+    var subnormal        : logic    ;
+    var res_is_zero      : logic    ;
+    var res_is_nan       : logic    ;
+    var res_is_inf       : logic    ;
+    var nan              : logic<32>;
+    var shifter_result   : logic<26>;
+    var sticky           : logic    ;
+    var round_to_away    : logic    ;
+    var exp_plus_one     : logic    ;
+    var result_mant      : logic<23>;
+    var result_expo      : logic<8> ;
+    var inf              : logic<32>;
+    var zero             : logic<32>;
+    var final_result     : logic<32>;
+
+    always_comb {
+        multiplier_result = pipeReg.multiplier_result;
+        subnormal_shift   = pipeReg.subnormal_shift;
+        virtual_expo      = pipeReg.virtual_expo;
+        result_sign       = pipeReg.result_sign;
+        subnormal         = pipeReg.subnormal;
+        res_is_zero       = pipeReg.res_is_zero;
+        res_is_nan        = pipeReg.res_is_nan;
+        res_is_inf        = pipeReg.res_is_inf;
+        nan               = pipeReg.nan;
+
+        shifter_result = {multiplier_result, 1'b0} >> subnormal_shift;
+        sticky         = (multiplier_result << (49 - subnormal_shift)) != 0;
+        if subnormal | shifter_result[25] {
+            round_to_away = shifter_result[1] & (shifter_result[2] | shifter_result[0] | sticky);
+        } else {
+            round_to_away = shifter_result[0] & (shifter_result[1] | sticky);
+        }
+        if subnormal {
+            exp_plus_one = shifter_result >= 26'h1fffffe;
+        } else {
+            exp_plus_one = shifter_result >= 26'h1ffffff;
+        }
+
+        if subnormal | shifter_result[25] {
+            result_mant = shifter_result[24:2] + {22'h0, round_to_away};
+        } else {
+            result_mant = shifter_result[23:1] + {22'h0, round_to_away};
+        }
+        if subnormal {
+            result_expo = {7'h0, exp_plus_one};
+        } else {
+            result_expo = virtual_expo[7:0] + {7'h0, exp_plus_one};
+        }
+        inf  = {result_sign, 8'hff, 23'h0};
+        zero = {result_sign, 8'h00, 23'h0};
+
+        if res_is_zero {
+            final_result = zero;
+        } else if res_is_inf | (result_expo == 8'hff) {
+            final_result = inf;
+        } else {
+            final_result = {result_sign, result_expo, result_mant};
+        }
+
+        if res_is_nan {
+            result = nan;
+        } else {
+            result = final_result;
+        }
+    }
+}

@@ -1,0 +1,71 @@
+interface CacheSystemIF {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var icMemAccessReq   : MemReadAccessReq;
+    var icMemAccessReqAck: MemAccessReqAck;
+    var icMemAccessResult: MemAccessResult;
+
+    var dcMemAccessReq     : MemAccessReq;
+    var dcMemAccessReqAck  : MemAccessReqAck;
+    var dcMemAccessResult  : MemAccessResult;
+    var dcMemAccessResponse: MemAccessResponse;
+
+    var icFlushReqAck : logic;
+    var icFlushComplete: logic;
+    var icFlushReq    : logic;
+    var dcFlushReqAck : logic;
+    var dcFlushComplete: logic;
+    var dcFlushReq    : logic;
+    var flushComplete : logic;
+
+    modport ICache {
+        clk              : input ,
+        rst              : input ,
+        icMemAccessResult: input ,
+        icMemAccessReqAck: input ,
+        icFlushReq       : input ,
+        flushComplete    : input ,
+        icMemAccessReq   : output,
+        icFlushReqAck    : output,
+        icFlushComplete  : output,
+    }
+
+    modport DCache {
+        clk                 : input ,
+        rst                 : input ,
+        dcMemAccessResult   : input ,
+        dcMemAccessReqAck   : input ,
+        dcMemAccessResponse : input ,
+        dcFlushReq          : input ,
+        flushComplete       : input ,
+        dcMemAccessReq      : output,
+        dcFlushReqAck       : output,
+        dcFlushComplete     : output,
+    }
+
+    modport MemoryAccessController {
+        clk                 : input ,
+        rst                 : input ,
+        icMemAccessReq      : input ,
+        dcMemAccessReq      : input ,
+        icMemAccessResult   : output,
+        dcMemAccessResult   : output,
+        icMemAccessReqAck   : output,
+        dcMemAccessReqAck   : output,
+        dcMemAccessResponse : output,
+    }
+
+    modport CacheFlushManager {
+        icFlushReqAck : input ,
+        icFlushComplete: input ,
+        dcFlushReqAck : input ,
+        dcFlushComplete: input ,
+        icFlushReq    : output,
+        dcFlushReq    : output,
+        flushComplete : output,
+    }
+}

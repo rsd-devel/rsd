@@ -1,0 +1,53 @@
+module PerformanceCounter (
+    port : modport PerformanceCounterIF::PerformanceCounter,
+    debug: modport DebugIF::PerformanceCounter,
+) {
+    import BasicTypes::*;
+    import DebugTypes::*;
+
+    var cur : PerfCounterPath;
+    var next: PerfCounterPath;
+
+    always_ff (port.clk) {
+        if port.rst {
+            cur = '0;
+        } else {
+            cur = next;
+        }
+    }
+
+    always_comb {
+        next = cur;
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            if port.loadMiss[i] {
+                next.numLoadMiss = next.numLoadMiss + 1;
+            }
+        }
+
+        for i in 0..STORE_ISSUE_WIDTH {
+            if port.storeMiss[i] {
+                next.numStoreMiss = next.numStoreMiss + 1;
+            }
+        }
+
+        if port.icMiss {
+            next.numIC_Miss = next.numIC_Miss + 1;
+        }
+        if port.storeLoadForwardingFail {
+            next.numStoreLoadForwardingFail = next.numStoreLoadForwardingFail + 1;
+        }
+        if port.memDepPredMiss {
+            next.numMemDepPredMiss = next.numMemDepPredMiss + 1;
+        }
+        if port.branchPredMiss {
+            next.numBranchPredMiss = next.numBranchPredMiss + 1;
+        }
+        if port.branchPredMissDetectedOnDecode {
+            next.numBranchPredMissDetectedOnDecode = next.numBranchPredMissDetectedOnDecode + 1;
+        }
+
+        port.perfCounter = cur;
+        debug.perfCounter = next;
+    }
+}

@@ -11,7 +11,7 @@
 import BasicTypes::*;
 import MemoryTypes::*;
 
-module ControlQueue ( 
+module ControlQueue_SV (
 input 
     logic clk,
     logic rst,
@@ -55,6 +55,6 @@ output
         headData = controlQueue[ headPtr ];
     end
 
-endmodule : ControlQueue
+endmodule : ControlQueue_SV
 
  

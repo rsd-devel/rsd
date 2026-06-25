@@ -1,0 +1,9 @@
+interface MemoryRegisterWriteStageIF {
+    var clk: clock;
+    var rst: logic;
+
+    modport ThisStage {
+        clk: input,
+        rst: input,
+    }
+}

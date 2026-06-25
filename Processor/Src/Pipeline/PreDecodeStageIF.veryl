@@ -1,0 +1,19 @@
+interface PreDecodeStageIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import MicroOpTypes::*;
+
+    var clk      : clock;
+    var rst      : logic;
+    var nextStage: DecodeStageRegPath [DECODE_WIDTH];
+
+    modport ThisStage {
+        clk      : input ,
+        rst      : input ,
+        nextStage: output,
+    }
+
+    modport NextStage {
+        nextStage: input,
+    }
+}

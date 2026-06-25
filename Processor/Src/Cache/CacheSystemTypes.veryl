@@ -1,0 +1,234 @@
+package CacheSystemTypes {
+    import MicroArchConf::*;
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import ActiveListIndexTypes::*;
+
+    const DCACHE_WAY_NUM        : u32 = CONF_DCACHE_WAY_NUM;
+    const DCACHE_INDEX_BIT_WIDTH: u32 = CONF_DCACHE_INDEX_BIT_WIDTH;
+    const DCACHE_LINE_BYTE_NUM  : u32 = CONF_DCACHE_LINE_BYTE_NUM;
+    const MSHR_NUM              : u32 = CONF_DCACHE_MSHR_NUM;
+
+    const DCACHE_INDEX_NUM: u32 = 1 << DCACHE_INDEX_BIT_WIDTH;
+    type DCacheIndexPath = logic<DCACHE_INDEX_BIT_WIDTH>;
+
+    const DCACHE_ARRAY_PORT_NUM          : u32 = 2;
+    const DCACHE_ARRAY_PORT_NUM_BIT_WIDTH: u32 = $clog2(DCACHE_ARRAY_PORT_NUM);
+    type DCacheArrayPortIndex = logic<DCACHE_ARRAY_PORT_NUM_BIT_WIDTH>;
+
+    const DCACHE_LINE_BYTE_NUM_BIT_WIDTH: u32 = $clog2(DCACHE_LINE_BYTE_NUM);
+    const DCACHE_LINE_BIT_WIDTH         : u32 = DCACHE_LINE_BYTE_NUM * 8;
+    type DCacheLinePath = logic<DCACHE_LINE_BIT_WIDTH>;
+    type DCacheByteEnablePath = logic<DCACHE_LINE_BYTE_NUM>;
+
+    const DCACHE_TAG_BIT_WIDTH: u32 = PHY_ADDR_WIDTH - DCACHE_INDEX_BIT_WIDTH - DCACHE_LINE_BYTE_NUM_BIT_WIDTH;
+    type DCacheTagPath = logic<DCACHE_TAG_BIT_WIDTH>;
+    type DCacheLineAddr = logic<PHY_ADDR_WIDTH - DCACHE_LINE_BYTE_NUM_BIT_WIDTH>;
+    type DCacheTagWayPath = logic<DCACHE_WAY_NUM, DCACHE_TAG_BIT_WIDTH>;
+
+    struct DCacheTagValidPath {
+        valid: logic,
+        tag  : DCacheTagPath,
+    }
+
+    const DCACHE_WAY_BIT_NUM: u32 = 1;
+    type DCacheWayPath = logic<DCACHE_WAY_BIT_NUM>;
+
+    const DCACHE_TREE_LRU_STATE_BIT_NUM: u32 = DCACHE_WAY_NUM - 1;
+    type DCacheTreeLRU_StatePath = logic<DCACHE_TREE_LRU_STATE_BIT_NUM>;
+
+    const DCACHE_INDEX_SUBSET_BIT_WIDTH: u32 = DCACHE_INDEX_BIT_WIDTH;
+    type DCacheIndexSubsetPath = logic<DCACHE_INDEX_SUBSET_BIT_WIDTH>;
+
+    const MEM_ACCESS_SERIAL_BIT_SIZE: u32 = $clog2(MSHR_NUM + 1);
+    type MemAccessSerial = logic<MEM_ACCESS_SERIAL_BIT_SIZE>;
+
+    const MEM_WRITE_SERIAL_BIT_SIZE: u32 = $clog2(MSHR_NUM);
+    type MemWriteSerial = logic<MEM_WRITE_SERIAL_BIT_SIZE>;
+
+    enum DCachePhase: logic<2> {
+        DCACHE_PHASE_NORMAL           = 2'd0,
+        DCACHE_PHASE_FLUSH_PROCESSING = 2'd1,
+        DCACHE_PHASE_FLUSH_COMPLETE   = 2'd2,
+    }
+    const DCACHE_PHASE_NORMAL          : DCachePhase = DCachePhase::DCACHE_PHASE_NORMAL;
+    const DCACHE_PHASE_FLUSH_PROCESSING: DCachePhase = DCachePhase::DCACHE_PHASE_FLUSH_PROCESSING;
+    const DCACHE_PHASE_FLUSH_COMPLETE  : DCachePhase = DCachePhase::DCACHE_PHASE_FLUSH_COMPLETE;
+
+    const MSHR_NUM_BIT_WIDTH: u32 = $clog2(MSHR_NUM);
+    type MSHR_IndexPath = logic<MSHR_NUM_BIT_WIDTH>;
+    type MSHR_CountPath = logic<MSHR_NUM_BIT_WIDTH + 1>;
+
+    enum MSHR_Phase: logic<5> {
+        MSHR_PHASE_INVALID                    = 5'd0,
+        MSHR_PHASE_FLUSH_VICTIM_REQEUST       = 5'd1,
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG   = 5'd2,
+        MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA  = 5'd3,
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM  = 5'd4,
+        MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE= 5'd5,
+        MSHR_PHASE_FLUSH_CHECK                = 5'd6,
+        MSHR_PHASE_VICTIM_REQUEST             = 5'd7,
+        MSHR_PHASE_VICTIM_RECEIVE_TAG         = 5'd8,
+        MSHR_PHASE_VICTIM_RECEIVE_DATA        = 5'd9,
+        MSHR_PHASE_VICTIM_WRITE_TO_MEM        = 5'd10,
+        MSHR_PHASE_VICTIM_WRITE_COMPLETE      = 5'd11,
+        MSHR_PHASE_MISS_MERGE_STORE_DATA      = 5'd12,
+        MSHR_PHASE_MISS_READ_MEM_REQUEST      = 5'd13,
+        MSHR_PHASE_MISS_READ_MEM_RECEIVE      = 5'd14,
+        MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM    = 5'd15,
+        MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE  = 5'd16,
+        MSHR_PHASE_MISS_WRITE_CACHE_REQUEST   = 5'd17,
+        MSHR_PHASE_MISS_HANDLING_COMPLETE     = 5'd18,
+    }
+    const MSHR_PHASE_INVALID                   : MSHR_Phase = MSHR_Phase::MSHR_PHASE_INVALID;
+    const MSHR_PHASE_FLUSH_VICTIM_REQEUST      : MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+    const MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG  : MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG;
+    const MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA : MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA;
+    const MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM : MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
+    const MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE: MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
+    const MSHR_PHASE_FLUSH_CHECK               : MSHR_Phase = MSHR_Phase::MSHR_PHASE_FLUSH_CHECK;
+    const MSHR_PHASE_VICTIM_REQUEST            : MSHR_Phase = MSHR_Phase::MSHR_PHASE_VICTIM_REQUEST;
+    const MSHR_PHASE_VICTIM_RECEIVE_TAG        : MSHR_Phase = MSHR_Phase::MSHR_PHASE_VICTIM_RECEIVE_TAG;
+    const MSHR_PHASE_VICTIM_RECEIVE_DATA       : MSHR_Phase = MSHR_Phase::MSHR_PHASE_VICTIM_RECEIVE_DATA;
+    const MSHR_PHASE_VICTIM_WRITE_TO_MEM       : MSHR_Phase = MSHR_Phase::MSHR_PHASE_VICTIM_WRITE_TO_MEM;
+    const MSHR_PHASE_VICTIM_WRITE_COMPLETE     : MSHR_Phase = MSHR_Phase::MSHR_PHASE_VICTIM_WRITE_COMPLETE;
+    const MSHR_PHASE_MISS_MERGE_STORE_DATA     : MSHR_Phase = MSHR_Phase::MSHR_PHASE_MISS_MERGE_STORE_DATA;
+    const MSHR_PHASE_MISS_READ_MEM_REQUEST     : MSHR_Phase = MSHR_Phase::MSHR_PHASE_MISS_READ_MEM_REQUEST;
+    const MSHR_PHASE_MISS_READ_MEM_RECEIVE     : MSHR_Phase = MSHR_Phase::MSHR_PHASE_MISS_READ_MEM_RECEIVE;
+    const MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM   : MSHR_Phase = MSHR_Phase::MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+    const MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE : MSHR_Phase = MSHR_Phase::MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+    const MSHR_PHASE_MISS_WRITE_CACHE_REQUEST  : MSHR_Phase = MSHR_Phase::MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+    const MSHR_PHASE_MISS_HANDLING_COMPLETE    : MSHR_Phase = MSHR_Phase::MSHR_PHASE_MISS_HANDLING_COMPLETE;
+
+    struct MissStatusHandlingRegister {
+        valid                  : logic,
+        phase                  : MSHR_Phase,
+        victimDirty            : logic,
+        victimValid            : logic,
+        victimReceived         : logic,
+        victimAddr             : PhyAddrPath,
+        tagDataOut             : DCacheTagWayPath,
+        tagValidOut            : logic<DCACHE_WAY_NUM>,
+        newValid               : logic,
+        newAddr                : PhyAddrPath,
+        memSerial              : MemAccessSerial,
+        memWSerial             : MemWriteSerial,
+        line                   : DCacheLinePath,
+        canBeInvalid           : logic,
+        isAllocatorLoadFlushed : logic,
+        isAllocatedByStore     : logic,
+        isUncachable           : logic,
+        evictWay               : DCacheWayPath,
+        flushIndex             : DCacheIndexPath,
+        activeListPtr          : ActiveListIndexPath,
+    }
+
+    struct DCachePortMultiplexerIn {
+        indexIn         : DCacheIndexPath,
+        tagWE           : logic,
+        tagDataIn       : DCacheTagPath,
+        tagValidIn      : logic,
+        dataWE_OnTagHit : logic,
+        dataWE          : logic,
+        dataDataIn      : DCacheLinePath,
+        dataByteWE      : DCacheByteEnablePath,
+        dataDirtyIn     : logic,
+        evictWay        : DCacheWayPath,
+        isVictimEviction: logic,
+        isFlushReq      : logic,
+    }
+
+    struct DCachePortMultiplexerTagOut {
+        tagDataOut       : DCacheTagWayPath,
+        tagValidOut      : logic<DCACHE_WAY_NUM>,
+        tagHit           : logic,
+        mshrConflict     : logic,
+        mshrAddrHit      : logic,
+        mshrAddrHitMSHRID: MSHR_IndexPath,
+        mshrReadHit      : logic,
+        mshrReadData     : DCacheLinePath,
+    }
+
+    struct DCachePortMultiplexerDataOut {
+        dataDataOut: DCacheLinePath,
+        dataDirtyOut: logic,
+        replDataOut: DCacheTreeLRU_StatePath,
+    }
+
+    struct MemoryPortMultiplexerIn {
+        addr: PhyAddrPath,
+        data: DCacheLinePath,
+        we  : logic,
+    }
+
+    struct MemoryPortMultiplexerOut {
+        ack    : logic,
+        serial : MemAccessSerial,
+        wserial: MemWriteSerial,
+    }
+
+    const DCACHE_LSU_READ_PORT_NUM  : u32 = LOAD_ISSUE_WIDTH;
+    const DCACHE_LSU_WRITE_PORT_NUM : u32 = 1;
+    const DCACHE_LSU_PORT_NUM       : u32 = DCACHE_LSU_READ_PORT_NUM + DCACHE_LSU_WRITE_PORT_NUM;
+    const DCACHE_LSU_READ_PORT_BEGIN: u32 = 0;
+    const DCACHE_LSU_WRITE_PORT_BEGIN: u32 = DCACHE_LSU_READ_PORT_NUM;
+    const DCACHE_MUX_PORT_NUM       : u32 = DCACHE_LSU_PORT_NUM + MSHR_NUM;
+    type DCacheMuxPortIndexPath = logic<$clog2(DCACHE_MUX_PORT_NUM)>;
+
+    const ICACHE_WAY_NUM        : u32 = CONF_ICACHE_WAY_NUM;
+    const ICACHE_INDEX_BIT_WIDTH: u32 = CONF_ICACHE_INDEX_BIT_WIDTH;
+    const ICACHE_LINE_BYTE_NUM  : u32 = CONF_ICACHE_LINE_BYTE_NUM;
+
+    const ICACHE_INDEX_NUM: u32 = 1 << ICACHE_INDEX_BIT_WIDTH;
+    type ICacheIndexPath = logic<ICACHE_INDEX_BIT_WIDTH>;
+
+    const ICACHE_LINE_BYTE_NUM_BIT_WIDTH: u32 = $clog2(ICACHE_LINE_BYTE_NUM);
+    const ICACHE_LINE_BIT_WIDTH         : u32 = ICACHE_LINE_BYTE_NUM * 8;
+    type ICacheLinePath = logic<ICACHE_LINE_BIT_WIDTH>;
+
+    const ICACHE_LINE_INSN_NUM: u32 = ICACHE_LINE_BYTE_NUM / INSN_BYTE_WIDTH;
+    type ICacheLineInsnIndexPath = logic<$clog2(ICACHE_LINE_INSN_NUM)>;
+    type ICacheLineInsnCountPath = logic<$clog2(ICACHE_LINE_INSN_NUM) + 1>;
+    type ICacheLineInsnPath = logic<ICACHE_LINE_INSN_NUM, INSN_WIDTH>;
+
+    const ICACHE_TAG_BIT_WIDTH: u32 = PHY_ADDR_WIDTH - ICACHE_INDEX_BIT_WIDTH - ICACHE_LINE_BYTE_NUM_BIT_WIDTH;
+    type ICacheTagPath = logic<ICACHE_TAG_BIT_WIDTH>;
+    type ICacheLineAddr = logic<PHY_ADDR_WIDTH - ICACHE_LINE_BYTE_NUM_BIT_WIDTH>;
+
+    struct ICacheTagValidPath {
+        valid: logic,
+        tag  : ICacheTagPath,
+    }
+
+    type ICacheWayPath = logic<$clog2(ICACHE_WAY_NUM)>;
+    type NRUAccessStatePath = logic<ICACHE_WAY_NUM>;
+
+    struct MemAccessReqAck {
+        ack    : logic,
+        serial : MemAccessSerial,
+        wserial: MemWriteSerial,
+    }
+
+    struct MemAccessReq {
+        valid: logic,
+        we   : logic,
+        addr : PhyAddrPath,
+        data : DCacheLinePath,
+    }
+
+    struct MemReadAccessReq {
+        valid: logic,
+        addr : PhyAddrPath,
+    }
+
+    struct MemAccessResult {
+        valid : logic,
+        serial: MemAccessSerial,
+        data  : DCacheLinePath,
+    }
+
+    struct MemAccessResponse {
+        valid : logic,
+        serial: MemWriteSerial,
+    }
+}

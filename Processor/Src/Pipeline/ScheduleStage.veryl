@@ -1,0 +1,59 @@
+module ScheduleStage (
+    port     : modport ScheduleStageIF::ThisStage,
+    scheduler: modport SchedulerIF::ScheduleStage,
+    recovery : modport RecoveryManagerIF::ScheduleStage,
+    ctrl     : modport ControllerIF::ScheduleStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [ISSUE_WIDTH];
+    var valid: logic [ISSUE_WIDTH];
+    var nextStage: IssueStageRegPath [ISSUE_WIDTH];
+    var issueQueuePtr: IssueQueueIndexPath [ISSUE_WIDTH];
+    var flushIQ_Entry: IssueQueueOneHotPath;
+
+    always_comb {
+        stall = ctrl.scStage.stall;
+        clear = ctrl.scStage.clear;
+
+        scheduler.stall = stall;
+
+        flushIQ_Entry = recovery.flushIQ_Entry;
+
+        for i in 0..ISSUE_WIDTH {
+            valid[i] = scheduler.selected[i];
+            issueQueuePtr[i] = scheduler.selectedPtr[i];
+            flush[i] = flushIQ_Entry[issueQueuePtr[i]];
+
+            if stall || clear || port.rst || flush[i] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+
+            nextStage[i].issueQueuePtr = scheduler.selectedPtr[i];
+
+        }
+
+        for i in 0..INT_ISSUE_WIDTH {
+            port.intNextStage[i] = nextStage[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            port.complexNextStage[i] = nextStage[i + INT_ISSUE_WIDTH];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            port.memNextStage[i] = nextStage[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            port.fpNextStage[i] = nextStage[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH];
+        }
+    }
+}

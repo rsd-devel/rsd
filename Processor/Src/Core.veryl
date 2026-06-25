@@ -1,0 +1,587 @@
+module Core (
+    clk                : input  clock              ,
+    rst                : input  logic              ,
+    rstStart           : input  logic              ,
+    nextMemReadSerial  : input  MemAccessSerial    ,
+    nextMemWriteSerial : input  MemWriteSerial     ,
+    memReadData        : input  MemoryEntryDataPath,
+    memReadDataReady   : input  logic              ,
+    memReadSerial      : input  MemAccessSerial    ,
+    memAccessResponse  : input  MemAccessResponse  ,
+    memAccessReadBusy  : input  logic              ,
+    memAccessWriteBusy : input  logic              ,
+    reqCustomInterrupt : input  logic              ,
+    customInterruptCode: input  CustomInterruptCodePath,
+    debugRegister      : output DebugRegister      ,
+    lastCommittedPC    : output PC_Path            ,
+    memAccessAddr      : output PhyAddrPath        ,
+    memAccessWriteData : output MemoryEntryDataPath,
+    memAccessRE        : output logic              ,
+    memAccessWE        : output logic              ,
+    serialWE           : output logic              ,
+    serialWriteData    : output SerialDataPath     ,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryTypes::*;
+    import MemoryMapTypes::*;
+    import IO_UnitTypes::*;
+    import DebugTypes::*;
+
+    inst debugIF: DebugIF;
+    inst perfCounterIF: PerformanceCounterIF;
+    inst ctrlIF: ControllerIF;
+    inst npStageIF: NextPCStageIF;
+    inst ifStageIF: FetchStageIF;
+    inst pdStageIF: PreDecodeStageIF;
+    inst idStageIF: DecodeStageIF;
+    inst rnStageIF: RenameStageIF;
+    inst scStageIF: ScheduleStageIF;
+
+    inst intIsStageIF: IntegerIssueStageIF;
+    inst intRrStageIF: IntegerRegisterReadStageIF;
+    inst intExStageIF: IntegerExecutionStageIF;
+
+    inst complexIsStageIF: ComplexIntegerIssueStageIF;
+    inst complexRrStageIF: ComplexIntegerRegisterReadStageIF;
+    inst complexExStageIF: ComplexIntegerExecutionStageIF;
+
+    inst memIsStageIF: MemoryIssueStageIF;
+    inst memRrStageIF: MemoryRegisterReadStageIF;
+    inst memExStageIF: MemoryExecutionStageIF;
+    inst mtStageIF: MemoryTagAccessStageIF;
+    inst maStageIF: MemoryAccessStageIF;
+
+    inst fpIsStageIF: FPIssueStageIF;
+    inst fpRrStageIF: FPRegisterReadStageIF;
+    inst fpExStageIF: FPExecutionStageIF;
+    inst fpDivSqrtUnitIF: FPDivSqrtUnitIF;
+
+    inst cmStageIF: CommitStageIF;
+    inst cacheSystemIF: CacheSystemIF;
+    inst renameLogicIF: RenameLogicIF;
+    inst activeListIF: ActiveListIF;
+    inst schedulerIF: SchedulerIF;
+    inst wakeupSelectIF: WakeupSelectIF;
+    inst registerFileIF: RegisterFileIF;
+    inst bypassNetworkIF: BypassNetworkIF;
+    inst loadStoreUnitIF: LoadStoreUnitIF;
+    inst recoveryManagerIF: RecoveryManagerIF;
+    inst csrUnitIF: CSR_UnitIF;
+    inst ioUnitIF: IO_UnitIF;
+    inst mulDivUnitIF: MulDivUnitIF;
+    inst cacheFlushManagerIF: CacheFlushManagerIF;
+    inst amoCacheIF: AMOCacheIF;
+
+    assign debugIF.clk = clk;
+    assign debugIF.rst = rst;
+    assign perfCounterIF.clk = clk;
+    assign perfCounterIF.rst = rst;
+    assign ctrlIF.clk = clk;
+    assign ctrlIF.rst = rst;
+    assign npStageIF.clk = clk;
+    assign npStageIF.rst = rst;
+    assign npStageIF.rstStart = rstStart;
+    assign ifStageIF.clk = clk;
+    assign ifStageIF.rst = rst;
+    assign pdStageIF.clk = clk;
+    assign pdStageIF.rst = rst;
+    assign idStageIF.clk = clk;
+    assign idStageIF.rst = rst;
+    assign rnStageIF.clk = clk;
+    assign rnStageIF.rst = rst;
+    assign rnStageIF.rstStart = rstStart;
+    assign scStageIF.clk = clk;
+    assign scStageIF.rst = rst;
+
+    assign intIsStageIF.clk = clk;
+    assign intIsStageIF.rst = rst;
+    assign intRrStageIF.clk = clk;
+    assign intRrStageIF.rst = rst;
+    assign intExStageIF.clk = clk;
+    assign intExStageIF.rst = rst;
+
+    assign complexIsStageIF.clk = clk;
+    assign complexIsStageIF.rst = rst;
+    assign complexRrStageIF.clk = clk;
+    assign complexRrStageIF.rst = rst;
+    assign complexExStageIF.clk = clk;
+    assign complexExStageIF.rst = rst;
+
+    assign memIsStageIF.clk = clk;
+    assign memIsStageIF.rst = rst;
+    assign memRrStageIF.clk = clk;
+    assign memRrStageIF.rst = rst;
+    assign memExStageIF.clk = clk;
+    assign memExStageIF.rst = rst;
+    assign mtStageIF.clk = clk;
+    assign mtStageIF.rst = rst;
+    assign maStageIF.clk = clk;
+    assign maStageIF.rst = rst;
+
+    assign fpIsStageIF.clk = clk;
+    assign fpIsStageIF.rst = rst;
+    assign fpRrStageIF.clk = clk;
+    assign fpRrStageIF.rst = rst;
+    assign fpExStageIF.clk = clk;
+    assign fpExStageIF.rst = rst;
+    assign fpDivSqrtUnitIF.clk = clk;
+    assign fpDivSqrtUnitIF.rst = rst;
+
+    assign cmStageIF.clk = clk;
+    assign cmStageIF.rst = rst;
+    assign cacheSystemIF.clk = clk;
+    assign cacheSystemIF.rst = rst;
+    assign renameLogicIF.clk = clk;
+    assign renameLogicIF.rst = rst;
+    assign renameLogicIF.rstStart = rstStart;
+    assign activeListIF.clk = clk;
+    assign activeListIF.rst = rst;
+    assign schedulerIF.clk = clk;
+    assign schedulerIF.rst = rst;
+    assign schedulerIF.rstStart = rstStart;
+    assign wakeupSelectIF.clk = clk;
+    assign wakeupSelectIF.rst = rst;
+    assign wakeupSelectIF.rstStart = rstStart;
+    assign registerFileIF.clk = clk;
+    assign registerFileIF.rst = rst;
+    assign registerFileIF.rstStart = rstStart;
+    assign bypassNetworkIF.clk = clk;
+    assign bypassNetworkIF.rst = rst;
+    assign bypassNetworkIF.rstStart = rstStart;
+    assign loadStoreUnitIF.clk = clk;
+    assign loadStoreUnitIF.rst = rst;
+    assign loadStoreUnitIF.rstStart = rstStart;
+    assign recoveryManagerIF.clk = clk;
+    assign recoveryManagerIF.rst = rst;
+    assign csrUnitIF.clk = clk;
+    assign csrUnitIF.rst = rst;
+    assign csrUnitIF.rstStart = rstStart;
+    assign csrUnitIF.reqCustomInterrupt = reqCustomInterrupt;
+    assign csrUnitIF.customInterruptCode = customInterruptCode;
+    assign ioUnitIF.clk = clk;
+    assign ioUnitIF.rst = rst;
+    assign ioUnitIF.rstStart = rstStart;
+    assign mulDivUnitIF.clk = clk;
+    assign mulDivUnitIF.rst = rst;
+    assign mulDivUnitIF.dummy = '0;
+    assign cacheFlushManagerIF.clk = clk;
+    assign cacheFlushManagerIF.rst = rst;
+    assign amoCacheIF.clk = clk;
+    assign amoCacheIF.rst = rst;
+
+    assign debugRegister = debugIF.debugRegister;
+    assign serialWE = ioUnitIF.serialWE;
+    assign serialWriteData = ioUnitIF.serialWriteDataOut;
+
+    inst debug: Debug (
+        port           : debugIF,
+        lastCommittedPC: lastCommittedPC,
+    );
+    inst perfCounter: PerformanceCounter (
+        port : perfCounterIF,
+        debug: debugIF,
+    );
+
+    inst controller: Controller (
+        port : ctrlIF,
+        debug: debugIF,
+    );
+    inst memoryAccessController: MemoryAccessController (
+        port               : cacheSystemIF,
+        nextMemReadSerial  : nextMemReadSerial,
+        nextMemWriteSerial : nextMemWriteSerial,
+        memReadData        : memReadData,
+        memReadDataReady   : memReadDataReady,
+        memReadSerial      : memReadSerial,
+        memAccessResponse  : memAccessResponse,
+        memAccessReadBusy  : memAccessReadBusy,
+        memAccessWriteBusy : memAccessWriteBusy,
+        memAccessAddr      : memAccessAddr,
+        memAccessWriteData : memAccessWriteData,
+        memAccessRE        : memAccessRE,
+        memAccessWE        : memAccessWE,
+    );
+
+    inst npStage: NextPCStage (
+        port    : npStageIF,
+        next    : ifStageIF,
+        recovery: recoveryManagerIF,
+        ctrl    : ctrlIF,
+        debug   : debugIF,
+    );
+    inst pc: PC (port: npStageIF);
+    inst btb: BTB (
+        port: npStageIF,
+        next: ifStageIF,
+    );
+    inst brPred: BranchPredictor (
+        port: npStageIF,
+        next: ifStageIF,
+        ctrl: ctrlIF,
+    );
+    inst ifStage: FetchStage (
+        port       : ifStageIF,
+        prev       : npStageIF,
+        ctrl       : ctrlIF,
+        debug      : debugIF,
+        perfCounter: perfCounterIF,
+    );
+    inst iCache: ICache (
+        port      : npStageIF,
+        next      : ifStageIF,
+        cacheSystem: cacheSystemIF,
+    );
+
+    inst pdStage: PreDecodeStage (
+        port : pdStageIF,
+        prev : ifStageIF,
+        ctrl : ctrlIF,
+        debug: debugIF,
+    );
+    inst idStage: DecodeStage (
+        port       : idStageIF,
+        prev       : pdStageIF,
+        ctrl       : ctrlIF,
+        debug      : debugIF,
+        perfCounter: perfCounterIF,
+    );
+
+    inst rnStage: RenameStage (
+        port         : rnStageIF,
+        prev         : idStageIF,
+        renameLogic  : renameLogicIF,
+        activeList   : activeListIF,
+        scheduler    : schedulerIF,
+        loadStoreUnit: loadStoreUnitIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+        debug        : debugIF,
+    );
+    inst renameLogic: RenameLogic (
+        port      : renameLogicIF,
+        activeList: activeListIF,
+        recovery  : recoveryManagerIF,
+    );
+    inst renameLogicCommitter: RenameLogicCommitter (
+        port      : renameLogicIF,
+        activeList: activeListIF,
+        recovery  : recoveryManagerIF,
+    );
+    inst activeList: ActiveList (
+        port    : activeListIF,
+        recovery: recoveryManagerIF,
+        ctrl    : ctrlIF,
+        debug   : debugIF,
+    );
+    inst rmt_wat: RMT (port: renameLogicIF);
+    inst retirementRMT: RetirementRMT (port: renameLogicIF);
+    inst memoryDependencyPredictor: MemoryDependencyPredictor (
+        port         : rnStageIF,
+        loadStoreUnit: loadStoreUnitIF,
+    );
+
+    inst dsStage: DispatchStage (
+        prev     : rnStageIF,
+        scheduler: schedulerIF,
+        ctrl     : ctrlIF,
+        debug    : debugIF,
+    );
+
+    inst scStage: ScheduleStage (
+        port     : scStageIF,
+        scheduler: schedulerIF,
+        recovery : recoveryManagerIF,
+        ctrl     : ctrlIF,
+    );
+    inst issueQueue: IssueQueue (
+        port        : schedulerIF,
+        wakeupSelect: wakeupSelectIF,
+        recovery    : recoveryManagerIF,
+        debug       : debugIF,
+    );
+    inst replayQueue: ReplayQueue (
+        port         : schedulerIF,
+        mshr         : loadStoreUnitIF,
+        mulDivUnit   : mulDivUnitIF,
+        fpDivSqrtUnit: fpDivSqrtUnitIF,
+        cacheFlush   : cacheFlushManagerIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+    );
+    inst scheduler: Scheduler (
+        port         : schedulerIF,
+        wakeupSelect : wakeupSelectIF,
+        recovery     : recoveryManagerIF,
+        mulDivUnit   : mulDivUnitIF,
+        fpDivSqrtUnit: fpDivSqrtUnitIF,
+        debug        : debugIF,
+    );
+    inst wakeupPipelineRegister: WakeupPipelineRegister (
+        port    : wakeupSelectIF,
+        recovery: recoveryManagerIF,
+    );
+    inst destinationRAM: DestinationRAM (port: wakeupSelectIF);
+    inst wakeupLogic: WakeupLogic (port: wakeupSelectIF);
+    inst selectLogic: SelectLogic (
+        port    : wakeupSelectIF,
+        recovery: recoveryManagerIF,
+    );
+
+    inst intIsStage: IntegerIssueStage (
+        port     : intIsStageIF,
+        prev     : scStageIF,
+        scheduler: schedulerIF,
+        recovery : recoveryManagerIF,
+        ctrl     : ctrlIF,
+        debug    : debugIF,
+    );
+    inst intRrStage: IntegerRegisterReadStage (
+        port        : intRrStageIF,
+        prev        : intIsStageIF,
+        registerFile: registerFileIF,
+        bypass      : bypassNetworkIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst intExStage: IntegerExecutionStage (
+        port    : intExStageIF,
+        prev    : intRrStageIF,
+        bypass  : bypassNetworkIF,
+        recovery: recoveryManagerIF,
+        ctrl    : ctrlIF,
+        debug   : debugIF,
+    );
+    inst intRwStage: IntegerRegisterWriteStage (
+        prev        : intExStageIF,
+        scheduler   : schedulerIF,
+        ifStage     : npStageIF,
+        registerFile: registerFileIF,
+        activeList  : activeListIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+
+    inst complexIsStage: ComplexIntegerIssueStage (
+        port      : complexIsStageIF,
+        prev      : scStageIF,
+        scheduler : schedulerIF,
+        recovery  : recoveryManagerIF,
+        mulDivUnit: mulDivUnitIF,
+        ctrl      : ctrlIF,
+        debug     : debugIF,
+    );
+    inst complexRrStage: ComplexIntegerRegisterReadStage (
+        port        : complexRrStageIF,
+        prev        : complexIsStageIF,
+        registerFile: registerFileIF,
+        bypass      : bypassNetworkIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst complexExStage: ComplexIntegerExecutionStage (
+        port      : complexExStageIF,
+        prev      : complexRrStageIF,
+        mulDivUnit: mulDivUnitIF,
+        scheduler : schedulerIF,
+        bypass    : bypassNetworkIF,
+        recovery  : recoveryManagerIF,
+        ctrl      : ctrlIF,
+        debug     : debugIF,
+    );
+    inst complexRwStage: ComplexIntegerRegisterWriteStage (
+        prev        : complexExStageIF,
+        registerFile: registerFileIF,
+        activeList  : activeListIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst mulDivUnit: MulDivUnit (
+        port        : mulDivUnitIF,
+        recovery    : recoveryManagerIF,
+        registerFile: registerFileIF,
+        activeList  : activeListIF,
+    );
+
+    inst memIsStage: MemoryIssueStage (
+        port      : memIsStageIF,
+        prev      : scStageIF,
+        scheduler : schedulerIF,
+        recovery  : recoveryManagerIF,
+        mulDivUnit: mulDivUnitIF,
+        ctrl      : ctrlIF,
+        debug     : debugIF,
+    );
+    inst memRrStage: MemoryRegisterReadStage (
+        port        : memRrStageIF,
+        prev        : memIsStageIF,
+        registerFile: registerFileIF,
+        bypass      : bypassNetworkIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst memExStage: MemoryExecutionStage (
+        port         : memExStageIF,
+        prev         : memRrStageIF,
+        loadStoreUnit: loadStoreUnitIF,
+        cacheFlush   : cacheFlushManagerIF,
+        mulDivUnit   : mulDivUnitIF,
+        bypass       : bypassNetworkIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+        csrUnit      : csrUnitIF,
+        amoCache     : amoCacheIF,
+        debug        : debugIF,
+    );
+    inst mtStage: MemoryTagAccessStage (
+        port         : mtStageIF,
+        prev         : memExStageIF,
+        scheduler    : schedulerIF,
+        loadStoreUnit: loadStoreUnitIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+        amoCache     : amoCacheIF,
+        debug        : debugIF,
+        perfCounter  : perfCounterIF,
+    );
+    inst maStage: MemoryAccessStage (
+        port         : maStageIF,
+        prev         : mtStageIF,
+        loadStoreUnit: loadStoreUnitIF,
+        mulDivUnit   : mulDivUnitIF,
+        bypass       : bypassNetworkIF,
+        ioUnit       : ioUnitIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+        amoCache     : amoCacheIF,
+        debug        : debugIF,
+    );
+    inst loadStoreUnit: LoadStoreUnit (
+        port: loadStoreUnitIF,
+        ctrl: ctrlIF,
+    );
+    inst loadQueue: LoadQueue (
+        port    : loadStoreUnitIF,
+        recovery: recoveryManagerIF,
+    );
+    inst storeQueue: StoreQueue (
+        port    : loadStoreUnitIF,
+        recovery: recoveryManagerIF,
+    );
+    inst storeCommitter: StoreCommitter (
+        port       : loadStoreUnitIF,
+        recovery   : recoveryManagerIF,
+        ioUnit     : ioUnitIF,
+        debug      : debugIF,
+        perfCounter: perfCounterIF,
+    );
+    inst dCache: DCache (
+        lsu        : loadStoreUnitIF,
+        cacheSystem: cacheSystemIF,
+        ctrl       : ctrlIF,
+        recovery   : recoveryManagerIF,
+    );
+    inst amocache: AMOCache (port: amoCacheIF);
+    inst memRwStage: MemoryRegisterWriteStage (
+        prev        : maStageIF,
+        loadStoreUnit: loadStoreUnitIF,
+        registerFile: registerFileIF,
+        activeList  : activeListIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+
+    inst fpIsStage: FPIssueStage (
+        port         : fpIsStageIF,
+        prev         : scStageIF,
+        scheduler    : schedulerIF,
+        recovery     : recoveryManagerIF,
+        fpDivSqrtUnit: fpDivSqrtUnitIF,
+        ctrl         : ctrlIF,
+        debug        : debugIF,
+    );
+    inst fpRrStage: FPRegisterReadStage (
+        port        : fpRrStageIF,
+        prev        : fpIsStageIF,
+        registerFile: registerFileIF,
+        bypass      : bypassNetworkIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst fpExStage: FPExecutionStage (
+        port         : fpExStageIF,
+        prev         : fpRrStageIF,
+        fpDivSqrtUnit: fpDivSqrtUnitIF,
+        scheduler    : schedulerIF,
+        bypass       : bypassNetworkIF,
+        recovery     : recoveryManagerIF,
+        ctrl         : ctrlIF,
+        debug        : debugIF,
+        csrUnit      : csrUnitIF,
+    );
+    inst fpRwStage: FPRegisterWriteStage (
+        prev        : fpExStageIF,
+        registerFile: registerFileIF,
+        activeList  : activeListIF,
+        recovery    : recoveryManagerIF,
+        ctrl        : ctrlIF,
+        debug       : debugIF,
+    );
+    inst fpDivSqrtUnit: FPDivSqrtUnit (
+        port    : fpDivSqrtUnitIF,
+        recovery: recoveryManagerIF,
+    );
+
+    inst registerFile: RegisterFile (port: registerFileIF);
+    inst bypassController: BypassController (
+        port: bypassNetworkIF,
+        ctrl: ctrlIF,
+    );
+    inst bypassNetwork: BypassNetwork (
+        port: bypassNetworkIF,
+        ctrl: ctrlIF,
+    );
+
+    inst cmStage: CommitStage (
+        port         : cmStageIF,
+        renameLogic  : renameLogicIF,
+        activeList   : activeListIF,
+        loadStoreUnit: loadStoreUnitIF,
+        recovery     : recoveryManagerIF,
+        csrUnit      : csrUnitIF,
+        debug        : debugIF,
+    );
+    inst recoveryManager: RecoveryManager (
+        port       : recoveryManagerIF,
+        activeList : activeListIF,
+        csrUnit    : csrUnitIF,
+        ctrl       : ctrlIF,
+        perfCounter: perfCounterIF,
+    );
+
+    inst csrUnit: CSR_Unit (
+        port       : csrUnitIF,
+        perfCounter: perfCounterIF,
+    );
+    inst cacheFlushManager: CacheFlushManager (
+        port       : cacheFlushManagerIF,
+        cacheSystem: cacheSystemIF,
+    );
+    inst interruptCtrl: InterruptController (
+        csrUnit        : csrUnitIF,
+        ctrl           : ctrlIF,
+        fetchStage     : npStageIF,
+        recoveryManager: recoveryManagerIF,
+    );
+    inst ioUnit: IO_Unit (
+        port   : ioUnitIF,
+        csrUnit: csrUnitIF,
+    );
+}

@@ -1,0 +1,346 @@
+package CSR_UnitFunctions {
+    import BasicTypes::*;
+    import CSR_UnitTypes::*;
+
+    function GetCSRResetValue () -> CSR_BodyPath {
+        var value: CSR_BodyPath;
+        value = '0;
+        value.misa.MXL = ENCODED_XLEN_32;
+        value.misa.EXTENSIONS.I = 1;
+        value.misa.EXTENSIONS.M = 1;
+        value.misa.EXTENSIONS.A = 1;
+        value.misa.EXTENSIONS.F = 1;
+        value.misa.EXTENSIONS.D = 1;
+        value.misa.EXTENSIONS.U = 1;
+        value.misa.EXTENSIONS.S = 1;
+        return value;
+    }
+
+    function IsSupportedPrivilegeLevel (
+        level: input PrivilegeLevelType,
+        misa : input CSR_MISA_Path,
+    ) -> logic {
+        return level == PRIVILEGE_LEVEL_M ||
+               misa.EXTENSIONS.S && level == PRIVILEGE_LEVEL_S ||
+               misa.EXTENSIONS.U && level == PRIVILEGE_LEVEL_U;
+    }
+
+    function IsMidelegSet (
+        mideleg: input CSR_MIDELEG_Path,
+        code   : input CSR_CAUSE_InterruptCodePath,
+    ) -> logic {
+        case code {
+            1: { return mideleg.SSI; }
+            5: { return mideleg.STI; }
+            9: { return mideleg.SEI; }
+            default: {
+                if code >= 16 {
+                    return mideleg.CUSTOM[code - 16];
+                } else {
+                    return FALSE;
+                }
+            }
+        }
+    }
+}
+
+module CSR_Unit (
+    port       : modport CSR_UnitIF::CSR_Unit,
+    perfCounter: modport PerformanceCounterIF::CSR,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import CSR_UnitTypes::*;
+    import OpFormatTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import CSR_UnitFunctions::*;
+
+    var csrReg: CSR_BodyPath;
+    var csrNext: CSR_BodyPath;
+    var rv: CSR_ValuePath;
+    var wv: CSR_ValuePath;
+    var mcycle: DataPath;
+    var jumpTarget: AddrPath;
+    var regCommitNum: CommitLaneCountPath;
+
+    var privilegeLevel: PrivilegeLevelType;
+    var privilegeLevelNext: PrivilegeLevelType;
+
+    always_ff (port.clk) {
+        if port.rst {
+            csrReg = GetCSRResetValue();
+            regCommitNum = '0;
+            privilegeLevel = PRIVILEGE_LEVEL_M;
+        } else {
+            csrReg = csrNext;
+            privilegeLevel = privilegeLevelNext;
+            regCommitNum = port.commitNum;
+        }
+    }
+
+    always_comb {
+        mcycle = csrReg.mcycle;
+        jumpTarget = '0;
+
+        privilegeLevelNext = privilegeLevel;
+
+        case port.csrNumber {
+            CSR_NUM_MSTATUS: {
+                var value: CSR_MSTATUS_Path;
+                value = csrReg.mstatus;
+                if !csrReg.misa.EXTENSIONS.S {
+                    value.TSR = '0;
+                    value.TVM = '0;
+                    value.MXR = '0;
+                    value.SUM = '0;
+                    value.SPP = '0;
+                    value.SPIE = '0;
+                    value.SIE = '0;
+                }
+                if !csrReg.misa.EXTENSIONS.U {
+                    value.MPRV = '0;
+                    value.MPP = '0;
+                }
+                rv = value;
+            }
+            CSR_NUM_MIP     : { rv = csrReg.mip; }
+            CSR_NUM_MIE     : { rv = csrReg.mie; }
+            CSR_NUM_MCAUSE  : { rv = csrReg.mcause; }
+            CSR_NUM_MTVEC   : { rv = csrReg.mtvec; }
+            CSR_NUM_MTVAL   : { rv = csrReg.mtval; }
+            CSR_NUM_MEPC    : { rv = csrReg.mepc; }
+            CSR_NUM_MSCRATCH: { rv = csrReg.mscratch; }
+            CSR_NUM_MISA    : { rv = csrReg.misa; }
+            CSR_NUM_MCYCLE  : { rv = csrReg.mcycle; }
+            CSR_NUM_MINSTRET: { rv = csrReg.minstret; }
+            CSR_NUM_MHPMCOUNTER3: { rv = perfCounter.perfCounter.numLoadMiss; }
+            CSR_NUM_MHPMCOUNTER4: { rv = perfCounter.perfCounter.numStoreMiss; }
+            CSR_NUM_MHPMCOUNTER5: { rv = perfCounter.perfCounter.numIC_Miss; }
+            CSR_NUM_MHPMCOUNTER6: { rv = perfCounter.perfCounter.numBranchPredMiss; }
+            CSR_NUM_FFLAGS: { rv = csrReg.fcsr.fflags; }
+            CSR_NUM_FRM   : { rv = csrReg.fcsr.frm; }
+            CSR_NUM_FCSR  : { rv = csrReg.fcsr; }
+            default: {
+                if csrReg.misa.EXTENSIONS.S {
+                    case port.csrNumber {
+                        CSR_NUM_SSTATUS : { rv = ToSstatusFromMstatus(csrReg.mstatus); }
+                        CSR_NUM_SIP     : { rv = csrReg.mip & csrReg.mideleg; }
+                        CSR_NUM_SIE     : { rv = csrReg.sie & csrReg.mideleg; }
+                        CSR_NUM_STVEC   : { rv = csrReg.stvec; }
+                        CSR_NUM_SSCRATCH: { rv = csrReg.sscratch; }
+                        CSR_NUM_SEPC    : { rv = csrReg.sepc; }
+                        CSR_NUM_SCAUSE  : { rv = csrReg.scause; }
+                        CSR_NUM_STVAL   : { rv = csrReg.stval; }
+                        CSR_NUM_MEDELEG : { rv = csrReg.medeleg; }
+                        CSR_NUM_MEDELEGH: { rv = csrReg.medelegh; }
+                        CSR_NUM_MIDELEG : { rv = csrReg.mideleg; }
+                        default         : { rv = '0; }
+                    }
+                } else {
+                    rv = '0;
+                }
+            }
+        }
+
+        port.csrUnitTriggerExcpt = port.csrWE && (privilegeLevel <: port.csrNumber[9:8]);
+
+        csrNext = csrReg;
+        csrNext.mcycle = csrNext.mcycle + 1;
+        csrNext.minstret = csrNext.minstret + regCommitNum;
+
+        wv = '0;
+
+        if port.triggerInterrupt {
+            if privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S || !IsMidelegSet(csrReg.mideleg, port.interruptCode) {
+                privilegeLevelNext = PRIVILEGE_LEVEL_M;
+            } else {
+                privilegeLevelNext = PRIVILEGE_LEVEL_S;
+            }
+
+            if privilegeLevelNext == PRIVILEGE_LEVEL_M {
+                csrNext.mstatus.MPIE = csrNext.mstatus.MIE;
+                csrNext.mstatus.MIE = 0;
+                csrNext.mstatus.MPP = privilegeLevel;
+                csrNext.mepc = ToAddrFromPC(port.interruptRetAddr);
+                csrNext.mtval = 0;
+                csrNext.mcause.isInterrupt = TRUE;
+                csrNext.mcause.code.interruptCode = port.interruptCode;
+            } else if privilegeLevelNext == PRIVILEGE_LEVEL_S {
+                csrNext.mstatus.SPIE = csrNext.mstatus.SIE;
+                csrNext.mstatus.SIE = 0;
+                csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel);
+                csrNext.sepc = ToAddrFromPC(port.interruptRetAddr);
+                csrNext.stval = 0;
+                csrNext.scause.isInterrupt = TRUE;
+                csrNext.scause.code.interruptCode = port.interruptCode;
+            }
+        } else if port.triggerExcpt {
+            if port.excptCause == EXEC_STATE_TRAP_MRET {
+                if csrReg.misa.EXTENSIONS.U {
+                    privilegeLevelNext = csrReg.mstatus.MPP;
+                } else {
+                    privilegeLevelNext = PRIVILEGE_LEVEL_M;
+                }
+                csrNext.mstatus.MIE = csrNext.mstatus.MPIE;
+                csrNext.mstatus.MPIE = 1;
+                csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U;
+                if privilegeLevelNext != PRIVILEGE_LEVEL_M {
+                    csrNext.mstatus.MPRV = 0;
+                }
+            } else if port.excptCause == EXEC_STATE_TRAP_SRET {
+                privilegeLevelNext = ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
+                csrNext.mstatus.SIE = csrNext.mstatus.SPIE;
+                csrNext.mstatus.SPIE = 1;
+                csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(PRIVILEGE_LEVEL_U);
+                if privilegeLevelNext != PRIVILEGE_LEVEL_M {
+                    csrNext.mstatus.MPRV = 0;
+                }
+            } else {
+                if privilegeLevel == PRIVILEGE_LEVEL_M ||
+                   !csrReg.misa.EXTENSIONS.S ||
+                   !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)] {
+                    privilegeLevelNext = PRIVILEGE_LEVEL_M;
+                } else {
+                    privilegeLevelNext = PRIVILEGE_LEVEL_S;
+                }
+
+                if privilegeLevelNext == PRIVILEGE_LEVEL_M {
+                    csrNext.mstatus.MPIE = csrNext.mstatus.MIE;
+                    csrNext.mstatus.MIE = 0;
+                    csrNext.mstatus.MPP = privilegeLevel;
+                    csrNext.mepc = ToAddrFromPC(port.excptCauseAddr);
+                    csrNext.mtval = port.excptCauseDataAddr;
+                    csrNext.mcause.isInterrupt = FALSE;
+                    csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                } else if privilegeLevelNext == PRIVILEGE_LEVEL_S {
+                    csrNext.mstatus.SPIE = csrNext.mstatus.SIE;
+                    csrNext.mstatus.SIE = 0;
+                    csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel);
+                    csrNext.sepc = ToAddrFromPC(port.excptCauseAddr);
+                    csrNext.stval = port.excptCauseDataAddr;
+                    csrNext.scause.isInterrupt = FALSE;
+                    csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                }
+            }
+        } else if port.csrWE && !port.csrUnitTriggerExcpt {
+            case port.csrCode {
+                CSR_WRITE: { wv = port.csrWriteIn; }
+                CSR_SET  : { wv = rv | port.csrWriteIn; }
+                CSR_CLEAR: { wv = rv & ~port.csrWriteIn; }
+                default  : { wv = port.csrWriteIn; }
+            }
+
+            case port.csrNumber {
+                CSR_NUM_MISA: {
+                    if wv.misa.EXTENSIONS.S && !wv.misa.EXTENSIONS.U {
+                        wv.misa.EXTENSIONS.S = 0;
+                    }
+                    csrNext.misa.EXTENSIONS.S = wv.misa.EXTENSIONS.S;
+                    csrNext.misa.EXTENSIONS.U = wv.misa.EXTENSIONS.U;
+                }
+                CSR_NUM_MSTATUS, CSR_NUM_SSTATUS: {
+                    if port.csrNumber == CSR_NUM_MSTATUS {
+                        if csrReg.misa.EXTENSIONS.S {
+                            csrNext.mstatus.TSR = wv.mstatus.TSR;
+                            csrNext.mstatus.TVM = wv.mstatus.TVM;
+                            csrNext.mstatus.MXR = wv.mstatus.MXR;
+                            csrNext.mstatus.SUM = wv.mstatus.SUM;
+                            csrNext.mstatus.SPP = wv.mstatus.SPP;
+                            csrNext.mstatus.SPIE = wv.mstatus.SPIE;
+                            csrNext.mstatus.SIE = wv.mstatus.SIE;
+                        }
+                        if csrReg.misa.EXTENSIONS.U {
+                            csrNext.mstatus.MPRV = wv.mstatus.MPRV;
+                            csrNext.mstatus.MPP = wv.mstatus.MPP;
+                        }
+                        csrNext.mstatus.MPIE = wv.mstatus.MPIE;
+                        csrNext.mstatus.MIE = wv.mstatus.MIE;
+                    } else if csrReg.misa.EXTENSIONS.S {
+                        csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
+                    }
+                    if !IsSupportedPrivilegeLevel(csrNext.mstatus.MPP, csrNext.misa) {
+                        csrNext.mstatus.MPP = csrReg.mstatus.MPP;
+                    }
+                }
+                CSR_NUM_MIP: {
+                    csrNext.mip.CUSTOM = wv.mip.CUSTOM;
+                    if csrReg.misa.EXTENSIONS.S {
+                        csrNext.mip.SEIP = wv.mip.SEIP;
+                        csrNext.mip.STIP = wv.mip.STIP;
+                        csrNext.mip.SSIP = wv.mip.SSIP;
+                    }
+                }
+                CSR_NUM_MIE: { csrNext.mie = wv; }
+                CSR_NUM_MCAUSE: { csrNext.mcause = wv; }
+                CSR_NUM_MTVEC : { csrNext.mtvec = wv; }
+                CSR_NUM_MTVAL : { csrNext.mtval = wv; }
+                CSR_NUM_MEPC  : { csrNext.mepc = {wv[31:1], 1'b0}; }
+                CSR_NUM_MSCRATCH: { csrNext.mscratch = wv; }
+                CSR_NUM_MCYCLE  : { csrNext.mcycle = wv; }
+                CSR_NUM_MINSTRET: { csrNext.minstret = wv; }
+                CSR_NUM_FFLAGS  : { csrNext.fcsr.fflags = wv; }
+                CSR_NUM_FRM     : { csrNext.fcsr.frm = wv[2:0]; }
+                CSR_NUM_FCSR    : { csrNext.fcsr = wv.fcsr; }
+                default: {
+                    if csrReg.misa.EXTENSIONS.S {
+                        case port.csrNumber {
+                            CSR_NUM_SIE: { csrNext.sie = wv & csrNext.mideleg; }
+                            CSR_NUM_STVEC: { csrNext.stvec = wv; }
+                            CSR_NUM_SSCRATCH: { csrNext.sscratch = wv; }
+                            CSR_NUM_SEPC: { csrNext.sepc = wv; }
+                            CSR_NUM_SCAUSE: { csrNext.scause = wv; }
+                            CSR_NUM_STVAL: { csrNext.stval = wv; }
+                            CSR_NUM_MEDELEG: {
+                                csrNext.medeleg = wv;
+                                csrNext.medeleg[CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP] = 0;
+                                csrNext.medeleg[CSR_CAUSE_TRAP_CODE_MCALL] = 0;
+                            }
+                            CSR_NUM_MEDELEGH: { csrNext.medelegh = wv; }
+                            CSR_NUM_MIDELEG: {
+                                csrNext.mideleg.CUSTOM = wv.mideleg.CUSTOM;
+                                csrNext.mideleg.SEI = wv.mideleg.SEI;
+                                csrNext.mideleg.STI = wv.mideleg.STI;
+                                csrNext.mideleg.SSI = wv.mideleg.SSI;
+                            }
+                            default: { wv = '0; }
+                        }
+                    }
+                }
+            }
+        } else if port.fflagsWE {
+            csrNext.fcsr.fflags = port.fflagsData;
+        }
+
+        port.fflags = csrReg.fcsr.fflags;
+        port.frm = csrReg.fcsr.frm;
+
+        csrNext.mip.MTIP = port.reqTimerInterrupt;
+        csrNext.mip.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;
+
+        port.csrReadOut = rv;
+        if port.excptCause == EXEC_STATE_TRAP_MRET {
+            port.excptTargetAddr = csrReg.mepc;
+        } else if port.excptCause == EXEC_STATE_TRAP_SRET {
+            port.excptTargetAddr = csrReg.sepc;
+        } else {
+            case privilegeLevelNext {
+                PRIVILEGE_LEVEL_M: { port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING}; }
+                PRIVILEGE_LEVEL_S: { port.excptTargetAddr = {csrReg.stvec.base, CSR_XTVEC_BASE_PADDING}; }
+                default          : { port.excptTargetAddr = '0; }
+            }
+        }
+
+        port.csrWholeOut = csrReg;
+        port.privilegeLevel = privilegeLevel;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.triggerExcpt && !(port.excptCause inside {EXEC_STATE_TRAP_ECALL, EXEC_STATE_TRAP_EBREAK, EXEC_STATE_TRAP_SRET, EXEC_STATE_TRAP_MRET, EXEC_STATE_FAULT_LOAD_MISALIGNED, EXEC_STATE_FAULT_LOAD_VIOLATION, EXEC_STATE_FAULT_STORE_MISALIGNED, EXEC_STATE_FAULT_STORE_VIOLATION, EXEC_STATE_FAULT_INSN_ILLEGAL, EXEC_STATE_FAULT_INSN_VIOLATION, EXEC_STATE_FAULT_INSN_MISALIGNED})), "Invalid exception cause is passed")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !((port.triggerExcpt && port.csrWE) || (port.triggerInterrupt && port.csrWE) || (port.triggerExcpt && port.triggerInterrupt)), "CSR update, trap or interrupt are performed at the same cycle")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !((port.triggerInterrupt || (port.triggerExcpt && port.excptCause != EXEC_STATE_TRAP_MRET && port.excptCause != EXEC_STATE_TRAP_SRET)) && privilegeLevelNext < privilegeLevel), "Trap to lower privilege level")
+}

@@ -1,0 +1,145 @@
+interface RegisterFileIF {
+    import BasicTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var intSrcRegNumA : PRegNumPath  [INT_ISSUE_WIDTH];
+    var intSrcRegNumB : PRegNumPath  [INT_ISSUE_WIDTH];
+    var intSrcRegDataA: PRegDataPath [INT_ISSUE_WIDTH];
+    var intSrcRegDataB: PRegDataPath [INT_ISSUE_WIDTH];
+
+    var intDstRegWE  : logic        [INT_ISSUE_WIDTH];
+    var intDstRegNum : PRegNumPath  [INT_ISSUE_WIDTH];
+    var intDstRegData: PRegDataPath [INT_ISSUE_WIDTH];
+
+    var complexSrcRegNumA : PRegNumPath  [COMPLEX_ISSUE_WIDTH];
+    var complexSrcRegNumB : PRegNumPath  [COMPLEX_ISSUE_WIDTH];
+    var complexSrcRegDataA: PRegDataPath [COMPLEX_ISSUE_WIDTH];
+    var complexSrcRegDataB: PRegDataPath [COMPLEX_ISSUE_WIDTH];
+    var complexDstRegWE   : logic        [COMPLEX_ISSUE_WIDTH];
+    var complexDstRegNum  : PRegNumPath  [COMPLEX_ISSUE_WIDTH];
+    var complexDstRegData : PRegDataPath [COMPLEX_ISSUE_WIDTH];
+
+    var memSrcRegNumA : PRegNumPath  [MEM_ISSUE_WIDTH];
+    var memSrcRegNumB : PRegNumPath  [MEM_ISSUE_WIDTH];
+    var memSrcRegDataA: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memSrcRegDataB: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memDstRegWE   : logic        [MEM_ISSUE_WIDTH];
+    var memDstRegNum  : PRegNumPath  [MEM_ISSUE_WIDTH];
+    var memDstRegData : PRegDataPath [MEM_ISSUE_WIDTH];
+
+    var fpSrcRegNumA : PRegNumPath  [FP_ISSUE_WIDTH];
+    var fpSrcRegNumB : PRegNumPath  [FP_ISSUE_WIDTH];
+    var fpSrcRegNumC : PRegNumPath  [FP_ISSUE_WIDTH];
+    var fpSrcRegDataA: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpSrcRegDataB: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpSrcRegDataC: PRegDataPath [FP_ISSUE_WIDTH];
+    var fpDstRegWE   : logic        [FP_ISSUE_WIDTH];
+    var fpDstRegNum  : PRegNumPath  [FP_ISSUE_WIDTH];
+    var fpDstRegData : PRegDataPath [FP_ISSUE_WIDTH];
+
+    var divDstRegWE  : logic        [MULDIV_ISSUE_WIDTH];
+    var divDstRegNum : PRegNumPath  [MULDIV_ISSUE_WIDTH];
+    var divDstRegData: PRegDataPath [MULDIV_ISSUE_WIDTH];
+
+    modport RegisterFile {
+        clk               : input ,
+        rst               : input ,
+        rstStart          : input ,
+        intSrcRegNumA     : input ,
+        intSrcRegNumB     : input ,
+        memSrcRegNumA     : input ,
+        memSrcRegNumB     : input ,
+        intDstRegWE       : input ,
+        intDstRegNum      : input ,
+        intDstRegData     : input ,
+        complexSrcRegNumA : input ,
+        complexSrcRegNumB : input ,
+        complexDstRegWE   : input ,
+        complexDstRegNum  : input ,
+        complexDstRegData : input ,
+        memDstRegWE       : input ,
+        memDstRegNum      : input ,
+        memDstRegData     : input ,
+        fpSrcRegNumA      : input ,
+        fpSrcRegNumB      : input ,
+        fpSrcRegNumC      : input ,
+        fpDstRegWE        : input ,
+        fpDstRegNum       : input ,
+        fpDstRegData      : input ,
+        divDstRegWE       : input ,
+        divDstRegNum      : input ,
+        divDstRegData     : input ,
+        intSrcRegDataA    : output,
+        intSrcRegDataB    : output,
+        complexSrcRegDataA: output,
+        complexSrcRegDataB: output,
+        memSrcRegDataA    : output,
+        memSrcRegDataB    : output,
+        fpSrcRegDataA     : output,
+        fpSrcRegDataB     : output,
+        fpSrcRegDataC     : output,
+    }
+
+    modport IntegerRegisterReadStage {
+        intSrcRegDataA: input ,
+        intSrcRegDataB: input ,
+        intSrcRegNumA : output,
+        intSrcRegNumB : output,
+    }
+
+    modport IntegerRegisterWriteStage {
+        intDstRegWE  : output,
+        intDstRegNum : output,
+        intDstRegData: output,
+    }
+
+    modport ComplexIntegerRegisterReadStage {
+        complexSrcRegDataA: input ,
+        complexSrcRegDataB: input ,
+        complexSrcRegNumA : output,
+        complexSrcRegNumB : output,
+    }
+
+    modport ComplexIntegerRegisterWriteStage {
+        complexDstRegWE  : output,
+        complexDstRegNum : output,
+        complexDstRegData: output,
+    }
+
+    modport FPRegisterReadStage {
+        fpSrcRegDataA: input ,
+        fpSrcRegDataB: input ,
+        fpSrcRegDataC: input ,
+        fpSrcRegNumA : output,
+        fpSrcRegNumB : output,
+        fpSrcRegNumC : output,
+    }
+
+    modport FPRegisterWriteStage {
+        fpDstRegWE  : output,
+        fpDstRegNum : output,
+        fpDstRegData: output,
+    }
+
+    modport MemoryRegisterReadStage {
+        memSrcRegDataA: input ,
+        memSrcRegDataB: input ,
+        memSrcRegNumA : output,
+        memSrcRegNumB : output,
+    }
+
+    modport MemoryRegisterWriteStage {
+        memDstRegWE  : output,
+        memDstRegNum : output,
+        memDstRegData: output,
+    }
+
+    modport MulDivUnit {
+        divDstRegWE  : output,
+        divDstRegNum : output,
+        divDstRegData: output,
+    }
+}

@@ -1,0 +1,162 @@
+interface RenameLogicIF {
+    import BasicTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var logSrcRegA: LRegNumPath [RENAME_WIDTH];
+    var logSrcRegB: LRegNumPath [RENAME_WIDTH];
+    var logSrcRegC: LRegNumPath [RENAME_WIDTH];
+    var logDstReg : LRegNumPath [RENAME_WIDTH];
+
+    var phySrcRegA    : PRegNumPath [RENAME_WIDTH];
+    var phySrcRegB    : PRegNumPath [RENAME_WIDTH];
+    var phySrcRegC    : PRegNumPath [RENAME_WIDTH];
+    var phyDstReg     : PRegNumPath [RENAME_WIDTH];
+    var phyPrevDstReg : PRegNumPath [RENAME_WIDTH];
+
+    var updateRMT: logic<RENAME_WIDTH>;
+    var readRegA : logic [RENAME_WIDTH];
+    var readRegB : logic [RENAME_WIDTH];
+    var readRegC : logic [RENAME_WIDTH];
+    var writeReg : logic [RENAME_WIDTH];
+
+    var releaseReg    : logic [COMMIT_WIDTH];
+    var phyReleasedReg: PRegNumPath [COMMIT_WIDTH];
+
+    var allocatable: logic;
+
+    var rmtWriteReg           : logic<COMMIT_WIDTH>;
+    var rmtWriteReg_PhyRegNum : PRegNumPath [COMMIT_WIDTH];
+    var rmtWriteReg_LogRegNum : LRegNumPath [COMMIT_WIDTH];
+
+    var retRMT_WriteReg           : logic<COMMIT_WIDTH>;
+    var retRMT_WriteReg_PhyRegNum : PRegNumPath [COMMIT_WIDTH];
+    var retRMT_WriteReg_LogRegNum : LRegNumPath [COMMIT_WIDTH];
+
+    var retRMT_ReadReg_PhyRegNum: PRegNumPath [RENAME_WIDTH];
+    var retRMT_ReadReg_LogRegNum: LRegNumPath [RENAME_WIDTH];
+
+    var watWriteRegFromPipeReg          : logic<RENAME_WIDTH>;
+    var watWriteIssueQueuePtrFromPipeReg: IssueQueueIndexPath [RENAME_WIDTH];
+    var srcIssueQueuePtrRegA            : IssueQueueIndexPath [RENAME_WIDTH];
+    var srcIssueQueuePtrRegB            : IssueQueueIndexPath [RENAME_WIDTH];
+    var srcIssueQueuePtrRegC            : IssueQueueIndexPath [RENAME_WIDTH];
+
+    var prevDependIssueQueuePtr: IssueQueueIndexPath [RENAME_WIDTH];
+
+    var watWriteReg          : logic [COMMIT_WIDTH];
+    var watWriteLogRegNum    : LRegNumPath [COMMIT_WIDTH];
+    var watWriteIssueQueuePtr: IssueQueueIndexPath [COMMIT_WIDTH];
+
+    var commit   : logic;
+    var commitNum: CommitLaneCountPath;
+    var flushNum : CommitLaneCountPath;
+
+    modport RenameLogic {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        updateRMT: input,
+        writeReg: input,
+        releaseReg: input,
+        phyReleasedReg: input,
+        retRMT_ReadReg_PhyRegNum: input,
+        logDstReg: input,
+        watWriteRegFromPipeReg: input,
+        watWriteIssueQueuePtrFromPipeReg: input,
+        allocatable: output,
+        phyDstReg: output,
+        retRMT_ReadReg_LogRegNum: output,
+        rmtWriteReg: output,
+        rmtWriteReg_PhyRegNum: output,
+        rmtWriteReg_LogRegNum: output,
+        watWriteReg: output,
+        watWriteLogRegNum: output,
+        watWriteIssueQueuePtr: output,
+    }
+
+    modport RenameStage {
+        phySrcRegA: input,
+        phySrcRegB: input,
+        phySrcRegC: input,
+        phyDstReg: input,
+        phyPrevDstReg: input,
+        srcIssueQueuePtrRegA: input,
+        srcIssueQueuePtrRegB: input,
+        srcIssueQueuePtrRegC: input,
+        allocatable: input,
+        prevDependIssueQueuePtr: input,
+        logSrcRegA: output,
+        logSrcRegB: output,
+        logSrcRegC: output,
+        logDstReg: output,
+        updateRMT: output,
+        readRegA: output,
+        readRegB: output,
+        readRegC: output,
+        writeReg: output,
+        watWriteRegFromPipeReg: output,
+        watWriteIssueQueuePtrFromPipeReg: output,
+    }
+
+    modport CommitStage {
+        releaseReg: input,
+        phyReleasedReg: input,
+        flushNum: input,
+        commit: output,
+        commitNum: output,
+        retRMT_WriteReg: output,
+        retRMT_WriteReg_PhyRegNum: output,
+        retRMT_WriteReg_LogRegNum: output,
+    }
+
+    modport RenameLogicCommitter {
+        clk: input,
+        rst: input,
+        commit: input,
+        commitNum: input,
+        releaseReg: output,
+        phyReleasedReg: output,
+        flushNum: output,
+    }
+
+    modport RetirementRMT {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        retRMT_WriteReg: input,
+        retRMT_WriteReg_PhyRegNum: input,
+        retRMT_WriteReg_LogRegNum: input,
+        retRMT_ReadReg_LogRegNum: input,
+        retRMT_ReadReg_PhyRegNum: output,
+    }
+
+    modport RMT {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        rmtWriteReg: input,
+        rmtWriteReg_PhyRegNum: input,
+        rmtWriteReg_LogRegNum: input,
+        watWriteReg: input,
+        watWriteLogRegNum: input,
+        watWriteIssueQueuePtr: input,
+        logSrcRegA: input,
+        logSrcRegB: input,
+        logSrcRegC: input,
+        logDstReg: input,
+        phySrcRegA: output,
+        phySrcRegB: output,
+        phySrcRegC: output,
+        phyPrevDstReg: output,
+        srcIssueQueuePtrRegA: output,
+        srcIssueQueuePtrRegB: output,
+        srcIssueQueuePtrRegC: output,
+        prevDependIssueQueuePtr: output,
+    }
+}

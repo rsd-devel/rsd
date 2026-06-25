@@ -1,0 +1,265 @@
+module OrgShifter (
+    shiftOperandType: input OpFormatTypes::ShiftOperandType,
+    shiftType       : input OpFormatTypes::ShiftType,
+    immShiftAmount  : input BasicTypes::ShiftAmountPath,
+    regShiftAmount  : input BasicTypes::ShiftAmountPath,
+    dataIn          : input BasicTypes::DataPath,
+    carryIn         : input logic,
+    dataOut         : output BasicTypes::DataPath,
+    carryOut        : output logic,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    struct ShiftResult {
+        dataOut : DataPath,
+        carryOut: logic,
+    }
+
+    function OpImmShift (
+        shiftType  : input ShiftType,
+        shiftAmount: input ShiftAmountPath,
+        dataIn     : input DataPath,
+        carryIn    : input logic,
+    ) -> ShiftResult {
+        var shiftTmp: logic<DATA_WIDTH + 1>;
+        var result  : ShiftResult;
+        var dataOut : DataPath;
+        var carryOut: logic;
+
+        case shiftType {
+            default: {
+                if shiftAmount == 0 {
+                    dataOut = dataIn;
+                    carryOut = carryIn;
+                } else {
+                    shiftTmp = dataIn << shiftAmount;
+                    dataOut = shiftTmp[DATA_WIDTH - 1:0];
+                    carryOut = shiftTmp[DATA_WIDTH];
+                }
+            }
+            ST_LSR: {
+                if shiftAmount == 0 {
+                    dataOut = 0;
+                    carryOut = dataIn[DATA_WIDTH - 1];
+                } else {
+                    shiftTmp = {dataIn, 1'b0} >> shiftAmount;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+            ST_ASR: {
+                if shiftAmount == 0 {
+                    if dataIn[DATA_WIDTH - 1] == 0 {
+                        dataOut = 0;
+                        carryOut = dataIn[DATA_WIDTH - 1];
+                    } else {
+                        dataOut = 32'hffffffff;
+                        carryOut = dataIn[DATA_WIDTH - 1];
+                    }
+                } else {
+                    shiftTmp = {dataIn[DATA_WIDTH - 1] repeat DATA_WIDTH, dataIn, 1'b0} >> shiftAmount;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+            ST_ROR: {
+                if shiftAmount == 0 {
+                    dataOut = {carryIn, dataIn[DATA_WIDTH - 1:1]};
+                    carryOut = dataIn[0];
+                } else {
+                    shiftTmp = {dataIn, dataIn, 1'b0} >> shiftAmount;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+        }
+
+        result.dataOut = dataOut;
+        result.carryOut = carryOut;
+        return result;
+    }
+
+    function OpRegShift (
+        shiftType  : input ShiftType,
+        shiftAmount: input ShiftAmountPath,
+        dataIn     : input DataPath,
+        shiftIn    : input logic<5>,
+        carryIn    : input logic,
+    ) -> ShiftResult {
+        var shiftTmp: logic<DATA_WIDTH + 1>;
+        var result  : ShiftResult;
+        var dataOut : DataPath;
+        var carryOut: logic;
+
+        case shiftType {
+            default: {
+                if shiftIn == 0 {
+                    dataOut = dataIn;
+                    carryOut = carryIn;
+                } else {
+                    shiftTmp = dataIn << shiftIn;
+                    dataOut = shiftTmp[DATA_WIDTH - 1:0];
+                    carryOut = shiftTmp[DATA_WIDTH];
+                }
+            }
+            ST_LSR: {
+                if shiftIn == 0 {
+                    dataOut = 0;
+                    carryOut = dataIn[DATA_WIDTH - 1];
+                } else {
+                    shiftTmp = {dataIn, 1'b0} >> shiftIn;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+            ST_ASR: {
+                if shiftIn == 0 {
+                    if dataIn[DATA_WIDTH - 1] == 0 {
+                        dataOut = 0;
+                        carryOut = dataIn[DATA_WIDTH - 1];
+                    } else {
+                        dataOut = 32'hffffffff;
+                        carryOut = dataIn[DATA_WIDTH - 1];
+                    }
+                } else {
+                    shiftTmp = {dataIn[DATA_WIDTH - 1] repeat DATA_WIDTH, dataIn, 1'b0} >> shiftAmount;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+            ST_ROR: {
+                if shiftIn == 0 {
+                    dataOut = {carryIn, dataIn[DATA_WIDTH - 1:1]};
+                    carryOut = dataIn[0];
+                } else {
+                    shiftTmp = {dataIn, dataIn, 1'b0} >> shiftIn;
+                    dataOut = shiftTmp[DATA_WIDTH:1];
+                    carryOut = shiftTmp[0];
+                }
+            }
+        }
+
+        result.dataOut = dataOut;
+        result.carryOut = carryOut;
+        return result;
+    }
+
+    var shiftResult: ShiftResult;
+
+    always_comb {
+        case shiftOperandType {
+            default: {
+                shiftResult = OpImmShift(shiftType, immShiftAmount, dataIn, carryIn);
+            }
+            SOT_REG_SHIFT: {
+                shiftResult = OpRegShift(shiftType, immShiftAmount, dataIn, regShiftAmount, carryIn);
+            }
+        }
+
+        dataOut = shiftResult.dataOut;
+        carryOut = shiftResult.carryOut;
+    }
+}
+
+module Shifter (
+    shiftOperandType: input OpFormatTypes::ShiftOperandType,
+    shiftType       : input OpFormatTypes::ShiftType,
+    immShiftAmount  : input BasicTypes::ShiftAmountPath,
+    regShiftAmount  : input BasicTypes::ShiftAmountPath,
+    dataIn          : input BasicTypes::DataPath,
+    carryIn         : input logic,
+    dataOut         : output BasicTypes::DataPath,
+    carryOut        : output logic,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    var shiftAmount       : ShiftAmountPath;
+    var unifiedShiftTmp   : logic<DATA_WIDTH * 2 + 2>;
+    var unifiedShiftHighIn: DataPath;
+    var unifiedShiftLowIn : DataPath;
+    var unifiedShiftOut   : logic<DATA_WIDTH + 2>;
+    var unifiedShiftAmount: logic<SHIFT_AMOUNT_BIT_SIZE + 1>;
+    var isShiftZero       : logic;
+    var rorLowBit         : logic;
+
+    always_comb {
+        case shiftOperandType {
+            default: {
+                shiftAmount = immShiftAmount;
+            }
+            SOT_REG_SHIFT: {
+                shiftAmount = regShiftAmount;
+            }
+        }
+
+        if shiftAmount == 0 {
+            isShiftZero = TRUE;
+        } else {
+            isShiftZero = FALSE;
+        }
+
+        rorLowBit = dataIn[0];
+        unifiedShiftAmount = shiftAmount;
+        unifiedShiftHighIn = 0;
+        unifiedShiftLowIn = dataIn;
+
+        case shiftType {
+            ST_LSL: {
+                unifiedShiftAmount = DATA_WIDTH - shiftAmount;
+                unifiedShiftHighIn = dataIn;
+                unifiedShiftLowIn = 0;
+            }
+            ST_LSR: {
+                unifiedShiftAmount = shiftAmount;
+                unifiedShiftHighIn = 0;
+                unifiedShiftLowIn = dataIn;
+            }
+            ST_ASR: {
+                unifiedShiftAmount = shiftAmount;
+                unifiedShiftHighIn = {dataIn[DATA_WIDTH - 1] repeat DATA_WIDTH};
+                unifiedShiftLowIn = dataIn;
+            }
+            ST_ROR: {
+                unifiedShiftAmount = shiftAmount;
+                if isShiftZero {
+                    rorLowBit = carryIn;
+                } else {
+                    rorLowBit = dataIn[0];
+                }
+                unifiedShiftHighIn = {dataIn[DATA_WIDTH - 1:1], rorLowBit};
+                unifiedShiftLowIn = dataIn;
+            }
+        }
+
+        unifiedShiftTmp = {carryIn, unifiedShiftHighIn, unifiedShiftLowIn, 1'b0};
+
+        case unifiedShiftAmount[5:4] {
+            2'h3: { unifiedShiftTmp = 49'hx; }
+            2'h2: { unifiedShiftTmp = {15'hx, unifiedShiftTmp[65:32]}; }
+            2'h1: { unifiedShiftTmp = unifiedShiftTmp[64:16]; }
+            2'h0: { unifiedShiftTmp = unifiedShiftTmp[48:0]; }
+        }
+        case unifiedShiftAmount[3:2] {
+            2'h3: { unifiedShiftTmp = unifiedShiftTmp[48:12]; }
+            2'h2: { unifiedShiftTmp = unifiedShiftTmp[44:8]; }
+            2'h1: { unifiedShiftTmp = unifiedShiftTmp[40:4]; }
+            2'h0: { unifiedShiftTmp = unifiedShiftTmp[36:0]; }
+        }
+        case unifiedShiftAmount[1:0] {
+            2'h3: { unifiedShiftTmp = unifiedShiftTmp[36:3]; }
+            2'h2: { unifiedShiftTmp = unifiedShiftTmp[35:2]; }
+            2'h1: { unifiedShiftTmp = unifiedShiftTmp[34:1]; }
+            2'h0: { unifiedShiftTmp = unifiedShiftTmp[33:0]; }
+        }
+
+        unifiedShiftOut = unifiedShiftTmp;
+        dataOut = unifiedShiftOut[DATA_WIDTH:1];
+
+        case shiftType {
+            ST_LSL : { carryOut = unifiedShiftOut[DATA_WIDTH + 1]; }
+            default: { carryOut = unifiedShiftOut[0]; }
+        }
+    }
+}

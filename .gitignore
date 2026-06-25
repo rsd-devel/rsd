@@ -100,3 +100,8 @@ hs*.dmp
 /.project
 /.history
 
+# veryl
+rsd.f
+Veryl.lock
+/dependencies
+/.build

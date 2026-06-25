@@ -1,0 +1,102 @@
+module MemoryRegisterWriteStage (
+    prev        : modport MemoryAccessStageIF::NextStage,
+    loadStoreUnit: modport LoadStoreUnitIF::MemoryRegisterWriteStage,
+    registerFile: modport RegisterFileIF::MemoryRegisterWriteStage,
+    activeList  : modport ActiveListIF::MemoryRegisterWriteStage,
+    recovery    : modport RecoveryManagerIF::MemoryRegisterWriteStage,
+    ctrl        : modport ControllerIF::MemoryRegisterWriteStage,
+    debug       : modport DebugIF::MemoryRegisterWriteStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import CacheSystemTypes::*;
+
+    var pipeReg: MemoryRegisterWriteStageRegPath [MEM_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (ctrl.clk) {
+        if ctrl.rst {
+            for i in 0..MEM_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [MEM_ISSUE_WIDTH];
+    var update: logic [MEM_ISSUE_WIDTH];
+    var valid: logic [MEM_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for j in 0..MSHR_NUM {
+            loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
+            for i in 0..LOAD_ISSUE_WIDTH {
+                if j == pipeReg[i].mshrID && pipeReg[i].valid &&
+                    (
+                        ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) && pipeReg[i].isLoad ||
+                        pipeReg[i].zaamoReleaseMSHR
+                    ) {
+                    loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;
+                }
+            }
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            var alWriteDataValue: ActiveListWriteData;
+            var updateValue: logic;
+
+            valid[i] = pipeReg[i].valid;
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                pipeReg[i].activeListPtr
+            );
+            updateValue = !stall && !clear && valid[i] && !flush[i];
+            update[i] = updateValue;
+
+            alWriteDataValue.ptr = pipeReg[i].activeListPtr;
+            alWriteDataValue.loadQueuePtr = pipeReg[i].loadQueueRecoveryPtr;
+            alWriteDataValue.storeQueuePtr = pipeReg[i].storeQueueRecoveryPtr;
+
+            alWriteDataValue.isBranch = FALSE;
+            alWriteDataValue.isStore = pipeReg[i].isStore;
+
+            if updateValue {
+                alWriteDataValue.state = pipeReg[i].execState;
+            } else {
+                alWriteDataValue.state = EXEC_STATE_NOT_FINISHED;
+            }
+
+            alWriteDataValue.pc = pipeReg[i].pc;
+            alWriteDataValue.dataAddr = pipeReg[i].addrOut;
+
+            activeList.memWrite[i] = updateValue && !pipeReg[i].isDiv;
+            activeList.memWriteData[i] = alWriteDataValue;
+
+            registerFile.memDstRegWE[i] = updateValue && pipeReg[i].opDst.writeReg;
+            registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
+            registerFile.memDstRegData[i] = pipeReg[i].dataOut;
+
+            debug.memRwReg[i].valid = valid[i];
+            debug.memRwReg[i].flush = flush[i];
+            debug.memRwReg[i].opId = pipeReg[i].opId;
+        }
+    }
+}

@@ -1,0 +1,216 @@
+module RenameLogic (
+    port      : modport RenameLogicIF::RenameLogic,
+    activeList: modport ActiveListIF::RenameLogic,
+    recovery  : modport RecoveryManagerIF::RenameLogic,
+) {
+    import BasicTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var allocatePhyReg: logic [RENAME_WIDTH];
+    var allocatedPhyRegNum: PRegNumPath [RENAME_WIDTH];
+
+    var allocatePhyScalarReg: logic [RENAME_WIDTH];
+    var allocatedPhyScalarRegNum: PScalarRegNumPath [RENAME_WIDTH];
+    var releasePhyScalarReg: logic [COMMIT_WIDTH];
+    var releasedPhyScalarRegNum: PScalarRegNumPath [COMMIT_WIDTH];
+    var scalarFreeListCount: ScalarFreeListCountPath;
+
+    var allocatePhyScalarFPReg: logic [RENAME_WIDTH];
+    var allocatedPhyScalarFPRegNum: PScalarFPRegNumPath [RENAME_WIDTH];
+    var releasePhyScalarFPReg: logic [COMMIT_WIDTH];
+    var releasedPhyScalarFPRegNum: PScalarFPRegNumPath [COMMIT_WIDTH];
+    var scalarFPFreeListCount: ScalarFPFreeListCountPath;
+
+    var alReadData: ActiveListEntry [COMMIT_WIDTH];
+
+    inst scalarFreeList: MultiWidthFreeList #(
+        SIZE          : SCALAR_FREE_LIST_ENTRY_NUM,
+        ENTRY_BIT_SIZE: PSCALAR_NUM_BIT_WIDTH,
+        PUSH_WIDTH    : COMMIT_WIDTH,
+        POP_WIDTH     : RENAME_WIDTH,
+        INITIAL_LENGTH: SCALAR_FREE_LIST_ENTRY_NUM,
+    ) (
+        clk       : port.clk,
+        rst       : port.rst,
+        rstStart  : port.rstStart,
+        count     : scalarFreeListCount,
+        pop       : allocatePhyScalarReg,
+        poppedData: allocatedPhyScalarRegNum,
+        push      : releasePhyScalarReg,
+        pushedData: releasedPhyScalarRegNum,
+    );
+
+    inst scalarFPFreeList: MultiWidthFreeList #(
+        SIZE          : SCALAR_FP_FREE_LIST_ENTRY_NUM,
+        ENTRY_BIT_SIZE: PSCALAR_FP_NUM_BIT_WIDTH,
+        PUSH_WIDTH    : COMMIT_WIDTH,
+        POP_WIDTH     : RENAME_WIDTH,
+        INITIAL_LENGTH: SCALAR_FP_FREE_LIST_ENTRY_NUM,
+    ) (
+        clk       : port.clk,
+        rst       : port.rst,
+        rstStart  : port.rstStart,
+        count     : scalarFPFreeListCount,
+        pop       : allocatePhyScalarFPReg,
+        poppedData: allocatedPhyScalarFPRegNum,
+        push      : releasePhyScalarFPReg,
+        pushedData: releasedPhyScalarFPRegNum,
+    );
+
+    var rmtRecoveryIndex: LRegNumPath;
+    var rmtRecoveryCount: logic<LREG_NUM_BIT_WIDTH + 1>;
+    var inRecoveryRMT: logic;
+
+    always_ff (port.clk) {
+        if port.rst {
+            rmtRecoveryCount = 0;
+            rmtRecoveryIndex = 0;
+        } else if recovery.toRecoveryPhase {
+            rmtRecoveryCount = LREG_NUM;
+            rmtRecoveryIndex = 0;
+        } else {
+            if rmtRecoveryCount >: COMMIT_WIDTH {
+                rmtRecoveryCount = rmtRecoveryCount - COMMIT_WIDTH;
+            } else {
+                rmtRecoveryCount = 0;
+            }
+
+            if RECOVERY_FROM_RRMT == 0 {
+                rmtRecoveryIndex = rmtRecoveryIndex + COMMIT_WIDTH;
+            } else {
+                rmtRecoveryIndex = rmtRecoveryIndex + RENAME_WIDTH;
+            }
+        }
+    }
+
+    var rmtWriteReg: logic<COMMIT_WIDTH>;
+    var rmtWriteReg_PhyRegNum: PRegNumPath [COMMIT_WIDTH];
+    var rmtWriteReg_LogRegNum: LRegNumPath [COMMIT_WIDTH];
+
+    var watWriteReg: logic [COMMIT_WIDTH];
+    var watWriteLogRegNum: LRegNumPath [COMMIT_WIDTH];
+    var watWriteIssueQueuePtr: IssueQueueIndexPath [COMMIT_WIDTH];
+
+    var retRMT_ReadReg_LogRegNum: LRegNumPath [RENAME_WIDTH];
+
+    always_comb {
+        for i in 0..RENAME_WIDTH {
+            retRMT_ReadReg_LogRegNum[i] = '0;
+        }
+
+        for i in 0..COMMIT_WIDTH {
+            rmtWriteReg[i] = FALSE;
+            rmtWriteReg_PhyRegNum[i] = '0;
+            rmtWriteReg_LogRegNum[i] = '0;
+        }
+
+        for i in 0..RENAME_WIDTH {
+            allocatedPhyRegNum[i].isFP = port.logDstReg[i].isFP;
+            if port.logDstReg[i].isFP {
+                allocatedPhyRegNum[i].regNum = allocatedPhyScalarFPRegNum[i];
+            } else {
+                allocatedPhyRegNum[i].regNum = allocatedPhyScalarRegNum[i];
+            }
+        }
+
+        port.phyDstReg = allocatedPhyRegNum;
+
+        if RECOVERY_FROM_RRMT != 0 {
+            inRecoveryRMT = rmtRecoveryCount != 0;
+        } else {
+            inRecoveryRMT = recovery.inRecoveryAL;
+        }
+        recovery.renameLogicRecoveryRMT = inRecoveryRMT;
+        alReadData = activeList.readData;
+
+        port.allocatable =
+            !inRecoveryRMT &&
+            (scalarFreeListCount >= RENAME_WIDTH) &&
+            (scalarFPFreeListCount >= RENAME_WIDTH);
+
+        for i in 0..RENAME_WIDTH {
+            allocatePhyReg[i] = port.updateRMT[i] && port.writeReg[i];
+            allocatePhyScalarReg[i] = allocatePhyReg[i] && !port.logDstReg[i].isFP;
+            allocatePhyScalarFPReg[i] = allocatePhyReg[i] && port.logDstReg[i].isFP;
+        }
+
+        for i in 0..COMMIT_WIDTH {
+            releasePhyScalarReg[i] = port.releaseReg[i] && !port.phyReleasedReg[i].isFP;
+            releasePhyScalarFPReg[i] = port.releaseReg[i] && port.phyReleasedReg[i].isFP;
+            releasedPhyScalarRegNum[i] = port.phyReleasedReg[i].regNum;
+            releasedPhyScalarFPRegNum[i] = port.phyReleasedReg[i].regNum;
+        }
+
+        if port.updateRMT != 0 {
+            for i in 0..RENAME_WIDTH {
+                rmtWriteReg[i] = port.updateRMT[i] && port.writeReg[i];
+                rmtWriteReg_PhyRegNum[i] = allocatedPhyRegNum[i];
+                rmtWriteReg_LogRegNum[i] = port.logDstReg[i];
+            }
+
+            for i in RENAME_WIDTH..COMMIT_WIDTH {
+                rmtWriteReg[i] = FALSE;
+            }
+        } else if inRecoveryRMT {
+            if RECOVERY_FROM_RRMT != 0 {
+                for i in 0..RENAME_WIDTH {
+                    rmtWriteReg[i] = TRUE;
+                    rmtWriteReg_PhyRegNum[i] = port.retRMT_ReadReg_PhyRegNum[i];
+                    rmtWriteReg_LogRegNum[i] = rmtRecoveryIndex + i;
+                    retRMT_ReadReg_LogRegNum[i] = rmtRecoveryIndex + i;
+                }
+
+                for i in RENAME_WIDTH..COMMIT_WIDTH {
+                    rmtWriteReg[i] = FALSE;
+                    rmtWriteReg_PhyRegNum[i] = '0;
+                    rmtWriteReg_LogRegNum[i] = '0;
+                }
+            } else {
+                for i in 0..COMMIT_WIDTH {
+                    if i <: activeList.popTailNum {
+                        rmtWriteReg[i] = TRUE;
+                    } else {
+                        rmtWriteReg[i] = FALSE;
+                    }
+                    rmtWriteReg_PhyRegNum[i] = alReadData[i].phyPrevDstRegNum;
+                    rmtWriteReg_LogRegNum[i] = alReadData[i].logDstRegNum;
+                }
+            }
+        }
+
+        if !inRecoveryRMT {
+            for i in 0..RENAME_WIDTH {
+                watWriteReg[i] = port.watWriteRegFromPipeReg[i];
+                watWriteLogRegNum[i] = port.logDstReg[i];
+                watWriteIssueQueuePtr[i] = port.watWriteIssueQueuePtrFromPipeReg[i];
+            }
+
+            for i in RENAME_WIDTH..COMMIT_WIDTH {
+                watWriteReg[i] = '0;
+                watWriteLogRegNum[i] = '0;
+                watWriteIssueQueuePtr[i] = '0;
+            }
+        } else {
+            for i in 0..COMMIT_WIDTH {
+                if i <: activeList.popTailNum {
+                    watWriteReg[i] = alReadData[i].writeReg;
+                } else {
+                    watWriteReg[i] = FALSE;
+                }
+                watWriteLogRegNum[i] = alReadData[i].logDstRegNum;
+                watWriteIssueQueuePtr[i] = alReadData[i].prevDependIssueQueuePtr;
+            }
+        }
+
+        port.rmtWriteReg = rmtWriteReg;
+        port.rmtWriteReg_PhyRegNum = rmtWriteReg_PhyRegNum;
+        port.rmtWriteReg_LogRegNum = rmtWriteReg_LogRegNum;
+
+        port.watWriteReg = watWriteReg;
+        port.watWriteLogRegNum = watWriteLogRegNum;
+        port.watWriteIssueQueuePtr = watWriteIssueQueuePtr;
+        port.retRMT_ReadReg_LogRegNum = retRMT_ReadReg_LogRegNum;
+    }
+}

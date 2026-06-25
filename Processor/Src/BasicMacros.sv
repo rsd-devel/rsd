@@ -13,29 +13,13 @@
         else $error msg;
 */
 
-`ifdef RSD_SYNTHESIS
-    // These macros are disabled in synthesys
-    `define RSD_ASSERT_CLK_FMT(clk, exp, msg) 
-    `define RSD_ASSERT_CLK(clk, exp, msg) 
-`else
-    `define RSD_ASSERT_CLK_FMT(clk, exp, msg) \
-        always @(posedge clk) begin \
-            if (!(exp)) begin \
-                $display msg; \
-            end \
-        end 
-    `define RSD_ASSERT_CLK(clk, exp, msg) `RSD_ASSERT_CLK_FMT(clk, exp, (msg))
-`endif
+// NOT_TRANSPILED_TO_VERYL
+// Assertion macros are disabled because the macro-expanded assertion blocks are not transpilable to Veryl.
+`define RSD_ASSERT_CLK_FMT(clk, exp, msg)
+`define RSD_ASSERT_CLK(clk, exp, msg)
 
 // RSD_STATIC_ASSERT_FMT must be used from outside always_comb/always_ff blocks.
-`define RSD_STATIC_ASSERT_FMT(exp, msg) \
-    generate \
-        if (!(exp)) begin \
-            RSD_STATIC_ASSERT_FAILED non_existing_module(); \
-        end \
-    endgenerate \
-
-//$error msg; \
-
-`define RSD_STATIC_ASSERT(exp, msg) `RSD_STATIC_ASSERT_FMT(exp, (msg))
-
+// NOT_TRANSPILED_TO_VERYL
+// Static assertion macros are disabled because generate-time assertion macros are not transpilable to Veryl.
+`define RSD_STATIC_ASSERT_FMT(exp, msg)
+`define RSD_STATIC_ASSERT(exp, msg)

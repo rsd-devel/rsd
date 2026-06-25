@@ -1,0 +1,142 @@
+interface ActiveListIF {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import LoadStoreUnitTypes::*;
+    import OpFormatTypes::*;
+
+    var clk: clock;
+    var rst: logic;
+
+    var pushTail     : logic [RENAME_WIDTH];
+    var pushedTailData: ActiveListEntry [RENAME_WIDTH];
+    var pushedTailPtr : ActiveListIndexPath [RENAME_WIDTH];
+
+    var popHeadNum: CommitLaneCountPath;
+    var popTailNum: CommitLaneCountPath;
+
+    var readData     : ActiveListEntry [COMMIT_WIDTH];
+    var headExecState: ExecutionState [COMMIT_WIDTH];
+    var validEntryNum: ActiveListCountPath;
+
+    var recoveryEntryNum: ActiveListCountPath;
+
+    var intWrite    : logic [INT_ISSUE_WIDTH];
+    var intWriteData: ActiveListWriteData [INT_ISSUE_WIDTH];
+
+    var complexWrite    : logic [COMPLEX_ISSUE_WIDTH];
+    var complexWriteData: ActiveListWriteData [COMPLEX_ISSUE_WIDTH];
+
+    var memWrite    : logic [MEM_ISSUE_WIDTH];
+    var memWriteData: ActiveListWriteData [MEM_ISSUE_WIDTH];
+
+    var fpWrite     : logic [FP_ISSUE_WIDTH];
+    var fpWriteData : ActiveListWriteData [FP_ISSUE_WIDTH];
+    var fpFFlagsData: FFlags_Path [FP_ISSUE_WIDTH];
+    var fflagsData  : FFlags_Path [COMMIT_WIDTH];
+
+    var divWrite    : logic [MULDIV_ISSUE_WIDTH];
+    var divWriteData: ActiveListWriteData [MULDIV_ISSUE_WIDTH];
+
+    var allocatable: logic;
+
+    var loadQueueRecoveryTailPtr : LoadQueueIndexPath;
+    var storeQueueRecoveryTailPtr: StoreQueueIndexPath;
+
+    var detectedFlushRangeTailPtr: ActiveListIndexPath;
+    var exceptionOpPtr           : ActiveListIndexPath;
+
+    modport ActiveList {
+        clk: input,
+        rst: input,
+        pushTail: input,
+        pushedTailData: input,
+        popHeadNum: input,
+        popTailNum: input,
+        intWrite: input,
+        intWriteData: input,
+        complexWrite: input,
+        complexWriteData: input,
+        memWrite: input,
+        memWriteData: input,
+        fpWrite: input,
+        fpWriteData: input,
+        fpFFlagsData: input,
+        divWrite: input,
+        divWriteData: input,
+        fflagsData: output,
+        pushedTailPtr: output,
+        readData: output,
+        headExecState: output,
+        loadQueueRecoveryTailPtr: output,
+        storeQueueRecoveryTailPtr: output,
+        detectedFlushRangeTailPtr: output,
+        exceptionOpPtr: output,
+        allocatable: output,
+        validEntryNum: output,
+        recoveryEntryNum: output,
+    }
+
+    modport RenameStage {
+        allocatable: input,
+        pushedTailPtr: input,
+        validEntryNum: input,
+        pushTail: output,
+        pushedTailData: output,
+    }
+
+    modport IntegerRegisterWriteStage {
+        intWrite: output,
+        intWriteData: output,
+    }
+
+    modport ComplexIntegerRegisterWriteStage {
+        complexWrite: output,
+        complexWriteData: output,
+    }
+
+    modport MemoryRegisterWriteStage {
+        memWrite: output,
+        memWriteData: output,
+    }
+
+    modport FPRegisterWriteStage {
+        fpWrite: output,
+        fpWriteData: output,
+        fpFFlagsData: output,
+    }
+
+    modport MulDivUnit {
+        divWrite: output,
+        divWriteData: output,
+    }
+
+    modport CommitStage {
+        fflagsData: input,
+        readData: input,
+        headExecState: input,
+        validEntryNum: input,
+    }
+
+    modport RenameLogic {
+        readData: input,
+        popTailNum: input,
+    }
+
+    modport RenameLogicCommitter {
+        readData: input,
+        recoveryEntryNum: input,
+        popHeadNum: output,
+        popTailNum: output,
+    }
+
+    modport RecoveryManager {
+        loadQueueRecoveryTailPtr: input,
+        storeQueueRecoveryTailPtr: input,
+        detectedFlushRangeTailPtr: input,
+        exceptionOpPtr: input,
+    }
+}

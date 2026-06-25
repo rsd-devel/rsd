@@ -1,0 +1,215 @@
+module Scheduler (
+    port         : modport SchedulerIF::Scheduler,
+    wakeupSelect : modport WakeupSelectIF::Scheduler,
+    recovery     : modport RecoveryManagerIF::Scheduler,
+    mulDivUnit   : modport MulDivUnitIF::Scheduler,
+    fpDivSqrtUnit: modport FPDivSqrtUnitIF::Scheduler,
+    debug        : modport DebugIF::Scheduler,
+) {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+    import MicroOpTypes::*;
+
+    var notIssued: logic<ISSUE_QUEUE_ENTRY_NUM>;
+
+    var isInt      : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isComplex  : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isDiv      : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isLoad     : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isStore    : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isFP       : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var isFPDivSqrt: logic<ISSUE_QUEUE_ENTRY_NUM>;
+
+    var flushIQ_Entry: IssueQueueOneHotPath;
+    var selectedVector: IssueQueueOneHotPath;
+
+    var dispatchStore: logic [DISPATCH_WIDTH];
+    var dispatchLoad : logic [DISPATCH_WIDTH];
+    var canIssueDiv  : logic;
+    var canIssueFPDivSqrt: logic;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+                notIssued[i] = FALSE;
+            }
+        } else {
+            for i in 0..DISPATCH_WIDTH {
+                if port.write[i] {
+                    notIssued[port.writePtr[i]] = TRUE;
+
+                    if port.writeSchedulerData[i].opType == MOP_TYPE_MEM {
+                        if port.writeSchedulerData[i].opSubType.memType == MEM_MOP_TYPE_STORE {
+                            isLoad[port.writePtr[i]] = FALSE;
+                            isStore[port.writePtr[i]] = TRUE;
+                            isComplex[port.writePtr[i]] = FALSE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isDiv[port.writePtr[i]] = FALSE;
+                            isFP[port.writePtr[i]] = FALSE;
+                            isFPDivSqrt[port.writePtr[i]] = FALSE;
+                        } else {
+                            isDiv[port.writePtr[i]] = FALSE;
+                            isComplex[port.writePtr[i]] = FALSE;
+                            isLoad[port.writePtr[i]] = TRUE;
+                            isStore[port.writePtr[i]] = FALSE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isFP[port.writePtr[i]] = FALSE;
+                            isFPDivSqrt[port.writePtr[i]] = FALSE;
+                        }
+                    } else if port.writeSchedulerData[i].opType == MOP_TYPE_COMPLEX {
+                        if port.writeSchedulerData[i].opSubType.complexType == COMPLEX_MOP_TYPE_DIV {
+                            isLoad[port.writePtr[i]] = FALSE;
+                            isStore[port.writePtr[i]] = FALSE;
+                            isComplex[port.writePtr[i]] = TRUE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isDiv[port.writePtr[i]] = TRUE;
+                            isFP[port.writePtr[i]] = FALSE;
+                            isFPDivSqrt[port.writePtr[i]] = FALSE;
+                        } else {
+                            isLoad[port.writePtr[i]] = FALSE;
+                            isStore[port.writePtr[i]] = FALSE;
+                            isComplex[port.writePtr[i]] = TRUE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isDiv[port.writePtr[i]] = FALSE;
+                            isFP[port.writePtr[i]] = FALSE;
+                            isFPDivSqrt[port.writePtr[i]] = FALSE;
+                        }
+                    } else if port.writeSchedulerData[i].opType == MOP_TYPE_FP {
+                        if (port.writeSchedulerData[i].opSubType.fpType == FP_MOP_TYPE_DIV) ||
+                           (port.writeSchedulerData[i].opSubType.fpType == FP_MOP_TYPE_SQRT) {
+                            isLoad[port.writePtr[i]] = FALSE;
+                            isStore[port.writePtr[i]] = FALSE;
+                            isComplex[port.writePtr[i]] = FALSE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isDiv[port.writePtr[i]] = FALSE;
+                            isFP[port.writePtr[i]] = TRUE;
+                            isFPDivSqrt[port.writePtr[i]] = TRUE;
+                        } else {
+                            isLoad[port.writePtr[i]] = FALSE;
+                            isStore[port.writePtr[i]] = FALSE;
+                            isComplex[port.writePtr[i]] = FALSE;
+                            isInt[port.writePtr[i]] = FALSE;
+                            isDiv[port.writePtr[i]] = FALSE;
+                            isFP[port.writePtr[i]] = TRUE;
+                            isFPDivSqrt[port.writePtr[i]] = FALSE;
+                        }
+                    } else {
+                        isLoad[port.writePtr[i]] = FALSE;
+                        isStore[port.writePtr[i]] = FALSE;
+                        isComplex[port.writePtr[i]] = FALSE;
+                        isInt[port.writePtr[i]] = TRUE;
+                        isDiv[port.writePtr[i]] = FALSE;
+                        isFP[port.writePtr[i]] = FALSE;
+                        isFPDivSqrt[port.writePtr[i]] = FALSE;
+                    }
+                }
+            }
+
+            for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+                if selectedVector[i] || flushIQ_Entry[i] {
+                    notIssued[i] = FALSE;
+                }
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..DISPATCH_WIDTH {
+            if port.write[i] {
+                if port.writeSchedulerData[i].opType == MOP_TYPE_MEM {
+                    if port.writeSchedulerData[i].opSubType.memType == MEM_MOP_TYPE_STORE {
+                        dispatchStore[i] = TRUE;
+                        dispatchLoad[i] = FALSE;
+                    } else {
+                        dispatchStore[i] = FALSE;
+                        dispatchLoad[i] = TRUE;
+                    }
+                } else {
+                    dispatchStore[i] = FALSE;
+                    dispatchLoad[i] = FALSE;
+                }
+            } else {
+                dispatchStore[i] = FALSE;
+                dispatchLoad[i] = FALSE;
+            }
+        }
+
+        wakeupSelect.dispatchStore = dispatchStore;
+        wakeupSelect.dispatchLoad = dispatchLoad;
+        wakeupSelect.notIssued = notIssued;
+
+        wakeupSelect.stall = port.stall;
+        wakeupSelect.write = port.write;
+        wakeupSelect.writePtr = port.writePtr;
+        wakeupSelect.memDependencyPred = port.memDependencyPred;
+
+        flushIQ_Entry = recovery.flushIQ_Entry;
+        recovery.notIssued = notIssued;
+
+        for i in 0..DISPATCH_WIDTH {
+            wakeupSelect.writeSrcTag[i].regTag[0].valid = port.writeSchedulerData[i].srcRegValidA;
+            wakeupSelect.writeSrcTag[i].regTag[1].valid = port.writeSchedulerData[i].srcRegValidB;
+            wakeupSelect.writeSrcTag[i].regTag[2].valid = port.writeSchedulerData[i].srcRegValidC;
+
+            wakeupSelect.writeSrcTag[i].regTag[0].num = port.writeSchedulerData[i].opSrc.phySrcRegNumA;
+            wakeupSelect.writeSrcTag[i].regTag[1].num = port.writeSchedulerData[i].opSrc.phySrcRegNumB;
+            wakeupSelect.writeSrcTag[i].regTag[2].num = port.writeSchedulerData[i].opSrc.phySrcRegNumC;
+
+            wakeupSelect.writeDstTag[i].regTag.valid = port.writeSchedulerData[i].opDst.writeReg;
+            wakeupSelect.writeDstTag[i].regTag.num = port.writeSchedulerData[i].opDst.phyDstRegNum;
+
+            wakeupSelect.writeSrcTag[i].regPtr[0].valid = port.writeSchedulerData[i].srcRegValidA;
+            wakeupSelect.writeSrcTag[i].regPtr[1].valid = port.writeSchedulerData[i].srcRegValidB;
+            wakeupSelect.writeSrcTag[i].regPtr[2].valid = port.writeSchedulerData[i].srcRegValidC;
+
+            wakeupSelect.writeSrcTag[i].regPtr[0].ptr = port.writeSchedulerData[i].srcPtrRegA;
+            wakeupSelect.writeSrcTag[i].regPtr[1].ptr = port.writeSchedulerData[i].srcPtrRegB;
+            wakeupSelect.writeSrcTag[i].regPtr[2].ptr = port.writeSchedulerData[i].srcPtrRegC;
+        }
+
+        canIssueDiv = TRUE;
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            if !mulDivUnit.divFree[i] {
+                canIssueDiv = FALSE;
+            }
+        }
+
+        canIssueFPDivSqrt = TRUE;
+        for i in 0..FP_ISSUE_WIDTH {
+            if !fpDivSqrtUnit.Free[i] {
+                canIssueFPDivSqrt = FALSE;
+            }
+        }
+
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            wakeupSelect.intIssueReq[i] = notIssued[i] && isInt[i];
+            wakeupSelect.loadIssueReq[i] = notIssued[i] && isLoad[i];
+            wakeupSelect.complexIssueReq[i] =
+                notIssued[i] && isComplex[i] && (!isDiv[i] || (isDiv[i] && canIssueDiv));
+            wakeupSelect.storeIssueReq[i] = notIssued[i] && isStore[i];
+            wakeupSelect.fpIssueReq[i] =
+                notIssued[i] && isFP[i] && (!isFPDivSqrt[i] || (isFPDivSqrt[i] && canIssueFPDivSqrt));
+        }
+
+        for i in 0..ISSUE_WIDTH {
+            port.selected[i] = wakeupSelect.selected[i] && !port.stall;
+            port.selectedPtr[i] = wakeupSelect.selectedPtr[i];
+        }
+
+        selectedVector = '0;
+        if !port.stall {
+            for i in 0..ISSUE_WIDTH {
+                selectedVector = selectedVector | wakeupSelect.selectedVector[i];
+            }
+        }
+
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            debug.scheduler[i].valid =
+                notIssued[i] && (isInt[i] || isComplex[i] || isLoad[i] || isStore[i] || isFP[i]);
+        }
+    }
+}

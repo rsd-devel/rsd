@@ -1,0 +1,1269 @@
+package DCacheFunctions {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+
+    function MergeStoreDataToLine (
+        fetchedLine: input DCacheLinePath,
+        storedLine : input DCacheLinePath,
+        storedDirty: input DCacheByteEnablePath,
+    ) -> DCacheLinePath {
+        var dstLine: DCacheLinePath;
+        dstLine = '0;
+        for i in 0..DCACHE_LINE_BYTE_NUM {
+            for b in 0..8 {
+                if storedDirty[i] != 0 {
+                    dstLine[i * 8 + b] = storedLine[i * 8 + b];
+                } else {
+                    dstLine[i * 8 + b] = fetchedLine[i * 8 + b];
+                }
+            }
+        }
+        return dstLine;
+    }
+
+    function ToLineAddrFromFullAddr (
+        addr: input PhyAddrPath,
+    ) -> PhyAddrPath {
+        return {addr[PHY_ADDR_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH], 1'b0 repeat DCACHE_LINE_BYTE_NUM_BIT_WIDTH};
+    }
+
+    function ToLinePartFromFullAddr (
+        addr: input PhyAddrPath,
+    ) -> DCacheLineAddr {
+        return addr[PHY_ADDR_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
+    }
+
+    function ToIndexPartFromFullAddr (
+        addr: input PhyAddrPath,
+    ) -> DCacheIndexPath {
+        return addr[PHY_ADDR_WIDTH - DCACHE_TAG_BIT_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
+    }
+
+    function ToTagPartFromFullAddr (
+        addr: input PhyAddrPath,
+    ) -> DCacheTagPath {
+        return addr[PHY_ADDR_WIDTH - 1:PHY_ADDR_WIDTH - DCACHE_TAG_BIT_WIDTH];
+    }
+
+    function BuildFullAddr (
+        index: input DCacheIndexPath,
+        tag  : input DCacheTagPath,
+    ) -> PhyAddrPath {
+        return {tag, index, 1'b0 repeat DCACHE_LINE_BYTE_NUM_BIT_WIDTH};
+    }
+
+    function ToIndexSubsetPartFromFullAddr (
+        addr: input PhyAddrPath,
+    ) -> DCacheIndexSubsetPath {
+        return addr[DCACHE_LINE_BYTE_NUM_BIT_WIDTH + DCACHE_INDEX_SUBSET_BIT_WIDTH - 1:DCACHE_LINE_BYTE_NUM_BIT_WIDTH];
+    }
+
+    function ClearedMSHR () -> MissStatusHandlingRegister {
+        var mshr: MissStatusHandlingRegister;
+        mshr = '0;
+        return mshr;
+    }
+
+    function TreeLRU_CalcEvictedWay (
+        state: input DCacheTreeLRU_StatePath,
+    ) -> DCacheWayPath {
+        var evicted: DCacheWayPath;
+        var pos: u32;
+        evicted = 0;
+        pos = 0;
+        for i in 0..DCACHE_WAY_BIT_NUM {
+            if state[pos + evicted] {
+                evicted = evicted << 1;
+            } else {
+                evicted = (evicted << 1) + 1;
+            }
+            pos = pos + (1 << i);
+        }
+        return evicted;
+    }
+
+    function TreeLRU_CalcUpdatedState (
+        way: input DCacheWayPath,
+    ) -> DCacheTreeLRU_StatePath {
+        var next: DCacheTreeLRU_StatePath;
+        var pos: u32;
+        next = 0;
+        pos = 0;
+        for i in 0..DCACHE_WAY_BIT_NUM {
+            for j in 0..(1 << i) {
+                next[pos + j] = way[DCACHE_WAY_BIT_NUM - 1 - i];
+            }
+            pos = pos + (1 << i);
+        }
+        return next;
+    }
+
+    function TreeLRU_CalcWriteEnable (
+        weIn: input logic,
+        way : input DCacheWayPath,
+    ) -> DCacheTreeLRU_StatePath {
+        var pos: u32;
+        var c: u32;
+        var we: DCacheTreeLRU_StatePath;
+        pos = 0;
+        c = 0;
+        we = '0;
+        for i in 0..DCACHE_WAY_BIT_NUM {
+            we[pos + c] = weIn;
+            c = (c << 1) + (way[DCACHE_WAY_BIT_NUM - 1 - i] as u32);
+            pos = pos + (1 << i);
+        }
+        return we;
+    }
+}
+
+module DCacheController (
+    port: modport DCacheIF::DCacheController,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var regPhase : DCachePhase;
+    var nextPhase: DCachePhase;
+
+    var dcFlushReqAck  : logic;
+    var dcFlushComplete: logic;
+    var mshrBusy       : logic;
+    var loadStoreBusy  : logic;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regPhase = DCACHE_PHASE_NORMAL;
+        } else {
+            regPhase = nextPhase;
+        }
+    }
+
+    always_comb {
+        nextPhase = regPhase;
+        dcFlushReqAck = FALSE;
+        dcFlushComplete = FALSE;
+        mshrBusy = FALSE;
+        loadStoreBusy = FALSE;
+
+        case regPhase {
+            default: {
+                nextPhase = DCACHE_PHASE_NORMAL;
+            }
+            DCachePhase::DCACHE_PHASE_NORMAL: {
+                for i in 0..MSHR_NUM {
+                    if port.mshrPhase[i] != MSHR_PHASE_INVALID {
+                        mshrBusy = TRUE;
+                    }
+                }
+                for i in 0..DCACHE_LSU_PORT_NUM {
+                    if port.lsuCacheGrtReg[i] || port.lsuCacheGrt[i] {
+                        loadStoreBusy = TRUE;
+                    }
+                }
+
+                dcFlushReqAck = !mshrBusy;
+                if port.dcFlushReq && dcFlushReqAck {
+                    nextPhase = DCACHE_PHASE_FLUSH_PROCESSING;
+                }
+            }
+            DCachePhase::DCACHE_PHASE_FLUSH_PROCESSING: {
+                if port.mshrFlushComplete {
+                    nextPhase = DCACHE_PHASE_FLUSH_COMPLETE;
+                }
+            }
+            DCachePhase::DCACHE_PHASE_FLUSH_COMPLETE: {
+                dcFlushComplete = TRUE;
+                if port.flushComplete {
+                    nextPhase = DCACHE_PHASE_NORMAL;
+                }
+            }
+        }
+
+        port.dcFlushReqAck = dcFlushReqAck;
+        port.dcFlushComplete = dcFlushComplete;
+        port.dcFlushing = regPhase == DCACHE_PHASE_FLUSH_PROCESSING;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(loadStoreBusy && port.dcFlushReq && dcFlushReqAck), "Inflight load or store is found on DC flush request acquirement.")
+}
+
+module DCacheMemoryReqPortArbiter (
+    port: modport DCacheIF::DCacheMemoryReqPortArbiter,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var req     : logic [MSHR_NUM];
+    var grant   : logic [MSHR_NUM];
+    var memInSel: MSHR_IndexPath;
+    var memValid: logic;
+
+    always_comb {
+        for r in 0..MSHR_NUM {
+            grant[r] = FALSE;
+            req[r] = port.mshrMemReq[r];
+        }
+
+        memInSel = '0;
+        memValid = FALSE;
+
+        var found: logic;
+        found = FALSE;
+        for r in 0..MSHR_NUM {
+            if !found && req[r] {
+                grant[r] = TRUE;
+                memInSel = r;
+                memValid = TRUE;
+                found = TRUE;
+            }
+        }
+
+        port.memInSel = memInSel;
+        port.memValid = memValid;
+        for r in 0..MSHR_NUM {
+            port.mshrMemGrt[r] = grant[r];
+        }
+    }
+}
+
+module DCacheMemoryReqPortMultiplexer (
+    port: modport DCacheIF::DCacheMemoryReqPortMultiplexer,
+) {
+    import CacheSystemTypes::*;
+
+    var portIn: MSHR_IndexPath;
+
+    always_comb {
+        portIn = port.memInSel;
+
+        port.memAddr = port.mshrMemMuxIn[portIn].addr;
+        port.memData = port.mshrMemMuxIn[portIn].data;
+        port.memWE = port.mshrMemMuxIn[portIn].we;
+
+        for i in 0..MSHR_NUM {
+            port.mshrMemMuxOut[i].ack = port.memReqAck;
+            port.mshrMemMuxOut[i].serial = port.memSerial;
+            port.mshrMemMuxOut[i].wserial = port.memWSerial;
+        }
+    }
+}
+
+module DCacheArrayPortArbiter (
+    port: modport DCacheIF::DCacheArrayPortArbiter,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+
+    var req  : logic [DCACHE_MUX_PORT_NUM];
+    var grant: logic [DCACHE_MUX_PORT_NUM];
+
+    var cacheArrayInSel  : DCacheMuxPortIndexPath [DCACHE_ARRAY_PORT_NUM];
+    var cacheArrayOutSel : DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
+    var cacheArrayInGrant: logic [DCACHE_ARRAY_PORT_NUM];
+
+    always_comb {
+        for r in 0..DCACHE_MUX_PORT_NUM {
+            cacheArrayOutSel[r] = '0;
+            grant[r] = FALSE;
+            req[r] = FALSE;
+        }
+
+        for r in 0..DCACHE_LSU_PORT_NUM {
+            if port.dcFlushing {
+                req[r] = FALSE;
+            } else {
+                req[r] = port.lsuCacheReq[r];
+            }
+        }
+        for r in 0..MSHR_NUM {
+            req[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheReq[r];
+        }
+
+        for p in 0..DCACHE_ARRAY_PORT_NUM {
+            cacheArrayInGrant[p] = FALSE;
+            cacheArrayInSel[p] = '0;
+
+            var found: logic;
+            found = FALSE;
+            for r in 0..DCACHE_MUX_PORT_NUM {
+                if !found && req[r] {
+                    req[r] = FALSE;
+                    grant[r] = TRUE;
+                    cacheArrayInSel[p] = r;
+                    cacheArrayOutSel[r] = p;
+                    cacheArrayInGrant[p] = TRUE;
+                    found = TRUE;
+                }
+            }
+        }
+
+        port.cacheArrayInSel = cacheArrayInSel;
+        port.cacheArrayInGrant = cacheArrayInGrant;
+        port.cacheArrayOutSel = cacheArrayOutSel;
+
+        for r in 0..DCACHE_LSU_PORT_NUM {
+            port.lsuCacheGrt[r] = grant[r];
+        }
+        for r in 0..MSHR_NUM {
+            port.mshrCacheGrt[r] = grant[r + DCACHE_LSU_PORT_NUM];
+        }
+    }
+}
+
+module DCacheArrayPortMultiplexer (
+    port: modport DCacheIF::DCacheArrayPortMultiplexer,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import DCacheFunctions::*;
+
+    var portIn           : DCacheMuxPortIndexPath;
+    var portInRegTagStg : DCacheMuxPortIndexPath [DCACHE_ARRAY_PORT_NUM];
+    var portInRegGrantTagStg: logic [DCACHE_ARRAY_PORT_NUM];
+
+    var portOutRegTagStg : DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
+    var portOutRegDataStg: DCacheArrayPortIndex [DCACHE_MUX_PORT_NUM];
+
+    var muxIn      : DCachePortMultiplexerIn [DCACHE_MUX_PORT_NUM];
+    var muxInReg   : DCachePortMultiplexerIn [DCACHE_ARRAY_PORT_NUM];
+    var muxTagOut  : DCachePortMultiplexerTagOut [DCACHE_MUX_PORT_NUM];
+    var muxDataOut : DCachePortMultiplexerDataOut [DCACHE_MUX_PORT_NUM];
+
+    var tagHit     : logic [DCACHE_WAY_NUM, DCACHE_ARRAY_PORT_NUM];
+    var mshrConflict: logic [DCACHE_ARRAY_PORT_NUM];
+
+    var mshrAddrHit      : logic [DCACHE_ARRAY_PORT_NUM];
+    var mshrAddrHitMSHRID: MSHR_IndexPath [DCACHE_ARRAY_PORT_NUM];
+    var mshrReadHit      : logic [DCACHE_ARRAY_PORT_NUM];
+    var mshrReadData     : DCacheLinePath [DCACHE_ARRAY_PORT_NUM];
+    var portMSHRData     : DCacheLinePath [MSHR_NUM];
+
+    var repIsHit: logic [DCACHE_ARRAY_PORT_NUM];
+    var repHitWay: DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
+
+    var tagArrayDataOutTmp : DCacheTagPath [DCACHE_WAY_NUM, DCACHE_ARRAY_PORT_NUM];
+    var tagArrayValidOutTmp: logic [DCACHE_WAY_NUM, DCACHE_ARRAY_PORT_NUM];
+    var dataArrayDirtyOutTmp: logic [DCACHE_ARRAY_PORT_NUM];
+    var dataArrayDataOutTmp: DCacheLinePath [DCACHE_ARRAY_PORT_NUM];
+    var replArrayDataOutTmp: DCacheWayPath [DCACHE_ARRAY_PORT_NUM];
+
+    var isReplSameIndex: logic [DCACHE_ARRAY_PORT_NUM];
+
+    always_ff (port.clk) {
+        for i in 0..DCACHE_ARRAY_PORT_NUM {
+            if port.rst {
+                portInRegTagStg[i] = '0;
+                muxInReg[i] = '0;
+                portInRegGrantTagStg[i] = FALSE;
+            } else {
+                portInRegTagStg[i] = port.cacheArrayInSel[i];
+                muxInReg[i] = muxIn[port.cacheArrayInSel[i]];
+                portInRegGrantTagStg[i] = port.cacheArrayInGrant[i];
+            }
+        }
+
+        for i in 0..DCACHE_MUX_PORT_NUM {
+            if port.rst {
+                portOutRegTagStg[i] = '0;
+                portOutRegDataStg[i] = '0;
+            } else {
+                portOutRegTagStg[i] = port.cacheArrayOutSel[i];
+                portOutRegDataStg[i] = portOutRegTagStg[i];
+            }
+        }
+    }
+
+    always_comb {
+        for r in 0..DCACHE_LSU_PORT_NUM {
+            muxIn[r] = port.lsuMuxIn[r];
+        }
+        for r in 0..MSHR_NUM {
+            muxIn[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheMuxIn[r];
+        }
+        for r in 0..MSHR_NUM {
+            portMSHRData[r] = port.mshrData[r];
+        }
+
+        for p in 0..DCACHE_ARRAY_PORT_NUM {
+            portIn = port.cacheArrayInSel[p];
+            port.tagArrayWE[p] = muxIn[portIn].tagWE;
+            port.tagArrayWriteWay[p] = muxIn[portIn].evictWay;
+            port.tagArrayIndexIn[p] = muxIn[portIn].indexIn;
+            port.tagArrayDataIn[p] = muxIn[portIn].tagDataIn;
+            port.tagArrayValidIn[p] = muxIn[portIn].tagValidIn;
+        }
+
+        tagArrayDataOutTmp = port.tagArrayDataOut;
+        tagArrayValidOutTmp = port.tagArrayValidOut;
+
+        for p in 0..DCACHE_ARRAY_PORT_NUM {
+            mshrConflict[p] = FALSE;
+            mshrReadHit[p] = FALSE;
+            mshrAddrHit[p] = FALSE;
+            mshrAddrHitMSHRID[p] = '0;
+            mshrReadData[p] = '0;
+
+            for m in 0..MSHR_NUM {
+                if port.mshrValid[m] &&
+                   muxInReg[p].indexIn == ToIndexPartFromFullAddr(port.mshrAddr[m]) {
+                    mshrConflict[p] = TRUE;
+
+                    if muxInReg[p].tagDataIn == ToTagPartFromFullAddr(port.mshrAddr[m]) {
+                        if port.mshrPhase[m] >: MSHR_PHASE_MISS_WRITE_CACHE_REQUEST ||
+                           port.mshrPhase[m] == MSHR_PHASE_MISS_WRITE_CACHE_REQUEST {
+                            mshrReadHit[p] = TRUE;
+                        }
+                        mshrAddrHit[p] = TRUE;
+                        mshrAddrHitMSHRID[p] = m;
+                        mshrReadData[p] = portMSHRData[m];
+                    }
+                }
+            }
+
+            repHitWay[p] = '0;
+            repIsHit[p] = FALSE;
+            for way in 0..DCACHE_WAY_NUM {
+                tagHit[way][p] =
+                    (tagArrayDataOutTmp[way][p] == muxInReg[p].tagDataIn) &&
+                    tagArrayValidOutTmp[way][p] &&
+                    !mshrConflict[p];
+                if tagHit[way][p] {
+                    repHitWay[p] = way;
+                    repIsHit[p] = TRUE;
+                }
+            }
+        }
+
+        for r in 0..DCACHE_MUX_PORT_NUM {
+            for w in 0..DCACHE_WAY_NUM {
+                muxTagOut[r].tagDataOut[w] = tagArrayDataOutTmp[w][portOutRegTagStg[r]];
+                muxTagOut[r].tagValidOut[w] = tagArrayValidOutTmp[w][portOutRegTagStg[r]];
+            }
+            muxTagOut[r].tagHit = repIsHit[portOutRegTagStg[r]];
+            muxTagOut[r].mshrConflict = mshrConflict[portOutRegTagStg[r]];
+            muxTagOut[r].mshrReadHit = mshrReadHit[portOutRegTagStg[r]];
+            muxTagOut[r].mshrAddrHit = mshrAddrHit[portOutRegTagStg[r]];
+            muxTagOut[r].mshrAddrHitMSHRID = mshrAddrHitMSHRID[portOutRegTagStg[r]];
+            muxTagOut[r].mshrReadData = mshrReadData[portOutRegTagStg[r]];
+        }
+
+        for p in 0..DCACHE_ARRAY_PORT_NUM {
+            port.dataArrayDataIn[p] = muxInReg[p].dataDataIn;
+            port.dataArrayDirtyIn[p] = muxInReg[p].dataDirtyIn;
+            if muxInReg[p].tagWE {
+                port.dataArrayWriteWay[p] = muxInReg[p].evictWay;
+            } else {
+                port.dataArrayWriteWay[p] = repHitWay[p];
+            }
+            port.dataArrayDoesReadEvictedWay[p] = muxInReg[p].isVictimEviction;
+            port.dataArrayReadWay[p] = repHitWay[p];
+            port.dataArrayByteWE_In[p] = muxInReg[p].dataByteWE;
+            port.dataArrayWE[p] =
+                muxInReg[p].dataWE || (muxInReg[p].dataWE_OnTagHit && repIsHit[p]);
+            port.dataArrayIndexIn[p] = muxInReg[p].indexIn;
+        }
+
+        for p in 0..DCACHE_ARRAY_PORT_NUM {
+            isReplSameIndex[p] = FALSE;
+            for i in 0..DCACHE_ARRAY_PORT_NUM {
+                if i <: p && muxInReg[i].indexIn == muxInReg[p].indexIn {
+                    isReplSameIndex[p] = TRUE;
+                }
+            }
+
+            port.replArrayIndexIn[p] = muxInReg[p].indexIn;
+            port.replArrayDataIn[p] = 0;
+            if isReplSameIndex[p] {
+                port.replArrayWE[p] = FALSE;
+            } else if muxInReg[p].tagWE {
+                port.replArrayWE[p] = TRUE;
+                port.replArrayDataIn[p] = muxInReg[p].evictWay;
+            } else if muxInReg[p].isVictimEviction {
+                port.replArrayWE[p] = FALSE;
+            } else {
+                port.replArrayWE[p] = repIsHit[p];
+                port.replArrayDataIn[p] = repHitWay[p];
+            }
+        }
+
+        dataArrayDataOutTmp = port.dataArrayDataOut;
+        dataArrayDirtyOutTmp = port.dataArrayDirtyOut;
+        replArrayDataOutTmp = port.replArrayDataOut;
+
+        for r in 0..DCACHE_MUX_PORT_NUM {
+            muxDataOut[r].dataDataOut = dataArrayDataOutTmp[portOutRegDataStg[r]];
+            muxDataOut[r].dataDirtyOut = dataArrayDirtyOutTmp[portOutRegDataStg[r]];
+            muxDataOut[r].replDataOut = replArrayDataOutTmp[portOutRegDataStg[r]];
+        }
+    }
+
+    always_comb {
+        for r in 0..DCACHE_LSU_PORT_NUM {
+            port.lsuMuxTagOut[r] = muxTagOut[r];
+            port.lsuMuxDataOut[r] = muxDataOut[r];
+        }
+        for r in 0..MSHR_NUM {
+            port.mshrCacheMuxTagOut[r] = muxTagOut[r + DCACHE_LSU_PORT_NUM];
+            port.mshrCacheMuxDataOut[r] = muxDataOut[r + DCACHE_LSU_PORT_NUM];
+        }
+    }
+}
+
+module DCacheArray (
+    port: modport DCacheIF::DCacheArray,
+) {
+    inst body: $sv::DCacheArray_SV (
+        port: port,
+    );
+}
+
+module DCache (
+    lsu        : modport LoadStoreUnitIF::DCache,
+    cacheSystem: modport CacheSystemIF::DCache,
+    ctrl       : modport ControllerIF::DCache,
+    recovery   : modport RecoveryManagerIF::DCacheMissHandler,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+    import LoadStoreUnitTypes::*;
+    import ActiveListIndexTypes::*;
+    import DCacheFunctions::*;
+
+    var hit                 : logic [DCACHE_LSU_PORT_NUM];
+    var missReq             : logic [DCACHE_LSU_PORT_NUM];
+    var missAddr            : PhyAddrPath [DCACHE_LSU_PORT_NUM];
+    var missIsUncachable    : logic [DCACHE_LSU_PORT_NUM];
+    var missActiveListPtr   : ActiveListIndexPath [DCACHE_LSU_PORT_NUM];
+
+    inst port: DCacheIF;
+
+    assign port.clk = lsu.clk;
+    assign port.rst = lsu.rst;
+    assign port.rstStart = lsu.rstStart;
+
+    inst controller: DCacheController (
+        port: port,
+    );
+    inst array: DCacheArray (
+        port: port,
+    );
+    inst arrayArbiter: DCacheArrayPortArbiter (
+        port: port,
+    );
+    inst arrayMux: DCacheArrayPortMultiplexer (
+        port: port,
+    );
+    inst memArbiter: DCacheMemoryReqPortArbiter (
+        port: port,
+    );
+    inst memMux: DCacheMemoryReqPortMultiplexer (
+        port: port,
+    );
+    inst missHandler: DCacheMissHandler (
+        port    : port,
+        recovery: recovery,
+    );
+
+    var storedLineData  : DCacheLinePath;
+    var storedLineByteWE: DCacheByteEnablePath;
+
+    var dcReadAddrRegTagStg   : PhyAddrPath [DCACHE_LSU_READ_PORT_NUM];
+    var dcReadAddrRegDataStg  : PhyAddrPath [DCACHE_LSU_READ_PORT_NUM];
+    var dcReadReqReg          : logic [DCACHE_LSU_READ_PORT_NUM];
+    var lsuCacheGrtReg        : logic [DCACHE_LSU_PORT_NUM];
+    var dcReadUncachableReg   : logic [DCACHE_LSU_READ_PORT_NUM];
+    var dcReadActiveListPtrReg: ActiveListIndexPath [DCACHE_LSU_READ_PORT_NUM];
+
+    var dcWriteReqReg       : logic;
+    var dcWriteAddrReg      : PhyAddrPath;
+    var dcWriteUncachableReg: logic;
+
+    var lsuLoadHasAllocatedMSHR : logic [DCACHE_LSU_READ_PORT_NUM];
+    var lsuLoadMSHRID           : MSHR_IndexPath [DCACHE_LSU_READ_PORT_NUM];
+    var lsuStoreHasAllocatedMSHR: logic [DCACHE_LSU_WRITE_PORT_NUM];
+    var lsuStoreMSHRID          : MSHR_IndexPath [DCACHE_LSU_WRITE_PORT_NUM];
+
+    var lsuMSHRAddrHit      : logic [DCACHE_LSU_READ_PORT_NUM];
+    var lsuMSHRAddrHitMSHRID: MSHR_IndexPath [DCACHE_LSU_READ_PORT_NUM];
+    var lsuMSHRReadHit      : logic [DCACHE_LSU_READ_PORT_NUM];
+    var lsuMSHRReadData     : DCacheLinePath [DCACHE_LSU_READ_PORT_NUM];
+
+    var lsuMakeMSHRCanBeInvalidDirect: logic [MSHR_NUM];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..DCACHE_LSU_READ_PORT_NUM {
+                dcReadReqReg[i] = FALSE;
+            }
+            for i in 0..DCACHE_LSU_PORT_NUM {
+                lsuCacheGrtReg[i] = FALSE;
+            }
+            dcWriteReqReg = '0;
+        } else {
+            lsuCacheGrtReg = port.lsuCacheGrt;
+
+            for i in 0..DCACHE_LSU_READ_PORT_NUM {
+                dcReadReqReg[i] = lsu.dcReadReq[i];
+                dcReadAddrRegTagStg[i] = lsu.dcReadAddr[i];
+                dcReadUncachableReg[i] = lsu.dcReadUncachable[i];
+                dcReadActiveListPtrReg[i] = lsu.dcReadActiveListPtr[i];
+            }
+
+            dcReadAddrRegDataStg = dcReadAddrRegTagStg;
+
+            dcWriteReqReg = lsu.dcWriteReq;
+            dcWriteAddrReg = lsu.dcWriteAddr;
+            dcWriteUncachableReg = lsu.dcWriteUncachable;
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT($bits(LSQ_BlockDataPath) <= $bits(DCacheLinePath), "The width of a DCache line must be same or greater than that of an LSQ block.")
+
+    always_comb {
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            port.lsuCacheReq[i + DCACHE_LSU_READ_PORT_BEGIN] = lsu.dcReadReq[i];
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].tagWE = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].indexIn = ToIndexPartFromFullAddr(lsu.dcReadAddr[i]);
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].tagDataIn = ToTagPartFromFullAddr(lsu.dcReadAddr[i]);
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].tagValidIn = TRUE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].dataDataIn = '0;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].dataByteWE = '0;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].dataWE = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].dataWE_OnTagHit = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].dataDirtyIn = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].evictWay = '0;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].isVictimEviction = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_READ_PORT_BEGIN].isFlushReq = FALSE;
+        }
+
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            hit[i] = FALSE;
+            if port.lsuMuxTagOut[i + DCACHE_LSU_READ_PORT_BEGIN].tagHit &&
+               lsuCacheGrtReg[i + DCACHE_LSU_READ_PORT_BEGIN] {
+                hit[i] = TRUE;
+            }
+        }
+
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            lsu.dcReadData[i] = port.lsuMuxDataOut[i].dataDataOut;
+            lsu.dcReadHit[i] = hit[i];
+        }
+
+        for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
+            // NOT_TRANSPILED_TO_VERYL
+            // assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
+
+            storedLineData = lsu.dcWriteData;
+            storedLineByteWE = lsu.dcWriteByteWE;
+
+            port.lsuCacheReq[i + DCACHE_LSU_WRITE_PORT_BEGIN] = lsu.dcWriteReq;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagWE = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].indexIn = ToIndexPartFromFullAddr(lsu.dcWriteAddr);
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagDataIn = ToTagPartFromFullAddr(lsu.dcWriteAddr);
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagValidIn = TRUE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].dataDataIn = storedLineData;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].dataByteWE = storedLineByteWE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].dataWE = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].dataWE_OnTagHit = TRUE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].dataDirtyIn = TRUE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].evictWay = '0;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].isVictimEviction = FALSE;
+            port.lsuMuxIn[i + DCACHE_LSU_WRITE_PORT_BEGIN].isFlushReq = FALSE;
+
+            lsu.dcWriteReqAck = port.lsuCacheGrt[i + DCACHE_LSU_WRITE_PORT_BEGIN];
+        }
+
+        for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
+            // NOT_TRANSPILED_TO_VERYL
+            // assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
+
+            hit[i + DCACHE_LSU_WRITE_PORT_BEGIN] = FALSE;
+            if port.lsuMuxTagOut[i + DCACHE_LSU_WRITE_PORT_BEGIN].tagHit &&
+               lsuCacheGrtReg[i + DCACHE_LSU_WRITE_PORT_BEGIN] {
+                hit[i + DCACHE_LSU_WRITE_PORT_BEGIN] = TRUE;
+            }
+
+            lsu.dcWriteHit = hit[i + DCACHE_LSU_WRITE_PORT_BEGIN];
+        }
+    }
+
+    always_comb {
+        port.storedLineData = storedLineData;
+        port.storedLineByteWE = storedLineByteWE;
+    }
+
+    always_comb {
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            missReq[i] =
+                !hit[i] &&
+                !port.lsuMuxTagOut[i].mshrConflict &&
+                dcReadReqReg[i] &&
+                lsuCacheGrtReg[i];
+            missAddr[i] = dcReadAddrRegTagStg[i];
+            missIsUncachable[i] = dcReadUncachableReg[i];
+            missActiveListPtr[i] = dcReadActiveListPtrReg[i];
+        }
+
+        for i in 0..DCACHE_LSU_PORT_NUM {
+            if i >= DCACHE_LSU_WRITE_PORT_BEGIN {
+                // NOT_TRANSPILED_TO_VERYL
+                // assert(DCACHE_LSU_WRITE_PORT_NUM == 1);
+                missReq[i] = !hit[i] && !port.lsuMuxTagOut[i].mshrConflict && dcWriteReqReg && lsuCacheGrtReg[i];
+                missAddr[i] = dcWriteAddrReg;
+                missIsUncachable[i] = dcWriteUncachableReg;
+                missActiveListPtr[i] = '0;
+            }
+        }
+    }
+
+    var loadMSHRConflict : logic;
+    var storeMSHRConflict: logic;
+
+    var portInitMSHR              : logic [MSHR_NUM];
+    var portInitMSHR_Addr         : PhyAddrPath [MSHR_NUM];
+    var portInitMSHR_ActiveListPtr: ActiveListIndexPath [MSHR_NUM];
+    var portIsAllocatedByStore    : logic [MSHR_NUM];
+    var portIsUncachable          : logic [MSHR_NUM];
+
+    always_comb {
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            lsuLoadHasAllocatedMSHR[i] = FALSE;
+            lsuLoadMSHRID[i] = '0;
+        }
+
+        for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
+            lsuStoreHasAllocatedMSHR[i] = FALSE;
+            lsuStoreMSHRID[i] = '0;
+        }
+
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            lsuMSHRAddrHit[i] = port.lsuMuxTagOut[i].mshrAddrHit;
+            lsuMSHRAddrHitMSHRID[i] = port.lsuMuxTagOut[i].mshrAddrHitMSHRID;
+            lsuMSHRReadHit[i] = port.lsuMuxTagOut[i].mshrReadHit;
+            lsuMSHRReadData[i] = port.lsuMuxTagOut[i].mshrReadData;
+        }
+
+        // The current RSD configuration has one load port and one store port.
+        // Expand the priority chain explicitly so Veryl does not treat the
+        // conflict/allocate vectors as self-dependent combinational loops.
+        loadMSHRConflict =
+            port.lsuMuxTagOut[DCACHE_LSU_READ_PORT_BEGIN].mshrConflict;
+        storeMSHRConflict =
+            port.lsuMuxTagOut[DCACHE_LSU_WRITE_PORT_BEGIN].mshrConflict ||
+            (
+                missReq[DCACHE_LSU_READ_PORT_BEGIN] &&
+                ToIndexPartFromFullAddr(missAddr[DCACHE_LSU_WRITE_PORT_BEGIN]) ==
+                ToIndexPartFromFullAddr(missAddr[DCACHE_LSU_READ_PORT_BEGIN])
+            );
+
+        for i in 0..MSHR_NUM {
+            portInitMSHR[i] = FALSE;
+            portInitMSHR_Addr[i] = '0;
+            portInitMSHR_ActiveListPtr[i] = '0;
+            portIsAllocatedByStore[i] = FALSE;
+            portIsUncachable[i] = FALSE;
+        }
+
+        var loadAllocated: logic;
+        var storeAllocated: logic;
+        var loadAllocatedMSHRID: MSHR_IndexPath;
+
+        loadAllocated = FALSE;
+        storeAllocated = FALSE;
+        loadAllocatedMSHRID = '0;
+
+        if missReq[DCACHE_LSU_READ_PORT_BEGIN] && !loadMSHRConflict {
+            for m in 0..MSHR_NUM {
+                if !loadAllocated && !port.mshrValid[m] {
+                    portInitMSHR[m] = TRUE;
+                    portInitMSHR_Addr[m] = missAddr[DCACHE_LSU_READ_PORT_BEGIN];
+                    portInitMSHR_ActiveListPtr[m] = missActiveListPtr[DCACHE_LSU_READ_PORT_BEGIN];
+                    portIsUncachable[m] = missIsUncachable[DCACHE_LSU_READ_PORT_BEGIN];
+                    lsuLoadHasAllocatedMSHR[0] = TRUE;
+                    lsuLoadMSHRID[0] = m;
+                    loadAllocated = TRUE;
+                    loadAllocatedMSHRID = m;
+                }
+            }
+        }
+
+        if missReq[DCACHE_LSU_WRITE_PORT_BEGIN] && !storeMSHRConflict {
+            for m in 0..MSHR_NUM {
+                if !storeAllocated && !port.mshrValid[m] &&
+                   !(loadAllocated && loadAllocatedMSHRID == m) {
+                    portInitMSHR[m] = TRUE;
+                    portInitMSHR_Addr[m] = missAddr[DCACHE_LSU_WRITE_PORT_BEGIN];
+                    portInitMSHR_ActiveListPtr[m] = missActiveListPtr[DCACHE_LSU_WRITE_PORT_BEGIN];
+                    portIsUncachable[m] = missIsUncachable[DCACHE_LSU_WRITE_PORT_BEGIN];
+                    lsuStoreHasAllocatedMSHR[0] = TRUE;
+                    lsuStoreMSHRID[0] = m;
+                    portIsAllocatedByStore[m] = TRUE;
+                    storeAllocated = TRUE;
+                }
+            }
+        }
+
+        for i in 0..MSHR_NUM {
+            port.initMSHR[i] = portInitMSHR[i];
+            port.initMSHR_Addr[i] = portInitMSHR_Addr[i];
+            port.initMSHR_ActiveListPtr[i] = portInitMSHR_ActiveListPtr[i];
+            port.isAllocatedByStore[i] = portIsAllocatedByStore[i];
+            port.isUncachable[i] = portIsUncachable[i];
+        }
+
+        port.lsuCacheGrtReg = lsuCacheGrtReg;
+
+        lsu.dcReadBusy[0] = loadMSHRConflict;
+        lsu.dcWriteBusy = storeMSHRConflict;
+
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            lsu.mshrAddrHit[i] = lsuMSHRAddrHit[i];
+            lsu.mshrAddrHitMSHRID[i] = lsuMSHRAddrHitMSHRID[i];
+            lsu.mshrReadHit[i] = lsuMSHRReadHit[i];
+            lsu.mshrReadData[i] = lsuMSHRReadData[i];
+        }
+
+        for i in 0..DCACHE_LSU_READ_PORT_NUM {
+            lsu.loadHasAllocatedMSHR[i] = lsuLoadHasAllocatedMSHR[i];
+            lsu.loadMSHRID[i] = lsuLoadMSHRID[i];
+        }
+
+        for i in 0..DCACHE_LSU_WRITE_PORT_NUM {
+            lsu.storeHasAllocatedMSHR[i] = lsuStoreHasAllocatedMSHR[i];
+            lsu.storeMSHRID[i] = lsuStoreMSHRID[i];
+        }
+    }
+
+    always_comb {
+        for i in 0..MSHR_NUM {
+            lsuMakeMSHRCanBeInvalidDirect[i] = lsu.makeMSHRCanBeInvalidDirect[i];
+        }
+        for i in 0..MSHR_NUM {
+            port.mshrCanBeInvalidDirect[i] = lsuMakeMSHRCanBeInvalidDirect[i];
+        }
+    }
+
+    always_comb {
+        cacheSystem.dcMemAccessReq.valid = port.memValid;
+        cacheSystem.dcMemAccessReq.we = port.memWE;
+        cacheSystem.dcMemAccessReq.addr = port.memAddr;
+        cacheSystem.dcMemAccessReq.data = port.memData;
+
+        for i in 0..MSHR_NUM {
+            lsu.mshrPhase[i] = port.mshrPhase[i];
+            lsu.mshrValid[i] = port.mshrValid[i];
+        }
+
+        port.memReqAck = cacheSystem.dcMemAccessReqAck.ack;
+        port.memSerial = cacheSystem.dcMemAccessReqAck.serial;
+        port.memAccessResult = cacheSystem.dcMemAccessResult;
+        port.memWSerial = cacheSystem.dcMemAccessReqAck.wserial;
+        port.memAccessResponse = cacheSystem.dcMemAccessResponse;
+    }
+
+    always_comb {
+        cacheSystem.dcFlushReqAck = port.dcFlushReqAck;
+        cacheSystem.dcFlushComplete = port.dcFlushComplete;
+
+        port.dcFlushReq = cacheSystem.dcFlushReq;
+        port.flushComplete = cacheSystem.flushComplete;
+    }
+}
+
+module DCacheMissHandler (
+    port    : modport DCacheIF::DCacheMissHandler,
+    recovery: modport RecoveryManagerIF::DCacheMissHandler,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import ActiveListIndexTypes::*;
+    import DCacheFunctions::*;
+
+    var nextMSHR: MissStatusHandlingRegister [MSHR_NUM];
+    var mshr    : MissStatusHandlingRegister [MSHR_NUM];
+    var flushMSHR_Entry     : logic [MSHR_NUM];
+    var flushMSHR_Allocation: logic [MSHR_NUM];
+
+    var portIsAllocatedByStore: logic [MSHR_NUM];
+    var mergedLine: DCacheLinePath [MSHR_NUM];
+
+    var mshrFlushComplete: logic [MSHR_NUM];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MSHR_NUM {
+                mshr[i].valid = FALSE;
+                mshr[i].phase = MSHR_PHASE_INVALID;
+                mshr[i].canBeInvalid = FALSE;
+                mshr[i].isAllocatorLoadFlushed = FALSE;
+                mshr[i].isAllocatedByStore = FALSE;
+            }
+        } else {
+            mshr = nextMSHR;
+        }
+    }
+
+    always_comb {
+        for i in 0..MSHR_NUM {
+            port.mshrPhase[i] = mshr[i].phase;
+            port.mshrData[i] = mshr[i].line;
+            port.mshrValid[i] = mshr[i].valid;
+            port.mshrAddr[i] = mshr[i].newAddr;
+        }
+
+        port.mshrFlushComplete = mshrFlushComplete[0];
+    }
+
+    var portStoredLineData  : DCacheLinePath;
+    var portStoredLineByteWE: DCacheByteEnablePath;
+
+    always_comb {
+        portStoredLineData = port.storedLineData;
+        portStoredLineByteWE = port.storedLineByteWE;
+    }
+
+    always_comb {
+        for i in 0..MSHR_NUM {
+            portIsAllocatedByStore[i] = port.isAllocatedByStore[i];
+        }
+
+        for i in 0..MSHR_NUM {
+            nextMSHR[i] = mshr[i];
+
+            if port.mshrCanBeInvalidDirect[i] {
+                nextMSHR[i].canBeInvalid = TRUE;
+            }
+
+            flushMSHR_Allocation[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                port.initMSHR_ActiveListPtr[i]
+            );
+            flushMSHR_Entry[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                mshr[i].activeListPtr
+            );
+            if flushMSHR_Entry[i] && !mshr[i].isAllocatedByStore {
+                nextMSHR[i].isAllocatorLoadFlushed = TRUE;
+                nextMSHR[i].canBeInvalid = TRUE;
+            }
+
+            port.mshrCacheMuxIn[i].indexIn = ToIndexPartFromFullAddr(mshr[i].newAddr);
+            port.mshrCacheMuxIn[i].tagDataIn = ToTagPartFromFullAddr(mshr[i].newAddr);
+            port.mshrCacheMuxIn[i].dataDataIn = mshr[i].line;
+            port.mshrCacheMuxIn[i].dataByteWE = {1'b1 repeat DCACHE_LINE_BYTE_NUM};
+            port.mshrCacheMuxIn[i].tagValidIn = TRUE;
+
+            port.mshrCacheReq[i] = FALSE;
+            port.mshrCacheMuxIn[i].tagWE = FALSE;
+            port.mshrCacheMuxIn[i].dataWE = FALSE;
+            port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+            port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+            port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
+            port.mshrCacheMuxIn[i].isVictimEviction = FALSE;
+            port.mshrCacheMuxIn[i].isFlushReq = FALSE;
+
+            port.mshrMemReq[i] = FALSE;
+            port.mshrMemMuxIn[i].data = mshr[i].line;
+            port.mshrMemMuxIn[i].we = FALSE;
+            port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
+
+            mshrFlushComplete[i] = FALSE;
+            mergedLine[i] = '0;
+
+            case mshr[i].phase {
+                default: {
+                    if port.initMSHR[i] && !flushMSHR_Allocation[i] {
+                        nextMSHR[i].valid = TRUE;
+                        nextMSHR[i].newAddr = port.initMSHR_Addr[i];
+                        nextMSHR[i].newValid = FALSE;
+                        nextMSHR[i].victimValid = FALSE;
+                        nextMSHR[i].victimDirty = FALSE;
+                        nextMSHR[i].victimReceived = FALSE;
+                        nextMSHR[i].memSerial = '0;
+                        nextMSHR[i].memWSerial = '0;
+                        nextMSHR[i].canBeInvalid = FALSE;
+                        nextMSHR[i].isAllocatorLoadFlushed = FALSE;
+                        nextMSHR[i].isAllocatedByStore = portIsAllocatedByStore[i];
+                        nextMSHR[i].isUncachable = port.isUncachable[i];
+                        nextMSHR[i].evictWay = '0;
+                        nextMSHR[i].flushIndex = '0;
+
+                        if port.isUncachable[i] {
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                        } else {
+                            nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQUEST;
+                        }
+                        nextMSHR[i].activeListPtr = port.initMSHR_ActiveListPtr[i];
+                    } else if port.dcFlushing && (i == 0) {
+                        nextMSHR[i].valid = TRUE;
+                        nextMSHR[i].newAddr = '0;
+                        nextMSHR[i].newValid = FALSE;
+                        nextMSHR[i].victimValid = FALSE;
+                        nextMSHR[i].victimDirty = FALSE;
+                        nextMSHR[i].victimReceived = FALSE;
+                        nextMSHR[i].memSerial = '0;
+                        nextMSHR[i].memWSerial = '0;
+                        nextMSHR[i].canBeInvalid = FALSE;
+                        nextMSHR[i].isAllocatorLoadFlushed = FALSE;
+                        nextMSHR[i].isAllocatedByStore = FALSE;
+                        nextMSHR[i].isUncachable = FALSE;
+                        nextMSHR[i].flushIndex = '0;
+                        nextMSHR[i].line = '0;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                        nextMSHR[i].activeListPtr = port.initMSHR_ActiveListPtr[i];
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_REQEUST: {
+                    port.mshrCacheReq[i] = TRUE;
+                    port.mshrCacheMuxIn[i].indexIn = mshr[i].flushIndex;
+                    port.mshrCacheMuxIn[i].tagValidIn = FALSE;
+                    port.mshrCacheMuxIn[i].tagWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+                    port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+                    port.mshrCacheMuxIn[i].isFlushReq = TRUE;
+
+                    if port.mshrCacheGrt[i] {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_TAG: {
+                    if |port.mshrCacheMuxTagOut[i].tagValidOut {
+                        nextMSHR[i].victimAddr = BuildFullAddr(
+                            mshr[i].flushIndex,
+                            port.mshrCacheMuxTagOut[i].tagDataOut[0]
+                        );
+                        nextMSHR[i].victimValid = TRUE;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA;
+                    } else {
+                        nextMSHR[i].victimValid = FALSE;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_RECEIVE_DATA: {
+                    nextMSHR[i].victimReceived = TRUE;
+                    nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
+                    nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
+
+                    if nextMSHR[i].victimDirty {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM: {
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
+
+                    if port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack {
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_TO_MEM;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE: {
+                    port.mshrMemReq[i] = FALSE;
+                    if mshr[i].victimValid &&
+                       mshr[i].victimDirty &&
+                       !(port.memAccessResponse.valid && mshr[i].memWSerial == port.memAccessResponse.serial) {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_CHECK;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_FLUSH_CHECK: {
+                    if &mshr[i].flushIndex {
+                        nextMSHR[i].flushIndex = '0;
+                        mshrFlushComplete[i] = TRUE;
+                    } else {
+                        nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
+                    }
+
+                    nextMSHR[i].victimValid = FALSE;
+                    nextMSHR[i].victimDirty = FALSE;
+                    nextMSHR[i].victimReceived = FALSE;
+                    nextMSHR[i].memSerial = '0;
+                    nextMSHR[i].memWSerial = '0;
+                    nextMSHR[i].line = '0;
+
+                    if mshrFlushComplete[i] {
+                        nextMSHR[i].phase = MSHR_PHASE_INVALID;
+                        nextMSHR[i].valid = FALSE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_FLUSH_VICTIM_REQEUST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_VICTIM_REQUEST: {
+                    port.mshrCacheReq[i] = TRUE;
+                    port.mshrCacheMuxIn[i].tagWE = FALSE;
+                    port.mshrCacheMuxIn[i].dataWE = FALSE;
+                    port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+                    port.mshrCacheMuxIn[i].dataDirtyIn = FALSE;
+                    port.mshrCacheMuxIn[i].isVictimEviction = TRUE;
+
+                    if port.mshrCacheGrt[i] {
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_TAG;
+                    } else if mshr[i].isAllocatorLoadFlushed {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_VICTIM_RECEIVE_TAG: {
+                    nextMSHR[i].tagDataOut = port.mshrCacheMuxTagOut[i].tagDataOut;
+                    nextMSHR[i].tagValidOut = port.mshrCacheMuxTagOut[i].tagValidOut;
+                    nextMSHR[i].phase = MSHR_PHASE_VICTIM_RECEIVE_DATA;
+                }
+                MSHR_Phase::MSHR_PHASE_VICTIM_RECEIVE_DATA: {
+                    nextMSHR[i].evictWay = port.mshrCacheMuxDataOut[i].replDataOut;
+                    if mshr[i].tagValidOut[nextMSHR[i].evictWay] {
+                        nextMSHR[i].victimAddr = BuildFullAddr(
+                            ToIndexPartFromFullAddr(mshr[i].newAddr),
+                            mshr[i].tagDataOut[nextMSHR[i].evictWay]
+                        );
+                        nextMSHR[i].victimValid = TRUE;
+                    } else {
+                        nextMSHR[i].victimValid = FALSE;
+                    }
+
+                    nextMSHR[i].victimReceived = TRUE;
+                    nextMSHR[i].line = port.mshrCacheMuxDataOut[i].dataDataOut;
+                    nextMSHR[i].victimDirty = port.mshrCacheMuxDataOut[i].dataDirtyOut;
+
+                    if nextMSHR[i].victimValid && nextMSHR[i].victimDirty {
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_WRITE_TO_MEM;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_VICTIM_WRITE_TO_MEM: {
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = mshr[i].victimAddr;
+
+                    if port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack {
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_WRITE_TO_MEM;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_VICTIM_WRITE_COMPLETE: {
+                    port.mshrMemReq[i] = FALSE;
+                    if mshr[i].victimValid &&
+                       mshr[i].victimDirty &&
+                       !(port.memAccessResponse.valid && mshr[i].memWSerial == port.memAccessResponse.serial) {
+                        nextMSHR[i].phase = MSHR_PHASE_VICTIM_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_MISS_READ_MEM_REQUEST: {
+                    nextMSHR[i].victimValid = FALSE;
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = FALSE;
+                    port.mshrMemMuxIn[i].addr = ToLineAddrFromFullAddr(mshr[i].newAddr);
+
+                    if port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack {
+                        nextMSHR[i].memSerial = port.mshrMemMuxOut[i].serial;
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_RECEIVE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_MISS_READ_MEM_RECEIVE: {
+                    if !(port.memAccessResult.valid && mshr[i].memSerial == port.memAccessResult.serial) {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_READ_MEM_RECEIVE;
+                    } else {
+                        nextMSHR[i].line = port.memAccessResult.data;
+                        nextMSHR[i].newValid = TRUE;
+                        if mshr[i].isAllocatedByStore {
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_MERGE_STORE_DATA;
+                        } else if mshr[i].isUncachable {
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                        } else {
+                            nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                        }
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_MISS_MERGE_STORE_DATA: {
+                    mergedLine[i] = MergeStoreDataToLine(mshr[i].line, portStoredLineData, portStoredLineByteWE);
+                    nextMSHR[i].line = mergedLine[i];
+
+                    if mshr[i].isUncachable {
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM: {
+                    port.mshrMemReq[i] = TRUE;
+                    port.mshrMemMuxIn[i].we = TRUE;
+                    port.mshrMemMuxIn[i].addr = ToLineAddrFromFullAddr(mshr[i].newAddr);
+
+                    if port.mshrMemGrt[i] && port.mshrMemMuxOut[i].ack {
+                        nextMSHR[i].memWSerial = port.mshrMemMuxOut[i].wserial;
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_TO_MEM;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE: {
+                    port.mshrMemReq[i] = FALSE;
+                    if mshr[i].newValid &&
+                       !(port.memAccessResponse.valid && mshr[i].memWSerial == port.memAccessResponse.serial) {
+                        nextMSHR[i].phase = MSHR_PHASE_UNCACHABLE_WRITE_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_MISS_WRITE_CACHE_REQUEST: {
+                    port.mshrCacheReq[i] = TRUE;
+                    port.mshrCacheMuxIn[i].tagWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE = TRUE;
+                    port.mshrCacheMuxIn[i].dataWE_OnTagHit = FALSE;
+                    port.mshrCacheMuxIn[i].dataDirtyIn = mshr[i].isAllocatedByStore;
+                    port.mshrCacheMuxIn[i].evictWay = mshr[i].evictWay;
+
+                    if port.mshrCacheGrt[i] {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    } else if mshr[i].isAllocatorLoadFlushed {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_HANDLING_COMPLETE;
+                    } else {
+                        nextMSHR[i].phase = MSHR_PHASE_MISS_WRITE_CACHE_REQUEST;
+                    }
+                }
+                MSHR_Phase::MSHR_PHASE_MISS_HANDLING_COMPLETE: {
+                    if mshr[i].canBeInvalid || mshr[i].isAllocatedByStore {
+                        nextMSHR[i].phase = MSHR_PHASE_INVALID;
+                        nextMSHR[i].valid = FALSE;
+                    }
+                }
+            }
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Functional-simulation MSHR deadlock counter/assert generate block was omitted.
+}

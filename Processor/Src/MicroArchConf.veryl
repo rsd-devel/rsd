@@ -1,0 +1,45 @@
+package MicroArchConf {
+    const CONF_FETCH_WIDTH: u32 = 2;
+
+    const CONF_DECODE_WIDTH  : u32 = CONF_FETCH_WIDTH;
+    const CONF_RENAME_WIDTH  : u32 = CONF_FETCH_WIDTH;
+    const CONF_DISPATCH_WIDTH: u32 = CONF_FETCH_WIDTH;
+
+    const CONF_COMMIT_WIDTH: u32 = 2;
+
+    const CONF_PSCALAR_NUM   : u32 = 64;
+    const CONF_PSCALAR_FP_NUM: u32 = 64;
+
+    const CONF_ISSUE_QUEUE_ENTRY_NUM : u32 = 16;
+    const CONF_ACTIVE_LIST_ENTRY_NUM : u32 = 64;
+    const CONF_REPLAY_QUEUE_ENTRY_NUM: u32 = 20;
+
+    // Matches the default RSD_SRC_CFG in Makefiles/CoreSources.inc.mk.
+    const CONF_INT_ISSUE_WIDTH    : u32 = 2;
+    const CONF_COMPLEX_ISSUE_WIDTH: u32 = 1;
+
+    const CONF_LOAD_ISSUE_WIDTH      : u32 = 1;
+    const CONF_STORE_ISSUE_WIDTH     : u32 = 1;
+    const CONF_MEM_ISSUE_WIDTH       : u32 = 2;
+    const CONF_STORE_ISSUE_LANE_BEGIN: u32 = CONF_LOAD_ISSUE_WIDTH;
+
+    const CONF_FP_ISSUE_WIDTH: u32 = 1;
+
+    const CONF_LOAD_QUEUE_ENTRY_NUM : u32 = 16;
+    const CONF_STORE_QUEUE_ENTRY_NUM: u32 = 16;
+
+    const CONF_BTB_ENTRY_NUM                  : u32 = 1024;
+    const CONF_PHT_ENTRY_NUM                  : u32 = 2048;
+    const CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH: u32 = 10;
+
+    const CONF_MDT_ENTRY_NUM: u32 = 1024;
+
+    const CONF_DCACHE_WAY_NUM        : u32 = 2;
+    const CONF_DCACHE_INDEX_BIT_WIDTH: u32 = 9 - $clog2(CONF_DCACHE_WAY_NUM);
+    const CONF_DCACHE_LINE_BYTE_NUM  : u32 = 8;
+    const CONF_DCACHE_MSHR_NUM       : u32 = 2;
+
+    const CONF_ICACHE_WAY_NUM        : u32 = 2;
+    const CONF_ICACHE_INDEX_BIT_WIDTH: u32 = 9 - $clog2(CONF_ICACHE_WAY_NUM);
+    const CONF_ICACHE_LINE_BYTE_NUM  : u32 = 8;
+}

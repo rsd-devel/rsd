@@ -1,0 +1,379 @@
+module ActiveList (
+    port    : modport ActiveListIF::ActiveList,
+    recovery: modport RecoveryManagerIF::ActiveList,
+    ctrl    : modport ControllerIF::ActiveList,
+    debug   : modport DebugIF::ActiveList,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import OpFormatTypes::*;
+
+    var headPtr: ActiveListIndexPath;
+    var headPtrList: ActiveListIndexPath [COMMIT_WIDTH];
+    var tailPtr: ActiveListIndexPath;
+    var tailPtrList: ActiveListIndexPath [COMMIT_WIDTH];
+    var readPtrList: ActiveListIndexPath [COMMIT_WIDTH];
+    var pushedTailPtr: ActiveListIndexPath [RENAME_WIDTH];
+    var count: ActiveListCountPath;
+    var pushNum: RenameLaneCountPath;
+
+    inst activeListPointer: BiTailMultiWidthQueuePointer #(
+        SIZE            : ACTIVE_LIST_ENTRY_NUM,
+        INITIAL_HEAD_PTR: 0,
+        INITIAL_TAIL_PTR: 0,
+        INITIAL_COUNT   : 0,
+        PUSH_WIDTH      : RENAME_WIDTH,
+        POP_WIDTH       : COMMIT_WIDTH,
+    ) (
+        clk         : port.clk,
+        rst         : port.rst,
+        popHead     : port.popHeadNum >: 0,
+        popHeadCount: port.popHeadNum,
+        pushTail    : pushNum >: 0,
+        pushTailCount: pushNum,
+        popTail     : port.popTailNum >: 0,
+        popTailCount: port.popTailNum,
+        count       : count,
+        headPtr     : headPtr,
+        tailPtr     : tailPtr,
+    );
+
+    always_comb {
+        if count <= ACTIVE_LIST_ENTRY_NUM - RENAME_WIDTH {
+            port.allocatable = TRUE;
+        } else {
+            port.allocatable = FALSE;
+        }
+        port.validEntryNum = count;
+
+        pushNum = 0;
+        for i in 0..RENAME_WIDTH {
+            if tailPtr + pushNum >= ACTIVE_LIST_ENTRY_NUM {
+                pushedTailPtr[i] = tailPtr + pushNum - ACTIVE_LIST_ENTRY_NUM;
+            } else {
+                pushedTailPtr[i] = tailPtr + pushNum;
+            }
+            pushNum = pushNum + port.pushTail[i];
+        }
+        for i in 0..COMMIT_WIDTH {
+            if headPtr + i <: ACTIVE_LIST_ENTRY_NUM {
+                headPtrList[i] = headPtr + i;
+            } else {
+                headPtrList[i] = headPtr + i - ACTIVE_LIST_ENTRY_NUM;
+            }
+        }
+        for i in 0..COMMIT_WIDTH {
+            if tailPtr - 1 - i >= ACTIVE_LIST_ENTRY_NUM {
+                tailPtrList[i] = tailPtr - 1 - i + ACTIVE_LIST_ENTRY_NUM;
+            } else {
+                tailPtrList[i] = tailPtr - 1 - i;
+            }
+        }
+
+        if RECOVERY_FROM_ACTIVE_LIST != 0 && port.popTailNum >: 0 {
+            readPtrList = tailPtrList;
+        } else {
+            readPtrList = headPtrList;
+        }
+
+        port.detectedFlushRangeTailPtr = tailPtr + pushNum;
+        port.pushedTailPtr = pushedTailPtr;
+
+        ctrl.activeListEmpty = count == 0;
+
+        debug.activeListHeadPtr = headPtr;
+        debug.activeListCount = count;
+    }
+
+    var pushTail: logic [RENAME_WIDTH];
+    var pushedTailData: ActiveListEntry [RENAME_WIDTH];
+    var readData: ActiveListEntry [COMMIT_WIDTH];
+
+    inst activeList: DistributedMultiBankRAM #(
+        ENTRY_NUM     : ACTIVE_LIST_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(ActiveListEntry),
+        READ_NUM      : COMMIT_WIDTH,
+        WRITE_NUM     : RENAME_WIDTH,
+    ) (
+        clk: port.clk,
+        we : pushTail,
+        wa : pushedTailPtr,
+        wv : pushedTailData,
+        ra : readPtrList,
+        rv : readData,
+    );
+
+    always_comb {
+        pushTail = port.pushTail;
+        pushedTailData = port.pushedTailData;
+        port.readData = readData;
+    }
+
+    const EXEC_RESULT_WRITE_NUM: u32 = ISSUE_WIDTH + MULDIV_ISSUE_WIDTH;
+
+    var we: logic [EXEC_RESULT_WRITE_NUM];
+    var writeData: ActiveListWriteData [EXEC_RESULT_WRITE_NUM];
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            we[i] = port.intWrite[i];
+            writeData[i] = port.intWriteData[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            we[i + INT_ISSUE_WIDTH] = port.complexWrite[i];
+            writeData[i + INT_ISSUE_WIDTH] = port.complexWriteData[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            we[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = port.memWrite[i];
+            writeData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = port.memWriteData[i];
+        }
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            we[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = port.divWrite[i];
+            writeData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = port.divWriteData[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            we[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH] = port.fpWrite[i];
+            writeData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH] = port.fpWriteData[i];
+        }
+    }
+
+    struct RecoveryRegPath {
+        pc              : PC_Path,
+        faultingDataAddr: AddrPath,
+        ptr             : ActiveListIndexPath,
+        loadQueuePtr    : LoadQueueIndexPath,
+        storeQueuePtr   : StoreQueueIndexPath,
+        valid           : logic,
+        state           : ExecutionState,
+    }
+
+    var oldestAge: ActiveListCountPath;
+    var exceptionDetected: logic;
+    var refetchType: RefetchType;
+    var startRecoveryAtCommit: logic;
+
+    var recoveryReg: RecoveryRegPath;
+    var nextRecoveryReg: RecoveryRegPath;
+    var recoveryEntryNum: ActiveListCountPath;
+    var nextRecoveryEntryNum: ActiveListCountPath;
+    var flushRangeHeadPtr: ActiveListIndexPath;
+    var flushRangeTailPtr: ActiveListIndexPath;
+
+    always_ff (port.clk) {
+        if port.rst || ((recovery.toRecoveryPhase && !exceptionDetected) && !startRecoveryAtCommit) {
+            recoveryReg = '0;
+        } else {
+            recoveryReg = nextRecoveryReg;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            recoveryEntryNum = '0;
+        } else if recovery.toRecoveryPhase {
+            recoveryEntryNum = nextRecoveryEntryNum;
+        }
+    }
+
+    always_comb {
+        nextRecoveryReg = recoveryReg;
+        oldestAge = ActiveListPtrToAge(recoveryReg.ptr, headPtr);
+
+        exceptionDetected = FALSE;
+        refetchType = REFETCH_TYPE_THIS_PC;
+        startRecoveryAtCommit = FALSE;
+
+        for i in 0..EXEC_RESULT_WRITE_NUM {
+            var writeAgeValue: ActiveListCountPath;
+            writeAgeValue = ActiveListPtrToAge(writeData[i].ptr, headPtr);
+
+            if we[i] &&
+               writeData[i].state != EXEC_STATE_NOT_FINISHED &&
+               writeData[i].state != EXEC_STATE_SUCCESS {
+                if !nextRecoveryReg.valid || writeAgeValue <: oldestAge {
+                    oldestAge = writeAgeValue;
+                    nextRecoveryReg.valid = TRUE;
+                    nextRecoveryReg.ptr = writeData[i].ptr;
+                    nextRecoveryReg.loadQueuePtr = writeData[i].loadQueuePtr;
+                    nextRecoveryReg.storeQueuePtr = writeData[i].storeQueuePtr;
+                    nextRecoveryReg.pc = writeData[i].pc;
+                    nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
+                    nextRecoveryReg.state = writeData[i].state;
+
+                    if writeData[i].state == EXEC_STATE_REFETCH_NEXT ||
+                       writeData[i].state == EXEC_STATE_REFETCH_THIS {
+                        exceptionDetected = TRUE;
+                    } else {
+                        exceptionDetected = FALSE;
+                    }
+                    if writeData[i].state != EXEC_STATE_REFETCH_NEXT &&
+                       writeData[i].state != EXEC_STATE_REFETCH_THIS {
+                        startRecoveryAtCommit = TRUE;
+                    }
+
+                    if writeData[i].state == EXEC_STATE_REFETCH_NEXT {
+                        if writeData[i].isBranch {
+                            refetchType = REFETCH_TYPE_BRANCH_TARGET;
+                        } else if writeData[i].isStore {
+                            refetchType = REFETCH_TYPE_STORE_NEXT_PC;
+                        } else {
+                            refetchType = REFETCH_TYPE_NEXT_PC;
+                        }
+                    } else {
+                        refetchType = REFETCH_TYPE_THIS_PC;
+                    }
+                }
+            }
+
+            if exceptionDetected && !recovery.unableToStartRecovery {
+                nextRecoveryReg.state = EXEC_STATE_SUCCESS;
+            }
+        }
+
+        recovery.recoveredPC_FromCommitStage = ToAddrFromPC(recoveryReg.pc);
+        recovery.recoveredPC_FromRwStage = ToAddrFromPC(nextRecoveryReg.pc);
+        recovery.faultingDataAddr = recoveryReg.faultingDataAddr;
+
+        port.loadQueueRecoveryTailPtr = recoveryReg.loadQueuePtr;
+        port.storeQueueRecoveryTailPtr = recoveryReg.storeQueuePtr;
+
+        flushRangeHeadPtr = recovery.flushRangeHeadPtr;
+        flushRangeTailPtr = recovery.flushRangeTailPtr;
+
+        if flushRangeHeadPtr == flushRangeTailPtr && count == ACTIVE_LIST_ENTRY_NUM {
+            nextRecoveryEntryNum = ACTIVE_LIST_ENTRY_NUM;
+            recovery.flushAllInsns = TRUE;
+        } else {
+            if flushRangeTailPtr >= flushRangeHeadPtr {
+                nextRecoveryEntryNum = flushRangeTailPtr - flushRangeHeadPtr;
+            } else {
+                nextRecoveryEntryNum = ACTIVE_LIST_ENTRY_NUM + flushRangeTailPtr - flushRangeHeadPtr;
+            }
+            recovery.flushAllInsns = FALSE;
+        }
+
+        port.recoveryEntryNum = recoveryEntryNum;
+        recovery.exceptionDetectedInRwStage = exceptionDetected && !recovery.unableToStartRecovery;
+        recovery.refetchTypeFromRwStage = refetchType;
+        port.exceptionOpPtr = nextRecoveryReg.ptr;
+    }
+
+    const EXEC_STATE_WRITE_NUM: u32 = RENAME_WIDTH + EXEC_RESULT_WRITE_NUM;
+
+    var esWE: logic [EXEC_STATE_WRITE_NUM];
+    var esWA: ActiveListIndexPath [EXEC_STATE_WRITE_NUM];
+    var esRA: ActiveListIndexPath [COMMIT_WIDTH];
+    var esWV: logic [EXEC_STATE_WRITE_NUM];
+    var esRV: logic [COMMIT_WIDTH];
+    var headExecState: ExecutionState [COMMIT_WIDTH];
+
+    inst execState: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ACTIVE_LIST_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(logic),
+        READ_NUM      : COMMIT_WIDTH,
+        WRITE_NUM     : EXEC_STATE_WRITE_NUM,
+    ) (
+        clk: port.clk,
+        we : esWE,
+        wa : esWA,
+        wv : esWV,
+        ra : esRA,
+        rv : esRV,
+    );
+
+    always_comb {
+        if port.rst {
+            for i in 0..EXEC_STATE_WRITE_NUM {
+                esWE[i] = FALSE;
+                esWA[i] = i;
+                esWV[i] = FALSE;
+            }
+        } else {
+            for i in 0..RENAME_WIDTH {
+                esWE[i] = port.pushTail[i];
+                esWA[i] = pushedTailPtr[i];
+                esWV[i] = FALSE;
+            }
+
+            for i in 0..EXEC_RESULT_WRITE_NUM {
+                esWE[i + RENAME_WIDTH] = we[i];
+                esWA[i + RENAME_WIDTH] = writeData[i].ptr;
+                esWV[i + RENAME_WIDTH] = writeData[i].state != EXEC_STATE_NOT_FINISHED;
+            }
+        }
+
+        esRA = headPtrList;
+        for i in 0..COMMIT_WIDTH {
+            if recoveryReg.valid && esRA[i] == recoveryReg.ptr {
+                headExecState[i] = recoveryReg.state;
+            } else {
+                if esRV[i] {
+                    headExecState[i] = EXEC_STATE_SUCCESS;
+                } else {
+                    headExecState[i] = EXEC_STATE_NOT_FINISHED;
+                }
+            }
+        }
+        port.headExecState = headExecState;
+    }
+
+    const FFLAGS_STATE_WRITE_NUM: u32 = RENAME_WIDTH + FP_ISSUE_WIDTH;
+
+    var ffsWE: logic [FFLAGS_STATE_WRITE_NUM];
+    var ffsWA: ActiveListIndexPath [FFLAGS_STATE_WRITE_NUM];
+    var ffsRA: ActiveListIndexPath [COMMIT_WIDTH];
+    var ffsWV: FFlags_Path [FFLAGS_STATE_WRITE_NUM];
+    var ffsRV: FFlags_Path [COMMIT_WIDTH];
+
+    inst fflagsState: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ACTIVE_LIST_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(FFlags_Path),
+        READ_NUM      : COMMIT_WIDTH,
+        WRITE_NUM     : FFLAGS_STATE_WRITE_NUM,
+    ) (
+        clk: port.clk,
+        we : ffsWE,
+        wa : ffsWA,
+        wv : ffsWV,
+        ra : ffsRA,
+        rv : ffsRV,
+    );
+
+    always_comb {
+        if port.rst {
+            for i in 0..FFLAGS_STATE_WRITE_NUM {
+                ffsWE[i] = FALSE;
+                ffsWA[i] = i;
+                ffsWV[i] = '0;
+            }
+        } else {
+            for i in 0..RENAME_WIDTH {
+                ffsWE[i] = port.pushTail[i];
+                ffsWA[i] = pushedTailPtr[i];
+                ffsWV[i] = '0;
+            }
+
+            for i in 0..FP_ISSUE_WIDTH {
+                ffsWE[i + RENAME_WIDTH] =
+                    we[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH];
+                ffsWA[i + RENAME_WIDTH] =
+                    writeData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH].ptr;
+                ffsWV[i + RENAME_WIDTH] = port.fpFFlagsData[i];
+            }
+        }
+
+        ffsRA = headPtrList;
+        port.fflagsData = ffsRV;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // The non-synthesis reference ExecState RAM and its RSD_ASSERT_CLK block are omitted because
+    // the macro assertion and break-based reference scan are not transpilable to Veryl.
+}

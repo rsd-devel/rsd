@@ -1,0 +1,259 @@
+package PipelineTypes {
+    import MicroOpTypes::*;
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import BypassTypes::*;
+    import RenameLogicTypes::*;
+    import LoadStoreUnitTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import FetchUnitTypes::*;
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+
+    struct PipelineControll {
+        stall: logic,
+        clear: logic,
+    }
+
+    enum PipelinePhase: logic<2> {
+        PHASE_COMMIT = 0,
+        PHASE_RECOVER_0 = 1,
+        PHASE_RECOVER_1 = 2,
+    }
+    const PHASE_COMMIT: PipelinePhase = PipelinePhase::PHASE_COMMIT;
+    const PHASE_RECOVER_0: PipelinePhase = PipelinePhase::PHASE_RECOVER_0;
+    const PHASE_RECOVER_1: PipelinePhase = PipelinePhase::PHASE_RECOVER_1;
+
+    enum RefetchType: logic<3> {
+        REFETCH_TYPE_THIS_PC = 3'b000,
+        REFETCH_TYPE_NEXT_PC = 3'b001,
+        REFETCH_TYPE_STORE_NEXT_PC = 3'b010,
+        REFETCH_TYPE_BRANCH_TARGET = 3'b011,
+        REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET = 3'b100,
+        REFETCH_TYPE_THIS_PC_TO_CSR_TARGET = 3'b101,
+    }
+    const REFETCH_TYPE_THIS_PC: RefetchType = RefetchType::REFETCH_TYPE_THIS_PC;
+    const REFETCH_TYPE_NEXT_PC: RefetchType = RefetchType::REFETCH_TYPE_NEXT_PC;
+    const REFETCH_TYPE_STORE_NEXT_PC: RefetchType = RefetchType::REFETCH_TYPE_STORE_NEXT_PC;
+    const REFETCH_TYPE_BRANCH_TARGET: RefetchType = RefetchType::REFETCH_TYPE_BRANCH_TARGET;
+    const REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET: RefetchType = RefetchType::REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET;
+    const REFETCH_TYPE_THIS_PC_TO_CSR_TARGET: RefetchType = RefetchType::REFETCH_TYPE_THIS_PC_TO_CSR_TARGET;
+
+    struct FetchStageRegPath {
+        sid: OpSerial,
+        valid: logic,
+        pc: PC_Path,
+    }
+
+    struct PreDecodeStageRegPath {
+        sid: OpSerial,
+        valid: logic,
+        insn: InsnPath,
+        pc: PC_Path,
+        brPred: BranchPred,
+    }
+
+    type MicroOpInfoArray = OpInfo [MICRO_OP_MAX_NUM];
+
+    struct DecodeStageRegPath {
+        sid: OpSerial,
+        valid: logic,
+        insn: InsnPath,
+        pc: PC_Path,
+        brPred: BranchPred,
+        microOps: MicroOpInfoArray,
+        insnInfo: InsnInfo,
+    }
+
+    struct RenameStageRegPath {
+        opId: OpId,
+        valid: logic,
+        opInfo: OpInfo,
+        pc: PC_Path,
+        bPred: BranchPred,
+    }
+
+    struct DispatchStageRegPath {
+        opId: OpId,
+        valid: logic,
+        opInfo: OpInfo,
+        pc: PC_Path,
+        brPred: BranchPred,
+        phySrcRegNumA: PRegNumPath,
+        phySrcRegNumB: PRegNumPath,
+        phySrcRegNumC: PRegNumPath,
+        phyDstRegNum: PRegNumPath,
+        phyPrevDstRegNum: PRegNumPath,
+        srcIssueQueuePtrRegA: IssueQueueIndexPath,
+        srcIssueQueuePtrRegB: IssueQueueIndexPath,
+        srcIssueQueuePtrRegC: IssueQueueIndexPath,
+        issueQueuePtr: IssueQueueIndexPath,
+        activeListPtr: ActiveListIndexPath,
+        loadQueuePtr: LoadQueueIndexPath,
+        storeQueuePtr: StoreQueueIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+    }
+
+    struct IssueStageRegPath {
+        valid: logic,
+        issueQueuePtr: IssueQueueIndexPath,
+    }
+
+    struct IntegerRegisterReadStageRegPath {
+        opId: OpId,
+        valid: logic,
+        intQueueData: IntIssueQueueEntry,
+    }
+
+    struct IntegerExecutionStageRegPath {
+        opId: OpId,
+        valid: logic,
+        intQueueData: IntIssueQueueEntry,
+        operandA: PRegDataPath,
+        operandB: PRegDataPath,
+        bCtrl: BypassControll,
+    }
+
+    struct IntegerRegisterWriteStageRegPath {
+        opId: OpId,
+        valid: logic,
+        intQueueData: IntIssueQueueEntry,
+        dataOut: PRegDataPath,
+        brMissPred: logic,
+        brResult: BranchResult,
+    }
+
+    struct ComplexIntegerRegisterReadStageRegPath {
+        opId: OpId,
+        valid: logic,
+        replay: logic,
+        complexQueueData: ComplexIssueQueueEntry,
+    }
+
+    struct ComplexIntegerExecutionStageRegPath {
+        opId: OpId,
+        valid: logic,
+        replay: logic,
+        complexQueueData: ComplexIssueQueueEntry,
+        operandA: PRegDataPath,
+        operandB: PRegDataPath,
+        bCtrl: BypassControll,
+    }
+
+    struct ComplexIntegerRegisterWriteStageRegPath {
+        opId: OpId,
+        valid: logic,
+        complexQueueData: ComplexIssueQueueEntry,
+        dataOut: PRegDataPath,
+    }
+
+    struct MemoryRegisterReadStageRegPath {
+        opId: OpId,
+        valid: logic,
+        memQueueData: MemIssueQueueEntry,
+        issueQueuePtr: IssueQueueIndexPath,
+        replay: logic,
+    }
+
+    struct MemoryExecutionStageRegPath {
+        opId: OpId,
+        valid: logic,
+        memQueueData: MemIssueQueueEntry,
+        operandA: PRegDataPath,
+        operandB: PRegDataPath,
+        bCtrl: BypassControll,
+        issueQueuePtr: IssueQueueIndexPath,
+        replay: logic,
+    }
+
+    struct MemoryTagAccessStageRegPath {
+        opId: OpId,
+        valid: logic,
+        memQueueData: MemIssueQueueEntry,
+        condEnabled: logic,
+        regValid: logic,
+        addrOut: DataPath,
+        dataIn: DataPath,
+        memMapType: MemoryMapType,
+        phyAddrOut: PhyAddrPath,
+    }
+
+    struct MemoryAccessStageRegPath {
+        opId: OpId,
+        valid: logic,
+        isStore: logic,
+        isLoad: logic,
+        isZalrsc: logic,
+        isZaamo: logic,
+        isCSR: logic,
+        isDiv: logic,
+        isMul: logic,
+        opDst: OpDst,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        pc: AddrPath,
+        regValid: logic,
+        execState: ExecutionState,
+        addrOut: AddrPath,
+        memMapType: MemoryMapType,
+        phyAddrOut: PhyAddrPath,
+        isScFail: logic,
+        amoCacheHit: logic,
+        writeAMOCache: logic,
+        csrDataOut: DataPath,
+        hasAllocatedMSHR: logic,
+        mshrID: MSHR_IndexPath,
+        storeForwardMiss: logic,
+    }
+
+    struct MemoryRegisterWriteStageRegPath {
+        opId: OpId,
+        valid: logic,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        pc: AddrPath,
+        addrOut: AddrPath,
+        opDst: OpDst,
+        execState: ExecutionState,
+        isStore: logic,
+        isLoad: logic,
+        isDiv: logic,
+        zaamoReleaseMSHR: logic,
+        dataOut: PRegDataPath,
+        hasAllocatedMSHR: logic,
+        mshrID: MSHR_IndexPath,
+        storeForwardMiss: logic,
+    }
+
+    struct FPRegisterReadStageRegPath {
+        opId: OpId,
+        valid: logic,
+        replay: logic,
+        fpQueueData: FPIssueQueueEntry,
+    }
+
+    struct FPExecutionStageRegPath {
+        opId: OpId,
+        valid: logic,
+        replay: logic,
+        isFlushed: logic,
+        fpQueueData: FPIssueQueueEntry,
+        operandA: PRegDataPath,
+        operandB: PRegDataPath,
+        operandC: PRegDataPath,
+        bCtrl: BypassControll,
+    }
+
+    struct FPRegisterWriteStageRegPath {
+        opId: OpId,
+        valid: logic,
+        fpQueueData: FPIssueQueueEntry,
+        dataOut: PRegDataPath,
+        fflagsOut: FFlags_Path,
+    }
+
+}

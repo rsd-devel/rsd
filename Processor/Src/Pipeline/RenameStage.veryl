@@ -1,0 +1,286 @@
+module RenameStageSerializer (
+    clk            : input clock,
+    rst            : input logic,
+    stall          : input logic,
+    clear          : input logic,
+    activeListEmpty: input logic,
+    storeQueueEmpty: input logic,
+    opInfo         : input OpInfo<RENAME_WIDTH>,
+    valid          : input logic<RENAME_WIDTH>,
+    serialize      : output logic,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 1; i < RENAME_WIDTH; i++) begin : assertionBlock
+    //         `RSD_ASSERT_CLK_FMT(
+    //             clk,
+    //             !(opInfo[i].serialized && valid[i]),
+    //             ("Multiple serialized ops were sent to RenameStage. (%x, %x)", opInfo[i].serialized, valid[i])
+    //         );
+    //     end
+    // endgenerate
+
+    enum Phase: logic<2> {
+        PHASE_NORMAL = 0,
+        PHASE_WAIT_OWN = 2,
+    }
+
+    var regPhase: Phase;
+    var nextPhase: Phase;
+
+    always_ff (clk) {
+        if rst {
+            regPhase = Phase::PHASE_NORMAL;
+        } else if !stall {
+            regPhase = nextPhase;
+        }
+    }
+
+    always_comb {
+        serialize = FALSE;
+        nextPhase = Phase::PHASE_NORMAL;
+
+        if clear {
+            nextPhase = Phase::PHASE_NORMAL;
+        }
+
+        if regPhase == Phase::PHASE_NORMAL {
+            if opInfo[0].serialized && valid[0] {
+                if opInfo[0].operand.miscMemOp.fence {
+                    if !activeListEmpty || !storeQueueEmpty {
+                        serialize = TRUE;
+                        nextPhase = Phase::PHASE_NORMAL;
+                    } else {
+                        nextPhase = Phase::PHASE_WAIT_OWN;
+                    }
+                } else {
+                    if !activeListEmpty {
+                        serialize = TRUE;
+                        nextPhase = Phase::PHASE_NORMAL;
+                    } else {
+                        nextPhase = Phase::PHASE_WAIT_OWN;
+                    }
+                }
+            }
+        } else {
+            if !activeListEmpty || !storeQueueEmpty {
+                serialize = TRUE;
+                nextPhase = Phase::PHASE_WAIT_OWN;
+            } else {
+                nextPhase = Phase::PHASE_NORMAL;
+            }
+        }
+    }
+}
+
+module RenameStage (
+    port         : modport RenameStageIF::ThisStage,
+    prev         : modport DecodeStageIF::NextStage,
+    renameLogic  : modport RenameLogicIF::RenameStage,
+    activeList   : modport ActiveListIF::RenameStage,
+    scheduler    : modport SchedulerIF::RenameStage,
+    loadStoreUnit: modport LoadStoreUnitIF::RenameStage,
+    recovery     : modport RecoveryManagerIF::RenameStage,
+    ctrl         : modport ControllerIF::RenameStage,
+    debug        : modport DebugIF::RenameStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: RenameStageRegPath [RENAME_WIDTH];
+    var regFlush: logic;
+    var regRecoveredPC: PC_Path;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..RENAME_WIDTH {
+                pipeReg[i].valid = FALSE;
+            }
+            regFlush = '0;
+            regRecoveredPC = '0;
+        } else if !ctrl.rnStage.stall {
+            pipeReg = prev.nextStage;
+            regFlush = prev.nextFlush;
+            regRecoveredPC = prev.nextRecoveredPC;
+        }
+    }
+
+    always_comb {
+        recovery.recoverFromRename = regFlush;
+        recovery.recoveredPC_FromRename = regRecoveredPC;
+        ctrl.rnStageFlushUpper = regFlush;
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var empty: logic;
+    var serialize: logic;
+    var valid: logic<RENAME_WIDTH>;
+    var opInfo: OpInfo<RENAME_WIDTH>;
+    var activeListEmpty: logic;
+    var storeQueueEmpty: logic;
+
+    always_comb {
+        for i in 0..RENAME_WIDTH {
+            valid[i] = pipeReg[i].valid;
+            opInfo[i] = pipeReg[i].opInfo;
+        }
+
+        ctrl.rnStageSendBubbleLower =
+            (|valid) &&
+            (
+                !renameLogic.allocatable ||
+                !scheduler.allocatable ||
+                !activeList.allocatable ||
+                !loadStoreUnit.allocatable
+            ) ||
+            serialize;
+
+        stall = ctrl.rnStage.stall;
+        clear = ctrl.rnStage.clear;
+        activeListEmpty = activeList.validEntryNum == 0;
+        storeQueueEmpty = loadStoreUnit.storeQueueEmpty;
+    }
+
+    inst serializer: RenameStageSerializer (
+        clk            : port.clk,
+        rst            : port.rst,
+        stall          : stall,
+        clear          : clear,
+        activeListEmpty: activeListEmpty,
+        storeQueueEmpty: storeQueueEmpty,
+        opInfo         : opInfo,
+        valid          : valid,
+        serialize      : serialize,
+    );
+
+    var nextStage: DispatchStageRegPath [RENAME_WIDTH];
+
+    always_comb {
+        for i in 0..RENAME_WIDTH {
+            var updateValue: logic;
+            var isLoadValue: logic;
+            var isStoreValue: logic;
+            var isEnvValue: logic;
+            var isBranchValue: logic;
+            var isZaamoValue: logic;
+            var alEntryValue: ActiveListEntry;
+
+            updateValue = valid[i] && !stall && !clear;
+            isLoadValue =
+                opInfo[i].mopType == MOP_TYPE_MEM &&
+                opInfo[i].mopSubType.memType == MEM_MOP_TYPE_LOAD;
+            isStoreValue =
+                opInfo[i].mopType == MOP_TYPE_MEM &&
+                opInfo[i].mopSubType.memType == MEM_MOP_TYPE_STORE;
+            isEnvValue =
+                opInfo[i].mopType == MOP_TYPE_MEM &&
+                opInfo[i].mopSubType.memType == MEM_MOP_TYPE_ENV;
+            isBranchValue =
+                opInfo[i].mopType == MOP_TYPE_INT &&
+                (opInfo[i].mopSubType.intType == INT_MOP_TYPE_BR || opInfo[i].mopSubType.intType == INT_MOP_TYPE_RIJ);
+            isZaamoValue =
+                opInfo[i].mopType == MOP_TYPE_MEM &&
+                opInfo[i].mopSubType.memType == MEM_MOP_TYPE_ZAAMO;
+
+            renameLogic.updateRMT[i] = updateValue;
+
+            if isBranchValue {
+                renameLogic.logSrcRegA[i] = opInfo[i].operand.brOp.srcRegNumA;
+                renameLogic.logSrcRegB[i] = opInfo[i].operand.brOp.srcRegNumB;
+                renameLogic.logDstReg[i] = opInfo[i].operand.brOp.dstRegNum;
+            } else {
+                renameLogic.logSrcRegA[i] = opInfo[i].operand.intOp.srcRegNumA;
+                renameLogic.logSrcRegB[i] = opInfo[i].operand.intOp.srcRegNumB;
+                renameLogic.logDstReg[i] = opInfo[i].operand.intOp.dstRegNum;
+            }
+            renameLogic.logSrcRegC[i] = opInfo[i].operand.fpOp.srcRegNumC;
+
+            renameLogic.readRegA[i] = opInfo[i].opTypeA == OOT_REG;
+            renameLogic.readRegB[i] = opInfo[i].opTypeB == OOT_REG;
+            renameLogic.readRegC[i] = opInfo[i].opTypeC == OOT_REG;
+            renameLogic.writeReg[i] = opInfo[i].writeReg;
+            renameLogic.watWriteRegFromPipeReg[i] = opInfo[i].writeReg && updateValue;
+            renameLogic.watWriteIssueQueuePtrFromPipeReg[i] = scheduler.allocatedPtr[i];
+
+            nextStage[i].phySrcRegNumA = renameLogic.phySrcRegA[i];
+            nextStage[i].phySrcRegNumB = renameLogic.phySrcRegB[i];
+            nextStage[i].phySrcRegNumC = renameLogic.phySrcRegC[i];
+            nextStage[i].phyDstRegNum = renameLogic.phyDstReg[i];
+            nextStage[i].phyPrevDstRegNum = renameLogic.phyPrevDstReg[i];
+            nextStage[i].srcIssueQueuePtrRegA = renameLogic.srcIssueQueuePtrRegA[i];
+            nextStage[i].srcIssueQueuePtrRegB = renameLogic.srcIssueQueuePtrRegB[i];
+            nextStage[i].srcIssueQueuePtrRegC = renameLogic.srcIssueQueuePtrRegC[i];
+
+            activeList.pushTail[i] = updateValue;
+
+            alEntryValue = '0;
+            alEntryValue.opId = pipeReg[i].opId;
+            alEntryValue.pc = pipeReg[i].pc;
+            alEntryValue.phyPrevDstRegNum = renameLogic.phyPrevDstReg[i];
+            alEntryValue.phyDstRegNum = renameLogic.phyDstReg[i];
+            alEntryValue.logDstRegNum = opInfo[i].operand.intOp.dstRegNum;
+            alEntryValue.writeReg = opInfo[i].writeReg;
+            alEntryValue.isLoad = isLoadValue;
+            alEntryValue.isStore = isStoreValue;
+            alEntryValue.isZaamo = isZaamoValue;
+            alEntryValue.isBranch = isBranchValue;
+            alEntryValue.isEnv = opInfo[i].operand.systemOp.isEnv;
+            alEntryValue.undefined = opInfo[i].undefined || opInfo[i].unsupported;
+            alEntryValue.last = opInfo[i].last;
+            alEntryValue.prevDependIssueQueuePtr = renameLogic.prevDependIssueQueuePtr[i];
+            activeList.pushedTailData[i] = alEntryValue;
+
+            nextStage[i].activeListPtr = activeList.pushedTailPtr[i];
+
+            scheduler.allocate[i] = updateValue;
+            nextStage[i].issueQueuePtr = scheduler.allocatedPtr[i];
+
+            loadStoreUnit.allocateLoadQueue[i] = updateValue && (isLoadValue || isZaamoValue);
+            loadStoreUnit.allocateStoreQueue[i] = updateValue && (isStoreValue || isZaamoValue);
+            nextStage[i].loadQueuePtr = loadStoreUnit.allocatedLoadQueuePtr[i];
+            nextStage[i].storeQueuePtr = loadStoreUnit.allocatedStoreQueuePtr[i];
+
+            port.pc[i] = pipeReg[i].pc;
+
+            nextStage[i].opId = pipeReg[i].opId;
+            if stall || clear || port.rst {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+            nextStage[i].pc = pipeReg[i].pc;
+            nextStage[i].brPred = pipeReg[i].bPred;
+            nextStage[i].opInfo = opInfo[i];
+            nextStage[i].loadQueueRecoveryPtr = loadStoreUnit.allocatedLoadQueuePtr[i];
+            nextStage[i].storeQueueRecoveryPtr = loadStoreUnit.allocatedStoreQueuePtr[i];
+
+            debug.rnReg[i].valid = valid[i];
+            debug.rnReg[i].opId = pipeReg[i].opId;
+        }
+
+        port.nextStage = nextStage;
+
+        empty = TRUE;
+        for i in 0..RENAME_WIDTH {
+            if pipeReg[i].valid {
+                empty = FALSE;
+            }
+        }
+        ctrl.rnStageEmpty = empty;
+    }
+}

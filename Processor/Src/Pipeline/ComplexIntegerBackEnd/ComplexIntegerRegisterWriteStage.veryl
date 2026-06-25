@@ -1,0 +1,93 @@
+module ComplexIntegerRegisterWriteStage (
+    prev        : modport ComplexIntegerExecutionStageIF::NextStage,
+    registerFile: modport RegisterFileIF::ComplexIntegerRegisterWriteStage,
+    activeList  : modport ActiveListIF::ComplexIntegerRegisterWriteStage,
+    recovery    : modport RecoveryManagerIF::ComplexIntegerRegisterWriteStage,
+    ctrl        : modport ControllerIF::ComplexIntegerRegisterWriteStage,
+    debug       : modport DebugIF::ComplexIntegerRegisterWriteStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: ComplexIntegerRegisterWriteStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (ctrl.clk) {
+        if ctrl.rst {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [COMPLEX_ISSUE_WIDTH];
+    var update: logic [COMPLEX_ISSUE_WIDTH];
+    var valid: logic [COMPLEX_ISSUE_WIDTH];
+    var regValid: logic [COMPLEX_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            var alWriteDataValue: ActiveListWriteData;
+            var iqDataValue: ComplexIssueQueueEntry;
+            var updateValue: logic;
+            var regValidValue: logic;
+
+            iqDataValue = pipeReg[i].complexQueueData;
+            regValidValue = pipeReg[i].dataOut.valid;
+            regValid[i] = regValidValue;
+
+            valid[i] = pipeReg[i].valid;
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+            updateValue = !stall && !clear && valid[i] && !flush[i];
+            update[i] = updateValue;
+
+            registerFile.complexDstRegWE[i] = updateValue && iqDataValue.opDst.writeReg;
+            registerFile.complexDstRegNum[i] = iqDataValue.opDst.phyDstRegNum;
+            registerFile.complexDstRegData[i] = pipeReg[i].dataOut;
+
+            alWriteDataValue.ptr = iqDataValue.activeListPtr;
+            alWriteDataValue.loadQueuePtr = iqDataValue.loadQueueRecoveryPtr;
+            alWriteDataValue.storeQueuePtr = iqDataValue.storeQueueRecoveryPtr;
+            alWriteDataValue.ptr = iqDataValue.activeListPtr;
+            alWriteDataValue.pc = iqDataValue.pc;
+            alWriteDataValue.dataAddr = '0;
+            alWriteDataValue.isBranch = FALSE;
+            alWriteDataValue.isStore = FALSE;
+
+            if updateValue && regValidValue {
+                alWriteDataValue.state = EXEC_STATE_SUCCESS;
+            } else {
+                alWriteDataValue.state = EXEC_STATE_NOT_FINISHED;
+            }
+
+            activeList.complexWrite[i] = updateValue && iqDataValue.opType != COMPLEX_MOP_TYPE_DIV;
+            activeList.complexWriteData[i] = alWriteDataValue;
+
+            debug.complexRwReg[i].valid = valid[i];
+            debug.complexRwReg[i].flush = flush[i];
+            debug.complexRwReg[i].opId = pipeReg[i].opId;
+        }
+    }
+}

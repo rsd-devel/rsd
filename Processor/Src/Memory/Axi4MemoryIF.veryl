@@ -1,0 +1,170 @@
+interface Axi4MemoryIF {
+    const MEMORY_AXI4_WRITE_ID_WIDTH: u32 = 1;
+    const MEMORY_AXI4_READ_ID_WIDTH : u32 = 2;
+    const MEMORY_AXI4_ADDR_BIT_SIZE : u32 = 32;
+    const MEMORY_AXI4_DATA_BIT_NUM  : u32 = 64;
+    const MEMORY_AXI4_AWUSER_WIDTH  : u32 = 0;
+    const MEMORY_AXI4_ARUSER_WIDTH  : u32 = 0;
+    const MEMORY_AXI4_WUSER_WIDTH   : u32 = 0;
+    const MEMORY_AXI4_RUSER_WIDTH   : u32 = 0;
+    const MEMORY_AXI4_BUSER_WIDTH   : u32 = 0;
+    const MEMORY_AXI4_AWLEN_WIDTH   : u32 = 8;
+    const MEMORY_AXI4_AWSIZE_WIDTH  : u32 = 3;
+    const MEMORY_AXI4_AWBURST_WIDTH : u32 = 2;
+    const MEMORY_AXI4_AWCACHE_WIDTH : u32 = 4;
+    const MEMORY_AXI4_AWPROT_WIDTH  : u32 = 3;
+    const MEMORY_AXI4_AWQOS_WIDTH   : u32 = 2;
+    const MEMORY_AXI4_BRESP_WIDTH   : u32 = 2;
+    const MEMORY_AXI4_ARLEN_WIDTH   : u32 = 8;
+    const MEMORY_AXI4_ARSIZE_WIDTH  : u32 = 3;
+    const MEMORY_AXI4_ARBURST_WIDTH : u32 = 2;
+    const MEMORY_AXI4_ARCACHE_WIDTH : u32 = 4;
+    const MEMORY_AXI4_ARPROT_WIDTH  : u32 = 3;
+    const MEMORY_AXI4_ARQOS_WIDTH   : u32 = 4;
+    const MEMORY_AXI4_RRESP_WIDTH   : u32 = 2;
+    const MEMORY_AXI4_WSTRB_WIDTH   : u32 = MEMORY_AXI4_DATA_BIT_NUM / 8;
+
+    var M_AXI_ACLK   : logic;
+    var M_AXI_ARESETN: logic;
+    var M_AXI_AWID   : logic<MEMORY_AXI4_WRITE_ID_WIDTH>;
+    var M_AXI_AWADDR : logic<MEMORY_AXI4_ADDR_BIT_SIZE>;
+    var M_AXI_AWLEN  : logic<MEMORY_AXI4_AWLEN_WIDTH>;
+    var M_AXI_AWSIZE : logic<MEMORY_AXI4_AWSIZE_WIDTH>;
+    var M_AXI_AWBURST: logic<MEMORY_AXI4_AWBURST_WIDTH>;
+    var M_AXI_AWLOCK : logic;
+    var M_AXI_AWCACHE: logic<MEMORY_AXI4_AWCACHE_WIDTH>;
+    var M_AXI_AWPROT : logic<MEMORY_AXI4_AWPROT_WIDTH>;
+    var M_AXI_AWQOS  : logic<MEMORY_AXI4_AWQOS_WIDTH>;
+    var M_AXI_AWUSER : logic<MEMORY_AXI4_AWUSER_WIDTH>;
+    var M_AXI_AWVALID: logic;
+    var M_AXI_AWREADY: logic;
+    var M_AXI_WDATA  : logic<MEMORY_AXI4_DATA_BIT_NUM>;
+    var M_AXI_WSTRB  : logic<MEMORY_AXI4_WSTRB_WIDTH>;
+    var M_AXI_WLAST  : logic;
+    var M_AXI_WUSER  : logic<MEMORY_AXI4_WUSER_WIDTH>;
+    var M_AXI_WVALID : logic;
+    var M_AXI_WREADY : logic;
+    var M_AXI_BID    : logic<MEMORY_AXI4_WRITE_ID_WIDTH>;
+    var M_AXI_BRESP  : logic<MEMORY_AXI4_BRESP_WIDTH>;
+    var M_AXI_BUSER  : logic<MEMORY_AXI4_BUSER_WIDTH>;
+    var M_AXI_BVALID : logic;
+    var M_AXI_BREADY : logic;
+    var M_AXI_ARID   : logic<MEMORY_AXI4_READ_ID_WIDTH>;
+    var M_AXI_ARADDR : logic<MEMORY_AXI4_ADDR_BIT_SIZE>;
+    var M_AXI_ARLEN  : logic<MEMORY_AXI4_ARLEN_WIDTH>;
+    var M_AXI_ARSIZE : logic<MEMORY_AXI4_ARSIZE_WIDTH>;
+    var M_AXI_ARBURST: logic<MEMORY_AXI4_ARBURST_WIDTH>;
+    var M_AXI_ARLOCK : logic;
+    var M_AXI_ARCACHE: logic<MEMORY_AXI4_ARCACHE_WIDTH>;
+    var M_AXI_ARPROT : logic<MEMORY_AXI4_ARPROT_WIDTH>;
+    var M_AXI_ARQOS  : logic<MEMORY_AXI4_ARQOS_WIDTH>;
+    var M_AXI_ARUSER : logic<MEMORY_AXI4_ARUSER_WIDTH>;
+    var M_AXI_ARVALID: logic;
+    var M_AXI_ARREADY: logic;
+    var M_AXI_RID    : logic<MEMORY_AXI4_READ_ID_WIDTH>;
+    var M_AXI_RDATA  : logic<MEMORY_AXI4_DATA_BIT_NUM>;
+    var M_AXI_RRESP  : logic<MEMORY_AXI4_RRESP_WIDTH>;
+    var M_AXI_RLAST  : logic;
+    var M_AXI_RUSER  : logic<MEMORY_AXI4_RUSER_WIDTH>;
+    var M_AXI_RVALID : logic;
+    var M_AXI_RREADY : logic;
+
+    modport Axi4 {
+        M_AXI_ACLK   : input ,
+        M_AXI_ARESETN: input ,
+        M_AXI_AWID   : output,
+        M_AXI_AWADDR : output,
+        M_AXI_AWLEN  : output,
+        M_AXI_AWSIZE : output,
+        M_AXI_AWBURST: output,
+        M_AXI_AWLOCK : output,
+        M_AXI_AWCACHE: output,
+        M_AXI_AWPROT : output,
+        M_AXI_AWQOS  : output,
+        M_AXI_AWUSER : output,
+        M_AXI_AWVALID: output,
+        M_AXI_AWREADY: input ,
+        M_AXI_WDATA  : output,
+        M_AXI_WSTRB  : output,
+        M_AXI_WLAST  : output,
+        M_AXI_WUSER  : output,
+        M_AXI_WVALID : output,
+        M_AXI_WREADY : input ,
+        M_AXI_BID    : input ,
+        M_AXI_BRESP  : input ,
+        M_AXI_BUSER  : input ,
+        M_AXI_BVALID : input ,
+        M_AXI_BREADY : output,
+        M_AXI_ARID   : output,
+        M_AXI_ARADDR : output,
+        M_AXI_ARLEN  : output,
+        M_AXI_ARSIZE : output,
+        M_AXI_ARBURST: output,
+        M_AXI_ARLOCK : output,
+        M_AXI_ARCACHE: output,
+        M_AXI_ARPROT : output,
+        M_AXI_ARQOS  : output,
+        M_AXI_ARUSER : output,
+        M_AXI_ARVALID: output,
+        M_AXI_ARREADY: input ,
+        M_AXI_RID    : input ,
+        M_AXI_RDATA  : input ,
+        M_AXI_RRESP  : input ,
+        M_AXI_RLAST  : input ,
+        M_AXI_RUSER  : input ,
+        M_AXI_RVALID : input ,
+        M_AXI_RREADY : output,
+    }
+
+    modport Axi4Write {
+        M_AXI_ACLK   : input ,
+        M_AXI_ARESETN: input ,
+        M_AXI_AWID   : output,
+        M_AXI_AWADDR : output,
+        M_AXI_AWLEN  : output,
+        M_AXI_AWSIZE : output,
+        M_AXI_AWBURST: output,
+        M_AXI_AWLOCK : output,
+        M_AXI_AWCACHE: output,
+        M_AXI_AWPROT : output,
+        M_AXI_AWQOS  : output,
+        M_AXI_AWUSER : output,
+        M_AXI_AWVALID: output,
+        M_AXI_AWREADY: input ,
+        M_AXI_WDATA  : output,
+        M_AXI_WSTRB  : output,
+        M_AXI_WLAST  : output,
+        M_AXI_WUSER  : output,
+        M_AXI_WVALID : output,
+        M_AXI_WREADY : input ,
+        M_AXI_BID    : input ,
+        M_AXI_BRESP  : input ,
+        M_AXI_BUSER  : input ,
+        M_AXI_BVALID : input ,
+        M_AXI_BREADY : output,
+    }
+
+    modport Axi4Read {
+        M_AXI_ACLK   : input ,
+        M_AXI_ARESETN: input ,
+        M_AXI_ARID   : output,
+        M_AXI_ARADDR : output,
+        M_AXI_ARLEN  : output,
+        M_AXI_ARSIZE : output,
+        M_AXI_ARBURST: output,
+        M_AXI_ARLOCK : output,
+        M_AXI_ARCACHE: output,
+        M_AXI_ARPROT : output,
+        M_AXI_ARQOS  : output,
+        M_AXI_ARUSER : output,
+        M_AXI_ARVALID: output,
+        M_AXI_ARREADY: input ,
+        M_AXI_RID    : input ,
+        M_AXI_RDATA  : input ,
+        M_AXI_RRESP  : input ,
+        M_AXI_RLAST  : input ,
+        M_AXI_RUSER  : input ,
+        M_AXI_RVALID : input ,
+        M_AXI_RREADY : output,
+    }
+}

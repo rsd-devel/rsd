@@ -1,0 +1,362 @@
+module AmoALU (
+    amoAluDataOut: output BasicTypes::DataPath,
+    amoCode      : input OpFormatTypes::MemZaamo_Code,
+    opA          : input BasicTypes::DataPath,
+    opB          : input BasicTypes::DataPath,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+
+    var signedOpA: SignedDataPath;
+    var signedOpB: SignedDataPath;
+
+    always_comb {
+        signedOpA = opA;
+        signedOpB = opB;
+
+        case amoCode {
+            MEM_ZAAMO_SWAP: {
+                amoAluDataOut = opA;
+            }
+            MEM_ZAAMO_ADD: {
+                amoAluDataOut = opA + opB;
+            }
+            MEM_ZAAMO_XOR: {
+                amoAluDataOut = opA ^ opB;
+            }
+            MEM_ZAAMO_AND: {
+                amoAluDataOut = opA & opB;
+            }
+            MEM_ZAAMO_OR: {
+                amoAluDataOut = opA | opB;
+            }
+            MEM_ZAAMO_MIN: {
+                if signedOpA <: signedOpB {
+                    amoAluDataOut = opA;
+                } else {
+                    amoAluDataOut = opB;
+                }
+            }
+            MEM_ZAAMO_MAX: {
+                if signedOpA >: signedOpB {
+                    amoAluDataOut = opA;
+                } else {
+                    amoAluDataOut = opB;
+                }
+            }
+            MEM_ZAAMO_MINU: {
+                if opA <: opB {
+                    amoAluDataOut = opA;
+                } else {
+                    amoAluDataOut = opB;
+                }
+            }
+            MEM_ZAAMO_MAXU: {
+                if opA >: opB {
+                    amoAluDataOut = opA;
+                } else {
+                    amoAluDataOut = opB;
+                }
+            }
+            default: {
+                amoAluDataOut = '0;
+            }
+        }
+    }
+}
+
+module MemoryExecutionStage (
+    port         : modport MemoryExecutionStageIF::ThisStage,
+    prev         : modport MemoryRegisterReadStageIF::NextStage,
+    loadStoreUnit: modport LoadStoreUnitIF::MemoryExecutionStage,
+    cacheFlush   : modport CacheFlushManagerIF::MemoryExecutionStage,
+    mulDivUnit   : modport MulDivUnitIF::MemoryExecutionStage,
+    bypass       : modport BypassNetworkIF::MemoryExecutionStage,
+    recovery     : modport RecoveryManagerIF::MemoryExecutionStage,
+    ctrl         : modport ControllerIF::MemoryExecutionStage,
+    csrUnit      : modport CSR_UnitIF::MemoryExecutionStage,
+    amoCache     : modport AMOCacheIF::MemoryExecutionStage,
+    debug        : modport DebugIF::MemoryExecutionStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import RenameLogicTypes::*;
+    import DebugTypes::*;
+    import MemoryMapTypes::*;
+    import CSR_UnitTypes::*;
+
+    var pipeReg: MemoryExecutionStageRegPath [MEM_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MEM_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var cacheFlushReq: logic;
+    var isCSR: logic;
+    var amoCode: MemZaamo_Code;
+    var amoOpA: DataPath;
+    var amoOpB: DataPath;
+    var amoAluDataOut: DataPath;
+    var nextStage: MemoryTagAccessStageRegPath [MEM_ISSUE_WIDTH];
+
+    inst amoAlu: AmoALU (
+        amoAluDataOut: amoAluDataOut,
+        amoCode      : amoCode,
+        opA          : amoOpA,
+        opB          : amoOpB,
+    );
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        amoCode = pipeReg[0].memQueueData.memOpInfo.amoCode;
+        if pipeReg[0].bCtrl.rB.valid {
+            amoOpA = bypass.memSrcRegDataOutB[0].data;
+        } else {
+            amoOpA = pipeReg[0].operandB.data;
+        }
+        amoOpB = amoCache.readDataOut.data;
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            var iqDataValue: MemIssueQueueEntry;
+            var memOpInfoValue: MemOpInfo;
+            var fuOpAValue: PRegDataPath;
+            var fuOpBValue: PRegDataPath;
+            var addrOutValue: AddrPath;
+            var phyAddrOutValue: PhyAddrPath;
+            var regValidValue: logic;
+            var flushValue: logic;
+
+            iqDataValue = pipeReg[i].memQueueData;
+            memOpInfoValue = iqDataValue.memOpInfo;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+
+            if pipeReg[i].bCtrl.rA.valid {
+                fuOpAValue = bypass.memSrcRegDataOutA[i];
+            } else {
+                fuOpAValue = pipeReg[i].operandA;
+            }
+
+            if pipeReg[i].bCtrl.rB.valid {
+                fuOpBValue = bypass.memSrcRegDataOutB[i];
+            } else {
+                fuOpBValue = pipeReg[i].operandB;
+            }
+
+            addrOutValue =
+                fuOpAValue.data +
+                {memOpInfoValue.addrIn[ADDR_OPERAND_IMM_WIDTH - 1] repeat ADDR_SIGN_EXTENTION_WIDTH, memOpInfoValue.addrIn};
+            phyAddrOutValue = ToPhyAddrFromLogical(addrOutValue);
+
+            regValidValue =
+                (memOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
+                (memOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid);
+
+            loadStoreUnit.dcReadReq[i] =
+                !stall &&
+                !clear &&
+                pipeReg[i].valid &&
+                regValidValue &&
+                !flushValue &&
+                (
+                    memOpInfoValue.opType == MEM_MOP_TYPE_LOAD ||
+                    (memOpInfoValue.opType == MEM_MOP_TYPE_ZAAMO && !iqDataValue.hasLoadedAMOCache)
+                );
+            loadStoreUnit.dcReadAddr[i] = phyAddrOutValue;
+            loadStoreUnit.dcReadUncachable[i] = IsPhyAddrUncachable(phyAddrOutValue);
+            loadStoreUnit.dcReadActiveListPtr[i] = pipeReg[i].memQueueData.activeListPtr;
+        }
+
+        cacheFlushReq = FALSE;
+        if pipeReg[0].valid &&
+            pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_FENCE &&
+            pipeReg[0].memQueueData.memOpInfo.isFenceI {
+            cacheFlushReq = TRUE;
+        }
+        cacheFlush.cacheFlushReq = cacheFlushReq;
+
+        isCSR = pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_CSR;
+        csrUnit.csrWE = pipeReg[0].valid && isCSR;
+        csrUnit.csrNumber = pipeReg[0].memQueueData.memOpInfo.addrIn;
+        if pipeReg[0].memQueueData.memOpInfo.csrCtrl.isImm {
+            csrUnit.csrWriteIn = pipeReg[0].memQueueData.memOpInfo.csrCtrl.imm;
+        } else {
+            csrUnit.csrWriteIn = pipeReg[0].operandA.data;
+        }
+        csrUnit.csrCode = pipeReg[0].memQueueData.memOpInfo.csrCtrl.code;
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            var iqDataValue: MemIssueQueueEntry;
+            var memOpInfoValue: MemOpInfo;
+            var nextMemQueueDataValue: MemIssueQueueEntry;
+            var fuOpAValue: PRegDataPath;
+            var fuOpBValue: PRegDataPath;
+            var addrOutValue: AddrPath;
+            var phyAddrOutValue: PhyAddrPath;
+            var memMapTypeValue: MemoryMapType;
+            var regValidValue: logic;
+            var flushValue: logic;
+
+            iqDataValue = pipeReg[i].memQueueData;
+            memOpInfoValue = iqDataValue.memOpInfo;
+            nextMemQueueDataValue = pipeReg[i].memQueueData;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+
+            if pipeReg[i].bCtrl.rA.valid {
+                fuOpAValue = bypass.memSrcRegDataOutA[i];
+            } else {
+                fuOpAValue = pipeReg[i].operandA;
+            }
+
+            if pipeReg[i].bCtrl.rB.valid {
+                fuOpBValue = bypass.memSrcRegDataOutB[i];
+            } else {
+                fuOpBValue = pipeReg[i].operandB;
+            }
+
+            addrOutValue =
+                fuOpAValue.data +
+                {memOpInfoValue.addrIn[ADDR_OPERAND_IMM_WIDTH - 1] repeat ADDR_SIGN_EXTENTION_WIDTH, memOpInfoValue.addrIn};
+            phyAddrOutValue = ToPhyAddrFromLogical(addrOutValue);
+            memMapTypeValue = GetMemoryMapType(addrOutValue);
+
+            bypass.memCtrlIn[i] = pipeReg[i].bCtrl;
+
+            regValidValue =
+                (memOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
+                (memOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid);
+
+            if i == 0 &&
+                pipeReg[0].valid &&
+                pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_FENCE &&
+                pipeReg[0].memQueueData.memOpInfo.isFenceI &&
+                !cacheFlush.cacheFlushComplete {
+                regValidValue = FALSE;
+            }
+
+            if i == 0 && isCSR && csrUnit.csrUnitTriggerExcpt {
+                nextMemQueueDataValue.memOpInfo.opType = MEM_MOP_TYPE_ENV;
+                nextMemQueueDataValue.memOpInfo.envCode = ENV_INSN_ILLEGAL;
+            }
+
+            if nextMemQueueDataValue.memOpInfo.opType == MEM_MOP_TYPE_ENV {
+                if
+                    (
+                        nextMemQueueDataValue.memOpInfo.envCode == ENV_SRET &&
+                        (
+                            !csrUnit.csrWholeOut.misa.EXTENSIONS.S ||
+                            csrUnit.privilegeLevel <: PRIVILEGE_LEVEL_S ||
+                            (csrUnit.privilegeLevel == PRIVILEGE_LEVEL_S && csrUnit.csrWholeOut.mstatus.TSR)
+                        )
+                    ) ||
+                    (
+                        nextMemQueueDataValue.memOpInfo.envCode == ENV_MRET &&
+                        csrUnit.privilegeLevel <: PRIVILEGE_LEVEL_M
+                    ) {
+                    nextMemQueueDataValue.memOpInfo.envCode = ENV_INSN_ILLEGAL;
+                }
+            }
+
+            nextStage[i].memQueueData = nextMemQueueDataValue;
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+            nextStage[i].condEnabled = TRUE;
+
+            if i == 0 && isCSR {
+                nextStage[i].dataIn = csrUnit.csrReadOut;
+            } else if i == 0 && pipeReg[0].memQueueData.memOpInfo.opType == MEM_MOP_TYPE_ZAAMO {
+                nextStage[i].dataIn = amoAluDataOut;
+            } else {
+                nextStage[i].dataIn = fuOpBValue.data;
+            }
+
+            nextStage[i].addrOut = addrOutValue;
+            nextStage[i].regValid = regValidValue;
+            nextStage[i].memMapType = memMapTypeValue;
+            nextStage[i].phyAddrOut = phyAddrOutValue;
+            nextStage[i].opId = pipeReg[i].opId;
+
+            debug.memExReg[i].valid = pipeReg[i].valid;
+            debug.memExReg[i].flush = flushValue;
+            debug.memExReg[i].opId = pipeReg[i].opId;
+            if isCSR && i == 0 {
+                debug.memExReg[i].addrOut = csrUnit.csrReadOut;
+                debug.memExReg[i].fuOpA = memOpInfoValue.addrIn;
+                if memOpInfoValue.csrCtrl.isImm {
+                    debug.memExReg[i].fuOpB = memOpInfoValue.csrCtrl.imm;
+                } else {
+                    debug.memExReg[i].fuOpB = pipeReg[0].operandA.data;
+                }
+            } else {
+                debug.memExReg[i].addrOut = addrOutValue;
+                debug.memExReg[i].fuOpA = fuOpAValue.data;
+                debug.memExReg[i].fuOpB = fuOpBValue.data;
+            }
+            debug.memExReg[i].opType = memOpInfoValue.opType;
+            debug.memExReg[i].size = memOpInfoValue.memAccessMode.size;
+            debug.memExReg[i].isSigned = memOpInfoValue.memAccessMode.isSigned;
+        }
+
+        port.nextStage = nextStage;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 1; i < MEM_ISSUE_WIDTH; i++) begin : assertionBlock
+    //         `RSD_ASSERT_CLK(
+    //             port.clk,
+    //             !(memOpInfo[i].opType inside {
+    //                 MEM_MOP_TYPE_CSR, MEM_MOP_TYPE_FENCE, MEM_MOP_TYPE_ENV
+    //             } && pipeReg[i].valid),
+    //             "A CSR/FENCE/ENV op was issued to a lane other than 0."
+    //         );
+    //     end
+    // endgenerate
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 0; i < MEM_ISSUE_WIDTH; i++) begin
+    //         `RSD_ASSERT_CLK(
+    //             port.clk,
+    //             !(pipeReg[i].valid &&
+    //             !(pipeReg[i].memQueueData.memOpInfo.opType inside {MEM_MOP_TYPE_LOAD, MEM_MOP_TYPE_ZAAMO} ) &&
+    //             pipeReg[i].memQueueData.hasAllocatedMSHR),
+    //             "hasAllocatedMSHR is asserted other than a load pipe"
+    //         );
+    //     end
+    // endgenerate
+}

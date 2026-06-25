@@ -1,0 +1,45 @@
+interface AMOCacheIF {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+
+    var clk        : clock       ;
+    var rst        : logic       ;
+    var cached     : logic       ;
+    var readAddr   : PhyAddrPath ;
+    var readDataOut: PRegDataPath;
+
+    var writeEnable: logic       ;
+    var writeAddr  : PhyAddrPath ;
+    var writeData  : PRegDataPath;
+
+    var invalidate: logic;
+
+    modport AMOCache {
+        clk        : input ,
+        rst        : input ,
+        writeEnable: input ,
+        writeAddr  : input ,
+        writeData  : input ,
+        invalidate : input ,
+        cached     : output,
+        readAddr   : output,
+        readDataOut: output,
+    }
+
+    modport MemoryExecutionStage {
+        readDataOut: input,
+    }
+
+    modport MemoryTagAccessStage {
+        cached  : input,
+        readAddr: input,
+    }
+
+    modport MemoryAccessStage {
+        readDataOut: input ,
+        writeEnable: output,
+        writeAddr  : output,
+        writeData  : output,
+        invalidate : output,
+    }
+}

@@ -1,0 +1,253 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// Pick requests.
+// a.k.a. priority encoder.
+//
+module Picker #(
+    param ENTRY_NUM: u32 = 4,
+    param GRANT_NUM: u32 = 2,
+) (
+    req     : input  logic<ENTRY_NUM>                    ,
+    grant   : output logic<ENTRY_NUM>                    ,
+    grantPtr: output logic<$clog2(ENTRY_NUM)> [GRANT_NUM],
+    granted : output logic                    [GRANT_NUM],
+) {
+    const INDEX_BIT_SIZE: u32 = $clog2(ENTRY_NUM);
+
+    var reqTmp: logic<ENTRY_NUM>;
+
+    always_comb {
+        reqTmp = req;
+        grant  = '0;
+        for p in 0..GRANT_NUM {
+            var found: logic;
+
+            found       = 1'b0;
+            granted[p]  = '0;
+            grantPtr[p] = '0;
+
+            for e in 0..ENTRY_NUM {
+                if !found && reqTmp[e] {
+                    grant[e]    = '1;
+                    granted[p]  = '1;
+                    grantPtr[p] = e;
+                    reqTmp[e]   = '0;
+                    found       = 1'b1;
+                }
+            }
+        }
+    }
+}
+
+//
+// Requests are interleaved.
+// ex. ENTRY_NUM = 4, GRANT_NUM = 2 case:
+//   granted[0] = pick(req[0], req[2]);
+//   granted[0] = pick(req[1], req[3]);
+//
+//
+module InterleavedPicker #(
+    param ENTRY_NUM: u32 = 4,
+    param GRANT_NUM: u32 = 2,
+) (
+    req     : input  logic<ENTRY_NUM>                    ,
+    grant   : output logic<ENTRY_NUM>                    ,
+    grantPtr: output logic<$clog2(ENTRY_NUM)> [GRANT_NUM],
+    granted : output logic                    [GRANT_NUM],
+) {
+    const INDEX_BIT_SIZE: u32 = $clog2(ENTRY_NUM);
+
+    var reqTmp: logic<ENTRY_NUM>;
+
+    always_comb {
+        reqTmp = req;
+        grant  = '0;
+        for p in 0..GRANT_NUM {
+            var found: logic;
+
+            found       = 1'b0;
+            granted[p]  = '0;
+            grantPtr[p] = 0;
+
+            for e in p..ENTRY_NUM step += GRANT_NUM {
+                if !found && reqTmp[e] {
+                    grant[e]    = '1;
+                    granted[p]  = '1;
+                    grantPtr[p] = e;
+                    reqTmp[e]   = '0;
+                    found       = 1'b1;
+                }
+            }
+        }
+    }
+}
+
+//
+// Pick a request between a head and a tail.
+// It outputs an encoded picked position.
+// A request that is closer to a tail has a higher priority.
+// "tailPtr" refers 1 + "the end of a valid region", thus all requests are invalid
+//  if head=tail.
+//
+module CircularRangePicker #(
+    param ENTRY_NUM: u32 = 16,
+) (
+    headPtr : input  logic<$clog2(ENTRY_NUM)>,
+    tailPtr : input  logic<$clog2(ENTRY_NUM)>,
+    request : input  logic<ENTRY_NUM>        ,
+    grantPtr: output logic<$clog2(ENTRY_NUM)>,
+    picked  : output logic                   ,
+) {
+    const INDEX_BIT_SIZE: u32 = $clog2(ENTRY_NUM);
+
+    var rightShifterIn: logic<ENTRY_NUM * 2> ;
+    var shiftedReq    : logic<ENTRY_NUM>     ;
+    var shiftedGrant  : logic<INDEX_BIT_SIZE>;
+
+    // Generate a right shifter.
+    // When the width of a shifter is greater than 16, a hand-implemented shifter
+    // is faster than a verilog shift operator.
+    if ENTRY_NUM == 16 :g_right_shifter_16 {
+        inst rightShifter: CircularRangePickerRightShifter16 (
+            shiftIn    : rightShifterIn[30:0],
+            shiftAmount: tailPtr             ,
+            shiftOut   : shiftedReq          ,
+        );
+    } else :g_right_shifter {
+        inst rightShifter: CircularRangePickerRightShifter #(
+            INPUT_WIDTH       : ENTRY_NUM * 2,
+            SHIFT_AMOUNT_WIDTH: INDEX_BIT_SIZE,
+            OUTPUT_WIDTH      : ENTRY_NUM     ,
+        ) (
+            shiftIn    : rightShifterIn,
+            shiftAmount: tailPtr       ,
+            shiftOut   : shiftedReq    ,
+        );
+    }
+
+    always_comb {
+        // Shift and move a tail to a higer position.
+        //  a9876543210  a9876543210
+        // <---t***h---><---t***h---> >> tp(7) => <----------t><***h------->
+        // <***h---t***><***h---t***> >> tp(3) => <---***h---t><******h---->
+
+        // This is equivalent to "shiftedReq = {request, request} >> tailPtr;"
+        rightShifterIn = {request, request};
+
+        // Pick the highest request.
+        picked       = 1'b0;
+        shiftedGrant = 0;
+
+        for i in 0..ENTRY_NUM {
+            if shiftedReq[i] {
+                shiftedGrant = i;
+                picked       = 1'b1;
+            }
+        }
+
+        // Shift and restore original poistion.
+        //  a9876543210  a9876543210              a9876543210  a9876543210
+        // <-----------><***h-------> + tp(7) => <----***h---><----------->
+        // <-----------><******h----> + tp(3) => <--------***><***h------->
+        if shiftedGrant + tailPtr <: ENTRY_NUM {
+            grantPtr = shiftedGrant + tailPtr;
+        } else {
+            grantPtr = shiftedGrant + tailPtr - ENTRY_NUM;
+        }
+
+        //$display("t:%x, h:%x, sr:%b sg:%x, sp:%x", tailPtr, headPtr, shiftedReq, shiftedGrant, grantPtr);
+
+        // Invalidate invalid grant.
+
+        // Implementation A: it is faster than B by 1 LUT, but its area is larger
+        // than that of B by 22 LUTs.
+        if tailPtr >= headPtr {
+            if ENTRY_NUM + headPtr - tailPtr >: shiftedGrant {
+                picked = 1'b0;
+            }
+        } else {
+            if headPtr - tailPtr >: shiftedGrant {
+                picked = 1'b0;
+            }
+        }
+
+        /*
+        // Implementation B.
+        if(tailPtr >= headPtr) begin
+            if(headPtr > grantPtr || grantPtr >= tailPtr) begin
+                picked = 1'b0;
+            end
+        end begin
+            if(headPtr > grantPtr && grantPtr >= tailPtr) begin
+                picked = 1'b0;
+            end
+        end
+        */
+    }
+}
+
+//
+// --- Internal sub modules.
+//
+
+// A special version of a right shift operation for 16 entries.
+module CircularRangePickerRightShifter16 (
+    shiftIn    : input  logic<31>,
+    shiftAmount: input  logic<4> ,
+    shiftOut   : output logic<16>,
+) {
+    var shiftTmp: logic<16 * 2>;
+
+    always_comb {
+        shiftTmp = shiftIn;
+        // A 4:1 selecter will be  mapped to 6 input LUT.
+        case shiftAmount[3:2] {
+            2'h3: {
+                shiftTmp = shiftTmp[30:12];
+            }
+            2'h2: {
+                shiftTmp = shiftTmp[26:8];
+            }
+            2'h1: {
+                shiftTmp = shiftTmp[22:4];
+            }
+            //2'h0:
+            default: {
+                shiftTmp = shiftTmp[18:0];
+            }
+        }
+        case shiftAmount[1:0] {
+            2'h3: {
+                shiftTmp = shiftTmp[18:3];
+            }
+            2'h2: {
+                shiftTmp = shiftTmp[17:2];
+            }
+            2'h1: {
+                shiftTmp = shiftTmp[16:1];
+            }
+            //2'h0:
+            default: {
+                shiftTmp = shiftTmp[15:0];
+            }
+        }
+        shiftOut = shiftTmp;
+    }
+}
+
+// A generic version of a right shift operation.
+module CircularRangePickerRightShifter #(
+    param INPUT_WIDTH       : u32 = 32,
+    param SHIFT_AMOUNT_WIDTH: u32 = 4 ,
+    param OUTPUT_WIDTH      : u32 = 16,
+) (
+    shiftIn    : input  logic<INPUT_WIDTH>       ,
+    shiftAmount: input  logic<SHIFT_AMOUNT_WIDTH>,
+    shiftOut   : output logic<OUTPUT_WIDTH>      ,
+) {
+    always_comb {
+        shiftOut = shiftIn >> shiftAmount;
+    }
+}

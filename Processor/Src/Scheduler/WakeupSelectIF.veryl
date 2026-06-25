@@ -1,0 +1,122 @@
+interface WakeupSelectIF {
+    import BasicTypes::*;
+    import SchedulerTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var stall: logic;
+
+    var write      : logic [DISPATCH_WIDTH];
+    var writePtr   : IssueQueueIndexPath [DISPATCH_WIDTH];
+    var writeSrcTag: SchedulerSrcTag [DISPATCH_WIDTH];
+    var writeDstTag: SchedulerDstTag [DISPATCH_WIDTH];
+
+    var wakeup      : logic [WAKEUP_WIDTH];
+    var wakeupPtr   : IssueQueueIndexPath [WAKEUP_WIDTH];
+    var wakeupVector: IssueQueueOneHotPath [WAKEUP_WIDTH];
+
+    var wakeupDstTag: SchedulerDstTag [WAKEUP_WIDTH];
+
+    var opReady: IssueQueueOneHotPath;
+
+    var selected      : logic [ISSUE_WIDTH];
+    var selectedPtr   : IssueQueueIndexPath [ISSUE_WIDTH];
+    var selectedVector: IssueQueueOneHotPath [ISSUE_WIDTH];
+
+    var releaseEntry: logic [ISSUE_WIDTH];
+    var releasePtr  : IssueQueueIndexPath [ISSUE_WIDTH];
+
+    var memDependencyPred: logic [DISPATCH_WIDTH];
+    var notIssued        : logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var dispatchStore    : logic [DISPATCH_WIDTH];
+    var dispatchLoad     : logic [DISPATCH_WIDTH];
+
+    var intIssueReq    : logic [ISSUE_QUEUE_ENTRY_NUM];
+    var complexIssueReq: logic [ISSUE_QUEUE_ENTRY_NUM];
+    var loadIssueReq   : logic [ISSUE_QUEUE_ENTRY_NUM];
+    var storeIssueReq  : logic [ISSUE_QUEUE_ENTRY_NUM];
+    var fpIssueReq     : logic [ISSUE_QUEUE_ENTRY_NUM];
+
+    modport Scheduler {
+        selected: input,
+        selectedPtr: input,
+        selectedVector: input,
+        stall: output,
+        write: output,
+        writePtr: output,
+        writeSrcTag: output,
+        writeDstTag: output,
+        intIssueReq: output,
+        complexIssueReq: output,
+        loadIssueReq: output,
+        storeIssueReq: output,
+        fpIssueReq: output,
+        notIssued: output,
+        dispatchStore: output,
+        dispatchLoad: output,
+        memDependencyPred: output,
+    }
+
+    modport DestinationRAM {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        write: input,
+        writePtr: input,
+        writeDstTag: input,
+        wakeupPtr: input,
+        wakeupDstTag: output,
+    }
+
+    modport WakeupLogic {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        stall: input,
+        write: input,
+        writePtr: input,
+        writeSrcTag: input,
+        writeDstTag: input,
+        wakeup: input,
+        wakeupDstTag: input,
+        wakeupVector: input,
+        notIssued: input,
+        dispatchStore: input,
+        dispatchLoad: input,
+        memDependencyPred: input,
+        opReady: output,
+    }
+
+    modport SelectLogic {
+        opReady: input,
+        intIssueReq: input,
+        complexIssueReq: input,
+        loadIssueReq: input,
+        storeIssueReq: input,
+        fpIssueReq: input,
+        selected: output,
+        selectedPtr: output,
+        selectedVector: output,
+    }
+
+    modport WakeupPipelineRegister {
+        clk: input,
+        rst: input,
+        stall: input,
+        selected: input,
+        selectedPtr: input,
+        selectedVector: input,
+        wakeup: output,
+        wakeupPtr: output,
+        wakeupVector: output,
+        releaseEntry: output,
+        releasePtr: output,
+    }
+
+    modport IssueQueue {
+        releaseEntry: input,
+        releasePtr: input,
+    }
+}

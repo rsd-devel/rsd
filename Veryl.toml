@@ -1,0 +1,8 @@
+[project]
+name = "rsd"
+version = "0.1.0"
+[build]
+reset_type = "async_high"
+sources = ["Processor/Src"]
+target = {type = "directory", path = "target"}
+omit_project_prefix = true

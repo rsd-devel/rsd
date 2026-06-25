@@ -1,0 +1,208 @@
+module DispatchStage (
+    prev     : modport RenameStageIF::NextStage,
+    scheduler: modport SchedulerIF::DispatchStage,
+    ctrl     : modport ControllerIF::DispatchStage,
+    debug    : modport DebugIF::DispatchStage,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     INT_SUB_INFO_BIT_WIDTH <= BR_SUB_INFO_BIT_WIDTH,
+    //     "Invalid padding at IntOpSubInfo"
+    // );
+
+    var pipeReg: DispatchStageRegPath [DISPATCH_WIDTH];
+
+    always_ff (ctrl.clk) {
+        if ctrl.rst {
+            for i in 0..DISPATCH_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !ctrl.dsStage.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+
+    always_comb {
+        stall = ctrl.dsStage.stall;
+        clear = ctrl.dsStage.clear;
+
+        for i in 0..DISPATCH_WIDTH {
+            var updateValue: logic;
+            var opInfoValue: OpInfo;
+            var intEntryValue: IntIssueQueueEntry;
+            var complexEntryValue: ComplexIssueQueueEntry;
+            var memEntryValue: MemIssueQueueEntry;
+            var fpEntryValue: FPIssueQueueEntry;
+            var schedulerEntryValue: SchedulerEntry;
+            var opSrcValue: OpSrc;
+            var opDstValue: OpDst;
+            var intSubInfoValue: IntOpSubInfo;
+            var brSubInfoValue: BrOpSubInfo;
+            var mulSubInfoValue: MulOpSubInfo;
+            var divSubInfoValue: DivOpSubInfo;
+
+            updateValue = !stall && !clear && pipeReg[i].valid;
+            opInfoValue = pipeReg[i].opInfo;
+
+            intEntryValue = '0;
+            complexEntryValue = '0;
+            memEntryValue = '0;
+            fpEntryValue = '0;
+            schedulerEntryValue = '0;
+            opSrcValue = '0;
+            opDstValue = '0;
+            intSubInfoValue = '0;
+            brSubInfoValue = '0;
+            mulSubInfoValue = '0;
+            divSubInfoValue = '0;
+
+            intEntryValue.opId = pipeReg[i].opId;
+            complexEntryValue.opId = pipeReg[i].opId;
+            memEntryValue.opId = pipeReg[i].opId;
+            fpEntryValue.opId = pipeReg[i].opId;
+
+            opSrcValue.phySrcRegNumA = pipeReg[i].phySrcRegNumA;
+            opSrcValue.phySrcRegNumB = pipeReg[i].phySrcRegNumB;
+            opSrcValue.phySrcRegNumC = pipeReg[i].phySrcRegNumC;
+
+            opDstValue.writeReg = pipeReg[i].opInfo.writeReg;
+            opDstValue.phyDstRegNum = pipeReg[i].phyDstRegNum;
+
+            intEntryValue.opType = opInfoValue.mopSubType.intType;
+            intEntryValue.cond = opInfoValue.cond;
+            intEntryValue.opSrc = opSrcValue;
+            intEntryValue.opDst = opDstValue;
+            intEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+            intEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
+            intEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+            intEntryValue.pc = pipeReg[i].pc;
+
+            intSubInfoValue.operandTypeA = opInfoValue.opTypeA;
+            intSubInfoValue.operandTypeB = opInfoValue.opTypeB;
+            intSubInfoValue.shiftIn = opInfoValue.operand.intOp.shiftIn;
+            intSubInfoValue.shiftType = opInfoValue.operand.intOp.shiftType;
+            intSubInfoValue.aluCode = opInfoValue.operand.intOp.aluCode;
+            intSubInfoValue.padding = '0;
+
+            brSubInfoValue.brDisp = opInfoValue.operand.brOp.brDisp;
+            brSubInfoValue.bPred = pipeReg[i].brPred;
+            brSubInfoValue.operandTypeA = opInfoValue.opTypeA;
+            brSubInfoValue.operandTypeB = opInfoValue.opTypeB;
+
+            if intEntryValue.opType == INT_MOP_TYPE_BR || intEntryValue.opType == INT_MOP_TYPE_RIJ {
+                intEntryValue.intOpInfo.brSubInfo = brSubInfoValue;
+            } else {
+                intEntryValue.intOpInfo.intSubInfo = intSubInfoValue;
+            }
+
+            complexEntryValue.opType = opInfoValue.mopSubType.complexType;
+            complexEntryValue.opSrc = opSrcValue;
+            complexEntryValue.opDst = opDstValue;
+            complexEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+            complexEntryValue.pc = pipeReg[i].pc;
+            complexEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
+            complexEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+
+            mulSubInfoValue.mulGetUpper = opInfoValue.operand.complexOp.mulGetUpper;
+            mulSubInfoValue.mulCode = opInfoValue.operand.complexOp.mulCode;
+            divSubInfoValue.padding = '0;
+            divSubInfoValue.divCode = opInfoValue.operand.complexOp.divCode;
+
+            if complexEntryValue.opType == COMPLEX_MOP_TYPE_MUL {
+                complexEntryValue.complexOpInfo.mulSubInfo = mulSubInfoValue;
+            } else {
+                complexEntryValue.complexOpInfo.divSubInfo = divSubInfoValue;
+            }
+
+            memEntryValue.memOpInfo.opType = opInfoValue.mopSubType.memType;
+            memEntryValue.memOpInfo.cond = opInfoValue.cond;
+            memEntryValue.memOpInfo.operandTypeA = opInfoValue.opTypeA;
+            memEntryValue.memOpInfo.operandTypeB = opInfoValue.opTypeB;
+            memEntryValue.memOpInfo.addrIn = opInfoValue.operand.memOp.addrIn;
+            memEntryValue.memOpInfo.isAddAddr = opInfoValue.operand.memOp.isAddAddr;
+            memEntryValue.memOpInfo.isRegAddr = opInfoValue.operand.memOp.isRegAddr;
+            memEntryValue.memOpInfo.memAccessMode = opInfoValue.operand.memOp.memAccessMode;
+            memEntryValue.memOpInfo.isZalrsc = opInfoValue.operand.memOp.isZalrsc;
+            memEntryValue.memOpInfo.amoCode = opInfoValue.operand.memOp.amoCode;
+            memEntryValue.memOpInfo.csrCtrl = opInfoValue.operand.memOp.csrCtrl;
+            memEntryValue.memOpInfo.envCode = opInfoValue.operand.systemOp.envCode;
+            memEntryValue.memOpInfo.isFenceI = opInfoValue.operand.miscMemOp.fenceI;
+
+            memEntryValue.loadQueuePtr = pipeReg[i].loadQueuePtr;
+            memEntryValue.storeQueuePtr = pipeReg[i].storeQueuePtr;
+            memEntryValue.hasAllocatedMSHR = FALSE;
+            memEntryValue.mshrID = '0;
+            memEntryValue.hasLoadedAMOCache = FALSE;
+            memEntryValue.opSrc = opSrcValue;
+            memEntryValue.opDst = opDstValue;
+            memEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+            memEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
+            memEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+            memEntryValue.pc = pipeReg[i].pc;
+
+            fpEntryValue.fpOpInfo.opType = opInfoValue.mopSubType.fpType;
+            fpEntryValue.fpOpInfo.fpuCode = opInfoValue.operand.fpOp.fpuCode;
+            fpEntryValue.fpOpInfo.rm = opInfoValue.operand.fpOp.rm;
+            fpEntryValue.fpOpInfo.operandTypeA = opInfoValue.opTypeA;
+            fpEntryValue.fpOpInfo.operandTypeB = opInfoValue.opTypeB;
+            fpEntryValue.fpOpInfo.operandTypeC = opInfoValue.opTypeC;
+            fpEntryValue.opSrc = opSrcValue;
+            fpEntryValue.opDst = opDstValue;
+            fpEntryValue.activeListPtr = pipeReg[i].activeListPtr;
+            fpEntryValue.loadQueueRecoveryPtr = pipeReg[i].loadQueuePtr;
+            fpEntryValue.storeQueueRecoveryPtr = pipeReg[i].storeQueuePtr;
+            fpEntryValue.pc = pipeReg[i].pc;
+
+            schedulerEntryValue.opType = opInfoValue.mopType;
+            schedulerEntryValue.opSubType = opInfoValue.mopSubType;
+            schedulerEntryValue.srcRegValidA = opInfoValue.opTypeA == OOT_REG;
+            schedulerEntryValue.srcRegValidB = opInfoValue.opTypeB == OOT_REG;
+            schedulerEntryValue.srcRegValidC = opInfoValue.opTypeC == OOT_REG;
+            schedulerEntryValue.opSrc = opSrcValue;
+            schedulerEntryValue.opDst = opDstValue;
+            schedulerEntryValue.srcPtrRegA = pipeReg[i].srcIssueQueuePtrRegA;
+            schedulerEntryValue.srcPtrRegB = pipeReg[i].srcIssueQueuePtrRegB;
+            schedulerEntryValue.srcPtrRegC = pipeReg[i].srcIssueQueuePtrRegC;
+
+            scheduler.write[i] = updateValue;
+            scheduler.writePtr[i] = pipeReg[i].issueQueuePtr;
+            scheduler.writeAL_Ptr[i] = pipeReg[i].activeListPtr;
+            scheduler.intWriteData[i] = intEntryValue;
+            scheduler.complexWriteData[i] = complexEntryValue;
+            scheduler.memWriteData[i] = memEntryValue;
+            scheduler.fpWriteData[i] = fpEntryValue;
+            scheduler.writeSchedulerData[i] = schedulerEntryValue;
+            scheduler.allocated[i] = pipeReg[i].valid;
+            scheduler.memDependencyPred[i] = prev.memDependencyPred[i];
+
+            debug.dsReg[i].valid = pipeReg[i].valid;
+            debug.dsReg[i].opId = pipeReg[i].opId;
+            debug.dsReg[i].readRegA = opInfoValue.opTypeA == OOT_REG;
+            debug.dsReg[i].logSrcRegA = opInfoValue.operand.intOp.srcRegNumA;
+            debug.dsReg[i].phySrcRegA = pipeReg[i].phySrcRegNumA;
+            debug.dsReg[i].readRegB = opInfoValue.opTypeB == OOT_REG;
+            debug.dsReg[i].logSrcRegB = opInfoValue.operand.intOp.srcRegNumB;
+            debug.dsReg[i].phySrcRegB = pipeReg[i].phySrcRegNumB;
+            debug.dsReg[i].readRegC = opInfoValue.opTypeC == OOT_REG;
+            debug.dsReg[i].logSrcRegC = opInfoValue.operand.fpOp.srcRegNumC;
+            debug.dsReg[i].phySrcRegC = pipeReg[i].phySrcRegNumC;
+            debug.dsReg[i].writeReg = opInfoValue.writeReg;
+            debug.dsReg[i].logDstReg = opInfoValue.operand.intOp.dstRegNum;
+            debug.dsReg[i].phyDstReg = pipeReg[i].phyDstRegNum;
+            debug.dsReg[i].phyPrevDstReg = pipeReg[i].phyPrevDstRegNum;
+            debug.dsReg[i].activeListPtr = pipeReg[i].activeListPtr;
+            debug.dsReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+        }
+    }
+}

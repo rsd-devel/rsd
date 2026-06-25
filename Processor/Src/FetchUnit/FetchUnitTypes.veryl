@@ -1,0 +1,96 @@
+package FetchUnitTypes {
+    import MicroArchConf::*;
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+
+    const BTB_ENTRY_NUM: u32 = CONF_BTB_ENTRY_NUM;
+    const BTB_TAG_WIDTH: u32 = 4;
+    const BTB_CONTENTS_ADDR_WIDTH: u32 = 13;
+    const BTB_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(BTB_ENTRY_NUM);
+    type BTB_IndexPath = logic<BTB_ENTRY_NUM_BIT_WIDTH>;
+    type BTB_AddrPath = logic<BTB_CONTENTS_ADDR_WIDTH>;
+    type BTB_TagPath = logic<BTB_TAG_WIDTH>;
+
+    const BTB_QUEUE_SIZE: u32 = 32;
+    const BTB_QUEUE_SIZE_BIT_WIDTH: u32 = $clog2(BTB_QUEUE_SIZE);
+    type BTBQueuePointerPath = logic<BTB_QUEUE_SIZE_BIT_WIDTH>;
+
+    struct BTB_Entry {
+        valid   : logic,
+        tag     : BTB_TagPath,
+        data    : BTB_AddrPath,
+        isCondBr: logic,
+    }
+
+    struct BTBQueueEntry {
+        btbWA: AddrPath,
+        btbWV: BTB_Entry,
+    }
+
+    function ToBTB_Index (
+        addr: input PC_Path,
+    ) -> BTB_IndexPath {
+        return addr[BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1:INSN_ADDR_BIT_WIDTH];
+    }
+
+    function ToBTB_Tag (
+        addr: input PC_Path,
+    ) -> BTB_TagPath {
+        return addr[
+            BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH + BTB_TAG_WIDTH - 1:
+            BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH
+        ];
+    }
+
+    function ToBTB_Addr (
+        addr: input PC_Path,
+    ) -> BTB_AddrPath {
+        return addr[INSN_ADDR_BIT_WIDTH + BTB_CONTENTS_ADDR_WIDTH - 1:INSN_ADDR_BIT_WIDTH];
+    }
+
+    function ToRawAddrFromBTB_Addr (
+        addr: input BTB_AddrPath,
+        pc  : input PC_Path,
+    ) -> PC_Path {
+        return {pc[PC_WIDTH - 1:BTB_CONTENTS_ADDR_WIDTH + 2], addr[BTB_CONTENTS_ADDR_WIDTH - 1:0], 2'b0};
+    }
+
+    const BRANCH_GLOBAL_HISTORY_BIT_WIDTH: u32 = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
+    type BranchGlobalHistoryPath = logic<BRANCH_GLOBAL_HISTORY_BIT_WIDTH>;
+
+    const PHT_ENTRY_NUM: u32 = CONF_PHT_ENTRY_NUM;
+    const PHT_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(PHT_ENTRY_NUM);
+    type PHT_IndexPath = logic<PHT_ENTRY_NUM_BIT_WIDTH>;
+
+    const PHT_ENTRY_WIDTH: u32 = 2;
+    const PHT_ENTRY_MAX: u32 = (1 << PHT_ENTRY_WIDTH) - 1;
+    type PHT_EntryPath = logic<PHT_ENTRY_WIDTH>;
+
+    const PHT_QUEUE_SIZE: u32 = 32;
+    const PHT_QUEUE_SIZE_BIT_WIDTH: u32 = $clog2(PHT_QUEUE_SIZE);
+    type PhtQueuePointerPath = logic<PHT_QUEUE_SIZE_BIT_WIDTH>;
+
+    struct PhtQueueEntry {
+        phtWA: AddrPath,
+        phtWV: PHT_EntryPath,
+    }
+
+    struct BranchResult {
+        brAddr       : PC_Path,
+        nextAddr     : PC_Path,
+        execTaken    : logic,
+        predTaken    : logic,
+        isCondBr     : logic,
+        mispred      : logic,
+        valid        : logic,
+        globalHistory: BranchGlobalHistoryPath,
+        phtPrevValue : PHT_EntryPath,
+    }
+
+    struct BranchPred {
+        predAddr     : PC_Path,
+        predTaken    : logic,
+        globalHistory: BranchGlobalHistoryPath,
+        phtPrevValue : PHT_EntryPath,
+    }
+}

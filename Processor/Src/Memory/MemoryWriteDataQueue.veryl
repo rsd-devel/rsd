@@ -1,0 +1,27 @@
+module MemoryWriteDataQueue (
+    clk       : input  clock                         ,
+    rst       : input  logic                         ,
+    push      : input  logic                         ,
+    pop       : input  logic                         ,
+    pushedData: input  MemoryEntryDataPath           ,
+    full      : output logic                         ,
+    empty     : output logic                         ,
+    headData  : output MemoryEntryDataPath           ,
+    headPtr   : output logic<MEMORY_AXI4_WRITE_ID_WIDTH>,
+    tailPtr   : output logic<MEMORY_AXI4_WRITE_ID_WIDTH>,
+) {
+    import MemoryTypes::*;
+
+    inst body: $sv::MemoryWriteDataQueue_SV (
+        clk       : clk       ,
+        rst       : rst       ,
+        push      : push      ,
+        pop       : pop       ,
+        pushedData: pushedData,
+        full      : full      ,
+        empty     : empty     ,
+        headData  : headData  ,
+        headPtr   : headPtr   ,
+        tailPtr   : tailPtr   ,
+    );
+}

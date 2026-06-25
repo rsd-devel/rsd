@@ -1,0 +1,55 @@
+package MemoryTypes {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+
+    const MEMORY_AXI4_READ_ID_WIDTH : u32 = 2;
+    const MEMORY_AXI4_READ_ID_NUM   : u32 = 1 << MEMORY_AXI4_READ_ID_WIDTH;
+    const MEMORY_AXI4_WRITE_ID_WIDTH: u32 = 1;
+    const MEMORY_AXI4_WRITE_ID_NUM  : u32 = 1 << MEMORY_AXI4_WRITE_ID_WIDTH;
+    const MEMORY_AXI4_ADDR_BIT_SIZE : u32 = 32;
+
+    const PS_PL_CTRL_QUEUE_DATA_BIT_SIZE: u32 = 32;
+    const PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE: u32 = 6;
+    const PS_PL_CTRL_QUEUE_SIZE         : u32 = 1 << PS_PL_CTRL_QUEUE_ADDR_BIT_SIZE;
+
+    const MEMORY_ADDR_BIT_SIZE: u32 = 25;
+    const MEMORY_BYTE_SIZE    : u32 = 1 << MEMORY_ADDR_BIT_SIZE;
+
+    const DUMMY_HEX_ENTRY_NUM: u32 = 256;
+
+    const MEMORY_ENTRY_BIT_NUM : u32 = 64;
+    const MEMORY_ENTRY_BYTE_NUM: u32 = MEMORY_ENTRY_BIT_NUM / BYTE_WIDTH;
+    const MEMORY_ADDR_MSB      : u32 = MEMORY_ADDR_BIT_SIZE - 1;
+    const MEMORY_ADDR_LSB      : u32 = $clog2(MEMORY_ENTRY_BYTE_NUM);
+    const MEMORY_INDEX_BIT_WIDTH: u32 = MEMORY_ADDR_MSB - MEMORY_ADDR_LSB + 1;
+    const MEMORY_ENTRY_NUM     : u32 = 1 << MEMORY_INDEX_BIT_WIDTH;
+    type MemoryEntryDataPath = logic<MEMORY_ENTRY_BIT_NUM>;
+
+    const MEMORY_READ_PIPELINE_DEPTH : u32 = 5;
+    const MEMORY_WRITE_PROCESS_LATENCY: u32 = 2;
+    const MEMORY_READ_PROCESS_LATENCY : u32 = 2;
+    type MemoryProcessLatencyCount = logic<2>;
+
+    struct MemoryReadReq {
+        id  : logic<MEMORY_AXI4_READ_ID_WIDTH>,
+        addr: logic<MEMORY_AXI4_ADDR_BIT_SIZE>,
+    }
+
+    const MEM_LATENCY_SIM_QUEUE_SIZE               : u32 = 128;
+    const MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE: u32 = 10;
+    const MEM_LATENCY_SIM_RAND_BIT_WIDTH           : u32 = 32;
+    const MEM_LATENCY_SIM_RAND_SEED                : u32 = 1987534242;
+    type LatencyCountPath = logic<$clog2(MEM_LATENCY_SIM_LATENCY_FLUCTUATION_RANGE) + 1>;
+    type MemoryRandPath = logic<MEM_LATENCY_SIM_RAND_BIT_WIDTH>;
+
+    struct MemoryLatencySimRequestPath {
+        isRead                : logic,
+        isWrite               : logic,
+        memAccessAddr         : AddrPath,
+        memAccessWriteData    : MemoryEntryDataPath,
+        nextMemReadSerial     : MemAccessSerial,
+        nextMemWriteSerial    : MemWriteSerial,
+        wr                    : logic,
+    }
+}

@@ -1,0 +1,91 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+module LRU_Counter #(
+    param WAY_NUM        : u32 = 2,
+    param INDEX_BIT_WIDTH: u32 = 1,
+    param PORT_WIDTH     : u32 = 1,
+) (
+    clk                     : input  clock                              ,
+    rst                     : input  logic                              ,
+    index                   : input  logic<INDEX_BIT_WIDTH> [PORT_WIDTH],
+    access                  : input  logic                  [PORT_WIDTH],
+    accessWay               : input  logic<$clog2(WAY_NUM)> [PORT_WIDTH],
+    leastRecentlyAccessedWay: output logic<$clog2(WAY_NUM)> [PORT_WIDTH],
+) {
+    import BasicTypes::*;
+
+    const ENTRY_NUM: u32 = 1 << INDEX_BIT_WIDTH;
+
+    type LRU_Rank      = logic<$clog2(WAY_NUM)>         ;
+    type LRU_PortNum   = logic<$clog2(PORT_WIDTH)>      ;
+    type LRU_RankArray = logic<WAY_NUM, $clog2(WAY_NUM)>;
+
+    struct LRU_Entry {
+        rank: LRU_RankArray,
+    }
+
+    var body      : LRU_Entry [ENTRY_NUM] ;
+    var readEntry : LRU_Entry [PORT_WIDTH];
+    var writeEntry: LRU_Entry [PORT_WIDTH];
+
+    var we: logic [PORT_WIDTH];
+
+    always_comb {
+        for i in 0..PORT_WIDTH {
+            // we, readEntry
+            readEntry[i] = body[index[i]];
+            we[i]        = access[i];
+            for j in 0..i {
+                // Prevent write-conflict
+                if we[j] == TRUE && index[i] == index[j] {
+                    we[i] = FALSE;
+                }
+            }
+
+            // writeEntry
+            if readEntry[i].rank[accessWay[i]] == WAY_NUM - 1 {
+                // It happened to access the way accessd most recently.
+                for j in 0..WAY_NUM {
+                    writeEntry[i].rank[j] = readEntry[i].rank[j];
+                }
+            } else {
+                for j in 0..WAY_NUM {
+                    if j == accessWay[i] {
+                        writeEntry[i].rank[j] = WAY_NUM - 1;
+                    } else if readEntry[i].rank[j] == 0 {
+                        writeEntry[i].rank[j] = 0;
+                    } else {
+                        writeEntry[i].rank[j] = readEntry[i].rank[j] - 1;
+                    }
+                }
+            }
+        }
+
+        // leastRecentlyAccessedWay
+        for i in 0..PORT_WIDTH {
+            leastRecentlyAccessedWay[i] = 0;
+            for j in 0..WAY_NUM {
+                if readEntry[i].rank[j] == 0 {
+                    leastRecentlyAccessedWay[i] = j;
+                }
+            }
+        }
+    }
+
+    always_ff (clk) {
+        if rst {
+            for i in 0..ENTRY_NUM {
+                for j in 0..WAY_NUM {
+                    body[i].rank[j] = 0;
+                }
+            }
+        } else {
+            for i in 0..PORT_WIDTH {
+                if we[i] {
+                    body[index[i]] = writeEntry[i];
+                }
+            }
+        }
+    }
+}

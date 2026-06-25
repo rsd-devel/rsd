@@ -1,0 +1,109 @@
+module ComplexIntegerIssueStage (
+    port      : modport ComplexIntegerIssueStageIF::ThisStage,
+    prev      : modport ScheduleStageIF::ComplexNextStage,
+    scheduler : modport SchedulerIF::ComplexIntegerIssueStage,
+    recovery  : modport RecoveryManagerIF::ComplexIntegerIssueStage,
+    mulDivUnit: modport MulDivUnitIF::ComplexIntegerIssueStage,
+    ctrl      : modport ControllerIF::ComplexIntegerIssueStage,
+    debug     : modport DebugIF::ComplexIntegerIssueStage,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import ActiveListIndexTypes::*;
+    import SchedulerTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
+    var nextPipeReg: IssueStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !ctrl.isStage.stall {
+            pipeReg = prev.complexNextStage;
+        } else {
+            pipeReg = nextPipeReg;
+        }
+    }
+
+    always_comb {
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            if recovery.toRecoveryPhase {
+                nextPipeReg[i].valid =
+                    pipeReg[i].valid &&
+                    !SelectiveFlushDetector(
+                        recovery.toRecoveryPhase,
+                        recovery.flushRangeHeadPtr,
+                        recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
+                        scheduler.complexIssuedData[i].activeListPtr
+                    );
+            } else {
+                nextPipeReg[i].valid = pipeReg[i].valid;
+            }
+            nextPipeReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var valid: logic [COMPLEX_ISSUE_WIDTH];
+    var nextStage: ComplexIntegerRegisterReadStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.isStage.stall;
+        clear = ctrl.isStage.clear;
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            var flushValue: logic;
+            var issuedDataValue: ComplexIssueQueueEntry;
+            var issueQueuePtrValue: IssueQueueIndexPath;
+            var divIsIssuedValue: logic;
+
+            if scheduler.replay {
+                issuedDataValue = scheduler.complexReplayData[i];
+                valid[i] = scheduler.complexReplayEntry[i];
+            } else {
+                issuedDataValue = scheduler.complexIssuedData[i];
+                valid[i] = !stall && pipeReg[i].valid;
+            }
+
+            issueQueuePtrValue = pipeReg[i].issueQueuePtr;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                issuedDataValue.activeListPtr
+            );
+
+            scheduler.complexIssue[i] = !clear && valid[i] && !flushValue;
+            scheduler.complexIssuePtr[i] = issueQueuePtrValue;
+
+            divIsIssuedValue = !clear && valid[i] && !flushValue && issuedDataValue.opType == COMPLEX_MOP_TYPE_DIV;
+            scheduler.divIsIssued[i] = divIsIssuedValue;
+            mulDivUnit.divAcquire[i] = divIsIssuedValue;
+            mulDivUnit.acquireData[i].activeListPtr = issuedDataValue.activeListPtr;
+            mulDivUnit.acquireData[i].opDst = issuedDataValue.opDst;
+
+            if clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+            nextStage[i].complexQueueData = issuedDataValue;
+            nextStage[i].replay = scheduler.replay;
+            nextStage[i].opId = issuedDataValue.opId;
+
+            debug.complexIsReg[i].valid = valid[i];
+            debug.complexIsReg[i].flush = flushValue;
+            debug.complexIsReg[i].opId = issuedDataValue.opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

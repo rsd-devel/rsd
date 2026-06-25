@@ -1,0 +1,167 @@
+package NextPCStageFunctions {
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+
+    function StepOverCacheLine (
+        pc1: input PC_Path,
+        pc2: input PC_Path,
+    ) -> logic {
+        return pc1[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] != pc2[ICACHE_LINE_BYTE_NUM_BIT_WIDTH];
+    }
+}
+
+module NextPCStage (
+    port    : modport NextPCStageIF::ThisStage,
+    next    : modport FetchStageIF::NextPCStage,
+    recovery: modport RecoveryManagerIF::NextPCStage,
+    ctrl    : modport ControllerIF::NextPCStage,
+    debug   : modport DebugIF::NextPCStage,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+    import FetchUnitTypes::*;
+    import NextPCStageFunctions::*;
+
+    var curSID: OpSerial;
+    var nextSID: OpSerial;
+
+    inst sidFF: FlipFlop #(
+        FF_WIDTH   : OP_SERIAL_WIDTH,
+        RESET_VALUE: 1,
+    ) (
+        out : curSID,
+        r#in: nextSID,
+        clk : port.clk,
+        rst : port.rst,
+    );
+
+    var predNextPC: PC_Path;
+    var nextStage: FetchStageRegPath [FETCH_WIDTH];
+
+    var stall: logic;
+    var clear: logic;
+    var regStall: logic;
+    var beginStall: logic;
+    var writePC_FromOuter: logic;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regStall = FALSE;
+        } else {
+            regStall = stall;
+        }
+    }
+
+    always_comb {
+        stall = ctrl.npStage.stall;
+        clear = ctrl.npStage.clear;
+        ctrl.npStageSendBubbleLower = FALSE;
+
+        beginStall = !regStall && stall;
+
+        if recovery.toRecoveryPhase || recovery.recoverFromRename || port.interruptAddrWE {
+            writePC_FromOuter = TRUE;
+        } else {
+            writePC_FromOuter = FALSE;
+        }
+
+        port.pcWE = (writePC_FromOuter || !stall || beginStall) && !port.rst;
+    }
+
+    always_comb {
+        if recovery.toRecoveryPhase {
+            predNextPC = recovery.recoveredPC_FromRwCommit;
+        } else if recovery.recoverFromRename {
+            predNextPC = recovery.recoveredPC_FromRename;
+        } else {
+            predNextPC = port.pcOut;
+
+            var foundBTB: logic;
+            foundBTB = FALSE;
+            for i in 0..FETCH_WIDTH {
+                if !foundBTB && !regStall && next.fetchStageIsValid[i] && next.btbHit[i] && next.brPredTaken[i] {
+                    predNextPC = next.btbOut[i];
+                    foundBTB = TRUE;
+                }
+            }
+        }
+
+        port.predNextPC = predNextPC;
+    }
+
+    always_comb {
+        if port.interruptAddrWE {
+            port.pcIn = port.interruptAddrIn;
+        } else if beginStall {
+            port.pcIn = predNextPC;
+        } else {
+            port.pcIn = predNextPC + FETCH_WIDTH * INSN_BYTE_WIDTH;
+
+            var foundBoundary: logic;
+            foundBoundary = FALSE;
+            for i in 1..FETCH_WIDTH {
+                if !foundBoundary && StepOverCacheLine(predNextPC, predNextPC + i * INSN_BYTE_WIDTH) {
+                    port.pcIn = predNextPC + i * INSN_BYTE_WIDTH;
+                    foundBoundary = TRUE;
+                }
+            }
+        }
+
+        for i in 0..FETCH_WIDTH {
+            nextStage[i].sid = curSID + i;
+            nextStage[i].pc = predNextPC + i * INSN_BYTE_WIDTH;
+            if port.interruptAddrWE || clear || StepOverCacheLine(predNextPC, nextStage[i].pc) {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = TRUE;
+            }
+        }
+
+        port.nextStage = nextStage;
+    }
+
+    var fetchAddr: AddrPath;
+    always_comb {
+        if next.fetchStageIsValid[0] && stall {
+            fetchAddr = ToAddrFromPC(next.fetchStagePC[0]);
+        } else {
+            fetchAddr = ToAddrFromPC(predNextPC);
+        }
+
+        port.icNextReadAddrIn = ToPhyAddrFromLogical(fetchAddr);
+    }
+
+    var numValidInsns: logic<FETCH_WIDTH + 1>;
+
+    always_comb {
+        numValidInsns = 0;
+        var foundInvalid: logic;
+        foundInvalid = FALSE;
+        for i in 0..FETCH_WIDTH {
+            if !foundInvalid {
+                if !nextStage[i].valid {
+                    foundInvalid = TRUE;
+                } else {
+                    numValidInsns = numValidInsns + 1;
+                }
+            }
+        }
+
+        if stall || clear {
+            nextSID = curSID;
+        } else {
+            nextSID = curSID + numValidInsns;
+        }
+
+        for i in 0..FETCH_WIDTH {
+            if stall {
+                debug.npReg[i].valid = FALSE;
+            } else {
+                debug.npReg[i].valid = nextStage[i].valid;
+            }
+            debug.npReg[i].sid = nextStage[i].sid;
+        }
+    }
+}

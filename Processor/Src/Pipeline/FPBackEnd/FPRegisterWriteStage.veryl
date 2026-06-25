@@ -1,0 +1,89 @@
+module FPRegisterWriteStage (
+    prev        : modport FPExecutionStageIF::NextStage,
+    registerFile: modport RegisterFileIF::FPRegisterWriteStage,
+    activeList  : modport ActiveListIF::FPRegisterWriteStage,
+    recovery    : modport RecoveryManagerIF::FPRegisterWriteStage,
+    ctrl        : modport ControllerIF::FPRegisterWriteStage,
+    debug       : modport DebugIF::FPRegisterWriteStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import RenameLogicTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: FPRegisterWriteStageRegPath [FP_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (ctrl.clk) {
+        if ctrl.rst {
+            for i in 0..FP_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var alWriteData: ActiveListWriteData [FP_ISSUE_WIDTH];
+    var iqData: FPIssueQueueEntry [FP_ISSUE_WIDTH];
+    var stall: logic;
+    var clear: logic;
+    var flush: logic [FP_ISSUE_WIDTH];
+    var update: logic [FP_ISSUE_WIDTH];
+    var valid: logic [FP_ISSUE_WIDTH];
+    var regValid: logic [FP_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            iqData[i] = pipeReg[i].fpQueueData;
+            regValid[i] = pipeReg[i].dataOut.valid;
+
+            valid[i] = pipeReg[i].valid;
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqData[i].activeListPtr
+            );
+            update[i] = !stall && !clear && valid[i] && !flush[i];
+
+            registerFile.fpDstRegWE[i] = update[i] && iqData[i].opDst.writeReg;
+            registerFile.fpDstRegNum[i] = iqData[i].opDst.phyDstRegNum;
+            registerFile.fpDstRegData[i] = pipeReg[i].dataOut;
+
+            alWriteData[i].ptr = iqData[i].activeListPtr;
+            alWriteData[i].loadQueuePtr = iqData[i].loadQueueRecoveryPtr;
+            alWriteData[i].storeQueuePtr = iqData[i].storeQueueRecoveryPtr;
+            alWriteData[i].pc = iqData[i].pc;
+            alWriteData[i].dataAddr = '0;
+            alWriteData[i].isBranch = FALSE;
+            alWriteData[i].isStore = FALSE;
+
+            if update[i] && regValid[i] {
+                alWriteData[i].state = EXEC_STATE_SUCCESS;
+            } else {
+                alWriteData[i].state = EXEC_STATE_NOT_FINISHED;
+            }
+
+            activeList.fpWrite[i] = update[i];
+            activeList.fpWriteData[i] = alWriteData[i];
+            activeList.fpFFlagsData[i] = pipeReg[i].fflagsOut;
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            debug.fpRwReg[i].valid = valid[i];
+            debug.fpRwReg[i].flush = flush[i];
+            debug.fpRwReg[i].opId = pipeReg[i].opId;
+        }
+    }
+}

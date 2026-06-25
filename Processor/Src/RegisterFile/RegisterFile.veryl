@@ -1,0 +1,182 @@
+module RegisterFile (
+    port: modport RegisterFileIF::RegisterFile,
+) {
+    import BasicTypes::*;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(
+    //     PSCALAR_NUM == PSCALAR_FP_NUM,
+    //     "The number of int registers and the number of fp registers must be the same at present."
+    // );
+
+    const REG_READ_NUM : u32 = (INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH) * 2 + FP_ISSUE_WIDTH;
+    const REG_WRITE_NUM: u32 = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH + FP_ISSUE_WIDTH;
+
+    var regWE     : logic [REG_WRITE_NUM];
+    var dstRegNum : PScalarRegNumPath [REG_WRITE_NUM];
+    var dstRegData: PRegDataPath [REG_WRITE_NUM];
+    var srcRegNum : PScalarRegNumPath [REG_READ_NUM];
+    var srcRegData: PRegDataPath [REG_READ_NUM];
+
+    const FP_READ_NUM : u32 = FP_ISSUE_WIDTH * 3 + MEM_ISSUE_WIDTH;
+    const FP_WRITE_NUM: u32 = FP_ISSUE_WIDTH + MEM_ISSUE_WIDTH;
+
+    var fpRegWE     : logic [FP_WRITE_NUM];
+    var dstFPRegNum : PScalarFPRegNumPath [FP_WRITE_NUM];
+    var dstFPRegData: PRegDataPath [FP_WRITE_NUM];
+    var srcFPRegNum : PScalarFPRegNumPath [FP_READ_NUM];
+    var srcFPRegData: PRegDataPath [FP_READ_NUM];
+
+    inst phyReg: DistributedMultiPortRAM #(
+        ENTRY_NUM     : PSCALAR_NUM,
+        ENTRY_BIT_SIZE: $bits(PRegDataPath),
+        READ_NUM      : REG_READ_NUM,
+        WRITE_NUM     : REG_WRITE_NUM,
+    ) (
+        clk: port.clk,
+        we : regWE,
+        wa : dstRegNum,
+        wv : dstRegData,
+        ra : srcRegNum,
+        rv : srcRegData,
+    );
+
+    var regRstIndex: PScalarRegNumPath;
+
+    always_ff (port.clk) {
+        if port.rstStart {
+            regRstIndex = 0;
+        } else {
+            regRstIndex = regRstIndex + REG_WRITE_NUM;
+        }
+    }
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            regWE[i] = port.intDstRegWE[i] && !port.intDstRegNum[i].isFP;
+            dstRegNum[i] = port.intDstRegNum[i].regNum;
+            dstRegData[i] = port.intDstRegData[i];
+
+            srcRegNum[i * 2] = port.intSrcRegNumA[i].regNum;
+            srcRegNum[i * 2 + 1] = port.intSrcRegNumB[i].regNum;
+            port.intSrcRegDataA[i] = srcRegData[i * 2];
+            port.intSrcRegDataB[i] = srcRegData[i * 2 + 1];
+        }
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            regWE[i + INT_ISSUE_WIDTH] = port.complexDstRegWE[i] && !port.complexDstRegNum[i].isFP;
+            dstRegNum[i + INT_ISSUE_WIDTH] = port.complexDstRegNum[i].regNum;
+            dstRegData[i + INT_ISSUE_WIDTH] = port.complexDstRegData[i];
+
+            srcRegNum[(i + INT_ISSUE_WIDTH) * 2] = port.complexSrcRegNumA[i].regNum;
+            srcRegNum[(i + INT_ISSUE_WIDTH) * 2 + 1] = port.complexSrcRegNumB[i].regNum;
+            port.complexSrcRegDataA[i] = srcRegData[(i + INT_ISSUE_WIDTH) * 2];
+            port.complexSrcRegDataB[i] = srcRegData[(i + INT_ISSUE_WIDTH) * 2 + 1];
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            srcRegNum[(i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH) * 2] = port.memSrcRegNumA[i].regNum;
+            srcRegNum[(i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH) * 2 + 1] = port.memSrcRegNumB[i].regNum;
+            port.memSrcRegDataA[i] = srcRegData[(i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH) * 2];
+            if port.memSrcRegNumB[i].isFP {
+                port.memSrcRegDataB[i] = srcFPRegData[i + FP_ISSUE_WIDTH * 3];
+            } else {
+                port.memSrcRegDataB[i] = srcRegData[(i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH) * 2 + 1];
+            }
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            regWE[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] =
+                port.memDstRegWE[i] && !port.memDstRegNum[i].isFP;
+            dstRegNum[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = port.memDstRegNum[i].regNum;
+            dstRegData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH] = port.memDstRegData[i];
+        }
+
+        for i in 0..MULDIV_ISSUE_WIDTH {
+            regWE[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] =
+                port.divDstRegWE[i] && !port.divDstRegNum[i].isFP;
+            dstRegNum[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = port.divDstRegNum[i].regNum;
+            dstRegData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH] = port.divDstRegData[i];
+        }
+
+        for i in 0..FP_ISSUE_WIDTH {
+            srcRegNum[i + (INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH) * 2] =
+                port.fpSrcRegNumA[i].regNum;
+            regWE[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH] =
+                port.fpDstRegWE[i] && !port.fpDstRegNum[i].isFP;
+            dstRegNum[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH] =
+                port.fpDstRegNum[i].regNum;
+            dstRegData[i + INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH] =
+                port.fpDstRegData[i];
+        }
+
+        if port.rst {
+            for i in 0..REG_WRITE_NUM {
+                regWE[i] = TRUE;
+                dstRegNum[i] = regRstIndex + i;
+                dstRegData[i].data = 'h00000000;
+                dstRegData[i].valid = TRUE;
+            }
+        }
+    }
+
+    inst phyFPReg: DistributedMultiPortRAM #(
+        ENTRY_NUM     : PSCALAR_FP_NUM,
+        ENTRY_BIT_SIZE: $bits(PRegDataPath),
+        READ_NUM      : FP_READ_NUM,
+        WRITE_NUM     : FP_WRITE_NUM,
+    ) (
+        clk: port.clk,
+        we : fpRegWE,
+        wa : dstFPRegNum,
+        wv : dstFPRegData,
+        ra : srcFPRegNum,
+        rv : srcFPRegData,
+    );
+
+    var fpRstIndex: PScalarFPRegNumPath;
+
+    always_ff (port.clk) {
+        if port.rstStart {
+            fpRstIndex = 0;
+        } else {
+            fpRstIndex = fpRstIndex + FP_WRITE_NUM;
+        }
+    }
+
+    always_comb {
+        for i in 0..FP_ISSUE_WIDTH {
+            fpRegWE[i] = port.fpDstRegWE[i] && port.fpDstRegNum[i].isFP;
+            dstFPRegNum[i] = port.fpDstRegNum[i].regNum;
+            dstFPRegData[i] = port.fpDstRegData[i];
+
+            srcFPRegNum[i * 3] = port.fpSrcRegNumA[i].regNum;
+            srcFPRegNum[i * 3 + 1] = port.fpSrcRegNumB[i].regNum;
+            srcFPRegNum[i * 3 + 2] = port.fpSrcRegNumC[i].regNum;
+            if port.fpSrcRegNumA[i].isFP {
+                port.fpSrcRegDataA[i] = srcFPRegData[i * 3];
+            } else {
+                port.fpSrcRegDataA[i] = srcRegData[i + (INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH) * 2];
+            }
+            port.fpSrcRegDataB[i] = srcFPRegData[i * 3 + 1];
+            port.fpSrcRegDataC[i] = srcFPRegData[i * 3 + 2];
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            srcFPRegNum[i + FP_ISSUE_WIDTH * 3] = port.memSrcRegNumB[i].regNum;
+
+            fpRegWE[i + FP_ISSUE_WIDTH] = port.memDstRegWE[i] && port.memDstRegNum[i].isFP;
+            dstFPRegNum[i + FP_ISSUE_WIDTH] = port.memDstRegNum[i].regNum;
+            dstFPRegData[i + FP_ISSUE_WIDTH] = port.memDstRegData[i];
+        }
+
+        if port.rst {
+            for i in 0..FP_WRITE_NUM {
+                fpRegWE[i] = TRUE;
+                dstFPRegNum[i] = fpRstIndex + i;
+                dstFPRegData[i].data = 'h00000000;
+                dstFPRegData[i].valid = TRUE;
+            }
+        }
+    }
+}

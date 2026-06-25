@@ -1,0 +1,98 @@
+module Debug (
+    port           : modport DebugIF::Debug,
+    lastCommittedPC: output  PC_Path       ,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import RenameLogicTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import LoadStoreUnitTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var next: DebugRegister;
+
+    always_comb {
+        for i in 0..FETCH_WIDTH {
+            next.npReg[i] = port.npReg[i];
+            next.ifReg[i] = port.ifReg[i];
+        }
+        for i in 0..DECODE_WIDTH {
+            next.idReg[i] = port.idReg[i];
+            next.pdReg[i] = port.pdReg[i];
+        }
+        for i in 0..RENAME_WIDTH {
+            next.rnReg[i] = port.rnReg[i];
+        }
+        for i in 0..DISPATCH_WIDTH {
+            next.dsReg[i] = port.dsReg[i];
+        }
+        for i in 0..INT_ISSUE_WIDTH {
+            next.intIsReg[i] = port.intIsReg[i];
+            next.intRrReg[i] = port.intRrReg[i];
+            next.intExReg[i] = port.intExReg[i];
+            next.intRwReg[i] = port.intRwReg[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            next.complexIsReg[i] = port.complexIsReg[i];
+            next.complexRrReg[i] = port.complexRrReg[i];
+            next.complexExReg[i] = port.complexExReg[i];
+            next.complexRwReg[i] = port.complexRwReg[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            next.memIsReg[i] = port.memIsReg[i];
+            next.memRrReg[i] = port.memRrReg[i];
+            next.memExReg[i] = port.memExReg[i];
+            next.maReg[i] = port.maReg[i];
+            next.mtReg[i] = port.mtReg[i];
+            next.memRwReg[i] = port.memRwReg[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            next.fpIsReg[i] = port.fpIsReg[i];
+            next.fpRrReg[i] = port.fpRrReg[i];
+            next.fpExReg[i] = port.fpExReg[i];
+            next.fpRwReg[i] = port.fpRwReg[i];
+        }
+        for i in 0..COMMIT_WIDTH {
+            next.cmReg[i] = port.cmReg[i];
+        }
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            next.scheduler[i] = port.scheduler[i];
+            next.issueQueue[i] = port.issueQueue[i];
+        }
+
+        next.toRecoveryPhase = port.toRecoveryPhase;
+        next.activeListHeadPtr = port.activeListHeadPtr;
+        next.activeListCount = port.activeListCount;
+
+        next.npStagePipeCtrl = port.npStagePipeCtrl;
+        next.ifStagePipeCtrl = port.ifStagePipeCtrl;
+        next.pdStagePipeCtrl = port.pdStagePipeCtrl;
+        next.idStagePipeCtrl = port.idStagePipeCtrl;
+        next.rnStagePipeCtrl = port.rnStagePipeCtrl;
+        next.dsStagePipeCtrl = port.dsStagePipeCtrl;
+        next.backEndPipeCtrl = port.backEndPipeCtrl;
+        next.cmStagePipeCtrl = port.cmStagePipeCtrl;
+        next.stallByDecodeStage = port.stallByDecodeStage;
+
+        lastCommittedPC = port.lastCommittedPC;
+
+        next.loadStoreUnitAllocatable = port.loadStoreUnitAllocatable;
+        next.storeCommitterPhase = port.storeCommitterPhase;
+        next.storeQueueCount = port.storeQueueCount;
+        next.busyInRecovery = port.busyInRecovery;
+        next.storeQueueEmpty = port.storeQueueEmpty;
+        next.perfCounter = port.perfCounter;
+    }
+
+    var debugRegister: DebugRegister;
+
+    always_ff (port.clk) {
+        debugRegister = next;
+    }
+
+    always_comb {
+        port.debugRegister = debugRegister;
+    }
+}

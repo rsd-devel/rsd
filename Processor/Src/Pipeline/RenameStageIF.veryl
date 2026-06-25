@@ -1,0 +1,34 @@
+interface RenameStageIF {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import PipelineTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var nextStage: DispatchStageRegPath [RENAME_WIDTH];
+
+    var pc               : PC_Path [RENAME_WIDTH];
+    var memDependencyPred: logic   [RENAME_WIDTH];
+
+    modport ThisStage {
+        clk      : input ,
+        rst      : input ,
+        nextStage: output,
+        pc       : output,
+    }
+
+    modport NextStage {
+        nextStage        : input,
+        memDependencyPred: input,
+    }
+
+    modport MemoryDependencyPredictor {
+        clk              : input ,
+        rst              : input ,
+        rstStart         : input ,
+        pc               : input ,
+        memDependencyPred: output,
+    }
+}

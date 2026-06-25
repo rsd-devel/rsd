@@ -1,0 +1,101 @@
+// Copyright 2019- RSD contributors.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+
+//
+// --- Pipelined Reference Divider Unit
+// This unit performs signed/unsigned divisiton with arbitrary cycles
+//
+
+package PipelinedRefDividerTypes {
+    import BasicTypes::*;
+
+    enum RefDividerPhase: logic<2> {
+        PHASE_FINISHED = 0,
+        PHASE_PROCESSING = 1,
+        PHASE_COMPENSATING = 2,
+        PHASE_NOTHING_TO_DO = 3,
+    }
+
+    struct RefDividerPipeReg {
+        dividend : DataPath       ,
+        divisor  : DataPath       ,
+        isSigned : logic          ,
+        quotient : DataPath       ,
+        remainder: DataPath       ,
+        phase    : RefDividerPhase,
+    }
+}
+
+module PipelinedRefDivider #(
+    param BIT_WIDTH     : u32 = 32,
+    param PIPELINE_DEPTH: u32 = 3 ,
+) (
+    clk      : input  clock   , // clock, reset
+    stall    : input  logic   ,
+    dividend : input  DataPath,
+    divisor  : input  DataPath,
+    isSigned : input  logic   , // operation is performed in a singed mode
+    quotient : output DataPath,
+    remainder: output DataPath,
+) {
+    import BasicTypes::*;
+    import PipelinedRefDividerTypes::*;
+
+    const DATA_MINUS_ONE: u32 = (1 << DATA_WIDTH) - 1;
+    const DATA_MINIMUM  : u32 = (1 << (DATA_WIDTH - 1));
+
+    var regPhase : RefDividerPhase;
+    var nextPhase: RefDividerPhase;
+
+    var pipeReg: RefDividerPipeReg [PIPELINE_DEPTH - 1];
+    var nextReg: RefDividerPipeReg                     ;
+
+    always_ff (clk) {
+        if !stall {
+            pipeReg[0] = nextReg;
+            for i in 1..PIPELINE_DEPTH - 1 {
+                pipeReg[i] = pipeReg[i - 1];
+            }
+        }
+    }
+
+    always_comb {
+        quotient  = pipeReg[PIPELINE_DEPTH - 2].quotient;
+        remainder = pipeReg[PIPELINE_DEPTH - 2].remainder;
+
+        // A request is accepted regardless of the current phase
+        nextReg.dividend = dividend;
+        nextReg.divisor  = divisor;
+        nextReg.isSigned = isSigned;
+
+        if divisor == 0 {
+            // Division by zero
+            nextReg.quotient  = -1;
+            nextReg.remainder = dividend;
+        } else {
+            if !isSigned {
+                if dividend == DATA_MINIMUM && divisor == DATA_MINUS_ONE {
+                    // Sigined division can cause overflow
+                    // ex. 8 bits signed division "-0x80 / -1 = 0x80"
+                    // causes overflow because the resulst 0x80 > 0x7f
+                    nextReg.quotient  = dividend;
+                    nextReg.remainder = '0;
+                } else {
+                    nextReg.quotient  = $signed(dividend) / $signed(divisor);
+                    nextReg.remainder = $signed(dividend) % $signed(divisor);
+                }
+            } else {
+                nextReg.quotient  = dividend / divisor;
+                nextReg.remainder = dividend % divisor;
+            }
+        }
+        nextReg.phase = RefDividerPhase::PHASE_FINISHED;
+
+        regPhase  = RefDividerPhase::PHASE_NOTHING_TO_DO;
+        nextPhase = RefDividerPhase::PHASE_NOTHING_TO_DO;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+}

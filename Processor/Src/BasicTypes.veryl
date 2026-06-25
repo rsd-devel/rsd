@@ -1,0 +1,164 @@
+package BasicTypes {
+    import MicroArchConf::*;
+
+    const TRUE : u32 = 1'b1;
+    const FALSE: u32 = 1'b0;
+
+    const OP_SERIAL_WIDTH: u32 = 10;
+    type OpSerial = logic<OP_SERIAL_WIDTH>;
+
+    const BYTE_WIDTH: u32 = 8;
+    type BytePath = logic<BYTE_WIDTH>;
+
+    const INSN_WIDTH: u32 = 32;
+    type InsnPath = logic<INSN_WIDTH>;
+
+    const INSN_BYTE_WIDTH    : u32 = INSN_WIDTH / BYTE_WIDTH;
+    const INSN_ADDR_BIT_WIDTH: u32 = $clog2(INSN_BYTE_WIDTH);
+
+    const ADDR_WIDTH         : u32 = 32;
+    const ADDR_WIDTH_BIT_SIZE: u32 = $clog2(ADDR_WIDTH);
+    const ADDR_BYTE_WIDTH    : u32 = ADDR_WIDTH / BYTE_WIDTH;
+    type AddrPath = logic<ADDR_WIDTH>;
+
+    const DATA_WIDTH              : u32 = 32;
+    const DATA_BYTE_WIDTH         : u32 = DATA_WIDTH / BYTE_WIDTH;
+    const DATA_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(DATA_BYTE_WIDTH);
+    type DataPath = logic<DATA_WIDTH>;
+    type SignedDataPath = signed logic<DATA_WIDTH>;
+    const DATA_MASK: u32 = 32'hffffffff;
+    const DATA_ZERO: u32 = 32'h00000000;
+
+    const VEC_WIDTH              : u32 = 128;
+    const VEC_WORD_WIDTH         : u32 = VEC_WIDTH / DATA_WIDTH;
+    const VEC_BYTE_WIDTH         : u32 = VEC_WIDTH / BYTE_WIDTH;
+    const VEC_BYTE_WIDTH_BIT_SIZE: u32 = $clog2(VEC_BYTE_WIDTH);
+    const VEC_ADDR_MASK          : u32 = 32'hfffffff0;
+    type VectorPath = logic<VEC_WIDTH>;
+
+    const LSCALAR_NUM          : u32 = 32;
+    const LSCALAR_NUM_BIT_WIDTH: u32 = $clog2(LSCALAR_NUM);
+    type LScalarRegNumPath = logic<LSCALAR_NUM_BIT_WIDTH>;
+
+    const PSCALAR_NUM          : u32 = CONF_PSCALAR_NUM;
+    const PSCALAR_NUM_BIT_WIDTH: u32 = $clog2(PSCALAR_NUM);
+    type PScalarRegNumPath = logic<PSCALAR_NUM_BIT_WIDTH>;
+
+    const LSCALAR_FP_NUM          : u32 = 32;
+    const LSCALAR_FP_NUM_BIT_WIDTH: u32 = $clog2(LSCALAR_FP_NUM);
+    type LScalarFPRegNumPath = logic<LSCALAR_FP_NUM_BIT_WIDTH>;
+
+    const PSCALAR_FP_NUM          : u32 = CONF_PSCALAR_FP_NUM;
+    const PSCALAR_FP_NUM_BIT_WIDTH: u32 = $clog2(PSCALAR_FP_NUM);
+    type PScalarFPRegNumPath = logic<PSCALAR_FP_NUM_BIT_WIDTH>;
+
+    const LREG_NUM          : u32 = LSCALAR_NUM + LSCALAR_FP_NUM;
+    const LREG_NUM_BIT_WIDTH: u32 = $clog2(LREG_NUM);
+    struct LRegNumPath {
+        isFP  : logic,
+        regNum: logic<LREG_NUM_BIT_WIDTH - 1>,
+    }
+
+    const PREG_NUM          : u32 = PSCALAR_NUM + PSCALAR_FP_NUM;
+    const PREG_NUM_BIT_WIDTH: u32 = $clog2(PREG_NUM);
+    struct PRegNumPath {
+        isFP  : logic,
+        regNum: logic<PREG_NUM_BIT_WIDTH - 1>,
+    }
+
+    const FETCH_WIDTH         : u32 = CONF_FETCH_WIDTH;
+    const FETCH_WIDTH_BIT_SIZE: u32 = $clog2(FETCH_WIDTH);
+    type FetchLaneIndexPath = logic<FETCH_WIDTH_BIT_SIZE>;
+
+    const DECODE_WIDTH         : u32 = FETCH_WIDTH;
+    const DECODE_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
+    type DecodeLaneIndexPath = logic<DECODE_WIDTH_BIT_SIZE>;
+
+    const RENAME_WIDTH         : u32 = FETCH_WIDTH;
+    const RENAME_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
+    type RenameLaneIndexPath = logic<RENAME_WIDTH_BIT_SIZE>;
+    type RenameLaneCountPath = logic<$clog2(RENAME_WIDTH) + 1>;
+
+    const DISPATCH_WIDTH         : u32 = FETCH_WIDTH;
+    const DISPATCH_WIDTH_BIT_SIZE: u32 = FETCH_WIDTH_BIT_SIZE;
+    type DispatchLaneIndexPath = logic<DISPATCH_WIDTH_BIT_SIZE>;
+
+    const INT_ISSUE_WIDTH         : u32 = CONF_INT_ISSUE_WIDTH;
+    const INT_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
+    type IntIssueLaneIndexPath = logic<INT_ISSUE_WIDTH_BIT_SIZE>;
+    type IntIssueLaneCountPath = logic<$clog2(INT_ISSUE_WIDTH) + 1>;
+
+    const MULDIV_ISSUE_WIDTH: u32 = 1;
+    const MULDIV_STAGE_DEPTH: u32 = 3;
+
+    const COMPLEX_ISSUE_WIDTH         : u32 = CONF_COMPLEX_ISSUE_WIDTH;
+    const COMPLEX_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
+    type ComplexIssueLaneIndexPath = logic<COMPLEX_ISSUE_WIDTH_BIT_SIZE>;
+    type ComplexIssueLaneCountPath = logic<$clog2(COMPLEX_ISSUE_WIDTH) + 1>;
+
+    const LOAD_ISSUE_WIDTH      : u32 = CONF_LOAD_ISSUE_WIDTH;
+    const STORE_ISSUE_WIDTH     : u32 = CONF_STORE_ISSUE_WIDTH;
+    const MEM_ISSUE_WIDTH       : u32 = CONF_MEM_ISSUE_WIDTH;
+    const STORE_ISSUE_LANE_BEGIN: u32 = CONF_STORE_ISSUE_LANE_BEGIN;
+
+    const MEM_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
+    type MemIssueLaneIndexPath = logic<MEM_ISSUE_WIDTH_BIT_SIZE>;
+    type MemIssueLaneCountPath = logic<$clog2(MEM_ISSUE_WIDTH) + 1>;
+
+    const FP_DIVSQRT_ISSUE_WIDTH: u32 = 1;
+    const FP_ISSUE_WIDTH        : u32 = CONF_FP_ISSUE_WIDTH;
+    const FP_ISSUE_WIDTH_BIT_SIZE: u32 = 1;
+    type FPIssueLaneIndexPath = logic<FP_ISSUE_WIDTH_BIT_SIZE>;
+    type FPIssueLaneCountPath = logic<$clog2(FP_ISSUE_WIDTH) + 1>;
+
+    const ISSUE_WIDTH         : u32 = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
+    const ISSUE_WIDTH_BIT_SIZE: u32 = $clog2(ISSUE_WIDTH);
+    type IssueLaneIndexPath = logic<ISSUE_WIDTH_BIT_SIZE>;
+    type IssueLaneCountPath = logic<ISSUE_WIDTH_BIT_SIZE + 1>;
+
+    const COMMIT_WIDTH         : u32 = CONF_COMMIT_WIDTH;
+    const COMMIT_WIDTH_BIT_SIZE: u32 = $clog2(COMMIT_WIDTH);
+    type CommitLaneIndexPath = logic<COMMIT_WIDTH_BIT_SIZE>;
+    type CommitLaneCountPath = logic<COMMIT_WIDTH_BIT_SIZE + 1>;
+
+    const COMPLEX_EXEC_STAGE_DEPTH: u32 = 3;
+    const FP_EXEC_STAGE_DEPTH     : u32 = 5;
+
+    struct OpSrc {
+        phySrcRegNumA: PRegNumPath,
+        phySrcRegNumB: PRegNumPath,
+        phySrcRegNumC: PRegNumPath,
+    }
+
+    struct OpDst {
+        writeReg    : logic,
+        phyDstRegNum: PRegNumPath,
+    }
+
+    const PREG_DATA_WIDTH: u32 = DATA_WIDTH + 1;
+    struct PRegDataPath {
+        valid: logic,
+        data : DataPath,
+    }
+
+    const SHIFTER_WIDTH      : u32 = 12;
+    const RISCV_SHIFTER_WIDTH: u32 = 30;
+    type ShifterPath = logic<RISCV_SHIFTER_WIDTH>;
+
+    const SHIFT_AMOUNT_BIT_SIZE: u32 = 5;
+    type ShiftAmountPath = logic<SHIFT_AMOUNT_BIT_SIZE>;
+
+    const RSD_CUSTOM_INTERRUPT_CODE_WIDTH: u32 = 4;
+    type CustomInterruptCodePath = logic<RSD_CUSTOM_INTERRUPT_CODE_WIDTH>;
+
+    enum EncodedXLENSizeType: logic<2> {
+        ENCODED_XLEN_UNKNOWN = 2'b00,
+        ENCODED_XLEN_32      = 2'b01,
+        ENCODED_XLEN_64      = 2'b10,
+        ENCODED_XLEN_128     = 2'b11,
+    }
+    const ENCODED_XLEN_UNKNOWN: EncodedXLENSizeType = EncodedXLENSizeType::ENCODED_XLEN_UNKNOWN;
+    const ENCODED_XLEN_32     : EncodedXLENSizeType = EncodedXLENSizeType::ENCODED_XLEN_32;
+    const ENCODED_XLEN_64     : EncodedXLENSizeType = EncodedXLENSizeType::ENCODED_XLEN_64;
+    const ENCODED_XLEN_128    : EncodedXLENSizeType = EncodedXLENSizeType::ENCODED_XLEN_128;
+}

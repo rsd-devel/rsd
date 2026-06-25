@@ -1,0 +1,271 @@
+module IssueQueue (
+    port        : modport SchedulerIF::IssueQueue,
+    wakeupSelect: modport WakeupSelectIF::IssueQueue,
+    recovery    : modport RecoveryManagerIF::IssueQueue,
+    debug       : modport DebugIF::IssueQueue,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import RenameLogicTypes::*;
+
+    var releaseEntry: logic [ISSUE_WIDTH + ISSUE_QUEUE_RETURN_INDEX_WIDTH];
+    var releasePtr  : IssueQueueIndexPath [ISSUE_WIDTH + ISSUE_QUEUE_RETURN_INDEX_WIDTH];
+    var freeListCount: IssueQueueCountPath;
+    var freeListReset: logic;
+    var freeListResetCycleCount: logic<ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE>;
+
+    var alPtrReg: ActiveListIndexPath [ISSUE_QUEUE_ENTRY_NUM];
+    var flush: logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var prevFlushAtRecovery: logic<ISSUE_QUEUE_ENTRY_NUM>;
+    var issueQueueReturnIndex: logic;
+    var issueQueueReturnIndexCycleCount: logic<ISSUE_QUEUE_RETURN_INDEX_CYCLE_BIT_SIZE>;
+    var returnIndexOffset: IssueQueueIndexPath;
+
+    var writePtr: IssueQueueIndexPath [DISPATCH_WIDTH];
+    var selectedPtr: IssueQueueIndexPath [ISSUE_WIDTH];
+
+    inst issueQueueFreeList: MultiWidthFreeList #(
+        SIZE          : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH,
+        PUSH_WIDTH    : ISSUE_WIDTH + ISSUE_QUEUE_RETURN_INDEX_WIDTH,
+        POP_WIDTH     : RENAME_WIDTH,
+        INITIAL_LENGTH: ISSUE_QUEUE_ENTRY_NUM,
+    ) (
+        clk       : port.clk,
+        rst       : port.rst || freeListReset,
+        rstStart  : port.rstStart,
+        count     : freeListCount,
+        pop       : port.allocate,
+        poppedData: port.allocatedPtr,
+        push      : releaseEntry,
+        pushedData: releasePtr,
+    );
+
+    always_comb {
+        if !freeListReset && freeListCount >= RENAME_WIDTH {
+            port.allocatable = TRUE;
+        } else {
+            port.allocatable = FALSE;
+        }
+
+        for i in 0..ISSUE_WIDTH {
+            releasePtr[i] = wakeupSelect.releasePtr[i];
+            releaseEntry[i] = wakeupSelect.releaseEntry[i];
+        }
+        for i in 0..ISSUE_QUEUE_RETURN_INDEX_WIDTH {
+            if issueQueueReturnIndex && prevFlushAtRecovery[returnIndexOffset + i] {
+                releaseEntry[ISSUE_WIDTH + i] = TRUE;
+                releasePtr[ISSUE_WIDTH + i] = returnIndexOffset + i;
+            } else {
+                releaseEntry[ISSUE_WIDTH + i] = FALSE;
+                releasePtr[ISSUE_WIDTH + i] = returnIndexOffset + i;
+            }
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            freeListReset = FALSE;
+            freeListResetCycleCount = 0;
+        } else if recovery.toRecoveryPhase && !recovery.recoveryFromRwStage {
+            freeListReset = TRUE;
+            freeListResetCycleCount = 0;
+        } else if freeListResetCycleCount == ISSUE_QUEUE_RESET_CYCLE - 1 {
+            freeListReset = FALSE;
+            freeListResetCycleCount = 0;
+        } else {
+            freeListReset = freeListReset;
+            freeListResetCycleCount = freeListResetCycleCount + 1;
+        }
+    }
+
+    var intIssuePtr  : IssueQueueIndexPath [INT_ISSUE_WIDTH];
+    var memIssuePtr  : IssueQueueIndexPath [MEM_ISSUE_WIDTH];
+    var intIssuedData: IntIssueQueueEntry [INT_ISSUE_WIDTH];
+    var memIssuedData: MemIssueQueueEntry [MEM_ISSUE_WIDTH];
+
+    var complexIssuePtr  : IssueQueueIndexPath [COMPLEX_ISSUE_WIDTH];
+    var complexIssuedData: ComplexIssueQueueEntry [COMPLEX_ISSUE_WIDTH];
+
+    var fpIssuePtr  : IssueQueueIndexPath [FP_ISSUE_WIDTH];
+    var fpIssuedData: FPIssueQueueEntry [FP_ISSUE_WIDTH];
+
+    inst intPayloadRAM: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(IntIssueQueueEntry),
+        READ_NUM      : INT_ISSUE_WIDTH,
+        WRITE_NUM     : DISPATCH_WIDTH,
+    ) (
+        clk: port.clk,
+        we : port.write,
+        wa : port.writePtr,
+        wv : port.intWriteData,
+        ra : intIssuePtr,
+        rv : intIssuedData,
+    );
+
+    inst complexPayloadRAM: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(ComplexIssueQueueEntry),
+        READ_NUM      : COMPLEX_ISSUE_WIDTH,
+        WRITE_NUM     : DISPATCH_WIDTH,
+    ) (
+        clk: port.clk,
+        we : port.write,
+        wa : port.writePtr,
+        wv : port.complexWriteData,
+        ra : complexIssuePtr,
+        rv : complexIssuedData,
+    );
+
+    inst memPayloadRAM: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(MemIssueQueueEntry),
+        READ_NUM      : MEM_ISSUE_WIDTH,
+        WRITE_NUM     : DISPATCH_WIDTH,
+    ) (
+        clk: port.clk,
+        we : port.write,
+        wa : port.writePtr,
+        wv : port.memWriteData,
+        ra : memIssuePtr,
+        rv : memIssuedData,
+    );
+
+    inst fpPayloadRAM: DistributedMultiPortRAM #(
+        ENTRY_NUM     : ISSUE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(FPIssueQueueEntry),
+        READ_NUM      : FP_ISSUE_WIDTH,
+        WRITE_NUM     : DISPATCH_WIDTH,
+    ) (
+        clk: port.clk,
+        we : port.write,
+        wa : port.writePtr,
+        wv : port.fpWriteData,
+        ra : fpIssuePtr,
+        rv : fpIssuedData,
+    );
+
+    always_comb {
+        for i in 0..INT_ISSUE_WIDTH {
+            intIssuePtr[i] = port.intIssuePtr[i];
+            port.intIssuedData[i] = intIssuedData[i];
+        }
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            complexIssuePtr[i] = port.complexIssuePtr[i];
+            port.complexIssuedData[i] = complexIssuedData[i];
+        }
+        for i in 0..MEM_ISSUE_WIDTH {
+            memIssuePtr[i] = port.memIssuePtr[i];
+            port.memIssuedData[i] = memIssuedData[i];
+        }
+        for i in 0..FP_ISSUE_WIDTH {
+            fpIssuePtr[i] = port.fpIssuePtr[i];
+            port.fpIssuedData[i] = fpIssuedData[i];
+        }
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        for i in 0..DISPATCH_WIDTH {
+            if port.write[i] {
+                alPtrReg[writePtr[i]] = port.writeAL_Ptr[i];
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..ISSUE_WIDTH {
+            recovery.selectedActiveListPtr[i] = alPtrReg[selectedPtr[i]];
+        }
+    }
+
+    always_comb {
+        writePtr = port.writePtr;
+        selectedPtr = recovery.selectedPtr;
+    }
+
+    always_comb {
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            flush[i] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase && recovery.notIssued[i],
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                alPtrReg[i]
+            );
+        }
+
+        for i in 0..DISPATCH_WIDTH {
+            if port.allocated[i] {
+                flush[writePtr[i]] = SelectiveFlushDetector(
+                    recovery.toRecoveryPhase,
+                    recovery.flushRangeHeadPtr,
+                    recovery.flushRangeTailPtr,
+                    recovery.flushAllInsns,
+                    port.writeAL_Ptr[i]
+                );
+            }
+        }
+        recovery.flushIQ_Entry = flush;
+        recovery.issueQueueReturnIndex = issueQueueReturnIndex || freeListReset;
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            prevFlushAtRecovery = 0;
+            issueQueueReturnIndex = FALSE;
+            issueQueueReturnIndexCycleCount = 0;
+        } else if recovery.toRecoveryPhase && recovery.recoveryFromRwStage {
+            prevFlushAtRecovery = flush;
+            issueQueueReturnIndex = TRUE;
+            issueQueueReturnIndexCycleCount = 0;
+        } else if issueQueueReturnIndexCycleCount == ISSUE_QUEUE_RETURN_INDEX_CYCLE - 1 {
+            issueQueueReturnIndex = FALSE;
+            issueQueueReturnIndexCycleCount = 0;
+        } else {
+            issueQueueReturnIndex = issueQueueReturnIndex;
+            issueQueueReturnIndexCycleCount = issueQueueReturnIndexCycleCount + 1;
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst || (recovery.toRecoveryPhase && recovery.recoveryFromRwStage) {
+            returnIndexOffset = 0;
+        } else if returnIndexOffset >= ISSUE_QUEUE_ENTRY_NUM - ISSUE_QUEUE_RETURN_INDEX_WIDTH {
+            returnIndexOffset = 0;
+        } else {
+            returnIndexOffset = returnIndexOffset + ISSUE_QUEUE_RETURN_INDEX_WIDTH;
+        }
+    }
+
+    var opId: OpId [ISSUE_QUEUE_ENTRY_NUM];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+                opId[i].sid = 0;
+                opId[i].mid = 0;
+            }
+        } else {
+            for i in 0..DISPATCH_WIDTH {
+                if port.write[i] {
+                    opId[writePtr[i]] = port.intWriteData[i].opId;
+                }
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..ISSUE_QUEUE_ENTRY_NUM {
+            debug.issueQueue[i].flush = flush[i];
+            debug.issueQueue[i].opId = opId[i];
+        }
+    }
+}

@@ -1,0 +1,33 @@
+package BypassTypes {
+    import BasicTypes::*;
+
+    enum BypassSelectStage: logic<2> {
+        BYPASS_STAGE_INT_EX = 2'd0,
+        BYPASS_STAGE_INT_WB = 2'd1,
+        BYPASS_STAGE_MEM_MA = 2'd2,
+        BYPASS_STAGE_MEM_WB = 2'd3,
+    }
+    const BYPASS_STAGE_INT_EX: BypassSelectStage = BypassSelectStage::BYPASS_STAGE_INT_EX;
+    const BYPASS_STAGE_INT_WB: BypassSelectStage = BypassSelectStage::BYPASS_STAGE_INT_WB;
+    const BYPASS_STAGE_MEM_MA: BypassSelectStage = BypassSelectStage::BYPASS_STAGE_MEM_MA;
+    const BYPASS_STAGE_MEM_WB: BypassSelectStage = BypassSelectStage::BYPASS_STAGE_MEM_WB;
+
+    struct BypassLane {
+        intLane    : IntIssueLaneIndexPath,
+        complexLane: ComplexIssueLaneIndexPath,
+        memLane    : MemIssueLaneIndexPath,
+        fpLane     : FPIssueLaneIndexPath,
+    }
+
+    struct BypassSelect {
+        valid: logic,
+        stg  : BypassSelectStage,
+        lane : BypassLane,
+    }
+
+    struct BypassControll {
+        rA: BypassSelect,
+        rB: BypassSelect,
+        rC: BypassSelect,
+    }
+}

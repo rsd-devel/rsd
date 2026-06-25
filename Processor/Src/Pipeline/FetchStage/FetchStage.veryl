@@ -1,0 +1,154 @@
+module FetchStage (
+    port       : modport FetchStageIF::ThisStage,
+    prev       : modport NextPCStageIF::NextStage,
+    ctrl       : modport ControllerIF::FetchStage,
+    debug      : modport DebugIF::FetchStage,
+    perfCounter: modport PerformanceCounterIF::FetchStage,
+) {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+    import FetchUnitTypes::*;
+    import MemoryMapTypes::*;
+
+    var stall: logic;
+    var clear: logic;
+    var empty: logic;
+    var regStall: logic;
+    var beginStall: logic;
+
+    always_ff (port.clk) {
+        if port.rst {
+            regStall = FALSE;
+        } else {
+            regStall = stall;
+        }
+    }
+
+    var pipeReg: FetchStageRegPath [FETCH_WIDTH];
+    var nextStage: PreDecodeStageRegPath [FETCH_WIDTH];
+    var isFlushed: logic [FETCH_WIDTH];
+    var brPred: BranchPred [FETCH_WIDTH];
+    var regBrPred: BranchPred [FETCH_WIDTH];
+
+    always_comb {
+        ctrl.ifStageSendBubbleLower = pipeReg[0].valid && !port.icReadHit[0];
+
+        stall = ctrl.ifStage.stall;
+        clear = ctrl.ifStage.clear;
+
+        empty = TRUE;
+        for i in 0..FETCH_WIDTH {
+            if pipeReg[i].valid {
+                empty = FALSE;
+            }
+        }
+        ctrl.ifStageEmpty = empty;
+
+        beginStall = !regStall && stall;
+        perfCounter.icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FETCH_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !stall {
+            pipeReg = prev.nextStage;
+        } else {
+            for i in 0..FETCH_WIDTH {
+                if isFlushed[i] {
+                    pipeReg[i].valid = FALSE;
+                }
+            }
+        }
+    }
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FETCH_WIDTH {
+                regBrPred[i] = '0;
+            }
+        } else if beginStall {
+            regBrPred = brPred;
+        }
+    }
+
+    always_comb {
+        for i in 0..FETCH_WIDTH {
+            if port.brPredTaken[i] {
+                brPred[i].predAddr = port.btbOut[i];
+            } else {
+                brPred[i].predAddr = pipeReg[i].pc + INSN_BYTE_WIDTH;
+            }
+            brPred[i].predTaken = port.brPredTaken[i];
+            brPred[i].globalHistory = port.brGlobalHistory[i];
+            brPred[i].phtPrevValue = port.phtPrevValue[i];
+        }
+
+        for i in 0..FETCH_WIDTH {
+            isFlushed[i] = FALSE;
+        }
+        var foundTaken: logic;
+        foundTaken = FALSE;
+        for i in 0..FETCH_WIDTH {
+            if !foundTaken && !regStall && pipeReg[i].valid && brPred[i].predTaken {
+                foundTaken = TRUE;
+                for j in 0..FETCH_WIDTH {
+                    if j >: i {
+                        isFlushed[j] = pipeReg[j].valid;
+                    }
+                }
+            }
+        }
+
+        for i in 0..FETCH_WIDTH {
+            port.updateBrHistory[i] = !regStall && pipeReg[i].valid;
+        }
+    }
+
+    var fetchAddrOut: AddrPath;
+    always_comb {
+        port.icRE = pipeReg[0].valid;
+        fetchAddrOut = ToAddrFromPC(pipeReg[0].pc);
+        port.icReadAddrIn = ToPhyAddrFromLogical(fetchAddrOut);
+
+        for i in 0..FETCH_WIDTH {
+            port.fetchStageIsValid[i] = pipeReg[i].valid;
+            port.fetchStagePC[i] = pipeReg[i].pc;
+        }
+    }
+
+    always_comb {
+        for i in 0..FETCH_WIDTH {
+            if stall || clear || port.rst || isFlushed[i] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].sid = pipeReg[i].sid;
+            nextStage[i].pc = pipeReg[i].pc;
+            if regStall {
+                nextStage[i].brPred = regBrPred[i];
+            } else {
+                nextStage[i].brPred = brPred[i];
+            }
+            if pipeReg[i].valid {
+                nextStage[i].insn = port.icReadDataOut[i];
+            } else {
+                nextStage[i].insn = '0;
+            }
+        }
+
+        port.nextStage = nextStage;
+
+        for i in 0..FETCH_WIDTH {
+            debug.ifReg[i].valid = pipeReg[i].valid;
+            debug.ifReg[i].sid = pipeReg[i].sid;
+            debug.ifReg[i].flush = isFlushed[i];
+            debug.ifReg[i].icMiss = FALSE;
+        }
+        debug.ifReg[0].icMiss = beginStall && pipeReg[0].valid && !port.icReadHit[0];
+    }
+}

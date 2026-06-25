@@ -1,0 +1,20 @@
+interface IntegerExecutionStageIF {
+    import BasicTypes::*;
+    import BypassTypes::*;
+    import OpFormatTypes::*;
+    import PipelineTypes::*;
+
+    var clk      : clock;
+    var rst      : logic;
+    var nextStage: IntegerRegisterWriteStageRegPath [INT_ISSUE_WIDTH];
+
+    modport ThisStage {
+        clk      : input ,
+        rst      : input ,
+        nextStage: output,
+    }
+
+    modport NextStage {
+        nextStage: input,
+    }
+}

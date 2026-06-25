@@ -1,0 +1,23 @@
+interface CacheFlushManagerIF {
+    var clk: clock;
+    var rst: logic;
+
+    var cacheFlushReq     : logic;
+    var cacheFlushComplete: logic;
+
+    modport CacheFlushManager {
+        clk               : input ,
+        rst               : input ,
+        cacheFlushReq     : input ,
+        cacheFlushComplete: output,
+    }
+
+    modport MemoryExecutionStage {
+        cacheFlushComplete: input ,
+        cacheFlushReq     : output,
+    }
+
+    modport ReplayQueue {
+        cacheFlushComplete: input,
+    }
+}

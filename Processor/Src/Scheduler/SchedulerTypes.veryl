@@ -1,0 +1,307 @@
+package SchedulerTypes {
+    import MicroArchConf::*;
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import MemoryMapTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+    import BypassTypes::*;
+    import RenameLogicTypes::*;
+    import LoadStoreUnitTypes::*;
+    import FetchUnitTypes::*;
+    import ActiveListIndexTypes::*;
+
+    const ISSUE_QUEUE_ENTRY_NUM: u32 = CONF_ISSUE_QUEUE_ENTRY_NUM;
+
+    const ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(ISSUE_QUEUE_ENTRY_NUM);
+
+    type IssueQueueIndexPath = logic<ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH>;
+
+    type IssueQueueCountPath = logic<(ISSUE_QUEUE_ENTRY_NUM_BIT_WIDTH) + 1>;
+
+    type IssueQueueOneHotPath = logic<ISSUE_QUEUE_ENTRY_NUM>;
+
+    const ISSUE_QUEUE_SRC_REG_NUM: u32 = MICRO_OP_SOURCE_REG_NUM;
+
+    const ISSUE_QUEUE_INT_LATENCY: u32 = 1;
+
+    const ISSUE_QUEUE_COMPLEX_LATENCY: u32 = COMPLEX_EXEC_STAGE_DEPTH + 2;
+
+    const ISSUE_QUEUE_MEM_LATENCY: u32 = 3;
+
+    const ISSUE_QUEUE_FP_LATENCY: u32 = FP_EXEC_STAGE_DEPTH + 2;
+
+    const WAKEUP_WIDTH: u32 = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
+
+    const ISSUE_QUEUE_RETURN_INDEX_WIDTH: u32 = 2;
+
+    const ISSUE_QUEUE_RETURN_INDEX_CYCLE: u32 = (ISSUE_QUEUE_ENTRY_NUM-1) / ISSUE_QUEUE_RETURN_INDEX_WIDTH + 1;
+
+    const ISSUE_QUEUE_RETURN_INDEX_CYCLE_BIT_SIZE: u32 = $clog2( ISSUE_QUEUE_RETURN_INDEX_CYCLE );
+
+    const ISSUE_QUEUE_RESET_CYCLE: u32 = (ISSUE_QUEUE_ENTRY_NUM-1) / (ISSUE_WIDTH+ISSUE_QUEUE_RETURN_INDEX_WIDTH) + 1;
+
+    const ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE: u32 = $clog2( ISSUE_QUEUE_RESET_CYCLE );
+
+    enum ExecutionState: logic<4> {
+        EXEC_STATE_NOT_FINISHED = 4'b0000,
+        EXEC_STATE_SUCCESS = 4'b0001,
+        EXEC_STATE_REFETCH_THIS = 4'b0010,
+        EXEC_STATE_REFETCH_NEXT = 4'b0011,
+        EXEC_STATE_TRAP_ECALL = 4'b0100,
+        EXEC_STATE_TRAP_EBREAK = 4'b0101,
+        EXEC_STATE_TRAP_SRET = 4'b0110,
+        EXEC_STATE_TRAP_MRET = 4'b0111,
+        EXEC_STATE_FAULT_LOAD_MISALIGNED = 4'b1000,
+        EXEC_STATE_FAULT_LOAD_VIOLATION = 4'b1001,
+        EXEC_STATE_FAULT_STORE_MISALIGNED = 4'b1010,
+        EXEC_STATE_FAULT_STORE_VIOLATION = 4'b1011,
+        EXEC_STATE_STORE_LOAD_FORWARDING_MISS = 4'b1111,
+        EXEC_STATE_FAULT_INSN_ILLEGAL = 4'b1100,
+        EXEC_STATE_FAULT_INSN_VIOLATION = 4'b1101,
+        EXEC_STATE_FAULT_INSN_MISALIGNED = 4'b1110,
+    }
+    const EXEC_STATE_NOT_FINISHED: ExecutionState = ExecutionState::EXEC_STATE_NOT_FINISHED;
+    const EXEC_STATE_SUCCESS: ExecutionState = ExecutionState::EXEC_STATE_SUCCESS;
+    const EXEC_STATE_REFETCH_THIS: ExecutionState = ExecutionState::EXEC_STATE_REFETCH_THIS;
+    const EXEC_STATE_REFETCH_NEXT: ExecutionState = ExecutionState::EXEC_STATE_REFETCH_NEXT;
+    const EXEC_STATE_TRAP_ECALL: ExecutionState = ExecutionState::EXEC_STATE_TRAP_ECALL;
+    const EXEC_STATE_TRAP_EBREAK: ExecutionState = ExecutionState::EXEC_STATE_TRAP_EBREAK;
+    const EXEC_STATE_TRAP_SRET: ExecutionState = ExecutionState::EXEC_STATE_TRAP_SRET;
+    const EXEC_STATE_TRAP_MRET: ExecutionState = ExecutionState::EXEC_STATE_TRAP_MRET;
+    const EXEC_STATE_FAULT_LOAD_MISALIGNED: ExecutionState = ExecutionState::EXEC_STATE_FAULT_LOAD_MISALIGNED;
+    const EXEC_STATE_FAULT_LOAD_VIOLATION: ExecutionState = ExecutionState::EXEC_STATE_FAULT_LOAD_VIOLATION;
+    const EXEC_STATE_FAULT_STORE_MISALIGNED: ExecutionState = ExecutionState::EXEC_STATE_FAULT_STORE_MISALIGNED;
+    const EXEC_STATE_FAULT_STORE_VIOLATION: ExecutionState = ExecutionState::EXEC_STATE_FAULT_STORE_VIOLATION;
+    const EXEC_STATE_STORE_LOAD_FORWARDING_MISS: ExecutionState = ExecutionState::EXEC_STATE_STORE_LOAD_FORWARDING_MISS;
+    const EXEC_STATE_FAULT_INSN_ILLEGAL: ExecutionState = ExecutionState::EXEC_STATE_FAULT_INSN_ILLEGAL;
+    const EXEC_STATE_FAULT_INSN_VIOLATION: ExecutionState = ExecutionState::EXEC_STATE_FAULT_INSN_VIOLATION;
+    const EXEC_STATE_FAULT_INSN_MISALIGNED: ExecutionState = ExecutionState::EXEC_STATE_FAULT_INSN_MISALIGNED;
+
+    const EXEC_STATE_BIT_WIDTH: u32 = $bits(ExecutionState);
+
+    struct ActiveListEntry {
+        opId: OpId,
+        pc: PC_Path,
+        logDstRegNum: LRegNumPath,
+        writeReg: logic,
+        isLoad: logic,
+        isStore: logic,
+        isZaamo: logic,
+        isBranch: logic,
+        isEnv: logic,
+        last: logic,
+        undefined: logic,
+        phyDstRegNum: PRegNumPath,
+        phyPrevDstRegNum: PRegNumPath,
+        prevDependIssueQueuePtr: IssueQueueIndexPath,
+    }
+
+    struct ActiveListWriteData {
+        ptr: ActiveListIndexPath,
+        loadQueuePtr: LoadQueueIndexPath,
+        storeQueuePtr: StoreQueueIndexPath,
+        state: ExecutionState,
+        pc: PC_Path,
+        dataAddr: AddrPath,
+        isBranch: logic,
+        isStore: logic,
+    }
+
+
+    function ActiveListPtrToAge (
+        ptr : input ActiveListIndexPath,
+        head: input ActiveListIndexPath,
+    ) -> ActiveListCountPath {
+        var age: ActiveListCountPath;
+        age = ptr;
+        if ptr <: head {
+            return age + ACTIVE_LIST_ENTRY_NUM;
+        } else {
+            return age;
+        }
+    }
+    const INT_SUB_INFO_BIT_WIDTH: u32 = $bits(OpOperandType) * 2 + $bits(IntALU_Code) + $bits(ShiftOperandType) + $bits(ShifterPath);
+
+    const BR_SUB_INFO_BIT_WIDTH: u32 = $bits(OpOperandType) * 2 + $bits(BranchPred) + $bits(BranchDisplacement);
+
+    const INT_SUB_INFO_PADDING_BIT_WIDTH: u32 = BR_SUB_INFO_BIT_WIDTH - INT_SUB_INFO_BIT_WIDTH;
+
+    struct IntOpSubInfo {
+        operandTypeA: OpOperandType,
+        operandTypeB: OpOperandType,
+        aluCode: IntALU_Code,
+        shiftType: ShiftOperandType,
+        shiftIn: ShifterPath,
+        padding: logic<INT_SUB_INFO_PADDING_BIT_WIDTH>,
+    }
+
+    struct BrOpSubInfo {
+        operandTypeA: OpOperandType,
+        operandTypeB: OpOperandType,
+        bPred: BranchPred,
+        brDisp: BranchDisplacement,
+    }
+
+    union IntOpInfo {
+        intSubInfo: IntOpSubInfo,
+        brSubInfo: BrOpSubInfo,
+    }
+
+    struct IntIssueQueueEntry {
+        opId: OpId,
+        intOpInfo: IntOpInfo,
+        opType: IntMicroOpSubType,
+        cond: CondCode,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        opSrc: OpSrc,
+        opDst: OpDst,
+        pc: PC_Path,
+    }
+
+    struct MulOpSubInfo {
+        mulGetUpper: logic,
+        mulCode: IntMUL_Code,
+    }
+
+    struct DivOpSubInfo {
+        padding: logic,
+        divCode: IntDIV_Code,
+    }
+
+    union ComplexOpInfo {
+        mulSubInfo: MulOpSubInfo,
+        divSubInfo: DivOpSubInfo,
+    }
+
+    struct ComplexIssueQueueEntry {
+        opId: OpId,
+        complexOpInfo: ComplexOpInfo,
+        opType: ComplexMicroOpSubType,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        opSrc: OpSrc,
+        opDst: OpDst,
+        pc: PC_Path,
+    }
+
+    struct MemOpInfo {
+        opType: MemMicroOpSubType,
+        cond: CondCode,
+        operandTypeA: OpOperandType,
+        operandTypeB: OpOperandType,
+        addrIn: AddrOperandImm,
+        isAddAddr: logic,
+        isRegAddr: logic,
+        memAccessMode: MemAccessMode,
+        csrCtrl: CSR_CtrlPath,
+        envCode: ENV_Code,
+        isZalrsc: logic,
+        amoCode: MemZaamo_Code,
+        isFenceI: logic,
+    }
+
+    struct MemIssueQueueEntry {
+        opId: OpId,
+        memOpInfo: MemOpInfo,
+        loadQueuePtr: LoadQueueIndexPath,
+        storeQueuePtr: StoreQueueIndexPath,
+        hasAllocatedMSHR: logic,
+        mshrID: MSHR_IndexPath,
+        hasLoadedAMOCache: logic,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        opSrc: OpSrc,
+        opDst: OpDst,
+        pc: PC_Path,
+    }
+
+    struct DivRecordEntry {
+        activeListPtr: ActiveListIndexPath,
+        opDst: OpDst,
+    }
+
+    struct FPOpInfo {
+        opType: FPMicroOpSubType,
+        fpuCode: FPU_Code,
+        rm: Rounding_Mode,
+        operandTypeA: OpOperandType,
+        operandTypeB: OpOperandType,
+        operandTypeC: OpOperandType,
+    }
+
+    struct FPIssueQueueEntry {
+        opId: OpId,
+        fpOpInfo: FPOpInfo,
+        activeListPtr: ActiveListIndexPath,
+        loadQueueRecoveryPtr: LoadQueueIndexPath,
+        storeQueueRecoveryPtr: StoreQueueIndexPath,
+        opSrc: OpSrc,
+        opDst: OpDst,
+        pc: PC_Path,
+    }
+
+    struct SchedulerEntry {
+        opType: MicroOpType,
+        opSubType: MicroOpSubType,
+        srcRegValidA: logic,
+        srcRegValidB: logic,
+        srcRegValidC: logic,
+        opSrc: OpSrc,
+        opDst: OpDst,
+        srcPtrRegA: IssueQueueIndexPath,
+        srcPtrRegB: IssueQueueIndexPath,
+        srcPtrRegC: IssueQueueIndexPath,
+    }
+
+    struct SchedulerRegTag {
+        num: PRegNumPath,
+        valid: logic,
+    }
+
+    struct SchedulerRegPtr {
+        ptr: IssueQueueIndexPath,
+        valid: logic,
+    }
+
+    struct SchedulerDstTag {
+        regTag: SchedulerRegTag,
+    }
+
+    type SchedulerRegTagArray = SchedulerRegTag<ISSUE_QUEUE_SRC_REG_NUM>;
+    type SchedulerRegPtrArray = SchedulerRegPtr<ISSUE_QUEUE_SRC_REG_NUM>;
+
+    struct SchedulerSrcTag {
+        regTag: SchedulerRegTagArray,
+        regPtr: SchedulerRegPtrArray,
+    }
+
+    const REPLAY_QUEUE_ENTRY_NUM: u32 = CONF_REPLAY_QUEUE_ENTRY_NUM;
+
+    const REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(REPLAY_QUEUE_ENTRY_NUM);
+
+    type ReplayQueueIndexPath = logic<REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH>;
+
+    type ReplayQueueCountPath = logic<(REPLAY_QUEUE_ENTRY_NUM_BIT_WIDTH) + 1>;
+
+    const MDT_ENTRY_NUM: u32 = CONF_MDT_ENTRY_NUM;
+
+    const MDT_ENTRY_NUM_BIT_WIDTH: u32 = $clog2(MDT_ENTRY_NUM);
+
+    type MDT_IndexPath = logic<MDT_ENTRY_NUM_BIT_WIDTH>;
+
+    struct MDT_Entry {
+        counter: logic,
+    }
+
+
+    function ToMDT_Index (
+        addr: input PC_Path,
+    ) -> MDT_IndexPath {
+        return addr[MDT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1:INSN_ADDR_BIT_WIDTH];
+    }
+}

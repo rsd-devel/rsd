@@ -1,0 +1,18 @@
+interface MemoryTagAccessStageIF {
+    import BasicTypes::*;
+    import PipelineTypes::*;
+
+    var clk      : clock;
+    var rst      : logic;
+    var nextStage: MemoryAccessStageRegPath [MEM_ISSUE_WIDTH];
+
+    modport ThisStage {
+        clk      : input ,
+        rst      : input ,
+        nextStage: output,
+    }
+
+    modport NextStage {
+        nextStage: input,
+    }
+}

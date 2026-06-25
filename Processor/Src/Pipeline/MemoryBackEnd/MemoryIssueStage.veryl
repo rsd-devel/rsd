@@ -1,0 +1,105 @@
+module MemoryIssueStage (
+    port      : modport MemoryIssueStageIF::ThisStage,
+    prev      : modport ScheduleStageIF::MemNextStage,
+    scheduler : modport SchedulerIF::MemoryIssueStage,
+    recovery  : modport RecoveryManagerIF::MemoryIssueStage,
+    mulDivUnit: modport MulDivUnitIF::MemoryIssueStage,
+    ctrl      : modport ControllerIF::MemoryIssueStage,
+    debug     : modport DebugIF::MemoryIssueStage,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import PipelineTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: IssueStageRegPath [MEM_ISSUE_WIDTH];
+    var nextPipeReg: IssueStageRegPath [MEM_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MEM_ISSUE_WIDTH {
+                pipeReg[i] = '0;
+            }
+        } else if !ctrl.isStage.stall {
+            pipeReg = prev.memNextStage;
+        } else {
+            pipeReg = nextPipeReg;
+        }
+    }
+
+    always_comb {
+        for i in 0..MEM_ISSUE_WIDTH {
+            if recovery.toRecoveryPhase {
+                nextPipeReg[i].valid =
+                    pipeReg[i].valid &&
+                    !SelectiveFlushDetector(
+                        recovery.toRecoveryPhase,
+                        recovery.flushRangeHeadPtr,
+                        recovery.flushRangeTailPtr,
+                        recovery.flushAllInsns,
+                        scheduler.memIssuedData[i].activeListPtr
+                    );
+            } else {
+                nextPipeReg[i].valid = pipeReg[i].valid;
+            }
+
+            nextPipeReg[i].issueQueuePtr = pipeReg[i].issueQueuePtr;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var valid: logic [MEM_ISSUE_WIDTH];
+    var nextStage: MemoryRegisterReadStageRegPath [MEM_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.isStage.stall;
+        clear = ctrl.isStage.clear;
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            var flushValue: logic;
+            var issuedDataValue: MemIssueQueueEntry;
+            var issueQueuePtrValue: IssueQueueIndexPath;
+
+            if scheduler.replay {
+                issuedDataValue = scheduler.memReplayData[i];
+                valid[i] = scheduler.memReplayEntry[i];
+            } else {
+                issuedDataValue = scheduler.memIssuedData[i];
+                valid[i] = !stall && pipeReg[i].valid;
+            }
+
+            issueQueuePtrValue = pipeReg[i].issueQueuePtr;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                issuedDataValue.activeListPtr
+            );
+
+            scheduler.memIssue[i] = !clear && valid[i] && !flushValue;
+            scheduler.memIssuePtr[i] = issueQueuePtrValue;
+
+            nextStage[i].replay = scheduler.replay;
+            nextStage[i].issueQueuePtr = issueQueuePtrValue;
+
+            if clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = valid[i];
+            }
+            nextStage[i].memQueueData = issuedDataValue;
+            nextStage[i].opId = issuedDataValue.opId;
+
+            debug.memIsReg[i].valid = valid[i];
+            debug.memIsReg[i].flush = flushValue;
+            debug.memIsReg[i].opId = issuedDataValue.opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

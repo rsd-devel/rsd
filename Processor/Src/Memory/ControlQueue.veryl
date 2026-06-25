@@ -1,0 +1,23 @@
+module ControlQueue (
+    clk       : input  clock                             ,
+    rst       : input  logic                             ,
+    push      : input  logic                             ,
+    pop       : input  logic                             ,
+    pushedData: input  logic<PS_PL_CTRL_QUEUE_DATA_BIT_SIZE>,
+    full      : output logic                             ,
+    empty     : output logic                             ,
+    headData  : output logic<PS_PL_CTRL_QUEUE_DATA_BIT_SIZE>,
+) {
+    import MemoryTypes::*;
+
+    inst body: $sv::ControlQueue_SV (
+        clk       : clk       ,
+        rst       : rst       ,
+        push      : push      ,
+        pop       : pop       ,
+        pushedData: pushedData,
+        full      : full      ,
+        empty     : empty     ,
+        headData  : headData  ,
+    );
+}

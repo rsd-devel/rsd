@@ -15,7 +15,7 @@ import MemoryMapTypes::*;
 import IO_UnitTypes::*;
 import DebugTypes::*;
 
-module Core (
+module Core_SV (
 input
     logic clk,
     logic rst, rstStart,
@@ -211,4 +211,4 @@ output
     InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, csrUnitIF);
 
-endmodule : Core
+endmodule : Core_SV

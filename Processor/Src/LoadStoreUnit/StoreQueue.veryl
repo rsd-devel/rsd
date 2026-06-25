@@ -1,0 +1,290 @@
+package StoreQueueFunctions {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import LoadStoreUnitTypes::*;
+    import MemoryMapTypes::*;
+
+    function GenerateStoreData (
+        dataIn     : input DataPath,
+        blockDataIn: input LSQ_BlockDataPath,
+        addr       : input PhyAddrPath,
+        mode       : input MemAccessMode,
+    ) -> LSQ_BlockDataPath {
+        var dataOut: LSQ_BlockDataPath;
+        dataOut = dataIn;
+        dataOut = dataOut << (addr.addr[LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE - 1:0] * BYTE_WIDTH);
+        return dataOut;
+    }
+}
+
+module StoreQueue (
+    port    : modport LoadStoreUnitIF::StoreQueue,
+    recovery: modport RecoveryManagerIF::StoreQueue,
+) {
+    import BasicTypes::*;
+    import CacheSystemTypes::*;
+    import OpFormatTypes::*;
+    import LoadStoreUnitTypes::*;
+    import MemoryMapTypes::*;
+    import StoreQueueFunctions::*;
+
+    var headAddrEntry: StoreQueueAddrEntry;
+    var headDataEntry: StoreQueueDataEntry;
+    var releasedStoreQueuePtr: StoreQueueIndexPath;
+
+    var headPtr: StoreQueueIndexPath;
+    var tailPtr: StoreQueueIndexPath;
+
+    var pushCount: RenameLaneCountPath;
+    var curCount: StoreQueueCountPath;
+    var push: logic;
+
+    inst storeQueuePointer: SetTailMultiWidthQueuePointer #(
+        SIZE            : STORE_QUEUE_ENTRY_NUM,
+        INITIAL_HEAD_PTR: 0,
+        INITIAL_TAIL_PTR: 0,
+        INITIAL_COUNT   : 0,
+        PUSH_WIDTH      : RENAME_WIDTH,
+        POP_WIDTH       : COMMIT_WIDTH,
+    ) (
+        clk        : port.clk,
+        rst        : port.rst,
+        pop        : port.releaseStoreQueueHead,
+        popCount   : port.releaseStoreQueueHeadEntryNum,
+        push       : push,
+        pushCount  : pushCount,
+        setTail    : recovery.toRecoveryPhase,
+        setTailPtr : recovery.storeQueueRecoveryTailPtr,
+        count      : curCount,
+        headPtr    : headPtr,
+        tailPtr    : tailPtr,
+    );
+
+    always_comb {
+        pushCount = 0;
+        for i in 0..RENAME_WIDTH {
+            if tailPtr + pushCount <: STORE_QUEUE_ENTRY_NUM {
+                port.allocatedStoreQueuePtr[i] = tailPtr + pushCount;
+            } else {
+                port.allocatedStoreQueuePtr[i] = tailPtr + pushCount - STORE_QUEUE_ENTRY_NUM;
+            }
+            pushCount = pushCount + port.allocateStoreQueue[i];
+        }
+        push = pushCount >: 0;
+
+        port.storeQueueCount = curCount;
+        if curCount <= STORE_QUEUE_ENTRY_NUM - RENAME_WIDTH - 1 {
+            port.storeQueueAllocatable = TRUE;
+        } else {
+            port.storeQueueAllocatable = FALSE;
+        }
+        port.storeQueueEmpty = curCount == 0;
+
+        recovery.storeQueueHeadPtr = headPtr;
+    }
+
+    var storeQueue: StoreQueueAddrEntry [STORE_QUEUE_ENTRY_NUM];
+
+    var executeStore: logic [STORE_ISSUE_WIDTH];
+    var executedStoreAddr: LSQ_BlockAddrPath [STORE_ISSUE_WIDTH];
+    var executedStoreWordWE: LSQ_BlockWordEnablePath [STORE_ISSUE_WIDTH];
+    var executedStoreByteWE: LSQ_WordByteEnablePath [STORE_ISSUE_WIDTH];
+    var executedStoreCondEnabled: logic [STORE_ISSUE_WIDTH];
+    var executedStoreRegValid: logic [STORE_ISSUE_WIDTH];
+    var executedStoreQueuePtrByStore: StoreQueueIndexPath [STORE_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..STORE_QUEUE_ENTRY_NUM {
+                storeQueue[i].finished = FALSE;
+                storeQueue[i].address = '0;
+                storeQueue[i].wordWE = '0;
+                storeQueue[i].byteWE = '0;
+            }
+        } else {
+            for i in 0..STORE_ISSUE_WIDTH {
+                if executeStore[i] {
+                    storeQueue[executedStoreQueuePtrByStore[i]].regValid = executedStoreRegValid[i];
+                    storeQueue[executedStoreQueuePtrByStore[i]].finished = executedStoreCondEnabled[i];
+                    storeQueue[executedStoreQueuePtrByStore[i]].address = executedStoreAddr[i];
+                    storeQueue[executedStoreQueuePtrByStore[i]].wordWE = executedStoreWordWE[i];
+                    storeQueue[executedStoreQueuePtrByStore[i]].byteWE = executedStoreByteWE[i];
+                }
+            }
+
+            for i in 0..RENAME_WIDTH {
+                if port.allocateStoreQueue[i] {
+                    storeQueue[port.allocatedStoreQueuePtr[i]].finished = FALSE;
+                }
+            }
+        }
+    }
+
+    always_comb {
+        for i in 0..STORE_ISSUE_WIDTH {
+            executeStore[i] = port.executeStore[i];
+            executedStoreAddr[i] = LSQ_ToBlockAddr(port.executedStoreAddr[i]);
+            executedStoreCondEnabled[i] = port.executedStoreCondEnabled[i];
+            executedStoreRegValid[i] = port.executedStoreRegValid[i];
+            executedStoreQueuePtrByStore[i] = port.executedStoreQueuePtrByStore[i];
+
+            executedStoreWordWE[i] =
+                LSQ_ToBlockWordEnable(
+                    port.executedStoreAddr[i],
+                    port.executedStoreMemAccessMode[i]
+                );
+            executedStoreByteWE[i] =
+                LSQ_ToWordByteEnable(
+                    port.executedStoreAddr[i],
+                    port.executedStoreMemAccessMode[i]
+                );
+        }
+    }
+
+    var forwardedDataEntry: StoreQueueDataEntry [LOAD_ISSUE_WIDTH];
+    var executedLoadWordRE: LSQ_BlockWordEnablePath [LOAD_ISSUE_WIDTH];
+    var executedLoadByteRE: LSQ_WordByteEnablePath [LOAD_ISSUE_WIDTH];
+
+    var addrMatch: StoreQueueOneHotPath [LOAD_ISSUE_WIDTH];
+    var pickedPtr: StoreQueueIndexPath [LOAD_ISSUE_WIDTH];
+    var picked: logic [LOAD_ISSUE_WIDTH];
+    var executedStoreQueuePtrByLoad: StoreQueueIndexPath [LOAD_ISSUE_WIDTH];
+
+    for i in 0..LOAD_ISSUE_WIDTH : Picker {
+        inst picker: CircularRangePicker #(
+            ENTRY_NUM: STORE_QUEUE_ENTRY_NUM,
+        ) (
+            headPtr : headPtr,
+            tailPtr : executedStoreQueuePtrByLoad[i],
+            request : addrMatch[i],
+            grantPtr: pickedPtr[i],
+            picked  : picked[i],
+        );
+    }
+
+    always_comb {
+        for i in 0..LOAD_ISSUE_WIDTH {
+            executedStoreQueuePtrByLoad[i] = port.executedStoreQueuePtrByLoad[i];
+        }
+    }
+
+    var sqReadPtr: StoreQueueIndexPath [LOAD_ISSUE_WIDTH + 1];
+    var sqReadData: StoreQueueDataEntry [LOAD_ISSUE_WIDTH + 1];
+    var sqWE: logic [STORE_ISSUE_WIDTH];
+    var sqWriteData: StoreQueueDataEntry [STORE_ISSUE_WIDTH];
+    var sqWriteStoreData: LSQ_BlockDataPath [STORE_ISSUE_WIDTH];
+
+    inst storeQueueData: DistributedMultiPortRAM #(
+        ENTRY_NUM     : STORE_QUEUE_ENTRY_NUM,
+        ENTRY_BIT_SIZE: $bits(StoreQueueDataEntry),
+        READ_NUM      : LOAD_ISSUE_WIDTH + 1,
+        WRITE_NUM     : STORE_ISSUE_WIDTH,
+    ) (
+        clk: port.clk,
+        we : sqWE,
+        wa : executedStoreQueuePtrByStore,
+        wv : sqWriteData,
+        ra : sqReadPtr,
+        rv : sqReadData,
+    );
+
+    always_comb {
+        for i in 0..STORE_ISSUE_WIDTH {
+            sqWriteStoreData[i] =
+                GenerateStoreData(
+                    port.executedStoreData[i],
+                    port.executedStoreVectorData[i],
+                    port.executedStoreAddr[i],
+                    port.executedStoreMemAccessMode[i]
+                );
+
+            sqWE[i] = executeStore[i];
+            sqWriteData[i].data = sqWriteStoreData[i];
+            sqWriteData[i].condEnabled = executedStoreCondEnabled[i];
+            sqWriteData[i].wordWE = executedStoreWordWE[i];
+            sqWriteData[i].byteWE = executedStoreByteWE[i];
+        }
+    }
+
+    var storeLoadForwarded: logic [LOAD_ISSUE_WIDTH];
+    var forwardedLoadData: LSQ_BlockDataPath [LOAD_ISSUE_WIDTH];
+    var forwardMiss: logic [LOAD_ISSUE_WIDTH];
+
+    always_comb {
+        releasedStoreQueuePtr = port.retiredStoreQueuePtr;
+
+        sqReadPtr[LOAD_ISSUE_WIDTH] = releasedStoreQueuePtr;
+        headDataEntry = sqReadData[LOAD_ISSUE_WIDTH];
+        headAddrEntry = storeQueue[releasedStoreQueuePtr];
+
+        port.retiredStoreLSQ_BlockAddr = headAddrEntry.address;
+
+        port.retiredStoreData = headDataEntry.data;
+        port.retiredStoreCondEnabled = headDataEntry.condEnabled;
+        port.retiredStoreWordWE = headDataEntry.wordWE;
+        port.retiredStoreByteWE = headDataEntry.byteWE;
+
+        port.storeQueueHeadPtr = headPtr;
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            if pickedPtr[i] >= STORE_QUEUE_ENTRY_NUM {
+                sqReadPtr[i] = pickedPtr[i] - STORE_QUEUE_ENTRY_NUM;
+            } else {
+                sqReadPtr[i] = pickedPtr[i];
+            }
+            forwardedDataEntry[i] = sqReadData[i];
+
+            executedLoadWordRE[i] =
+                LSQ_ToBlockWordEnable(
+                    port.executedLoadAddr[i],
+                    port.executedLoadMemAccessMode[i]
+                );
+            executedLoadByteRE[i] =
+                LSQ_ToWordByteEnable(
+                    port.executedLoadAddr[i],
+                    port.executedLoadMemAccessMode[i]
+                );
+        }
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            for j in 0..STORE_QUEUE_ENTRY_NUM {
+                addrMatch[i][j] =
+                    storeQueue[j].finished &&
+                    port.executedLoadMemMapType[i] != MMT_ILLEGAL &&
+                    storeQueue[j].address == LSQ_ToBlockAddr(port.executedLoadAddr[i]) &&
+                    ((storeQueue[j].wordWE & executedLoadWordRE[i]) != '0) &&
+                    ((storeQueue[j].byteWE & executedLoadByteRE[i]) != '0);
+            }
+        }
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            if pickedPtr[i] <: STORE_QUEUE_ENTRY_NUM {
+                forwardMiss[i] =
+                    !storeQueue[pickedPtr[i]].regValid ||
+                    ((~forwardedDataEntry[i].wordWE & executedLoadWordRE[i]) != '0) ||
+                    ((~forwardedDataEntry[i].byteWE & executedLoadByteRE[i]) != '0);
+                forwardedLoadData[i] = forwardedDataEntry[i].data;
+            } else {
+                forwardMiss[i] = FALSE;
+                forwardedLoadData[i] = '0;
+            }
+            storeLoadForwarded[i] = port.executeLoad[i] && picked[i];
+        }
+
+        port.forwardedLoadData = forwardedLoadData;
+        port.forwardMiss = forwardMiss;
+        port.storeLoadForwarded = storeLoadForwarded;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && headPtr < tailPtr && port.executedStoreQueuePtrByLoad[i] < headPtr), "1:A load's executedStoreQueuePtr is illegal.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && headPtr < tailPtr && tailPtr < port.executedStoreQueuePtrByLoad[i]), "2:A load's executedStoreQueuePtr is illegal.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, !(port.executeLoad[i] && tailPtr <= headPtr && tailPtr < port.executedStoreQueuePtrByLoad[i] && port.executedStoreQueuePtrByLoad[i] < headPtr), "3:A load's executedStoreQueuePtr is illegal.")
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_ASSERT_CLK(port.clk, port.rst || !((port.releaseStoreQueueHead) && curCount == 0), "Pop from a empty store queue.")
+}

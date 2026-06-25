@@ -1,0 +1,30 @@
+module AMOCache (
+    port: modport AMOCacheIF::AMOCache,
+) {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+
+    var cacheValid: logic       ;
+    var cachedAddr: PhyAddrPath ;
+    var cachedData: PRegDataPath;
+
+    always_ff (port.clk) {
+        if port.rst {
+            cacheValid = FALSE;
+            cachedAddr = '0;
+            cachedData = '0;
+        } else if port.writeEnable {
+            cacheValid = TRUE;
+            cachedAddr = port.writeAddr;
+            cachedData = port.writeData;
+        } else if port.invalidate {
+            cacheValid = FALSE;
+        }
+    }
+
+    always_ff (port.clk) {
+        port.cached = cacheValid;
+        port.readAddr = cachedAddr;
+        port.readDataOut = cachedData;
+    }
+}

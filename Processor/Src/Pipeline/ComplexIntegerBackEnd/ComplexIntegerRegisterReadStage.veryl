@@ -1,0 +1,93 @@
+module ComplexIntegerRegisterReadStage (
+    port        : modport ComplexIntegerRegisterReadStageIF::ThisStage,
+    prev        : modport ComplexIntegerIssueStageIF::NextStage,
+    registerFile: modport RegisterFileIF::ComplexIntegerRegisterReadStage,
+    bypass      : modport BypassNetworkIF::ComplexIntegerRegisterReadStage,
+    recovery    : modport RecoveryManagerIF::ComplexIntegerRegisterReadStage,
+    ctrl        : modport ControllerIF::ComplexIntegerRegisterReadStage,
+    debug       : modport DebugIF::ComplexIntegerRegisterReadStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var pipeReg: ComplexIntegerRegisterReadStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..COMPLEX_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var nextStage: ComplexIntegerExecutionStageRegPath [COMPLEX_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        for i in 0..COMPLEX_ISSUE_WIDTH {
+            var flushValue: logic;
+            var iqDataValue: ComplexIssueQueueEntry;
+            var opSrcValue: OpSrc;
+            var opDstValue: OpDst;
+
+            iqDataValue = pipeReg[i].complexQueueData;
+            opSrcValue = iqDataValue.opSrc;
+            opDstValue = iqDataValue.opDst;
+
+            registerFile.complexSrcRegNumA[i] = opSrcValue.phySrcRegNumA;
+            registerFile.complexSrcRegNumB[i] = opSrcValue.phySrcRegNumB;
+
+            bypass.complexPhySrcRegNumA[i] = opSrcValue.phySrcRegNumA;
+            bypass.complexPhySrcRegNumB[i] = opSrcValue.phySrcRegNumB;
+
+            bypass.complexWriteReg[i] = opDstValue.writeReg & pipeReg[i].valid;
+            bypass.complexPhyDstRegNum[i] = opDstValue.phyDstRegNum;
+
+            bypass.complexReadRegA[i] = TRUE;
+            bypass.complexReadRegB[i] = TRUE;
+
+            nextStage[i].opId = pipeReg[i].opId;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                iqDataValue.activeListPtr
+            );
+
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            nextStage[i].replay = pipeReg[i].replay;
+            nextStage[i].operandA = registerFile.complexSrcRegDataA[i];
+            nextStage[i].operandB = registerFile.complexSrcRegDataB[i];
+            nextStage[i].complexQueueData = pipeReg[i].complexQueueData;
+            nextStage[i].bCtrl = bypass.complexCtrlOut[i];
+
+            debug.complexRrReg[i].valid = pipeReg[i].valid;
+            debug.complexRrReg[i].flush = flushValue;
+            debug.complexRrReg[i].opId = pipeReg[i].opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

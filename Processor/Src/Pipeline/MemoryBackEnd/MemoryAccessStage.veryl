@@ -1,0 +1,187 @@
+module MemoryAccessStage (
+    port         : modport MemoryAccessStageIF::ThisStage,
+    prev         : modport MemoryTagAccessStageIF::NextStage,
+    loadStoreUnit: modport LoadStoreUnitIF::MemoryAccessStage,
+    mulDivUnit   : modport MulDivUnitIF::MemoryAccessStage,
+    bypass       : modport BypassNetworkIF::MemoryAccessStage,
+    ioUnit       : modport IO_UnitIF::MemoryAccessStage,
+    recovery     : modport RecoveryManagerIF::MemoryAccessStage,
+    ctrl         : modport ControllerIF::MemoryAccessStage,
+    amoCache     : modport AMOCacheIF::MemoryAccessStage,
+    debug        : modport DebugIF::MemoryAccessStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import RenameLogicTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+    import MicroOpTypes::*;
+    import MemoryMapTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var pipeReg: MemoryAccessStageRegPath [MEM_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial debug initialization was not transpilable to native Veryl initial syntax.
+
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..MEM_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var stall: logic;
+    var clear: logic;
+    var dataOut: PRegDataPath [MEM_ISSUE_WIDTH];
+    var ldDataOut: PRegDataPath [LOAD_ISSUE_WIDTH];
+    var stDataOut: PRegDataPath [STORE_ISSUE_WIDTH];
+    var nextStage: MemoryRegisterWriteStageRegPath [MEM_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+
+        amoCache.writeEnable = FALSE;
+        amoCache.writeAddr = '0;
+        amoCache.writeData = '0;
+        amoCache.invalidate = FALSE;
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            var updateValue: logic;
+            var regValidValue: logic;
+            var isLoadValue: logic;
+            var isCSRValue: logic;
+            var isDivValue: logic;
+            var isZaamoValue: logic;
+            var flushValue: logic;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                pipeReg[i].activeListPtr
+            );
+            updateValue = pipeReg[i].valid && !stall && !clear && !flushValue;
+            regValidValue = pipeReg[i].regValid;
+            isLoadValue = pipeReg[i].isLoad;
+            isCSRValue = pipeReg[i].isCSR;
+            isDivValue = pipeReg[i].isDiv;
+            isZaamoValue = pipeReg[i].isZaamo;
+            ldDataOut[i] = '0;
+
+            if i == 0 {
+                ioUnit.ioReadAddrIn = pipeReg[i].phyAddrOut;
+            }
+
+            if isLoadValue || (isZaamoValue && !pipeReg[i].amoCacheHit) {
+                if i == 0 && pipeReg[i].memMapType == MMT_IO {
+                    ldDataOut[i].data = ioUnit.ioReadDataOut;
+                } else {
+                    ldDataOut[i].data = loadStoreUnit.executedLoadData[i];
+                }
+
+                if isZaamoValue {
+                    amoCache.writeEnable = updateValue && pipeReg[i].writeAMOCache;
+                    amoCache.writeAddr = pipeReg[i].phyAddrOut;
+                    amoCache.writeData = ldDataOut[i];
+                }
+            } else if isZaamoValue && pipeReg[i].amoCacheHit {
+                ldDataOut[i].data = amoCache.readDataOut.data;
+                amoCache.invalidate = updateValue && regValidValue;
+            } else if isCSRValue {
+                ldDataOut[i].data = pipeReg[i].csrDataOut;
+            } else {
+                ldDataOut[i].data = pipeReg[i].addrOut;
+            }
+
+            ldDataOut[i].valid = regValidValue && !isDivValue;
+            dataOut[i] = ldDataOut[i];
+
+            debug.maReg[i].executeLoad = updateValue && isLoadValue;
+            debug.maReg[i].executedLoadData = dataOut[i].data;
+            debug.maReg[i].executedLoadVectorData = loadStoreUnit.executedLoadVectorData[i];
+        }
+
+        for i in 0..STORE_ISSUE_WIDTH {
+            var lane: u32;
+            lane = i + STORE_ISSUE_LANE_BEGIN;
+
+            if pipeReg[lane].isStore && pipeReg[lane].isZalrsc {
+                if pipeReg[lane].isScFail {
+                    stDataOut[i].data = SC_CODE_FAIL;
+                } else {
+                    stDataOut[i].data = SC_CODE_SUCCESS;
+                }
+                stDataOut[i].valid = pipeReg[lane].regValid;
+            } else {
+                stDataOut[i].data = '0;
+                stDataOut[i].valid = FALSE;
+            }
+
+            dataOut[lane] = stDataOut[i];
+        }
+
+        for i in 0..MEM_ISSUE_WIDTH {
+            var flushValue: logic;
+            var updateValue: logic;
+
+            flushValue = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                pipeReg[i].activeListPtr
+            );
+            updateValue = pipeReg[i].valid && !stall && !clear && !flushValue;
+
+            nextStage[i].dataOut = dataOut[i];
+            bypass.memDstRegDataOut[i] = dataOut[i];
+
+            nextStage[i].opId = pipeReg[i].opId;
+            nextStage[i].opDst = pipeReg[i].opDst;
+
+            nextStage[i].activeListPtr = pipeReg[i].activeListPtr;
+            nextStage[i].loadQueueRecoveryPtr = pipeReg[i].loadQueueRecoveryPtr;
+            nextStage[i].storeQueueRecoveryPtr = pipeReg[i].storeQueueRecoveryPtr;
+            nextStage[i].execState = pipeReg[i].execState;
+            nextStage[i].pc = pipeReg[i].pc;
+            nextStage[i].addrOut = pipeReg[i].addrOut;
+            nextStage[i].isStore = pipeReg[i].isStore;
+            nextStage[i].isLoad = pipeReg[i].isLoad;
+            nextStage[i].isDiv = pipeReg[i].isDiv;
+            nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
+            nextStage[i].mshrID = pipeReg[i].mshrID;
+            nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
+            nextStage[i].zaamoReleaseMSHR = updateValue && pipeReg[i].isZaamo && pipeReg[i].writeAMOCache;
+
+            if stall || clear || port.rst || flushValue {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = pipeReg[i].valid;
+            }
+
+            debug.maReg[i].valid = pipeReg[i].valid;
+            debug.maReg[i].flush = flushValue;
+            debug.maReg[i].opId = pipeReg[i].opId;
+        }
+
+        port.nextStage = nextStage;
+    }
+
+    // NOT_TRANSPILED_TO_VERYL
+    // generate
+    //     for (genvar i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
+    //         `RSD_ASSERT_CLK(
+    //             port.clk,
+    //             !(isLoad[i] && valid[i] && !flush[i] && i != 0 && pipeReg[i].memMapType == MMT_IO),
+    //             "IO access cane be accessed in the mem lane 0."
+    //         );
+    //     end
+    // endgenerate
+}

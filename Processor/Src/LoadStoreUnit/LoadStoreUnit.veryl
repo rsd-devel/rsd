@@ -1,0 +1,130 @@
+package LoadStoreUnitFunctions {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import LoadStoreUnitTypes::*;
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+
+    function ShiftCacheLineData (
+        srcLine: input DCacheLinePath,
+        addr   : input PhyAddrPath,
+    ) -> DataPath {
+        var data: DataPath;
+        data = srcLine >> (addr[DCACHE_LINE_BYTE_NUM_BIT_WIDTH - 1:0] * 8);
+        return data;
+    }
+
+    function ShiftForwardedData (
+        srcLine: input LSQ_BlockDataPath,
+        addr   : input PhyAddrPath,
+    ) -> DataPath {
+        var data: DataPath;
+        data = srcLine >> (addr[LSQ_BLOCK_BYTE_WIDTH_BIT_SIZE - 1:0] * 8);
+        return data;
+    }
+
+    function ExtendLoadData (
+        loadData: input DataPath,
+        mode    : input MemAccessMode,
+    ) -> DataPath {
+        case mode.size {
+            MEM_ACCESS_SIZE_BYTE: {
+                if mode.isSigned {
+                    return {loadData[7] repeat 24, loadData[7:0]};
+                } else {
+                    return {24'b0, loadData[7:0]};
+                }
+            }
+            MEM_ACCESS_SIZE_HALF_WORD: {
+                if mode.isSigned {
+                    return {loadData[15] repeat 16, loadData[15:0]};
+                } else {
+                    return {16'b0, loadData[15:0]};
+                }
+            }
+            default: {
+                return loadData;
+            }
+        }
+    }
+}
+
+module LoadStoreUnit (
+    port: modport LoadStoreUnitIF::LoadStoreUnit,
+    ctrl: modport ControllerIF::LoadStoreUnit,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import LoadStoreUnitTypes::*;
+    import MemoryMapTypes::*;
+    import DebugTypes::*;
+    import CacheSystemTypes::*;
+    import LoadStoreUnitFunctions::*;
+
+    var storeLoadForwardedReg: logic [LOAD_ISSUE_WIDTH];
+    var forwardedLoadDataReg: LSQ_BlockDataPath [LOAD_ISSUE_WIDTH];
+    var mshrReadHitReg: logic [LOAD_ISSUE_WIDTH];
+    var mshrReadDataReg: DCacheLinePath [LOAD_ISSUE_WIDTH];
+
+    var loadAddrReg: AddrPath [LOAD_ISSUE_WIDTH];
+    var loadMemAccessSizeReg: MemAccessMode [LOAD_ISSUE_WIDTH];
+
+    always_ff (port.clk) {
+        for i in 0..LOAD_ISSUE_WIDTH {
+            if port.rst {
+                storeLoadForwardedReg[i] = FALSE;
+                forwardedLoadDataReg[i] = '0;
+                mshrReadHitReg[i] = FALSE;
+                mshrReadDataReg[i] = '0;
+                loadAddrReg[i] = '0;
+                loadMemAccessSizeReg[i] = MEM_ACCESS_SIZE_BYTE;
+            } else if !ctrl.backEnd.stall {
+                storeLoadForwardedReg[i] = port.storeLoadForwarded[i];
+                forwardedLoadDataReg[i] = port.forwardedLoadData[i];
+                mshrReadHitReg[i] = port.mshrReadHit[i];
+                mshrReadDataReg[i] = port.mshrReadData[i];
+                loadAddrReg[i] = port.executedLoadAddr[i];
+                loadMemAccessSizeReg[i] = port.executedLoadMemAccessMode[i];
+            }
+        }
+    }
+
+    var loadLSQ_BlockData: LSQ_BlockDataPath [LOAD_ISSUE_WIDTH];
+    var shiftedLoadData: DataPath [LOAD_ISSUE_WIDTH];
+    var extendedLoadData: DataPath [LOAD_ISSUE_WIDTH];
+
+    always_comb {
+        for i in 0..LOAD_ISSUE_WIDTH {
+            port.executedLoadVectorData[i] = 0;
+        }
+
+        for i in 0..LOAD_ISSUE_WIDTH {
+            if storeLoadForwardedReg[i] {
+                loadLSQ_BlockData[i] = forwardedLoadDataReg[i];
+            } else if mshrReadHitReg[i] {
+                loadLSQ_BlockData[i] = mshrReadDataReg[i];
+            } else {
+                loadLSQ_BlockData[i] = port.dcReadData[i];
+            }
+            port.executedLoadVectorData[i] = loadLSQ_BlockData[i];
+
+            if storeLoadForwardedReg[i] {
+                shiftedLoadData[i] = ShiftForwardedData(forwardedLoadDataReg[i], loadAddrReg[i]);
+            } else if mshrReadHitReg[i] {
+                shiftedLoadData[i] = ShiftCacheLineData(mshrReadDataReg[i], loadAddrReg[i]);
+            } else {
+                shiftedLoadData[i] = ShiftCacheLineData(port.dcReadData[i], loadAddrReg[i]);
+            }
+            extendedLoadData[i] = ExtendLoadData(shiftedLoadData[i], loadMemAccessSizeReg[i]);
+        }
+
+        port.executedLoadData = extendedLoadData;
+    }
+
+    always_comb {
+        port.allocatable =
+            port.loadQueueAllocatable &&
+            port.storeQueueAllocatable &&
+            !port.busyInRecovery;
+    }
+}

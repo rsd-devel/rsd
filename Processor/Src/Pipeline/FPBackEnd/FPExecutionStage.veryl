@@ -1,0 +1,307 @@
+module FPExecutionStage (
+    port         : modport FPExecutionStageIF::ThisStage,
+    prev         : modport FPRegisterReadStageIF::NextStage,
+    fpDivSqrtUnit: modport FPDivSqrtUnitIF::FPExecutionStage,
+    scheduler    : modport SchedulerIF::FPExecutionStage,
+    bypass       : modport BypassNetworkIF::FPExecutionStage,
+    recovery     : modport RecoveryManagerIF::FPExecutionStage,
+    ctrl         : modport ControllerIF::FPExecutionStage,
+    debug        : modport DebugIF::FPExecutionStage,
+    csrUnit      : modport CSR_UnitIF::FPExecutionStage,
+) {
+    import BasicTypes::*;
+    import OpFormatTypes::*;
+    import MicroOpTypes::*;
+    import SchedulerTypes::*;
+    import ActiveListIndexTypes::*;
+    import PipelineTypes::*;
+    import DebugTypes::*;
+
+    var stall: logic;
+    var clear: logic;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // `RSD_STATIC_ASSERT(FP_ISSUE_WIDTH == FP_DIVSQRT_ISSUE_WIDTH, "These muse be same");
+
+    struct LocalPipeReg {
+        opId       : OpId,
+        valid      : logic,
+        regValid   : logic,
+        fpQueueData: FPIssueQueueEntry,
+    }
+
+    var localPipeReg: LocalPipeReg<FP_ISSUE_WIDTH, FP_EXEC_STAGE_DEPTH - 1>;
+    var nextLocalPipeReg: LocalPipeReg<FP_ISSUE_WIDTH, FP_EXEC_STAGE_DEPTH - 1>;
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (port.clk) {
+        if port.rst || clear {
+            for i in 0..FP_ISSUE_WIDTH {
+                for j in 0..FP_EXEC_STAGE_DEPTH - 1 {
+                    localPipeReg[i][j].valid = '0;
+                    localPipeReg[i][j].regValid = '0;
+                }
+            }
+        } else if !ctrl.backEnd.stall {
+            localPipeReg = nextLocalPipeReg;
+        }
+    }
+
+    var pipeReg: FPExecutionStageRegPath [FP_ISSUE_WIDTH];
+
+    // NOT_TRANSPILED_TO_VERYL
+    // Non-synthesis initial block for Questa X avoidance was omitted.
+
+    always_ff (port.clk) {
+        if port.rst {
+            for i in 0..FP_ISSUE_WIDTH {
+                pipeReg[i].valid = '0;
+            }
+        } else if !ctrl.backEnd.stall {
+            pipeReg = prev.nextStage;
+        }
+    }
+
+    var fmaDataOut: DataPath [FP_ISSUE_WIDTH];
+    var otherDataOut: DataPath [FP_ISSUE_WIDTH];
+    var fmaMulLHS: DataPath [FP_ISSUE_WIDTH];
+    var fmaMulRHS: DataPath [FP_ISSUE_WIDTH];
+    var fmaAddend: DataPath [FP_ISSUE_WIDTH];
+    var otherFFlagsOut: FFlags_Path [FP_ISSUE_WIDTH];
+    var isDivSqrt: logic [FP_ISSUE_WIDTH];
+    var fpOpInfo: FPOpInfo [FP_ISSUE_WIDTH];
+    var fpuCode: FPU_Code [FP_ISSUE_WIDTH];
+    var rm: Rounding_Mode [FP_ISSUE_WIDTH];
+    var fuOpA: PRegDataPath [FP_ISSUE_WIDTH];
+    var fuOpB: PRegDataPath [FP_ISSUE_WIDTH];
+    var fuOpC: PRegDataPath [FP_ISSUE_WIDTH];
+
+    for i in 0..FP_ISSUE_WIDTH : BlockFPUnit {
+        inst fpFMA: FP32PipelinedFMA (
+            clk   : port.clk,
+            mullhs: fmaMulLHS[i],
+            mulrhs: fmaMulRHS[i],
+            addend: fmaAddend[i],
+            result: fmaDataOut[i],
+        );
+
+        inst fpOther: FP32PipelinedOther #(
+            PIPELINE_DEPTH: FP_EXEC_STAGE_DEPTH,
+        ) (
+            clk    : port.clk,
+            lhs    : fuOpA[i].data,
+            rhs    : fuOpB[i].data,
+            fpuCode: fpuCode[i],
+            rm     : rm[i],
+            result : otherDataOut[i],
+            fflags : otherFFlagsOut[i],
+        );
+    }
+
+    always_comb {
+        for i in 0..FP_ISSUE_WIDTH {
+            if (fpuCode[i] == FC_FNMSUB) || (fpuCode[i] == FC_FNMADD) {
+                fmaMulLHS[i] = {~fuOpA[i].data[31], fuOpA[i].data[30:0]};
+            } else {
+                fmaMulLHS[i] = fuOpA[i].data;
+            }
+
+            if (fpuCode[i] == FC_ADD) || (fpuCode[i] == FC_SUB) {
+                fmaMulRHS[i] = 32'h3f800000;
+            } else {
+                fmaMulRHS[i] = fuOpB[i].data;
+            }
+
+            if fpuCode[i] == FC_MUL {
+                fmaAddend[i] = 32'h00000000;
+            } else if fpuCode[i] == FC_ADD {
+                fmaAddend[i] = fuOpB[i].data;
+            } else if fpuCode[i] == FC_SUB {
+                fmaAddend[i] = {~fuOpB[i].data[31], fuOpB[i].data[30:0]};
+            } else if (fpuCode[i] == FC_FMSUB) || (fpuCode[i] == FC_FNMADD) {
+                fmaAddend[i] = {~fuOpC[i].data[31], fuOpC[i].data[30:0]};
+            } else {
+                fmaAddend[i] = fuOpC[i].data;
+            }
+
+            fpDivSqrtUnit.dataInA[i] = fuOpA[i].data;
+            fpDivSqrtUnit.dataInB[i] = fuOpB[i].data;
+            fpDivSqrtUnit.is_divide[i] = fpOpInfo[i].fpuCode == FC_DIV;
+            fpDivSqrtUnit.rm[i] = rm[i];
+
+            isDivSqrt[i] =
+                (pipeReg[i].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_DIV) ||
+                (pipeReg[i].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_SQRT);
+
+            fpDivSqrtUnit.Req[i] =
+                fpDivSqrtUnit.Reserved[i] &&
+                pipeReg[i].valid &&
+                isDivSqrt[i] &&
+                fuOpA[i].valid &&
+                fuOpB[i].valid;
+
+            if fpDivSqrtUnit.Finished[i] &&
+               localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].valid &&
+               (
+                   localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_DIV ||
+                   localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData.fpOpInfo.opType == FP_MOP_TYPE_SQRT
+               ) &&
+               localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].regValid {
+                fpDivSqrtUnit.Release[i] = TRUE;
+            } else {
+                fpDivSqrtUnit.Release[i] = FALSE;
+            }
+        }
+    }
+
+    var nextStage: FPRegisterWriteStageRegPath [FP_ISSUE_WIDTH];
+
+    always_comb {
+        stall = ctrl.backEnd.stall;
+        clear = ctrl.backEnd.clear;
+        fpDivSqrtUnit.stall = stall;
+
+        for i in 0..FP_ISSUE_WIDTH {
+            var fpOpInfoValue: FPOpInfo;
+            var fuOpAValue: PRegDataPath;
+            var fuOpBValue: PRegDataPath;
+            var fuOpCValue: PRegDataPath;
+            var regValidValue: logic;
+            var dataOutValue: PRegDataPath;
+            var fflagsOutValue: FFlags_Path;
+            var flushValue: logic<FP_EXEC_STAGE_DEPTH>;
+
+            fpOpInfoValue = pipeReg[i].fpQueueData.fpOpInfo;
+            fpOpInfo[i] = fpOpInfoValue;
+            fpuCode[i] = fpOpInfoValue.fpuCode;
+            if fpOpInfoValue.rm == RM_DYN {
+                rm[i] = csrUnit.frm;
+            } else {
+                rm[i] = fpOpInfoValue.rm;
+            }
+
+            flushValue[0] = SelectiveFlushDetector(
+                recovery.toRecoveryPhase,
+                recovery.flushRangeHeadPtr,
+                recovery.flushRangeTailPtr,
+                recovery.flushAllInsns,
+                pipeReg[i].fpQueueData.activeListPtr
+            );
+            for j in 1..FP_EXEC_STAGE_DEPTH {
+                flushValue[j] = SelectiveFlushDetector(
+                    recovery.toRecoveryPhase,
+                    recovery.flushRangeHeadPtr,
+                    recovery.flushRangeTailPtr,
+                    recovery.flushAllInsns,
+                    localPipeReg[i][j - 1].fpQueueData.activeListPtr
+                );
+            }
+
+            if pipeReg[i].bCtrl.rA.valid {
+                fuOpAValue = bypass.fpSrcRegDataOutA[i];
+            } else {
+                fuOpAValue = pipeReg[i].operandA;
+            }
+            if pipeReg[i].bCtrl.rB.valid {
+                fuOpBValue = bypass.fpSrcRegDataOutB[i];
+            } else {
+                fuOpBValue = pipeReg[i].operandB;
+            }
+            if pipeReg[i].bCtrl.rC.valid {
+                fuOpCValue = bypass.fpSrcRegDataOutC[i];
+            } else {
+                fuOpCValue = pipeReg[i].operandC;
+            }
+            fuOpA[i] = fuOpAValue;
+            fuOpB[i] = fuOpBValue;
+            fuOpC[i] = fuOpCValue;
+
+            regValidValue =
+                (fpOpInfoValue.operandTypeA != OOT_REG || fuOpAValue.valid) &&
+                (fpOpInfoValue.operandTypeB != OOT_REG || fuOpBValue.valid) &&
+                (fpOpInfoValue.operandTypeC != OOT_REG || fuOpCValue.valid);
+
+            dataOutValue.valid = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].regValid;
+            case localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData.fpOpInfo.opType {
+                FP_MOP_TYPE_ADD,
+                FP_MOP_TYPE_MUL,
+                FP_MOP_TYPE_FMA: {
+                    dataOutValue.data = fmaDataOut[i];
+                    fflagsOutValue = '0;
+                }
+                FP_MOP_TYPE_DIV,
+                FP_MOP_TYPE_SQRT: {
+                    dataOutValue.data = fpDivSqrtUnit.DataOut[i];
+                    fflagsOutValue = '0;
+                }
+                default: {
+                    dataOutValue.data = otherDataOut[i];
+                    fflagsOutValue = otherFFlagsOut[i];
+                }
+            }
+
+            bypass.fpCtrlIn[i] = pipeReg[i].bCtrl;
+            bypass.fpDstRegDataOut[i] = dataOutValue;
+
+            scheduler.fpRecordEntry[i] =
+                !stall &&
+                !clear &&
+                !flushValue[1] &&
+                localPipeReg[i][0].valid &&
+                !localPipeReg[i][0].regValid;
+            scheduler.fpRecordData[i] = localPipeReg[i][0].fpQueueData;
+
+            nextLocalPipeReg[i][0].opId = pipeReg[i].opId;
+            if flushValue[0] {
+                nextLocalPipeReg[i][0].valid = FALSE;
+            } else {
+                nextLocalPipeReg[i][0].valid = pipeReg[i].valid;
+            }
+            nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
+
+            if isDivSqrt[i] {
+                nextLocalPipeReg[i][0].regValid = pipeReg[i].replay && fpDivSqrtUnit.Finished[i];
+            } else {
+                nextLocalPipeReg[i][0].regValid = regValidValue;
+            }
+
+            for j in 1..FP_EXEC_STAGE_DEPTH - 1 {
+                nextLocalPipeReg[i][j].opId = localPipeReg[i][j - 1].opId;
+                if flushValue[j] {
+                    nextLocalPipeReg[i][j].valid = FALSE;
+                } else {
+                    nextLocalPipeReg[i][j].valid = localPipeReg[i][j - 1].valid;
+                }
+                nextLocalPipeReg[i][j].regValid = localPipeReg[i][j - 1].regValid;
+                nextLocalPipeReg[i][j].fpQueueData = localPipeReg[i][j - 1].fpQueueData;
+            }
+
+            nextStage[i].opId = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].opId;
+            nextStage[i].fpQueueData = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].fpQueueData;
+            nextStage[i].fflagsOut = fflagsOutValue;
+            if stall || clear || port.rst || flushValue[FP_EXEC_STAGE_DEPTH - 1] {
+                nextStage[i].valid = FALSE;
+            } else {
+                nextStage[i].valid = localPipeReg[i][FP_EXEC_STAGE_DEPTH - 2].valid;
+            }
+            nextStage[i].dataOut = dataOutValue;
+
+            debug.fpExReg[i].valid[0] = pipeReg[i].valid;
+            debug.fpExReg[i].flush[0] = flushValue[0];
+            debug.fpExReg[i].opId[0] = pipeReg[i].opId;
+            for j in 1..FP_EXEC_STAGE_DEPTH {
+                debug.fpExReg[i].valid[j] = localPipeReg[i][j - 1].valid;
+                debug.fpExReg[i].opId[j] = localPipeReg[i][j - 1].opId;
+                debug.fpExReg[i].flush[j] = flushValue[j];
+            }
+            debug.fpExReg[i].dataOut = dataOutValue.data;
+            debug.fpExReg[i].fuOpA = fuOpAValue.data;
+            debug.fpExReg[i].fuOpB = fuOpBValue.data;
+            debug.fpExReg[i].fuOpC = fuOpCValue.data;
+        }
+
+        port.nextStage = nextStage;
+    }
+}

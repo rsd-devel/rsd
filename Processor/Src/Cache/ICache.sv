@@ -13,6 +13,7 @@ import BasicTypes::*;
 import CacheSystemTypes::*;
 import MemoryMapTypes::*;
 
+`ifndef RSD_VERYL_ICACHE_HELPERS
 module ICacheArray(
     input  logic           clk, rst, rstStart,
     input  logic           we,
@@ -163,6 +164,8 @@ output
     end
 
 endmodule
+
+`endif
 
 module ICache(
     NextPCStageIF.ICache port,

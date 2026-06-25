@@ -1,0 +1,431 @@
+module FP32PipelinedFMA (
+    clk   : input  clock    ,
+    mullhs: input  logic<32>,
+    mulrhs: input  logic<32>,
+    addend: input  logic<32>,
+    result: output logic<32>,
+) {
+    import FPUTypes::*;
+
+    var stg0Out: FMAStage1RegPath;
+    var stg1Out: FMAStage2RegPath;
+    var stg2Out: FMAStage3RegPath;
+    var stg3Out: FMAStage4RegPath;
+
+    // Fused-multiply-adder (24bit*24bit<<3+76bit+sign)
+    // The multiplication result is shifted by 2 bits for the guard bit and the sticky bit.
+    // The adder is sufficient for 76 bits + 1 sign bit because |lhs*rhs<<3| ~ 2^51 is <0.5 ULP when subtracted from 2^76. Note: ULP(1-eps) = 2^-24 while ULP(1+eps) = 2^-23.
+    var multiplier_lhs   : logic<77>;
+    var multiplier_rhs   : logic<77>;
+    var multiplier_addend: logic<77>;
+    var fma_result       : logic<77>;
+    var mlhs             : logic<77>;
+    var mrhs             : logic<77>;
+    var maddend          : logic<77>;
+    var is_subtract      : logic    ;
+    var is_sub           : logic    ;
+
+    always_ff (clk) {
+        multiplier_lhs    = mlhs;
+        multiplier_rhs    = mrhs;
+        multiplier_addend = maddend;
+        is_subtract       = is_sub;
+        if is_subtract {
+            fma_result = multiplier_lhs * multiplier_rhs - multiplier_addend;
+        } else {
+            fma_result = multiplier_lhs * multiplier_rhs + multiplier_addend;
+        }
+    }
+
+    inst stg0: FMAStage0 (
+        clk        : clk    ,
+        stg0Out    : stg0Out,
+        mullhs     : mullhs ,
+        mulrhs     : mulrhs ,
+        addend     : addend ,
+        is_subtract: is_sub ,
+        mlhs       : mlhs   ,
+        mrhs       : mrhs   ,
+        maddend    : maddend,
+    );
+    inst stg1: FMAStage1 (
+        clk    : clk    ,
+        stg1In : stg0Out,
+        stg1Out: stg1Out,
+    );
+    inst stg2: FMAStage2 (
+        clk       : clk       ,
+        stg2In    : stg1Out   ,
+        stg2Out   : stg2Out   ,
+        fma_result: fma_result,
+    );
+    inst stg3: FMAStage3 (
+        clk    : clk    ,
+        stg3In : stg2Out,
+        stg3Out: stg3Out,
+    );
+    inst stg4: FMAStage4 (
+        clk   : clk    ,
+        stg4In: stg3Out,
+        result: result ,
+    );
+}
+
+module FMAStage0 (
+    clk        : input  clock               ,
+    stg0Out    : output FMAStage1RegPath    ,
+    mullhs     : input  logic           <32>,
+    mulrhs     : input  logic           <32>,
+    addend     : input  logic           <32>,
+    is_subtract: output logic               ,
+    mlhs       : output logic           <77>,
+    mrhs       : output logic           <77>,
+    maddend    : output logic           <77>,
+) {
+    import FPUTypes::*;
+
+    var mullhs_sign       : logic    ;
+    var mulrhs_sign       : logic    ;
+    var addend_sign       : logic    ;
+    var mullhs_expo       : logic<8> ;
+    var mulrhs_expo       : logic<8> ;
+    var addend_expo       : logic<8> ;
+    var mullhs_mant       : logic<23>;
+    var mulrhs_mant       : logic<23>;
+    var addend_mant       : logic<23>;
+    var mullhs_is_zero    : logic    ;
+    var mulrhs_is_zero    : logic    ;
+    var addend_is_zero    : logic    ;
+    var mullhs_is_inf     : logic    ;
+    var mulrhs_is_inf     : logic    ;
+    var addend_is_inf     : logic    ;
+    var mullhs_is_nan     : logic    ;
+    var mulrhs_is_nan     : logic    ;
+    var addend_is_nan     : logic    ;
+    var result_is_nan     : logic    ;
+    var nan               : logic<32>;
+    var result_is_inf     : logic    ;
+    var prop_inf_sign     : logic    ;
+    var mul_sign          : logic    ;
+    var v_mullhs_expo     : logic<10>;
+    var v_mulrhs_expo     : logic<10>;
+    var v_addend_expo     : logic<10>;
+    var mulres_expo       : logic<10>;
+    var addend_shift      : logic<10>;
+    var res_is_addend     : logic    ;
+    var addend_sticky     : logic    ;
+    var addend_hidden_mant: logic<24>;
+
+    always_comb {
+        mullhs_sign = mullhs[31];
+        mulrhs_sign = mulrhs[31];
+        addend_sign = addend[31];
+        mullhs_expo = mullhs[30:23];
+        mulrhs_expo = mulrhs[30:23];
+        addend_expo = addend[30:23];
+        mullhs_mant = mullhs[22:0];
+        mulrhs_mant = mulrhs[22:0];
+        addend_mant = addend[22:0];
+        is_subtract = mullhs_sign ^ mulrhs_sign ^ addend_sign;
+
+        // NaN handling
+        mullhs_is_zero = (mullhs_expo == 8'h00) & (mullhs_mant == 0);
+        mulrhs_is_zero = (mulrhs_expo == 8'h00) & (mulrhs_mant == 0);
+        addend_is_zero = (addend_expo == 8'h00) & (addend_mant == 0);
+        mullhs_is_inf  = (mullhs_expo == 8'hff) & (mullhs_mant == 0);
+        mulrhs_is_inf  = (mulrhs_expo == 8'hff) & (mulrhs_mant == 0);
+        addend_is_inf  = (addend_expo == 8'hff) & (addend_mant == 0);
+        mullhs_is_nan  = (mullhs_expo == 8'hff) & (mullhs_mant != 0);
+        mulrhs_is_nan  = (mulrhs_expo == 8'hff) & (mulrhs_mant != 0);
+        addend_is_nan  = (addend_expo == 8'hff) & (addend_mant != 0);
+        result_is_nan  = mullhs_is_nan | mulrhs_is_nan | addend_is_nan | (mullhs_is_zero & mulrhs_is_inf)
+            | (mullhs_is_inf & mulrhs_is_zero) | (is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf);
+        nan            = 32'h7fc00000;
+
+        // Inf handling
+        result_is_inf = addend_is_inf | mullhs_is_inf | mulrhs_is_inf;
+        if addend_is_inf {
+            prop_inf_sign = addend_sign;
+        } else {
+            prop_inf_sign = mullhs_sign ^ mulrhs_sign;
+        }
+        mul_sign = mullhs_sign ^ mulrhs_sign;
+
+        if mullhs_expo == 8'h00 {
+            v_mullhs_expo = {2'b0, 8'h01};
+        } else {
+            v_mullhs_expo = {2'b0, mullhs_expo};
+        }
+        if mulrhs_expo == 8'h00 {
+            v_mulrhs_expo = {2'b0, 8'h01};
+        } else {
+            v_mulrhs_expo = {2'b0, mulrhs_expo};
+        }
+        if addend_expo == 8'h00 {
+            v_addend_expo = {2'b0, 8'h01};
+        } else {
+            v_addend_expo = {2'b0, addend_expo};
+        }
+        mulres_expo   = v_mullhs_expo + v_mulrhs_expo - 127;
+        addend_shift  = v_addend_expo - mulres_expo + 23;
+        res_is_addend = (($signed(addend_shift) >: 49) | mullhs_is_zero | mulrhs_is_zero) & !addend_is_zero;
+
+        addend_hidden_mant = {addend_expo != 8'h00, addend_mant};
+        if $signed(addend_shift) >= 0 {
+            addend_sticky = 1'b0;
+        } else if $signed(addend_shift) <: -26 {
+            addend_sticky = addend_hidden_mant != 0;
+        } else {
+            addend_sticky = (addend_hidden_mant << (10'd26 + addend_shift)) != 24'h000000;
+        }
+
+        maddend = {1'b0, {addend_expo != 8'h00, addend_mant, 2'b00, 49'b0} >> (10'd49 - addend_shift), addend_sticky};
+        mlhs    = {51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0};
+        mrhs    = {52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0};
+
+        stg0Out.mulres_expo   = mulres_expo;
+        stg0Out.result_is_inf = result_is_inf;
+        stg0Out.result_is_nan = result_is_nan;
+        stg0Out.res_is_addend = res_is_addend;
+        stg0Out.mul_sign      = mul_sign;
+        stg0Out.prop_inf_sign = prop_inf_sign;
+        stg0Out.addend_sign   = addend_sign;
+        stg0Out.is_subtract   = is_subtract;
+        stg0Out.nan           = nan;
+        stg0Out.addend        = addend;
+    }
+}
+
+module FMAStage1 (
+    clk    : input  clock           ,
+    stg1In : input  FMAStage1RegPath,
+    stg1Out: output FMAStage2RegPath,
+) {
+    import FPUTypes::*;
+
+    var pipeReg: FMAStage1RegPath;
+
+    always_ff (clk) {
+        pipeReg = stg1In;
+    }
+
+    always_comb {
+        stg1Out.mulres_expo   = pipeReg.mulres_expo;
+        stg1Out.result_is_inf = pipeReg.result_is_inf;
+        stg1Out.result_is_nan = pipeReg.result_is_nan;
+        stg1Out.res_is_addend = pipeReg.res_is_addend;
+        stg1Out.mul_sign      = pipeReg.mul_sign;
+        stg1Out.prop_inf_sign = pipeReg.prop_inf_sign;
+        stg1Out.addend_sign   = pipeReg.addend_sign;
+        stg1Out.is_subtract   = pipeReg.is_subtract;
+        stg1Out.nan           = pipeReg.nan;
+        stg1Out.addend        = pipeReg.addend;
+    }
+}
+
+module FMAStage2 (
+    clk       : input  clock               ,
+    stg2In    : input  FMAStage2RegPath    ,
+    stg2Out   : output FMAStage3RegPath    ,
+    fma_result: input  logic           <77>,
+) {
+    import FPUTypes::*;
+
+    var pipeReg        : FMAStage2RegPath    ;
+    var mul_sign       : logic               ;
+    var res_is_zero    : logic               ;
+    var res_is_negative: logic               ;
+    var abs_fma_result : logic           <76>;
+    var result_sign    : logic               ;
+
+    always_ff (clk) {
+        pipeReg = stg2In;
+    }
+
+    always_comb {
+        mul_sign        = pipeReg.mul_sign;
+        res_is_zero     = fma_result == 77'h0;
+        res_is_negative = fma_result[76];
+        if res_is_negative {
+            abs_fma_result = 0 - fma_result[75:0];
+        } else {
+            abs_fma_result = fma_result[75:0];
+        }
+        result_sign = mul_sign ^ res_is_negative;
+
+        stg2Out.abs_fma_result  = abs_fma_result;
+        stg2Out.mulres_expo     = pipeReg.mulres_expo;
+        stg2Out.res_is_negative = res_is_negative;
+        stg2Out.result_is_inf   = pipeReg.result_is_inf;
+        stg2Out.result_is_nan   = pipeReg.result_is_nan;
+        stg2Out.res_is_zero     = res_is_zero;
+        stg2Out.res_is_addend   = pipeReg.res_is_addend;
+        stg2Out.result_sign     = result_sign;
+        stg2Out.prop_inf_sign   = pipeReg.prop_inf_sign;
+        stg2Out.addend_sign     = pipeReg.addend_sign;
+        stg2Out.is_subtract     = pipeReg.is_subtract;
+        stg2Out.nan             = pipeReg.nan;
+        stg2Out.addend          = pipeReg.addend;
+    }
+}
+
+module FMAStage3 (
+    clk    : input  clock           ,
+    stg3In : input  FMAStage3RegPath,
+    stg3Out: output FMAStage4RegPath,
+) {
+    import FPUTypes::*;
+
+    function leading_zeros_count (
+        x: input logic<76>,
+    ) -> logic<7> {
+        var count: logic<7>;
+        var found: logic   ;
+
+        count = 0;
+        found = 0;
+        for i in 0..76 {
+            if !found && x[75 - i] {
+                count = i;
+                found = 1;
+            }
+        }
+        return count;
+    }
+
+    var pipeReg       : FMAStage3RegPath    ;
+    var abs_fma_result: logic           <76>;
+    var mulres_expo   : logic           <10>;
+    var leading_zeros : logic           <8> ;
+    var virtual_expo  : logic           <10>;
+    var subnormal     : logic               ;
+    var fmares_shift  : logic           <8> ;
+
+    always_ff (clk) {
+        pipeReg = stg3In;
+    }
+
+    always_comb {
+        abs_fma_result = pipeReg.abs_fma_result;
+        mulres_expo    = pipeReg.mulres_expo;
+        leading_zeros  = {1'b0, leading_zeros_count(abs_fma_result)};
+        virtual_expo   = mulres_expo - {2'b00, leading_zeros} + 26;
+        subnormal      = $signed(virtual_expo) <= 0;
+        if subnormal {
+            fmares_shift = 26 - mulres_expo[7:0];
+        } else {
+            fmares_shift = 51 - leading_zeros;
+        }
+
+        stg3Out.abs_fma_result  = abs_fma_result;
+        stg3Out.fmares_shift    = fmares_shift;
+        stg3Out.virtual_expo    = virtual_expo;
+        stg3Out.subnormal       = subnormal;
+        stg3Out.res_is_negative = pipeReg.res_is_negative;
+        stg3Out.result_is_inf   = pipeReg.result_is_inf;
+        stg3Out.result_is_nan   = pipeReg.result_is_nan;
+        stg3Out.res_is_zero     = pipeReg.res_is_zero;
+        stg3Out.res_is_addend   = pipeReg.res_is_addend;
+        stg3Out.result_sign     = pipeReg.result_sign;
+        stg3Out.prop_inf_sign   = pipeReg.prop_inf_sign;
+        stg3Out.addend_sign     = pipeReg.addend_sign;
+        stg3Out.is_subtract     = pipeReg.is_subtract;
+        stg3Out.nan             = pipeReg.nan;
+        stg3Out.addend          = pipeReg.addend;
+    }
+}
+
+module FMAStage4 (
+    clk   : input  clock               ,
+    stg4In: input  FMAStage4RegPath    ,
+    result: output logic           <32>,
+) {
+    import FPUTypes::*;
+
+    var pipeReg        : FMAStage4RegPath    ;
+    var abs_fma_result : logic           <76>;
+    var fmares_shift   : logic           <8> ;
+    var virtual_expo   : logic           <10>;
+    var nan            : logic           <32>;
+    var addend         : logic           <32>;
+    var res_is_negative: logic               ;
+    var result_is_inf  : logic               ;
+    var result_is_nan  : logic               ;
+    var res_is_zero    : logic               ;
+    var res_is_addend  : logic               ;
+    var result_sign    : logic               ;
+    var prop_inf_sign  : logic               ;
+    var addend_sign    : logic               ;
+    var subnormal      : logic               ;
+    var is_subtract    : logic               ;
+    var shifter_result : logic           <24>;
+    var sticky         : logic               ;
+    var round_to_away  : logic               ;
+    var exp_plus_one   : logic               ;
+    var result_mant    : logic           <23>;
+    var result_expo    : logic           <8> ;
+    var res_is_inf     : logic               ;
+    var inf            : logic           <32>;
+    var zero           : logic           <32>;
+    var final_result   : logic           <32>;
+
+    always_ff (clk) {
+        pipeReg = stg4In;
+    }
+
+    always_comb {
+        abs_fma_result  = pipeReg.abs_fma_result;
+        fmares_shift    = pipeReg.fmares_shift;
+        virtual_expo    = pipeReg.virtual_expo;
+        nan             = pipeReg.nan;
+        addend          = pipeReg.addend;
+        res_is_negative = pipeReg.res_is_negative;
+        result_is_inf   = pipeReg.result_is_inf;
+        result_is_nan   = pipeReg.result_is_nan;
+        res_is_zero     = pipeReg.res_is_zero;
+        res_is_addend   = pipeReg.res_is_addend;
+        result_sign     = pipeReg.result_sign;
+        prop_inf_sign   = pipeReg.prop_inf_sign;
+        addend_sign     = pipeReg.addend_sign;
+        subnormal       = pipeReg.subnormal;
+        is_subtract     = pipeReg.is_subtract;
+
+        shifter_result = {abs_fma_result, 23'b0} >> (7'd23 + fmares_shift);
+        sticky         = (abs_fma_result << (76 - fmares_shift)) != 0;
+        round_to_away  = shifter_result[0] & (shifter_result[1] | sticky);
+        exp_plus_one   = shifter_result >= 24'hffffff;
+        result_mant    = shifter_result[23:1] + {22'h0, round_to_away};
+        if subnormal {
+            result_expo = 8'h00 + {7'b0, exp_plus_one};
+        } else {
+            result_expo = virtual_expo[7:0] + {7'b0, exp_plus_one};
+        }
+        res_is_inf = result_is_inf | ($signed(virtual_expo) >= 255);
+        if result_is_inf {
+            inf = {prop_inf_sign, 8'hff, 23'h0};
+        } else {
+            inf = {result_sign, 8'hff, 23'h0};
+        }
+        if is_subtract {
+            zero = {1'b0, 8'h00, 23'h0};
+        } else {
+            zero = {addend_sign, 8'h00, 23'h0};
+        }
+
+        if res_is_inf {
+            final_result = inf;
+        } else if res_is_addend {
+            final_result = addend;
+        } else if res_is_zero {
+            final_result = zero;
+        } else {
+            final_result = {result_sign, result_expo, result_mant};
+        }
+
+        if result_is_nan {
+            result = nan;
+        } else {
+            result = final_result;
+        }
+    }
+}

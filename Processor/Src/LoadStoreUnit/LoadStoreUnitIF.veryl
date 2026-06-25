@@ -1,0 +1,317 @@
+interface LoadStoreUnitIF {
+    import BasicTypes::*;
+    import MemoryMapTypes::*;
+    import CacheSystemTypes::*;
+    import OpFormatTypes::*;
+    import LoadStoreUnitTypes::*;
+    import ActiveListIndexTypes::*;
+
+    var clk     : clock;
+    var rst     : logic;
+    var rstStart: logic;
+
+    var allocatable          : logic;
+    var loadQueueAllocatable : logic;
+    var storeQueueAllocatable: logic;
+    var allocateLoadQueue    : logic [RENAME_WIDTH];
+    var allocateStoreQueue   : logic [RENAME_WIDTH];
+    var allocatedLoadQueuePtr : LoadQueueIndexPath [RENAME_WIDTH];
+    var allocatedStoreQueuePtr: StoreQueueIndexPath [RENAME_WIDTH];
+
+    var executeLoad             : logic [LOAD_ISSUE_WIDTH];
+    var executedLoadRegValid    : logic [LOAD_ISSUE_WIDTH];
+    var executedLoadAddr        : PhyAddrPath [LOAD_ISSUE_WIDTH];
+    var executedLoadMemMapType  : MemoryMapType [LOAD_ISSUE_WIDTH];
+    var executedLoadData        : DataPath [LOAD_ISSUE_WIDTH];
+    var executedLoadPC          : PC_Path [LOAD_ISSUE_WIDTH];
+    var executedLoadVectorData  : VectorPath [LOAD_ISSUE_WIDTH];
+    var executedLoadMemAccessMode: MemAccessMode [LOAD_ISSUE_WIDTH];
+    var executedStoreQueuePtrByLoad: StoreQueueIndexPath [LOAD_ISSUE_WIDTH];
+    var executedLoadQueuePtrByLoad : LoadQueueIndexPath [LOAD_ISSUE_WIDTH];
+
+    var executeStore             : logic [STORE_ISSUE_WIDTH];
+    var executedStoreCondEnabled : logic [STORE_ISSUE_WIDTH];
+    var executedStoreRegValid    : logic [STORE_ISSUE_WIDTH];
+    var executedStoreAddr        : PhyAddrPath [STORE_ISSUE_WIDTH];
+    var executedStoreData        : DataPath [STORE_ISSUE_WIDTH];
+    var executedStoreVectorData  : VectorPath [STORE_ISSUE_WIDTH];
+    var executedStoreMemAccessMode: MemAccessMode [STORE_ISSUE_WIDTH];
+    var executedLoadQueuePtrByStore : LoadQueueIndexPath [STORE_ISSUE_WIDTH];
+    var executedStoreQueuePtrByStore: StoreQueueIndexPath [STORE_ISSUE_WIDTH];
+
+    var commitStore   : logic;
+    var commitStoreNum: CommitLaneCountPath;
+
+    var releaseLoadQueue        : logic;
+    var releaseLoadQueueEntryNum: CommitLaneCountPath;
+
+    var releaseStoreQueueHead        : logic;
+    var releaseStoreQueueHeadEntryNum: CommitLaneCountPath;
+
+    var retiredStoreQueuePtr    : StoreQueueIndexPath;
+    var retiredStoreData        : LSQ_BlockDataPath;
+    var retiredStoreCondEnabled : logic;
+    var retiredStoreWordWE      : LSQ_BlockWordEnablePath;
+    var retiredStoreByteWE      : LSQ_WordByteEnablePath;
+    var retiredStoreLSQ_BlockAddr: LSQ_BlockAddrPath;
+
+    var storeQueueEmpty  : logic;
+    var storeQueueHeadPtr: StoreQueueIndexPath;
+    var storeQueueCount  : StoreQueueCountPath;
+
+    var busyInRecovery: logic;
+
+    var storeLoadForwarded: logic [LOAD_ISSUE_WIDTH];
+    var forwardedLoadData : LSQ_BlockDataPath [LOAD_ISSUE_WIDTH];
+    var forwardMiss       : logic [LOAD_ISSUE_WIDTH];
+
+    var dcReadReq : logic [LOAD_ISSUE_WIDTH];
+    var dcReadBusy: logic [LOAD_ISSUE_WIDTH];
+    var dcReadHit : logic [LOAD_ISSUE_WIDTH];
+
+    var dcReadAddr         : PhyAddrPath [LOAD_ISSUE_WIDTH];
+    var dcReadData         : DCacheLinePath [LOAD_ISSUE_WIDTH];
+    var dcReadUncachable   : logic [LOAD_ISSUE_WIDTH];
+    var dcReadActiveListPtr: ActiveListIndexPath [LOAD_ISSUE_WIDTH];
+
+    var loadHasAllocatedMSHR : logic [DCACHE_LSU_READ_PORT_NUM];
+    var loadMSHRID           : MSHR_IndexPath [DCACHE_LSU_READ_PORT_NUM];
+    var storeHasAllocatedMSHR: logic [DCACHE_LSU_WRITE_PORT_NUM];
+    var storeMSHRID          : MSHR_IndexPath [DCACHE_LSU_WRITE_PORT_NUM];
+
+    var dcWriteReq       : logic;
+    var dcWriteReqAck    : logic;
+    var dcWriteBusy      : logic;
+    var dcWriteHit       : logic;
+    var dcWriteAddr      : PhyAddrPath;
+    var dcWriteData      : DCacheLinePath;
+    var dcWriteByteWE    : DCacheByteEnablePath;
+    var dcWriteUncachable: logic;
+
+    var mshrAddrHit      : logic [LOAD_ISSUE_WIDTH];
+    var mshrAddrHitMSHRID: MSHR_IndexPath [LOAD_ISSUE_WIDTH];
+    var mshrReadHit      : logic [LOAD_ISSUE_WIDTH];
+    var mshrReadData     : DCacheLinePath [LOAD_ISSUE_WIDTH];
+
+    var makeMSHRCanBeInvalidDirect: logic [MSHR_NUM];
+
+    var mshrValid: logic [MSHR_NUM];
+    var mshrPhase: MSHR_Phase [MSHR_NUM];
+
+    var conflict               : logic [STORE_ISSUE_WIDTH];
+    var memAccessOrderViolation: logic [STORE_ISSUE_WIDTH];
+    var conflictLoadPC         : PC_Path [STORE_ISSUE_WIDTH];
+
+    modport DCache {
+        clk: input,
+        rst: input,
+        rstStart: input,
+        dcReadReq: input,
+        dcWriteReq: input,
+        dcWriteData: input,
+        dcWriteAddr: input,
+        dcWriteByteWE: input,
+        dcWriteUncachable: input,
+        dcReadAddr: input,
+        dcReadUncachable: input,
+        dcReadActiveListPtr: input,
+        makeMSHRCanBeInvalidDirect: input,
+        dcReadHit: output,
+        dcReadBusy: output,
+        dcReadData: output,
+        dcWriteHit: output,
+        dcWriteBusy: output,
+        dcWriteReqAck: output,
+        mshrAddrHit: output,
+        mshrAddrHitMSHRID: output,
+        mshrReadHit: output,
+        mshrReadData: output,
+        mshrValid: output,
+        mshrPhase: output,
+        loadHasAllocatedMSHR: output,
+        loadMSHRID: output,
+        storeHasAllocatedMSHR: output,
+        storeMSHRID: output,
+    }
+
+    modport LoadQueue {
+        clk: input,
+        rst: input,
+        allocateLoadQueue: input,
+        executeLoad: input,
+        executedLoadQueuePtrByLoad: input,
+        executedLoadQueuePtrByStore: input,
+        executedLoadAddr: input,
+        executedLoadPC: input,
+        executedLoadRegValid: input,
+        executedStoreAddr: input,
+        executeStore: input,
+        executedLoadMemAccessMode: input,
+        releaseLoadQueue: input,
+        releaseLoadQueueEntryNum: input,
+        executedStoreMemAccessMode: input,
+        allocatedLoadQueuePtr: output,
+        loadQueueAllocatable: output,
+        conflict: output,
+        conflictLoadPC: output,
+    }
+
+    modport StoreQueue {
+        clk: input,
+        rst: input,
+        allocateStoreQueue: input,
+        executeLoad: input,
+        executedLoadAddr: input,
+        executedLoadMemMapType: input,
+        executeStore: input,
+        executedStoreQueuePtrByLoad: input,
+        executedStoreQueuePtrByStore: input,
+        executedStoreAddr: input,
+        executedStoreData: input,
+        executedStoreVectorData: input,
+        executedStoreCondEnabled: input,
+        executedStoreRegValid: input,
+        executedStoreMemAccessMode: input,
+        releaseStoreQueueHead: input,
+        releaseStoreQueueHeadEntryNum: input,
+        retiredStoreQueuePtr: input,
+        executedLoadMemAccessMode: input,
+        allocatedStoreQueuePtr: output,
+        storeQueueAllocatable: output,
+        storeLoadForwarded: output,
+        forwardedLoadData: output,
+        forwardMiss: output,
+        retiredStoreData: output,
+        retiredStoreCondEnabled: output,
+        retiredStoreWordWE: output,
+        retiredStoreByteWE: output,
+        retiredStoreLSQ_BlockAddr: output,
+        storeQueueEmpty: output,
+        storeQueueCount: output,
+        storeQueueHeadPtr: output,
+    }
+
+    modport StoreCommitter {
+        clk: input,
+        rst: input,
+        commitStore: input,
+        commitStoreNum: input,
+        retiredStoreCondEnabled: input,
+        dcWriteBusy: input,
+        dcWriteHit: input,
+        dcWriteReqAck: input,
+        retiredStoreLSQ_BlockAddr: input,
+        retiredStoreData: input,
+        retiredStoreWordWE: input,
+        retiredStoreByteWE: input,
+        storeQueueEmpty: input,
+        storeQueueCount: input,
+        storeQueueHeadPtr: input,
+        allocatable: input,
+        storeHasAllocatedMSHR: input,
+        storeMSHRID: input,
+        mshrPhase: input,
+        dcWriteReq: output,
+        dcWriteData: output,
+        dcWriteAddr: output,
+        dcWriteByteWE: output,
+        dcWriteUncachable: output,
+        retiredStoreQueuePtr: output,
+        releaseStoreQueueHead: output,
+        busyInRecovery: output,
+        releaseStoreQueueHeadEntryNum: output,
+    }
+
+    modport LoadStoreUnit {
+        clk: input,
+        rst: input,
+        loadQueueAllocatable: input,
+        storeQueueAllocatable: input,
+        executeLoad: input,
+        executedLoadAddr: input,
+        executedLoadMemAccessMode: input,
+        storeLoadForwarded: input,
+        forwardedLoadData: input,
+        dcReadData: input,
+        busyInRecovery: input,
+        mshrReadHit: input,
+        mshrReadData: input,
+        executedLoadData: output,
+        executedLoadVectorData: output,
+        allocatable: output,
+    }
+
+    modport RenameStage {
+        allocatable: input,
+        allocatedLoadQueuePtr: input,
+        allocatedStoreQueuePtr: input,
+        storeQueueEmpty: input,
+        allocateLoadQueue: output,
+        allocateStoreQueue: output,
+    }
+
+    modport MemoryExecutionStage {
+        clk: input,
+        dcReadReq: output,
+        dcReadAddr: output,
+        dcReadUncachable: output,
+        dcReadActiveListPtr: output,
+    }
+
+    modport MemoryTagAccessStage {
+        forwardMiss: input,
+        storeLoadForwarded: input,
+        conflict: input,
+        dcReadHit: input,
+        mshrAddrHit: input,
+        mshrAddrHitMSHRID: input,
+        mshrReadHit: input,
+        loadHasAllocatedMSHR: input,
+        loadMSHRID: input,
+        executeLoad: output,
+        executedLoadQueuePtrByLoad: output,
+        executedLoadQueuePtrByStore: output,
+        executedLoadAddr: output,
+        executedLoadMemMapType: output,
+        executedLoadPC: output,
+        executedLoadRegValid: output,
+        executeStore: output,
+        executedStoreQueuePtrByLoad: output,
+        executedStoreQueuePtrByStore: output,
+        executedStoreData: output,
+        executedStoreVectorData: output,
+        executedStoreAddr: output,
+        executedStoreCondEnabled: output,
+        executedStoreRegValid: output,
+        executedLoadMemAccessMode: output,
+        executedStoreMemAccessMode: output,
+        memAccessOrderViolation: output,
+    }
+
+    modport MemoryAccessStage {
+        executedLoadData: input,
+        executedLoadVectorData: input,
+    }
+
+    modport MemoryRegisterWriteStage {
+        makeMSHRCanBeInvalidDirect: output,
+    }
+
+    modport ReplayQueue {
+        mshrValid: input,
+        mshrPhase: input,
+    }
+
+    modport CommitStage {
+        busyInRecovery: input,
+        releaseLoadQueue: output,
+        releaseLoadQueueEntryNum: output,
+        commitStore: output,
+        commitStoreNum: output,
+    }
+
+    modport MemoryDependencyPredictor {
+        memAccessOrderViolation: input,
+        conflictLoadPC: input,
+    }
+}

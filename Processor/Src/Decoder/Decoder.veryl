@@ -1,0 +1,1794 @@
+package DecoderFunctions {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+
+    // Copyright 2019- RSD contributors.
+    // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+    //
+    // Micro op decoder
+    //
+    function EmitInvalidOp (
+        op: output OpInfo
+    ) {
+        op = '0;
+        op.valid = FALSE;
+    }
+    //
+    // Modify micro op information.
+    //
+    function ModifyMicroOp (
+        src: input OpInfo,
+        mid: input MicroOpIndex,
+        split: input logic,
+        last: input logic
+    ) -> OpInfo {
+        var op: OpInfo;
+        op = src;
+        op.mid = mid;
+        op.split = split;
+        op.last = last;
+        return op;
+    }
+    //
+    //  RISCV Instruction Decoder
+    //
+    //
+    // --- 即値整数演算, シフト含む
+    //
+    function RISCV_EmitOpImm (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfI: RISCV_ISF_I;
+        var isfR: RISCV_ISF_R;
+        var opFunct3: OpFunct3;
+        var shiftFunct7: ShiftFunct7;
+        var intOperandImmShift: RISCV_IntOperandImmShift;
+        var isShift: logic;
+        var aluCode: IntALU_Code;
+        isfI = isf;
+        isfR = isf;
+        opFunct3 = (isfR.funct3 as OpFunct3);
+        shiftFunct7 = (isfR.funct7 as ShiftFunct7);
+        isShift = ( ( opFunct3 == OP_FUNCT3_SLL ) || ( opFunct3 == OP_FUNCT3_SRL_SRA ) );
+    // 論理レジスタ番号
+        opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+    // 即値
+        opInfo.operand.intOp.shiftType = SOT_IMM_SHIFT ;
+        if isShift {
+            intOperandImmShift.shift        = isfR.rs2;
+        } else {
+            intOperandImmShift.shift        = '0;
+        }
+        if opFunct3 == OP_FUNCT3_SLL {
+
+            intOperandImmShift.shiftType = ST_LSL;
+
+        } else if (opFunct3 == OP_FUNCT3_SRL_SRA) && (shiftFunct7 == SHIFT_FUNCT7_SRL) {
+
+            intOperandImmShift.shiftType = ST_LSR;
+
+        } else if (opFunct3 == OP_FUNCT3_SRL_SRA) && (shiftFunct7 == SHIFT_FUNCT7_SRA) {
+
+            intOperandImmShift.shiftType = ST_ASR;
+
+        } else {
+
+            intOperandImmShift.shiftType = ST_ROR;
+
+        }
+        intOperandImmShift.isRegShift   = FALSE;
+        if isShift {
+            intOperandImmShift.imm          = ShamtExtention( isfR );
+        } else {
+            intOperandImmShift.imm          = I_TypeImmExtention( isfI );
+        }
+        intOperandImmShift.immType      = RISCV_IMM_I;
+        opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+    // ALU
+        RISCV_DecodeOpImmFunct3( aluCode, opFunct3 );
+        opInfo.operand.intOp.aluCode = aluCode;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        if isShift {
+            opInfo.mopSubType.intType = INT_MOP_TYPE_SHIFT;
+        } else {
+            opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeOpImm (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var intOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitOpImm(
+            intOp,
+            isf,
+            isf.rs1,
+            0,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(intOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- レジスタ整数演算, シフト含む
+    //
+    function RISCV_EmitOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfR: RISCV_ISF_R;
+        var opFunct3: OpFunct3;
+        var opFunct7: OpFunct7;
+        var shiftFunct7: ShiftFunct7;
+        var intOperandImmShift: RISCV_IntOperandImmShift;
+        var isShift: logic;
+        var aluCode: IntALU_Code;
+        isfR = isf;
+        opFunct3 = (isfR.funct3 as OpFunct3);
+        opFunct7 = (isfR.funct7 as OpFunct7);
+        shiftFunct7 = (isfR.funct7 as ShiftFunct7);
+        isShift = ( ( opFunct3 == OP_FUNCT3_SLL ) || ( opFunct3 == OP_FUNCT3_SRL_SRA ) );
+    // 論理レジスタ番号
+        opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+    // 即値
+        opInfo.operand.intOp.shiftType = SOT_REG_SHIFT ;
+        if isShift {
+            intOperandImmShift.shift        = isfR.rs2;
+        } else {
+            intOperandImmShift.shift        = '0;
+        }
+        if opFunct3 == OP_FUNCT3_SLL {
+
+            intOperandImmShift.shiftType = ST_LSL;
+
+        } else if (opFunct3 == OP_FUNCT3_SRL_SRA) && (shiftFunct7 == SHIFT_FUNCT7_SRL) {
+
+            intOperandImmShift.shiftType = ST_LSR;
+
+        } else if (opFunct3 == OP_FUNCT3_SRL_SRA) && (shiftFunct7 == SHIFT_FUNCT7_SRA) {
+
+            intOperandImmShift.shiftType = ST_ASR;
+
+        } else {
+
+            intOperandImmShift.shiftType = ST_ROR;
+
+        }
+        intOperandImmShift.isRegShift   = TRUE;
+        intOperandImmShift.imm          = '0;
+        intOperandImmShift.immType      = RISCV_IMM_R;
+        opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+    // ALU
+    //RISCV_DecodeOpFunct3( isfR.funct3, isfR.funct7, opInfo.operand.intOp.aluCode);
+        RISCV_DecodeOpFunct3( aluCode, opFunct3, opFunct7 );
+        opInfo.operand.intOp.aluCode = aluCode;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        if isShift {
+            opInfo.mopSubType.intType = INT_MOP_TYPE_SHIFT;
+        } else {
+            opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var intOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitOp(
+            intOp,
+            isf,
+            isf.rs1,
+            isf.rs2,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(intOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV LUI, AUIPC
+    //
+    function RISCV_EmitUTypeInst (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfU: RISCV_ISF_U;
+        var intOperandImmShift: RISCV_IntOperandImmShift;
+        isfU = isf;
+    // 論理レジスタ番号
+        opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+    // 即値
+        opInfo.operand.intOp.shiftType = SOT_REG_SHIFT ;
+        intOperandImmShift.shift        = '0;
+        intOperandImmShift.shiftType    = ST_ROR;
+        intOperandImmShift.isRegShift   = TRUE;
+        intOperandImmShift.imm          = isfU.imm;
+        intOperandImmShift.immType      = RISCV_IMM_U;
+        opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+    // ALU
+        opInfo.operand.intOp.aluCode = AC_ADD;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        if isf.opCode == RISCV_AUIPC {
+            opInfo.opTypeA = OOT_PC;
+        } else {
+            opInfo.opTypeA = OOT_REG;
+        }
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeUTypeInst (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var intOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitUTypeInst(
+            intOp,
+            isf,
+            0,
+            0,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(intOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV JAL
+    //
+    function RISCV_EmitJAL (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfU: RISCV_ISF_U;
+        isfU = isf;
+    // 論理レジスタ番号
+        opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.brOp.dstRegNum.regNum  = isfU.rd;
+        opInfo.operand.brOp.srcRegNumA.regNum = '0;
+        opInfo.operand.brOp.srcRegNumB.regNum = '0;
+    // レジスタ書き込みを行うかどうか
+    // 比較系の命令はレジスタに書き込みを行わない
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( isfU.rd != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_PC;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_BR;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 分岐ターゲット
+        opInfo.operand.brOp.brDisp = GetJAL_Target( isf );
+        opInfo.operand.brOp.padding = 0;
+    // 未定義命令
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeJAL (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var brOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitJAL(
+            brOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
+        insnInfo.writePC = TRUE;
+        if ( brOp.writeReg && ( brOp.operand.brOp.dstRegNum.regNum == LINK_REGISTER ) ) {
+            insnInfo.isCall = TRUE;
+        } else {
+            insnInfo.isCall = FALSE;
+        }
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = TRUE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV Decode JALR
+    //
+    function RISCV_EmitJALR (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfI: RISCV_ISF_I;
+        isfI = isf;
+    // 論理レジスタ番号
+        opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.brOp.dstRegNum.regNum  = isfI.rd;
+        opInfo.operand.brOp.srcRegNumA.regNum = isfI.rs1;
+        opInfo.operand.brOp.srcRegNumB.regNum = 0;
+    // レジスタ書き込みを行うかどうか
+    // 比較系の命令はレジスタに書き込みを行わない
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( isfI.rd != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_RIJ;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 分岐ターゲット
+        opInfo.operand.brOp.brDisp = GetJALR_Target( isfI );
+        opInfo.operand.brOp.padding = '0;
+    // 未定義命令
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeJALR (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var brOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitJALR(
+            brOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
+        insnInfo.writePC = TRUE;
+        if ( brOp.writeReg && ( brOp.operand.brOp.dstRegNum.regNum == LINK_REGISTER ) ) {
+            insnInfo.isCall = TRUE;
+        } else {
+            insnInfo.isCall = FALSE;
+        }
+        if (brOp.operand.brOp.srcRegNumA.regNum == LINK_REGISTER) &&
+           (brOp.operand.brOp.dstRegNum.regNum == ZERO_REGISTER) {
+            insnInfo.isReturn = TRUE;
+        } else {
+            insnInfo.isReturn = FALSE;
+        }
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV BRANCH
+    //
+    function RISCV_EmitBranch (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfR: RISCV_ISF_R;
+        var brFunct3: BrFunct3;
+        var condCode: CondCode;
+        isfR = isf;
+        brFunct3 = (isfR.funct3 as BrFunct3);
+    // 論理レジスタ番号
+        opInfo.operand.brOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.brOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.brOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.brOp.dstRegNum.regNum  = 0;
+        opInfo.operand.brOp.srcRegNumA.regNum = isfR.rs1;
+        opInfo.operand.brOp.srcRegNumB.regNum = isfR.rs2;
+    // レジスタ書き込みを行うかどうか
+    // 比較系の命令はレジスタに書き込みを行わない
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        opInfo.writeReg  = FALSE;
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_BR;
+    // 条件コード
+    //RISCV_DecodeBrFunct3(isfR.funct3, opInfo.cond);
+        RISCV_DecodeBrFunct3( condCode, brFunct3 );
+        opInfo.cond = condCode;
+    // 分岐ターゲット
+        opInfo.operand.brOp.brDisp = GetBranchDisplacement( isfR );
+        opInfo.operand.brOp.padding = '0;
+    // 未定義命令
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeBranch (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var brOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitBranch(
+            brOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
+        insnInfo.writePC    = TRUE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = TRUE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV MEMORY OP
+    //
+    function RISCV_EmitMemOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfS: RISCV_ISF_S;
+        var isfI: RISCV_ISF_I;
+        var memFunct3: MemFunct3;
+        var isLoad: logic;
+        var memAccessMode: MemAccessMode;
+        isfS = isf;
+        isfI = isf;
+        memFunct3 = (isfS.funct3 as MemFunct3);
+        isLoad = ( isfI.opCode == RISCV_LD );
+    // 論理レジスタ番号
+        opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
+        if isLoad {
+            opInfo.operand.memOp.dstRegNum.regNum  = isfI.rd;
+        } else {
+            opInfo.operand.memOp.dstRegNum.regNum  = '0;
+        }
+        opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
+        if isLoad {
+            opInfo.operand.memOp.srcRegNumB.regNum = '0;
+        } else {
+            opInfo.operand.memOp.srcRegNumB.regNum = isfS.rs2;
+        }
+        opInfo.operand.memOp.csrCtrl = '0; // unused;
+        opInfo.operand.memOp.isZalrsc = FALSE;
+        opInfo.operand.memOp.amoCode = '0;
+        opInfo.operand.memOp.padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        opInfo.writeReg  = ( isfI.rd != ZERO_REGISTER ) & isLoad;
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+        opInfo.opTypeA = OOT_REG;
+        if isLoad {
+            opInfo.opTypeB = OOT_IMM;
+        } else {
+            opInfo.opTypeB = OOT_REG;
+        }
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        if isLoad {
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_LOAD;
+        } else {
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_STORE;
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // アドレッシング
+        if isLoad {
+            opInfo.operand.memOp.addrIn    = isfI.imm;
+        } else {
+            opInfo.operand.memOp.addrIn    = {isfS.imm2, isfS.imm1};
+        }
+        opInfo.operand.memOp.isAddAddr = TRUE;
+        opInfo.operand.memOp.isRegAddr = TRUE;
+        RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+        opInfo.operand.memOp.memAccessMode = memAccessMode;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    }
+    function RISCV_DecodeMemOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var memOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitMemOp(
+            memOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- RISCV Aext OP
+    //
+    function RISCV_EmitAextOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfA: RISCV_ISF_R_A;
+        var rvaFunct5: RVAFunct5;
+        var memFunct3: MemFunct3;
+        var isLR: logic;
+        var isSC: logic;
+        var amoCode: MemZaamo_Code;
+        var memAccessMode: MemAccessMode;
+        var undefined: logic;
+        isfA = isf;
+        rvaFunct5 = (isfA.funct5 as RVAFunct5);
+        memFunct3 = (isfA.funct3 as MemFunct3);
+        RISCV_DecodeRVAFunct5(undefined, isLR, isSC, amoCode, rvaFunct5);
+        if isLR && isfA.rs2 != 0 {
+            undefined = TRUE;
+        }
+    // 論理レジスタ番号
+        opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.memOp.dstRegNum.regNum  = isfA.rd;
+        opInfo.operand.memOp.srcRegNumA.regNum = isfA.rs1;
+        if isLR {
+            opInfo.operand.memOp.srcRegNumB.regNum = '0;
+        } else {
+            opInfo.operand.memOp.srcRegNumB.regNum = isfA.rs2;
+        }
+        opInfo.operand.memOp.csrCtrl = '0; // unused;
+        opInfo.operand.memOp.isZalrsc = isLR || isSC;
+        opInfo.operand.memOp.amoCode = amoCode;
+        opInfo.operand.memOp.padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        opInfo.writeReg  = isfA.rd != ZERO_REGISTER;
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        if isLR {
+
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_LOAD;
+
+        } else if isSC {
+
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_STORE;
+
+        } else {
+
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_ZAAMO;
+
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // アドレッシング
+        opInfo.operand.memOp.addrIn    = '0;
+        opInfo.operand.memOp.isAddAddr = FALSE;
+        opInfo.operand.memOp.isRegAddr = TRUE;
+        RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+        opInfo.operand.memOp.memAccessMode = memAccessMode;
+        undefined = undefined || !(memAccessMode.isSigned && memAccessMode.size == MEM_ACCESS_SIZE_WORD);
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = undefined;
+    // Serialized
+    // aq/rlビットに関係なくSerializedとする
+        opInfo.serialized = TRUE;
+    }
+    function RISCV_DecodeAextOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var memOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitAextOp(
+            memOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+    // aq/rlビットに関係なくSerializedとする
+        insnInfo.isSerialized = TRUE;
+    }
+    //
+    // --- Complex Op (RISC-VではRV32M)
+    //
+    function RISCV_EmitComplexOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfR: RISCV_ISF_R;
+        var opFunct3: OpFunct3;
+        var opFunct7: OpFunct7;
+        var rv32mFunct3: RV32MFunct3;
+        var rv32mFunct7: RV32MFunct7;
+        var isMul: logic;
+        var mulCode: IntMUL_Code;
+        var divCode: IntDIV_Code;
+        isfR = isf;
+        opFunct3 = (isfR.funct3 as OpFunct3);
+        opFunct7 = (isfR.funct7 as OpFunct7);
+        rv32mFunct3 = (isfR.funct3 as RV32MFunct3);
+        rv32mFunct7 = (isfR.funct7 as RV32MFunct7);
+        isMul = ( rv32mFunct3 <: RV32M_FUNCT3_DIV );
+    // 論理レジスタ番号
+        opInfo.operand.complexOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.complexOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.complexOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.complexOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.complexOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.complexOp.srcRegNumB.regNum = srcRegNumB;
+    // 乗算の有効な結果の位置
+        opInfo.operand.complexOp.mulGetUpper = ( rv32mFunct3 >: RV32M_FUNCT3_MUL) ;
+    // ALU
+        RISCV_DecodeComplexOpFunct3( mulCode, divCode, rv32mFunct3 );
+        opInfo.operand.complexOp.mulCode = mulCode;
+        opInfo.operand.complexOp.divCode = divCode;
+        opInfo.operand.complexOp.padding = '0;
+        opInfo.operand.complexOp.riscv_padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+    // 剰余は除算と演算器を共有するためCOMPLEX_MOP_TYPE_DIVとする
+        opInfo.mopType = MOP_TYPE_COMPLEX;
+        if isMul {
+            opInfo.mopSubType.complexType = COMPLEX_MOP_TYPE_MUL;
+        } else {
+            opInfo.mopSubType.complexType = COMPLEX_MOP_TYPE_DIV;
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeComplexOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var complexOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitComplexOp(
+            complexOp,
+            isf,
+            isf.rs1,
+            isf.rs2,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(complexOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- Misc-Mem
+    //
+    function RISCV_EmitMiscMemOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfMiscMem: RISCV_ISF_MISC_MEM;
+        var opFunct3: MiscMemFunct3;
+        var miscMemOp: MiscMemMicroOpOperand;
+        isfMiscMem = isf;
+        opFunct3 = (isfMiscMem.funct3 as MiscMemFunct3);
+    // 論理レジスタ番号
+        miscMemOp.dstRegNum.isFP  = FALSE;
+        miscMemOp.srcRegNumA.isFP = FALSE;
+        miscMemOp.srcRegNumB.isFP = FALSE;
+        miscMemOp.dstRegNum.regNum  = '0;
+        miscMemOp.srcRegNumA.regNum = '0;
+        miscMemOp.srcRegNumB.regNum = '0;
+        miscMemOp.padding = '0;
+        miscMemOp.riscv_padding = '0;
+        if opFunct3 == MISC_MEM_FUNCT3_FENCE {
+            miscMemOp.fence = TRUE;
+            miscMemOp.fenceI = FALSE;
+        } else if opFunct3 == MISC_MEM_FUNCT3_FENCE_I {
+            miscMemOp.fence = TRUE;
+            miscMemOp.fenceI = TRUE;
+        } else {
+            miscMemOp.fence = FALSE;
+            miscMemOp.fenceI = FALSE;
+        }
+        opInfo.operand.miscMemOp = miscMemOp;
+    // レジスタ書き込みを行うかどうか
+    // FENCE/FENCE.I Does not write any registers
+        opInfo.writeReg  = FALSE;
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_IMM;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        opInfo.mopSubType.memType = MEM_MOP_TYPE_FENCE;
+    // 条件コード
+        opInfo.cond = COND_AL;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        if miscMemOp.fence {
+            opInfo.undefined = FALSE;
+        } else {
+    // Unknown misc mem
+            opInfo.undefined = TRUE;
+        }
+    // Serialized
+        opInfo.serialized = TRUE;
+    }
+    function RISCV_DecodeMiscMem (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var miscMemOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitMiscMemOp(
+            miscMemOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(miscMemOp, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = TRUE;
+    }
+    //
+    // --- System
+    //
+    function RISCV_EmitCSR_Op (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfSystem: RISCV_ISF_SYSTEM;
+        var opFunct3: SystemFunct3;
+        var memOp: MemMicroOpOperand; // Decoded as a memory op
+        isfSystem = isf;
+        opFunct3 = (isfSystem.funct3 as SystemFunct3);
+    // 論理レジスタ番号
+        memOp.dstRegNum.isFP  = FALSE;
+        memOp.srcRegNumA.isFP = FALSE;
+        memOp.srcRegNumB.isFP = FALSE;
+        memOp.dstRegNum.regNum  = isfSystem.rd;
+        memOp.srcRegNumA.regNum = isfSystem.rs1;
+        memOp.srcRegNumB.regNum = '0;
+        memOp.isZalrsc = FALSE;
+        memOp.amoCode = '0;
+        memOp.padding = '0;
+    // Don't care
+        memOp.isAddAddr = FALSE;
+        memOp.isRegAddr = FALSE;
+        memOp.memAccessMode = '0;
+    // コードの設定
+        case opFunct3 {
+            default: {
+                memOp.csrCtrl.code = CSR_WRITE;
+            }
+            SYSTEM_FUNCT3_CSR_RW, SYSTEM_FUNCT3_CSR_RW_I: {
+                memOp.csrCtrl.code = CSR_WRITE;
+            }
+            SYSTEM_FUNCT3_CSR_RS, SYSTEM_FUNCT3_CSR_RS_I: {
+                memOp.csrCtrl.code = CSR_SET;
+            }
+            SYSTEM_FUNCT3_CSR_RC, SYSTEM_FUNCT3_CSR_RC_I: {
+                memOp.csrCtrl.code = CSR_CLEAR;
+            }
+        }
+    // CSR number
+        memOp.addrIn = isfSystem.funct12;
+    // CSR 命令の即値だけは特殊なので REG にしておき，ユニット側で対処する
+        if (opFunct3 == SYSTEM_FUNCT3_CSR_RW) ||
+           (opFunct3 == SYSTEM_FUNCT3_CSR_RS) ||
+           (opFunct3 == SYSTEM_FUNCT3_CSR_RC) {
+            memOp.csrCtrl.isImm = FALSE;
+        } else {
+            memOp.csrCtrl.isImm = TRUE;
+        }
+        memOp.csrCtrl.imm = isfSystem.rs1;   // rs1 がちょうど即値になる
+        opInfo.operand.memOp = memOp;
+    // レジスタ書き込みを行うかどうか
+    // CSR 系は基本全て書き込む
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if (isfSystem.rd != ZERO_REGISTER) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+    // CSR 命令の即値だけは特殊なので REG にしておき，ユニット側で対処する
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        opInfo.mopSubType.memType = MEM_MOP_TYPE_CSR;
+    // 条件コード
+        opInfo.cond = COND_AL;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        if opFunct3 == SYSTEM_FUNCT3_UNDEFINED {
+            opInfo.undefined = TRUE;
+        } else {
+            opInfo.undefined = FALSE;
+        }
+    // Serialized
+        opInfo.serialized = TRUE;
+    }
+    function RISCV_EmitSystemOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfSystem: RISCV_ISF_SYSTEM;
+        var opFunct3: SystemFunct3;
+        var opFunct12: SystemFunct12;
+        var systemOp: SystemMicroOpOperand;
+        var undefined: logic;
+        isfSystem = isf;
+        opFunct3 = (isfSystem.funct3 as SystemFunct3);
+        opFunct12 = (isfSystem.funct12 as SystemFunct12);
+    // 論理レジスタ番号
+        systemOp.dstRegNum.isFP  = FALSE;
+        systemOp.srcRegNumA.isFP = FALSE;
+        systemOp.srcRegNumB.isFP = FALSE;
+        systemOp.dstRegNum.regNum  = '0;
+        systemOp.srcRegNumA.regNum = '0;
+        systemOp.srcRegNumB.regNum = '0;
+        systemOp.isEnv = TRUE;
+        systemOp.padding = '0;
+        systemOp.imm = '0;
+        undefined = FALSE;
+    // コードの設定
+        if opFunct12 == SYSTEM_FUNCT12_WFI {
+    // NOP 扱いにしておく
+            opInfo.mopType = MOP_TYPE_INT;
+            opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+            systemOp.envCode = ENV_BREAK;
+        } else {
+            case (isfSystem.funct12 as SystemFunct12) {
+                SYSTEM_FUNCT12_ECALL: {
+                    systemOp.envCode = ENV_CALL;
+                }
+                SYSTEM_FUNCT12_EBREAK: {
+                    systemOp.envCode = ENV_BREAK;
+                }
+                SYSTEM_FUNCT12_SRET: {
+                    systemOp.envCode = ENV_SRET;
+                }
+                SYSTEM_FUNCT12_MRET: {
+                    systemOp.envCode = ENV_MRET;
+                }
+                default: {
+                    systemOp.envCode = ENV_BREAK;
+                    undefined = TRUE;
+                }
+            }
+    // 命令の種類
+            opInfo.mopType = MOP_TYPE_MEM;
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_ENV;
+        }
+        opInfo.operand.systemOp = systemOp;
+    // レジスタ書き込みを行うかどうか
+        opInfo.writeReg  = FALSE;
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_IMM;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 条件コード
+        opInfo.cond = COND_AL;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = undefined;
+    // Serialized
+        opInfo.serialized = TRUE;
+    }
+    function RISCV_DecodeSystem (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var opInfo: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        if (isf.funct3 as SystemFunct3) == SYSTEM_FUNCT3_PRIV {
+            RISCV_EmitSystemOp(opInfo, isf);
+        } else { 
+            RISCV_EmitCSR_Op(opInfo, isf);
+        }
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(opInfo, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = TRUE;   // A system instruction must be serialized;
+    }
+    //
+    // --- FP ld/st
+    //
+    function RISCV_EmitFPMemOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfS: RISCV_ISF_S;
+        var isfI: RISCV_ISF_I;
+        var memFunct3: MemFunct3;
+        var isLoad: logic;
+        var memAccessMode: MemAccessMode;
+        isfS = isf;
+        isfI = isf;
+        memFunct3 = (isfS.funct3 as MemFunct3);
+        isLoad = ( isfI.opCode == RISCV_F_LD );
+    // 論理レジスタ番号
+        opInfo.operand.memOp.dstRegNum.isFP  = TRUE;
+        opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.memOp.srcRegNumB.isFP = TRUE;
+        if isLoad {
+            opInfo.operand.memOp.dstRegNum.regNum  = isfI.rd;
+        } else {
+            opInfo.operand.memOp.dstRegNum.regNum  = '0;
+        }
+        opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
+        if isLoad {
+            opInfo.operand.memOp.srcRegNumB.regNum = '0;
+        } else {
+            opInfo.operand.memOp.srcRegNumB.regNum = isfS.rs2;
+        }
+        opInfo.operand.memOp.isZalrsc = FALSE;
+        opInfo.operand.memOp.amoCode = '0;
+        opInfo.operand.memOp.csrCtrl = '0; // unused;
+        opInfo.operand.memOp.padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // fp registerにはゼロレジスタが無い
+        opInfo.writeReg  = isLoad;
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+        opInfo.opTypeA = OOT_REG;
+        if isLoad {
+            opInfo.opTypeB = OOT_IMM;
+        } else {
+            opInfo.opTypeB = OOT_REG;
+        }
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        if isLoad {
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_LOAD;
+        } else {
+            opInfo.mopSubType.memType = MEM_MOP_TYPE_STORE;
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // アドレッシング
+        if isLoad {
+            opInfo.operand.memOp.addrIn    = isfI.imm;
+        } else {
+            opInfo.operand.memOp.addrIn    = {isfS.imm2, isfS.imm1};
+        }
+        opInfo.operand.memOp.isAddAddr = TRUE;
+        opInfo.operand.memOp.isRegAddr = TRUE;
+        RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+        opInfo.operand.memOp.memAccessMode = memAccessMode;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    }
+    function RISCV_DecodeFPMemOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var memOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitFPMemOp(
+            memOp,
+            isf);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- FP Op
+    //
+    function RISCV_EmitFPOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath
+    ) {
+        var isfR: RISCV_ISF_R;
+        var rv32fFunct3: RV32FFunct3;
+        var rv32fFunct7: RV32FFunct7;
+        var fcvtfunct5: FCVTFunct5;
+        var dstFP: logic;
+        var rs1FP: logic;
+        var readrs2: logic;
+        var fpuCode: FPU_Code;
+        var rm: Rounding_Mode;
+        isfR = isf;
+        rv32fFunct3 = (isfR.funct3 as RV32FFunct3);
+        rv32fFunct7 = (isfR.funct7 as RV32FFunct7);
+        fcvtfunct5  = (isfR.rs2 as FCVTFunct5);
+        rm = (isfR.funct3 as Rounding_Mode);
+        RISCV_DecodeFPOpFunct3( fpuCode, rv32fFunct3, rv32fFunct7, fcvtfunct5);
+        dstFP   = !((fpuCode == FC_FCVT_WS || fpuCode == FC_FCVT_WUS || fpuCode == FC_FMV_XW || fpuCode == FC_FEQ || fpuCode == FC_FLT || fpuCode == FC_FLE || fpuCode == FC_FCLASS));
+        rs1FP   = !((fpuCode == FC_FCVT_SW || fpuCode == FC_FCVT_SWU || fpuCode == FC_FMV_WX));
+        readrs2 = !((fpuCode == FC_SQRT || fpuCode == FC_FCVT_SW || fpuCode == FC_FCVT_SWU || fpuCode == FC_FCVT_WS || fpuCode == FC_FCVT_WUS || fpuCode == FC_FMV_WX || fpuCode == FC_FMV_XW || fpuCode == FC_FCLASS));
+    // 論理レジスタ番号
+        opInfo.operand.fpOp.dstRegNum.isFP  = dstFP;
+        opInfo.operand.fpOp.srcRegNumA.isFP = rs1FP;
+        opInfo.operand.fpOp.srcRegNumB.isFP = TRUE;
+        opInfo.operand.fpOp.srcRegNumC.isFP = TRUE;
+        opInfo.operand.fpOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.fpOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.fpOp.srcRegNumB.regNum = srcRegNumB;
+        opInfo.operand.fpOp.srcRegNumC.regNum = '0;
+    // Rounding Mode
+        opInfo.operand.fpOp.rm = rm;
+    // FPU
+        opInfo.operand.fpOp.fpuCode = fpuCode;
+        opInfo.operand.fpOp.padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // fp registerにはゼロレジスタが無い
+        if ( dstFP || dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        if readrs2 {
+            opInfo.opTypeB = OOT_REG;
+        } else {
+            opInfo.opTypeB = OOT_IMM;
+        }
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_FP;
+        if (fpuCode == FC_ADD) || (fpuCode == FC_SUB) {
+
+            opInfo.mopSubType.fpType = FP_MOP_TYPE_ADD;
+
+        } else if fpuCode == FC_MUL {
+
+            opInfo.mopSubType.fpType = FP_MOP_TYPE_MUL;
+
+        } else if fpuCode == FC_DIV {
+
+            opInfo.mopSubType.fpType = FP_MOP_TYPE_DIV;
+
+        } else if fpuCode == FC_SQRT {
+
+            opInfo.mopSubType.fpType = FP_MOP_TYPE_SQRT;
+
+        } else {
+
+            opInfo.mopSubType.fpType = FP_MOP_TYPE_OTHER;
+
+        }
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeFPOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var fpOp: OpInfo;
+        var mid: MicroOpIndex;
+        RISCV_EmitFPOp(
+            fpOp,
+            isf,
+            isf.rs1,
+            isf.rs2,
+            isf.rd);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(fpOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    //
+    // --- FP FMA Op
+    //
+    function RISCV_EmitFPFMAOp (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var isfR4: RISCV_ISF_R4;
+        var opCode: RISCV_OpCode;
+        var fpuCode: FPU_Code;
+        var rm: Rounding_Mode;
+        isfR4 = isf;
+        opCode = isfR4.opCode;
+        rm = (isfR4.funct3 as Rounding_Mode);
+    // 論理レジスタ番号
+        opInfo.operand.fpOp.dstRegNum.isFP  = TRUE;
+        opInfo.operand.fpOp.srcRegNumA.isFP = TRUE;
+        opInfo.operand.fpOp.srcRegNumB.isFP = TRUE;
+        opInfo.operand.fpOp.srcRegNumC.isFP = TRUE;
+        opInfo.operand.fpOp.dstRegNum.regNum  = isfR4.rd;
+        opInfo.operand.fpOp.srcRegNumA.regNum = isfR4.rs1;
+        opInfo.operand.fpOp.srcRegNumB.regNum = isfR4.rs2;
+        opInfo.operand.fpOp.srcRegNumC.regNum = isfR4.rs3;
+    // Rounding Mode
+        opInfo.operand.fpOp.rm = rm;
+    // FPU
+        RISCV_DecodeFPFMAOpFunct3( fpuCode, opCode);
+        opInfo.operand.fpOp.fpuCode = fpuCode;
+        opInfo.operand.fpOp.padding = '0;
+    // レジスタ書き込みを行うかどうか
+    // fp registerにはゼロレジスタが無い
+        opInfo.writeReg  = TRUE;
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_REG;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_FP;
+        opInfo.mopSubType.fpType = FP_MOP_TYPE_FMA;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeFPFMAOp (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var fpOp: OpInfo;
+        var mid: MicroOpIndex;
+        RISCV_EmitFPFMAOp(
+            fpOp,
+            isf);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(fpOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    function RISCV_EmitZba (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfR: RISCV_ISF_R;
+        var zbaFunct3: ZbaFunct3;
+        var intOperandImmShift: RISCV_IntOperandImmShift;
+        isfR = isf;
+        zbaFunct3 = (isfR.funct3 as ZbaFunct3);
+    // 論理レジスタ番号
+        opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+    // 即値 (not used)
+        opInfo.operand.intOp.shiftType = SOT_REG_SHIFT ;
+        intOperandImmShift.shift        = '0;
+        intOperandImmShift.shiftType    = ST_ROR;
+        intOperandImmShift.isRegShift   = TRUE;
+        intOperandImmShift.imm          = '0;
+        intOperandImmShift.immType      = RISCV_IMM_R;
+        opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+    // ALU
+        case zbaFunct3 {
+          ZBA_FUCNT3_SH1ADD: {
+              opInfo.operand.intOp.aluCode = AC_SH1ADD;
+          }
+          ZBA_FUCNT3_SH2ADD: {
+              opInfo.operand.intOp.aluCode = AC_SH2ADD;
+          }
+          ZBA_FUCNT3_SH3ADD: {
+              opInfo.operand.intOp.aluCode = AC_SH3ADD;
+          }
+          default: {
+              opInfo.operand.intOp.aluCode = AC_SH3ADD; // Unknown
+          }
+        }
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeZba (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var zbaOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitZba (
+            zbaOp,
+            isf,
+            isf.rs1,
+            isf.rs2,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(zbaOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    function RISCV_EmitZicond (
+        opInfo: output OpInfo,
+        isf: input RISCV_ISF_Common,
+        srcRegNumA: input LScalarRegNumPath,
+        srcRegNumB: input LScalarRegNumPath,
+        dstRegNum: input LScalarRegNumPath,
+        unsupported: input logic
+    ) {
+        var isfR: RISCV_ISF_R;
+        var czeroFunct3: CZeroFunct3;
+        var intOperandImmShift: RISCV_IntOperandImmShift;
+        isfR = isf;
+        czeroFunct3 = (isfR.funct3 as CZeroFunct3);
+    // 論理レジスタ番号
+        opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+        opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+        opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+        opInfo.operand.intOp.dstRegNum.regNum  = dstRegNum;
+        opInfo.operand.intOp.srcRegNumA.regNum = srcRegNumA;
+        opInfo.operand.intOp.srcRegNumB.regNum = srcRegNumB;
+    // 即値 (not used)
+        opInfo.operand.intOp.shiftType = SOT_REG_SHIFT ;
+        intOperandImmShift.shift        = '0;
+        intOperandImmShift.shiftType    = ST_ROR;
+        intOperandImmShift.isRegShift   = TRUE;
+        intOperandImmShift.imm          = '0;
+        intOperandImmShift.immType      = RISCV_IMM_R;
+        opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+    // ALU
+        if (czeroFunct3 == CZERO_FUCNT3_EQZ) {
+            opInfo.operand.intOp.aluCode = AC_EQZ;
+        } else {
+            opInfo.operand.intOp.aluCode = AC_NEZ;
+        }
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+        if ( dstRegNum != ZERO_REGISTER ) {
+            opInfo.writeReg  = TRUE;
+        } else {
+            opInfo.writeReg  = FALSE;
+        }
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_REG;
+        opInfo.opTypeB = OOT_REG;
+        opInfo.opTypeC = OOT_IMM;
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_INT;
+        opInfo.mopSubType.intType = INT_MOP_TYPE_ALU;
+    // 条件コード
+        opInfo.cond = COND_AL;
+    // 未定義命令
+        opInfo.unsupported = unsupported;
+        opInfo.undefined = FALSE;
+    // Serialized
+        opInfo.serialized = FALSE;
+    // Control
+        opInfo.valid = TRUE;    // Valid outputs;
+    }
+    function RISCV_DecodeZicond (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common
+    ) {
+        var zicondOp: OpInfo;
+        var mid: MicroOpIndex;
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitZicond (
+            zicondOp,
+            isf,
+            isf.rs1,
+            isf.rs2,
+            isf.rd,
+            FALSE);
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(zicondOp, mid, FALSE, TRUE);
+        mid += 1;
+        insnInfo.writePC = FALSE;
+        insnInfo.isCall = FALSE;
+        insnInfo.isReturn = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = FALSE;
+    }
+    function RISCV_EmitIllegalOp (
+        opInfo: output OpInfo,
+        illegalPC: input logic
+    ) {
+        var systemOp: SystemMicroOpOperand;
+        var undefined: logic;
+    // 論理レジスタ番号
+        systemOp.dstRegNum.isFP  = FALSE;
+        systemOp.srcRegNumA.isFP = FALSE;
+        systemOp.srcRegNumB.isFP = FALSE;
+        systemOp.dstRegNum.regNum  = '0;
+        systemOp.srcRegNumA.regNum = '0;
+        systemOp.srcRegNumB.regNum = '0;
+        systemOp.isEnv = TRUE;
+        systemOp.padding = '0;
+        systemOp.imm = '0;
+        undefined = FALSE;
+    // コードの設定
+        if illegalPC {
+            systemOp.envCode = ENV_INSN_VIOLATION;
+        } else {
+            systemOp.envCode = ENV_INSN_ILLEGAL;
+        }
+    // 命令の種類
+        opInfo.mopType = MOP_TYPE_MEM;
+        opInfo.mopSubType.memType = MEM_MOP_TYPE_ENV;
+        opInfo.operand.systemOp = systemOp;
+    // レジスタ書き込みを行うかどうか
+        opInfo.writeReg  = FALSE;
+    // 論理レジスタを読むかどうか
+        opInfo.opTypeA = OOT_IMM;
+        opInfo.opTypeB = OOT_IMM;
+        opInfo.opTypeC = OOT_IMM;
+    // 条件コード
+        opInfo.cond = COND_AL;
+        opInfo.valid = TRUE;
+        opInfo.unsupported = FALSE;
+        opInfo.undefined = undefined;
+    // Serialized
+        opInfo.serialized = TRUE;
+    }
+    function RISCV_DecodeIllegal (
+        microOps: output OpInfo [MICRO_OP_MAX_NUM],
+        insnInfo: output InsnInfo,
+        isf: input RISCV_ISF_Common,
+        illegalPC: input logic
+    ) {
+        var opInfo: OpInfo;
+        var mid: MicroOpIndex;
+        RISCV_EmitIllegalOp(opInfo, illegalPC);
+    // Initizalize
+        mid = 0;
+        for i in 0..MICRO_OP_MAX_NUM {
+            EmitInvalidOp(microOps[i]);
+        }
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+        microOps[1] = ModifyMicroOp(opInfo, mid, FALSE, TRUE);
+        insnInfo.writePC    = FALSE;
+        insnInfo.isCall     = FALSE;
+        insnInfo.isReturn   = FALSE;
+        insnInfo.isRelBranch = FALSE;
+        insnInfo.isSerialized = TRUE;   // A system instruction must be serialized;
+    }
+    //
+    // --- DecodeStageでインスタンシエートされるモジュール
+    //
+}
+
+module Decoder (
+    insn     : input  InsnPath,
+    illegalPC: input  logic,
+    microOps : output OpInfo [MICRO_OP_MAX_NUM],
+    insnInfo : output InsnInfo,
+) {
+    import BasicTypes::*;
+    import MicroOpTypes::*;
+    import OpFormatTypes::*;
+    import DecoderFunctions::*;
+
+    var isf: RISCV_ISF_Common;
+    var rv32mFunct7: RV32MFunct7;
+    var zbaFunct7: ZbaFunct7;
+    var zicondFunct7: ZicondFunct7;
+    var undefined: logic;
+    always_comb {
+            isf  = insn;
+            rv32mFunct7 = (isf.funct7 as RV32MFunct7);
+            zbaFunct7 = (isf.funct7 as ZbaFunct7);
+            zicondFunct7 = (isf.funct7 as ZicondFunct7);
+
+            insnInfo.writePC = FALSE;
+            insnInfo.isCall = FALSE;
+            insnInfo.isReturn = FALSE;
+            insnInfo.isRelBranch = FALSE;
+            insnInfo.isSerialized = FALSE;
+            for i in 0..MICRO_OP_MAX_NUM {
+                EmitInvalidOp(microOps[i]);
+            }
+
+            case isf.opCode {
+
+                // S: LOAD, STORE
+                RISCV_LD, RISCV_ST: {
+                    RISCV_DecodeMemOp(microOps, insnInfo, insn);
+                }
+
+                // R: A extension
+                RISCV_AMO: {
+                    RISCV_DecodeAextOp(microOps, insnInfo, insn);
+                }
+
+                // B: BRANCH
+                RISCV_BR: {
+                    RISCV_DecodeBranch(microOps, insnInfo, insn);
+                }
+                // I: JALR
+                RISCV_JALR: {
+                    RISCV_DecodeJALR(microOps, insnInfo, insn);
+                }
+                // J: JAL
+                RISCV_JAL: {
+                    RISCV_DecodeJAL(microOps, insnInfo, insn);
+                }
+
+                // I: OP-IMM
+                RISCV_OP_IMM: {
+                    RISCV_DecodeOpImm(microOps, insnInfo, insn);
+                }
+
+                // R: OP
+                RISCV_OP: {
+                    if rv32mFunct7 == RV32M_FUNCT7_ALL {
+                        RISCV_DecodeComplexOp(microOps, insnInfo, insn);
+                    } else if zbaFunct7 == ZBA_FUNCT7_SHADD {
+                        RISCV_DecodeZba(microOps, insnInfo, insn);
+                    } else if zicondFunct7 == ZICOND_FUNCT7_CZERO {
+                        RISCV_DecodeZicond(microOps, insnInfo, insn);
+                    } else {
+                        RISCV_DecodeOp(microOps, insnInfo, insn);
+                    }
+                }
+
+                // U: AUIPC, LUI
+                RISCV_AUIPC, RISCV_LUI: {
+                    RISCV_DecodeUTypeInst(microOps, insnInfo, insn);
+                }
+
+                // I: MISC-MEM (fence/fence.i)
+                RISCV_MISC_MEM: {
+                    RISCV_DecodeMiscMem(microOps, insnInfo, insn);
+                }
+
+                // I: SYSTEM (ebreak/ecall/csr)
+                RISCV_SYSTEM: {
+                    RISCV_DecodeSystem(microOps, insnInfo, insn);
+                }
+                RISCV_F_LD, RISCV_F_ST: {
+                    RISCV_DecodeFPMemOp(microOps, insnInfo, insn);
+                }
+
+                RISCV_F_OP: {
+                    RISCV_DecodeFPOp(microOps, insnInfo, insn);
+                }
+
+                RISCV_F_FMADD, RISCV_F_FMSUB, RISCV_F_FNMSUB, RISCV_F_FNMADD: {
+                    RISCV_DecodeFPFMAOp(microOps, insnInfo, insn);
+                }
+                default: {
+                    RISCV_DecodeIllegal(microOps, insnInfo, insn, illegalPC);
+                }
+            }
+
+            undefined = FALSE;
+            for i in 0..MICRO_OP_MAX_NUM {
+                if microOps[i].undefined || microOps[i].unsupported {
+                    undefined = TRUE;
+                }
+            }
+
+            if undefined || illegalPC {
+                RISCV_DecodeIllegal(microOps, insnInfo, insn, illegalPC);
+            }
+
+        }
+
+    }
