@@ -1,8 +1,8 @@
 package BasicTypes {
     import MicroArchConf::*;
 
-    const TRUE : u32 = 1'b1;
-    const FALSE: u32 = 1'b0;
+    const TRUE : logic = 1'b1;
+    const FALSE: logic = 1'b0;
 
     // SID
     const OP_SERIAL_WIDTH: u32 = 10;
