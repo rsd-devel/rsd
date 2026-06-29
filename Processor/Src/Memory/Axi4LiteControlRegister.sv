@@ -12,7 +12,7 @@ import MemoryMapTypes::*;
 import MemoryTypes::*;
 import IO_UnitTypes::*;
 
-module Axi4LitePlToPsControlRegister
+module Axi4LitePlToPsControlRegister_SV
 (
   Axi4LiteControlRegisterIF.Axi4LiteRead port,
 
@@ -210,10 +210,10 @@ module Axi4LitePlToPsControlRegister
     //     reg_data_out
     // );
 
-endmodule : Axi4LitePlToPsControlRegister
+endmodule : Axi4LitePlToPsControlRegister_SV
 
 
-module Axi4LitePsToPlControlRegister
+module Axi4LitePsToPlControlRegister_SV
 (
   Axi4LiteControlRegisterIF.Axi4Lite port,
 
@@ -619,4 +619,4 @@ module Axi4LitePsToPlControlRegister
         .headData   ( headData )
     );
 
-endmodule : Axi4LitePsToPlControlRegister
+endmodule : Axi4LitePsToPlControlRegister_SV

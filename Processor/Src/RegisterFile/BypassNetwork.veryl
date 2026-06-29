@@ -9,12 +9,13 @@ module BypassNetwork (
     import PipelineTypes::*;
     import BypassTypes::*;
 
+    var intEX: PRegDataPath [INT_ISSUE_WIDTH];
+    var intWB: PRegDataPath [INT_ISSUE_WIDTH];
+    var memMA: PRegDataPath [MEM_ISSUE_WIDTH];
+    var memWB: PRegDataPath [MEM_ISSUE_WIDTH];
+
     function SelectData (
         sel  : input BypassSelect,
-        intEX: input PRegDataPath<INT_ISSUE_WIDTH>,
-        intWB: input PRegDataPath<INT_ISSUE_WIDTH>,
-        memMA: input PRegDataPath<MEM_ISSUE_WIDTH>,
-        memWB: input PRegDataPath<MEM_ISSUE_WIDTH>,
     ) -> PRegDataPath {
         if sel.stg == BYPASS_STAGE_INT_EX {
             return intEX[sel.lane.intLane];
@@ -28,11 +29,6 @@ module BypassNetwork (
             return '0;
         }
     }
-
-    var intEX: PRegDataPath [INT_ISSUE_WIDTH];
-    var intWB: PRegDataPath [INT_ISSUE_WIDTH];
-    var memMA: PRegDataPath [MEM_ISSUE_WIDTH];
-    var memWB: PRegDataPath [MEM_ISSUE_WIDTH];
 
     always_ff (port.clk) {  // synchronous rst
         for i in 0..INT_ISSUE_WIDTH {
@@ -70,24 +66,24 @@ module BypassNetwork (
 
     always_comb {
         for i in 0..INT_ISSUE_WIDTH {
-            port.intSrcRegDataOutA[i] = SelectData(port.intCtrlIn[i].rA, intEX, intWB, memMA, memWB);
-            port.intSrcRegDataOutB[i] = SelectData(port.intCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+            port.intSrcRegDataOutA[i] = SelectData(port.intCtrlIn[i].rA);
+            port.intSrcRegDataOutB[i] = SelectData(port.intCtrlIn[i].rB);
         }
 
         for i in 0..COMPLEX_ISSUE_WIDTH {
-            port.complexSrcRegDataOutA[i] = SelectData(port.complexCtrlIn[i].rA, intEX, intWB, memMA, memWB);
-            port.complexSrcRegDataOutB[i] = SelectData(port.complexCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+            port.complexSrcRegDataOutA[i] = SelectData(port.complexCtrlIn[i].rA);
+            port.complexSrcRegDataOutB[i] = SelectData(port.complexCtrlIn[i].rB);
         }
 
         for i in 0..MEM_ISSUE_WIDTH {
-            port.memSrcRegDataOutA[i] = SelectData(port.memCtrlIn[i].rA, intEX, intWB, memMA, memWB);
-            port.memSrcRegDataOutB[i] = SelectData(port.memCtrlIn[i].rB, intEX, intWB, memMA, memWB);
+            port.memSrcRegDataOutA[i] = SelectData(port.memCtrlIn[i].rA);
+            port.memSrcRegDataOutB[i] = SelectData(port.memCtrlIn[i].rB);
         }
 
         for i in 0..FP_ISSUE_WIDTH {
-            port.fpSrcRegDataOutA[i] = SelectData(port.fpCtrlIn[i].rA, intEX, intWB, memMA, memWB);
-            port.fpSrcRegDataOutB[i] = SelectData(port.fpCtrlIn[i].rB, intEX, intWB, memMA, memWB);
-            port.fpSrcRegDataOutC[i] = SelectData(port.fpCtrlIn[i].rC, intEX, intWB, memMA, memWB);
+            port.fpSrcRegDataOutA[i] = SelectData(port.fpCtrlIn[i].rA);
+            port.fpSrcRegDataOutB[i] = SelectData(port.fpCtrlIn[i].rB);
+            port.fpSrcRegDataOutC[i] = SelectData(port.fpCtrlIn[i].rC);
         }
     }
 }

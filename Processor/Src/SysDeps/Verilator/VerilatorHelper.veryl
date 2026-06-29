@@ -1063,6 +1063,14 @@ package VerilatorHelper {
         return e.cmReg[i].opId;
     }
 
+    function DebugRegister_cmReg_pc (
+        e: input DebugRegister,
+        i: input i32,
+    ) -> PC_Path {
+        /*verilator public*/
+        return e.cmReg[i].pc;
+    }
+
     function DebugRegister_cmReg_releaseReg (
         e: input DebugRegister,
         i: input i32,

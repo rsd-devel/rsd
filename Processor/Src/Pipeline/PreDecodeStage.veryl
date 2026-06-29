@@ -46,7 +46,7 @@ module PreDecodeStage (
 
     // Micro op decoder
     // Decoded micro ops
-    var microOps: MicroOpInfoArray [DECODE_WIDTH];
+    var microOps: OpInfo [DECODE_WIDTH, MICRO_OP_MAX_NUM];
     // Whether a decoded instruction is branch or not.
     var insnInfo: InsnInfo [DECODE_WIDTH];
 

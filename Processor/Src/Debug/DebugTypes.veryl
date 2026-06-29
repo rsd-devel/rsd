@@ -173,6 +173,7 @@ package DebugTypes {
         commit: logic,
         flush: logic,
         opId: OpId,
+        pc: PC_Path,
         releaseReg: logic,
         phyReleasedReg: PRegNumPath,
     }

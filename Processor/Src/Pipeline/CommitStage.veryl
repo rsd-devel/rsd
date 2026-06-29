@@ -377,6 +377,7 @@ module CommitStage (
             debug.cmReg[i].commit = commit[i];
             debug.cmReg[i].flush = (i <: renameLogic.flushNum) && recovery.renameLogicRecoveryRMT;
             debug.cmReg[i].opId = activeList.readData[i].opId;
+            debug.cmReg[i].pc = activeList.readData[i].pc;
             debug.cmReg[i].releaseReg = renameLogic.releaseReg[i];
             debug.cmReg[i].phyReleasedReg = renameLogic.phyReleasedReg[i];
         }

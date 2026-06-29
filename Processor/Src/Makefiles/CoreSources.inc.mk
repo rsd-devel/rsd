@@ -15,120 +15,37 @@ RSD_SRC_CFG = \
 #	+define+RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
 
 
-# Veryl is used only for packages and interfaces.
-VERYL_GENERATED_RTL ?= target/rsd_pkg_if.sv
+# Veryl is used for packages, interfaces, and converted modules.
+VERYL_FILELIST ?= rsd.f
+VERYL_GENERATED_RTL ?= $(VERYL_FILELIST)
+VERYL_SOURCE_LIST = $(shell awk 'BEGIN { in_sources = 0 } /^sources = \[/ { in_sources = 1; next } in_sources && /^\]/ { in_sources = 0 } in_sources { gsub(/[",]/, ""); gsub(/^[ \t]+|[ \t]+$$/, ""); if ($$0 != "") print $$0 }' Veryl.toml)
+VERYL_ORDERED_RTL = $(VERYL_SOURCE_LIST:%.veryl=target/veryl/%.sv)
 
 # TYPES specifies files that include packages that contain type definitions.
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
-TYPES = $(VERYL_GENERATED_RTL)
+TYPES = $(VERYL_ORDERED_RTL)
 
 # CORE_MODULES specifies files that defines the RSD core.
 # The order of the files in this section is arbitrary.
 CORE_MODULES = \
-	Core.sv \
-	Pipeline/FetchStage/NextPCStage.sv \
-	Pipeline/FetchStage/FetchStage.sv \
-	Pipeline/FetchStage/PC.sv \
-	Pipeline/PreDecodeStage.sv \
-	Pipeline/DecodeStage.sv \
-	Pipeline/RenameStage.sv \
-	Pipeline/DispatchStage.sv \
-	Pipeline/ScheduleStage.sv \
-	Pipeline/IntegerBackEnd/IntegerIssueStage.sv \
-	Pipeline/IntegerBackEnd/IntegerRegisterReadStage.sv \
-	Pipeline/IntegerBackEnd/IntegerExecutionStage.sv \
-	Pipeline/IntegerBackEnd/IntegerRegisterWriteStage.sv \
-	Pipeline/ComplexIntegerBackEnd/ComplexIntegerIssueStage.sv \
-	Pipeline/ComplexIntegerBackEnd/ComplexIntegerRegisterReadStage.sv \
-	Pipeline/ComplexIntegerBackEnd/ComplexIntegerExecutionStage.sv \
-	Pipeline/ComplexIntegerBackEnd/ComplexIntegerRegisterWriteStage.sv \
-	Pipeline/MemoryBackEnd/MemoryIssueStage.sv \
-	Pipeline/MemoryBackEnd/MemoryRegisterReadStage.sv \
-	Pipeline/MemoryBackEnd/MemoryExecutionStage.sv \
-	Pipeline/MemoryBackEnd/MemoryAccessStage.sv \
-	Pipeline/MemoryBackEnd/MemoryTagAccessStage.sv \
-	Pipeline/MemoryBackEnd/MemoryRegisterWriteStage.sv \
-	Pipeline/FPBackEnd/FPIssueStage.sv \
-	Pipeline/FPBackEnd/FPRegisterReadStage.sv \
-	Pipeline/FPBackEnd/FPExecutionStage.sv \
-	Pipeline/FPBackEnd/FPRegisterWriteStage.sv \
-	Pipeline/CommitStage.sv \
-	RegisterFile/RegisterFile.sv \
-	RegisterFile/BypassController.sv \
-	RegisterFile/BypassNetwork.sv \
-	ExecUnit/BitCounter.sv \
-	ExecUnit/IntALU.sv \
-	ExecUnit/Shifter.sv \
-	ExecUnit/MultiplierUnit.sv \
-	ExecUnit/PipelinedRefDivider.sv \
-	ExecUnit/DividerUnit.sv \
-	MulDivUnit/MulDivUnit.sv \
-	LoadStoreUnit/LoadStoreUnit.sv \
-	LoadStoreUnit/LoadQueue.sv \
-	LoadStoreUnit/StoreQueue.sv \
-	LoadStoreUnit/StoreCommitter.sv \
-	LoadStoreUnit/AMOCache.sv \
-	FloatingPointUnit/FP32PipelinedAdder.sv \
-	FloatingPointUnit/FP32PipelinedMultiplier.sv \
-	FloatingPointUnit/FP32PipelinedFMA.sv \
-	FloatingPointUnit/FP32PipelinedOther.sv \
-	FloatingPointUnit/FP32DivSqrter.sv \
-	FloatingPointUnit/FPDivSqrtUnit.sv \
-	RenameLogic/RenameLogic.sv \
-	RenameLogic/ActiveList.sv \
-	RenameLogic/RMT.sv \
-	RenameLogic/RetirementRMT.sv \
-	RenameLogic/RenameLogicCommitter.sv \
-	Decoder/Decoder.sv \
-	Decoder/DecodedBranchResolver.sv \
-	FetchUnit/BTB.sv \
-	FetchUnit/BranchPredictor.sv \
-	FetchUnit/Gshare.sv \
-	FetchUnit/Bimodal.sv \
-	Scheduler/IssueQueue.sv \
-	Scheduler/ReplayQueue.sv \
-	Scheduler/DestinationRAM.sv \
-	Scheduler/ReadyBitTable.sv \
-	Scheduler/Scheduler.sv \
-	Scheduler/SelectLogic.sv \
-	Scheduler/SourceCAM.sv \
-	Scheduler/WakeupLogic.sv \
-	Scheduler/WakeupPipelineRegister.sv \
-	Scheduler/ProducerMatrix.sv \
-	Scheduler/MemoryDependencyPredictor.sv \
-	Cache/DCache.sv \
-	Cache/ICache.sv \
-	Cache/MemoryAccessController.sv \
-	Cache/CacheFlushManager.sv \
-	Memory/Memory.sv \
-	Recovery/RecoveryManager.sv \
-	Controller.sv \
-	ResetController.sv \
-	Privileged/InterruptController.sv \
-	Privileged/CSR_Unit.sv \
-	IO/IO_Unit.sv \
-	Primitives/FlipFlop.sv \
-	Primitives/FreeList.sv \
-	Primitives/Queue.sv \
+
+SV_LEAF_MODULES = \
 	Primitives/RAM.sv \
-	Primitives/LRU_Counter.sv \
-	Primitives/Picker.sv \
-	Primitives/Multiplier.sv \
-	Primitives/Divider.sv \
-	Debug/Debug.sv \
-	Debug/PerformanceCounter.sv \
+	Cache/DCache.sv \
+	Memory/Memory.sv \
+	Memory/Axi4LiteControlRegister.sv \
+	Memory/Axi4LiteMemory.sv \
+	Memory/ControlQueue.sv \
+	Memory/Axi4Memory.sv \
+	Memory/MemoryReadReqQueue.sv \
+	Memory/MemoryWriteDataQueue.sv \
 
 # MODULES specifies what to compile for simulation.
 MODULES = \
 	Main_Zynq_Wrapper.sv \
 	Main_Zynq.sv \
-	Memory/Axi4LiteControlRegister.sv \
-	Memory/ControlQueue.sv \
-	Memory/Axi4Memory.sv \
-	Memory/MemoryReadReqQueue.sv \
-	Memory/MemoryWriteDataQueue.sv \
-	Memory/MemoryLatencySimulator.sv \
+	$(SV_LEAF_MODULES) \
 	$(CORE_MODULES) \
 
 # Specify files with module definitions that are used only for testing and not used for synthesis.

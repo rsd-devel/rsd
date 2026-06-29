@@ -139,11 +139,11 @@ TreeLRU_CalcWriteEnable(logic weIn, DCacheWayPath way);
 endfunction
 
 //
-// Controller to handle the state of DCache.
+// Controller to handle the state of DCache_SV.
 //
-module DCacheController(DCacheIF.DCacheController port);
+module DCacheController_SV(DCacheIF.DCacheController port);
 
-    // DCache state
+    // DCache_SV state
     DCachePhase regPhase, nextPhase;
 
     // For flush
@@ -152,7 +152,7 @@ module DCacheController(DCacheIF.DCacheController port);
     logic mshrBusy;
     logic loadStoreBusy;
 
-    // DCache phase
+    // DCache_SV phase
     always_ff @(posedge port.clk) begin
         if (port.rst) begin
             regPhase <= DCACHE_PHASE_NORMAL;
@@ -187,7 +187,7 @@ module DCacheController(DCacheIF.DCacheController port);
                 end
             end
 
-            // DCache can enter the flush phase when MSHRs are free.
+            // DCache_SV can enter the flush phase when MSHRs are free.
             // MSHR can be busy when a preceding load of fence.i allocated the MSHR 
             // but was subsequently flushed.
             dcFlushReqAck = !mshrBusy;
@@ -208,11 +208,11 @@ module DCacheController(DCacheIF.DCacheController port);
         end
         endcase
 
-        // DCache -> cacheFlushManagemer
+        // DCache_SV -> cacheFlushManagemer
         port.dcFlushReqAck = dcFlushReqAck;
         port.dcFlushComplete = dcFlushComplete;
 
-        // DCache controller -> DCache submodules
+        // DCache_SV controller -> DCache_SV submodules
         port.dcFlushing = (regPhase == DCACHE_PHASE_FLUSH_PROCESSING);
     end
 
@@ -222,12 +222,12 @@ module DCacheController(DCacheIF.DCacheController port);
         "Inflight load or store is found on DC flush request acquirement."
     );
 
-endmodule : DCacheController
+endmodule : DCacheController_SV
 
 //
 // The arbiter of the ports of the main memory.
 //
-module DCacheMemoryReqPortArbiter(DCacheIF.DCacheMemoryReqPortArbiter port);
+module DCacheMemoryReqPortArbiter_SV(DCacheIF.DCacheMemoryReqPortArbiter port);
 
     logic req[MSHR_NUM];
     logic grant[MSHR_NUM];
@@ -261,13 +261,13 @@ module DCacheMemoryReqPortArbiter(DCacheIF.DCacheMemoryReqPortArbiter port);
         end
     end
 
-endmodule : DCacheMemoryReqPortArbiter
+endmodule : DCacheMemoryReqPortArbiter_SV
 
 //
 // Multiplexer for a memory signals
 //
 
-module DCacheMemoryReqPortMultiplexer(DCacheIF.DCacheMemoryReqPortMultiplexer port);
+module DCacheMemoryReqPortMultiplexer_SV(DCacheIF.DCacheMemoryReqPortMultiplexer port);
 
     MSHR_IndexPath portIn;
     always_comb begin
@@ -286,13 +286,13 @@ module DCacheMemoryReqPortMultiplexer(DCacheIF.DCacheMemoryReqPortMultiplexer po
 
     end
 
-endmodule : DCacheMemoryReqPortMultiplexer
+endmodule : DCacheMemoryReqPortMultiplexer_SV
 
 
 //
 // An arbiter of the ports of the tag/data array.
 //
-// 以下2カ所から来る合計 R 個のアクセス要求に対して，最大 DCache のポート分だけ grant を返す
+// 以下2カ所から来る合計 R 個のアクセス要求に対して，最大 DCache_SV のポート分だけ grant を返す
 //   load unit/store unit: port.lsuCacheReq 
 //   mshr の全エントリ:     mshrCacheReq    
 //
@@ -308,7 +308,7 @@ endmodule : DCacheMemoryReqPortMultiplexer
 // 典型的には，
 //   grant[0]: load, grant[1]: store, grant[2],grant[3]...: mshr
 //
-module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
+module DCacheArrayPortArbiter_SV(DCacheIF.DCacheArrayPortArbiter port);
 
     logic req[DCACHE_MUX_PORT_NUM];
     logic grant[DCACHE_MUX_PORT_NUM];
@@ -367,19 +367,19 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
         end
     end
 
-endmodule : DCacheArrayPortArbiter
+endmodule : DCacheArrayPortArbiter_SV
 
 
 
 //
 // Multiplexer for d-cache signals
 //
-// DCacheArrayPortArbiter でアービトレーションした結果に基づき，
-// DCache の各ポートと load/store/mshr の各ユニットをスイッチする．
-// DCache アクセスはパイプライン化されているため，スイッチもパイプラインの各ステージ
+// DCacheArrayPortArbiter_SV でアービトレーションした結果に基づき，
+// DCache_SV の各ポートと load/store/mshr の各ユニットをスイッチする．
+// DCache_SV アクセスはパイプライン化されているため，スイッチもパイプラインの各ステージ
 // にあわせて行われる．
 //
-module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
+module DCacheArrayPortMultiplexer_SV(DCacheIF.DCacheArrayPortMultiplexer port);
 
     DCacheMuxPortIndexPath portIn;
     DCacheMuxPortIndexPath portInRegTagStg[DCACHE_ARRAY_PORT_NUM];
@@ -627,13 +627,13 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
         end
     end
 
-endmodule : DCacheArrayPortMultiplexer
+endmodule : DCacheArrayPortMultiplexer_SV
 
 
 //
 // Tag/data/dirty bits array.
 //
-module DCacheArray(DCacheIF.DCacheArray port);
+module DCacheArray_SV(DCacheIF.DCacheArray port);
     // Data array signals
     logic dataArrayWE[DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
     logic dataArrayByteWE[DCACHE_LINE_BYTE_NUM][DCACHE_WAY_NUM][DCACHE_ARRAY_PORT_NUM];
@@ -873,16 +873,16 @@ module DCacheArray(DCacheIF.DCacheArray port);
         end
     end
 
-endmodule : DCacheArray
+endmodule : DCacheArray_SV
 
 //
 // Data cache main module.
 //
-module DCache(
-    LoadStoreUnitIF.DCache lsu,
-    CacheSystemIF.DCache cacheSystem,
-    ControllerIF.DCache ctrl,
-    RecoveryManagerIF.DCacheMissHandler recovery    // connected to DCacheMissHandler
+module DCache_SV(
+    LoadStoreUnitIF.DCache_SV lsu,
+    CacheSystemIF.DCache_SV cacheSystem,
+    ControllerIF.DCache_SV ctrl,
+    RecoveryManagerIF.DCacheMissHandler_SV recovery    // connected to DCacheMissHandler_SV
 );
 
     logic hit[DCACHE_LSU_PORT_NUM];
@@ -898,16 +898,16 @@ module DCache(
     assign port.rst = lsu.rst;
     assign port.rstStart = lsu.rstStart;
 
-    DCacheController controller(port);
+    DCacheController_SV controller(port);
 
-    DCacheArray array(port);
-    DCacheArrayPortArbiter arrayArbiter(port);
-    DCacheArrayPortMultiplexer arrayMux(port);
+    DCacheArray_SV array(port);
+    DCacheArrayPortArbiter_SV arrayArbiter(port);
+    DCacheArrayPortMultiplexer_SV arrayMux(port);
 
-    DCacheMemoryReqPortArbiter memArbiter(port);
-    DCacheMemoryReqPortMultiplexer memMux(port);
+    DCacheMemoryReqPortArbiter_SV memArbiter(port);
+    DCacheMemoryReqPortMultiplexer_SV memMux(port);
 
-    DCacheMissHandler missHandler(port, recovery);
+    DCacheMissHandler_SV missHandler(port, recovery);
 
 
     // Stored data
@@ -995,7 +995,7 @@ module DCache(
 
     `RSD_STATIC_ASSERT(
         $bits(LSQ_BlockDataPath) <= $bits(DCacheLinePath), 
-        "The width of a DCache line must be same or greater than that of an LSQ block."
+        "The width of a DCache_SV line must be same or greater than that of an LSQ block."
     );
 
     always_comb begin
@@ -1221,7 +1221,7 @@ module DCache(
             port.isUncachable[i] = portIsUncachable[i];
         end
 
-        // DCache top -> DCache controller
+        // DCache_SV top -> DCache_SV controller
         port.lsuCacheGrtReg = lsuCacheGrtReg;
 
         // Output control signals
@@ -1286,21 +1286,21 @@ module DCache(
     // CacheFlushManager
     //
     always_comb begin
-        // DCache -> cacheFlushManagemer
+        // DCache_SV -> cacheFlushManagemer
         cacheSystem.dcFlushReqAck = port.dcFlushReqAck;
         cacheSystem.dcFlushComplete = port.dcFlushComplete;
 
-        // cacheFlushManagemer -> DCache
+        // cacheFlushManagemer -> DCache_SV
         port.dcFlushReq = cacheSystem.dcFlushReq;
         port.flushComplete = cacheSystem.flushComplete;
     end
 
-endmodule : DCache
+endmodule : DCache_SV
 
 
-module DCacheMissHandler(
+module DCacheMissHandler_SV(
     DCacheIF.DCacheMissHandler port,
-    RecoveryManagerIF.DCacheMissHandler recovery
+    RecoveryManagerIF.DCacheMissHandler_SV recovery
 );
 
     MissStatusHandlingRegister nextMSHR[MSHR_NUM];
@@ -1484,7 +1484,7 @@ module DCacheMissHandler(
                         nextMSHR[i].activeListPtr = port.initMSHR_ActiveListPtr[i];
                     end
                     else if (port.dcFlushing && (i == 0)) begin
-                        // MSHR[0] is used to flush DCache.
+                        // MSHR[0] is used to flush DCache_SV.
                         nextMSHR[i].valid = TRUE;
                         nextMSHR[i].newAddr = '0;
                         nextMSHR[i].newValid = FALSE;
@@ -1510,11 +1510,11 @@ module DCacheMissHandler(
                 end
             
             //
-            // --- States for DCache flush
+            // --- States for DCache_SV flush
             //
 
                 // FLUSH 1.
-                // Send a request to DCache to (1) get a victime line corresponding to flushIndex,
+                // Send a request to DCache_SV to (1) get a victime line corresponding to flushIndex,
                 // and (2) subsequently reset the corresponding tag and data entry.
                 MSHR_PHASE_FLUSH_VICTIM_REQEUST: begin
                     // Access the cache array.
@@ -1631,11 +1631,11 @@ module DCacheMissHandler(
                 end
 
             //
-            // --- States for DCache flush (end)
+            // --- States for DCache_SV flush (end)
             //
 
             //
-            // --- States for DCache miss handling
+            // --- States for DCache_SV miss handling
             //
 
                 // 2. リプレース対象の読み出し
@@ -1913,4 +1913,4 @@ module DCacheMissHandler(
 `endif
 
 
-endmodule : DCacheMissHandler
+endmodule : DCacheMissHandler_SV

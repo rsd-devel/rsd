@@ -24,13 +24,18 @@ module BypassController (
     import BypassTypes::*;
     import BypassControllerTypes::*;
 
+    var intRR: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var intEX: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var intWB: BypassCtrlOperand [INT_ISSUE_WIDTH];
+    var memRR: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memEX: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memMT: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memMA: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+    var memWB: BypassCtrlOperand [MEM_ISSUE_WIDTH];
+
     function SelectReg (
         regNum: input PRegNumPath,
         read  : input logic,
-        intEX : input BypassCtrlOperand<INT_ISSUE_WIDTH>,
-        intWB : input BypassCtrlOperand<INT_ISSUE_WIDTH>,
-        memMA : input BypassCtrlOperand<MEM_ISSUE_WIDTH>,
-        memWB : input BypassCtrlOperand<MEM_ISSUE_WIDTH>,
     ) -> BypassSelect {
         var ret: BypassSelect;
         var foundInt: logic;
@@ -78,15 +83,6 @@ module BypassController (
 
         return ret;
     }
-
-    var intRR: BypassCtrlOperand [INT_ISSUE_WIDTH];
-    var intEX: BypassCtrlOperand [INT_ISSUE_WIDTH];
-    var intWB: BypassCtrlOperand [INT_ISSUE_WIDTH];
-    var memRR: BypassCtrlOperand [MEM_ISSUE_WIDTH];
-    var memEX: BypassCtrlOperand [MEM_ISSUE_WIDTH];
-    var memMT: BypassCtrlOperand [MEM_ISSUE_WIDTH];
-    var memMA: BypassCtrlOperand [MEM_ISSUE_WIDTH];
-    var memWB: BypassCtrlOperand [MEM_ISSUE_WIDTH];
 
     //
     // Back-end Pipeline Structure
@@ -152,18 +148,18 @@ module BypassController (
 
             intBypassCtrl[i] = '0;
             intBypassCtrl[i].rA =
-                SelectReg(port.intPhySrcRegNumA[i], port.intReadRegA[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.intPhySrcRegNumA[i], port.intReadRegA[i]);
             intBypassCtrl[i].rB =
-                SelectReg(port.intPhySrcRegNumB[i], port.intReadRegB[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.intPhySrcRegNumB[i], port.intReadRegB[i]);
         }
         port.intCtrlOut = intBypassCtrl;
 
         for i in 0..COMPLEX_ISSUE_WIDTH {
             complexBypassCtrl[i] = '0;
             complexBypassCtrl[i].rA =
-                SelectReg(port.complexPhySrcRegNumA[i], port.complexReadRegA[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.complexPhySrcRegNumA[i], port.complexReadRegA[i]);
             complexBypassCtrl[i].rB =
-                SelectReg(port.complexPhySrcRegNumB[i], port.complexReadRegB[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.complexPhySrcRegNumB[i], port.complexReadRegB[i]);
         }
         port.complexCtrlOut = complexBypassCtrl;
 
@@ -173,20 +169,20 @@ module BypassController (
 
             memBypassCtrl[i] = '0;
             memBypassCtrl[i].rA =
-                SelectReg(port.memPhySrcRegNumA[i], port.memReadRegA[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.memPhySrcRegNumA[i], port.memReadRegA[i]);
             memBypassCtrl[i].rB =
-                SelectReg(port.memPhySrcRegNumB[i], port.memReadRegB[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.memPhySrcRegNumB[i], port.memReadRegB[i]);
         }
         port.memCtrlOut = memBypassCtrl;
 
         for i in 0..FP_ISSUE_WIDTH {
             fpBypassCtrl[i] = '0;
             fpBypassCtrl[i].rA =
-                SelectReg(port.fpPhySrcRegNumA[i], port.fpReadRegA[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.fpPhySrcRegNumA[i], port.fpReadRegA[i]);
             fpBypassCtrl[i].rB =
-                SelectReg(port.fpPhySrcRegNumB[i], port.fpReadRegB[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.fpPhySrcRegNumB[i], port.fpReadRegB[i]);
             fpBypassCtrl[i].rC =
-                SelectReg(port.fpPhySrcRegNumC[i], port.fpReadRegC[i], intEX, intWB, memMA, memWB);
+                SelectReg(port.fpPhySrcRegNumC[i], port.fpReadRegC[i]);
         }
         port.fpCtrlOut = fpBypassCtrl;
     }

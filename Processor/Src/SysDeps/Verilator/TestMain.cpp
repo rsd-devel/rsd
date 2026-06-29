@@ -23,26 +23,26 @@ double sc_time_stamp () {       // Called by $time in Verilog
 
 int GetCommittedRegisterValue(
     VMain_Zynq_Wrapper* top,
+    const DebugRegister& debugRegister,
     int commitNumInThisCycle,
     DataPath* regData
 ){
     auto* core = top->Main_Zynq_Wrapper->main->core;
     auto* helper = top->VerilatorHelper;
-    static const int LSCALAR_NUM = helper->LSCALAR_NUM;
 
-    typeof (core->retirementRMT->regRMT->debugValue) phyRegNum;
+    typeof (core->retirementRMT->regRMT->body->debugValue) phyRegNum;
 
     // Copy RMT to local variable.
     for (int i = 0; i < LREG_NUM; i++) {
-        phyRegNum[i] = core->retirementRMT->regRMT->debugValue[i];
+        phyRegNum[i] = core->retirementRMT->regRMT->body->debugValue[i];
     }
 
     // Update RRMT
     //ActiveListIndexPath alHeadPtr;
-    auto alHeadPtr = core->activeList->headPtr;
+    auto alHeadPtr = debugRegister.activeListHeadPtr;
     for (int i = 0; i < commitNumInThisCycle; i++) {
         // ActiveListEntry alHead;
-        const auto& alHead = core->activeList->activeList->debugValue[alHeadPtr];
+        const auto& alHead = core->activeList->activeList->body->debugValue[alHeadPtr];
         if (helper->ActiveListEntry_writeReg(alHead)) {
             phyRegNum[helper->ActiveListEntry_logDstRegNum(alHead)] = helper->ActiveListEntry_phyDstRegNum_regNum(alHead);
         }
@@ -51,11 +51,11 @@ int GetCommittedRegisterValue(
 
     // Get regData
     for(int i = 0; i < LSCALAR_NUM; i++) {
-        regData[i] = core->registerFile->phyReg->debugValue[phyRegNum[i]];
+        regData[i] = core->registerFile->phyReg->body->debugValue[phyRegNum[i]];
     }
 #ifdef RSD_MARCH_FP_PIPE
     for(int i = LSCALAR_NUM; i < LSCALAR_NUM + LSCALAR_FP_NUM; i++) {
-        regData[i] = core->registerFile->phyFPReg->debugValue[phyRegNum[i]];
+        regData[i] = core->registerFile->phyFPReg->body->debugValue[phyRegNum[i]];
     }
 #endif
     
@@ -161,8 +161,8 @@ int main(int argc, char** argv) {
     //assert(sizeof(top->Main_Zynq_Wrapper->main->memory->body->array) == 128/8 * MEMORY_ENTRY_NUM);
     // To access the module generated in generate,
     // use (Label given in generate section)__DOT__(module name)
-    size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array) / sizeof(uint32_t);
-    uint32_t* mainMem = reinterpret_cast<uint32_t*>(&top->Main_Zynq_Wrapper->main->memory->body->body__DOT__ram->array);
+    size_t mainMemWordSize = sizeof(top->Main_Zynq_Wrapper->main->memory->body->body->body->body__DOT__ram->array) / sizeof(uint32_t);
+    uint32_t* mainMem = reinterpret_cast<uint32_t*>(&top->Main_Zynq_Wrapper->main->memory->body->body->body->body__DOT__ram->array);
 
     // Fill dummy data
     for (int i = 0; i < mainMemWordSize; i++) {
@@ -280,11 +280,11 @@ int main(int argc, char** argv) {
 
                     for (int i = 0; i < COMMIT_WIDTH; i++) {
                         // 1命令ずつコミットを追ってレジスタ状態をダンプする
-                        if (core->cmStage->commit[i]) {
+                        if (debugRegister.cmReg[i].commit) {
                             DataPath regData[LREG_NUM];
-                            GetCommittedRegisterValue(top, i, regData);
+                            GetCommittedRegisterValue(top, debugRegister, i, regData);
                             registerFileCSV_Dumper.Dump(
-                                helper->ActiveListEntry_pc(core->cmStage->alReadData[i]),
+                                debugRegister.cmReg[i].pc,
                                 regData
                             );
                         }
@@ -331,7 +331,7 @@ int main(int argc, char** argv) {
     // Count the number of commit in the last cycle.
     int commitNumInLastCycle = 0;
     for (int count = 0; count < COMMIT_WIDTH; count++) {
-        if (!core->cmStage->commit[count])
+        if (!debugRegister.cmReg[count].commit)
             break;
         commitNumInLastCycle++;
     }   
@@ -362,7 +362,7 @@ int main(int argc, char** argv) {
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;
     DataPath regData[LREG_NUM];
-    GetCommittedRegisterValue(top, commitNumInLastCycle, regData);
+    GetCommittedRegisterValue(top, debugRegister, commitNumInLastCycle, regData);
     registerFileHexDumper.Open(regOutFileName);
     registerFileHexDumper.Dump(lastCommittedPC, regData);
     registerFileHexDumper.Close();

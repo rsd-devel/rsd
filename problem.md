@@ -2,7 +2,9 @@
 
 このファイルは、現在の Veryl 利用方針と、移行中に見つかったツール起因の注意点だけをまとめる。
 
-## 現在の方針
+## 過去の package/interface 限定方針
+
+以下は module Veryl 化前の記録で、現在の方針ではない。
 
 - Veryl 化の対象は package と interface だけにする。
 - module 本体は SystemVerilog のまま使う。
@@ -127,3 +129,19 @@ popEntry -> QueuePointer/RAM -> replayEntryOut -> flush* -> popEntry
 - Veryl が Verilator metacomment を直接出せるようになっていないか。
 - Verilator 更新後に、`PipelinePhase` alias と package function の internal error 回避がまだ必要か。
 - 別マクロ構成で build する場合、Veryl 化済み package/interface の展開前提が合っているか。
+
+## module Veryl 化後の追加メモ
+
+module も Veryl 生成物を使う方針へ更新したため、上の「package/interface 限定」「生成 bundle 後処理」は過去の方針になった。現在の Verilator build では `veryl build` 後に生成 SV を `perl` などで書き換えず、`Veryl.toml` の `sources` 配列を Makefile 側で読んで `target/veryl/*.sv` を明示順で Verilator に渡している。`rsd.f` は Veryl の生成確認には使うが、Verilator の入力順制御には使わない。
+
+`-Wno-LATCH` は使わない。今回見つかった `NextPCStage` の latch warning は、分岐予測の探索フラグ、次 PC、次段レジスタの既定値を `always_comb` の先頭で明示初期化することで Veryl 側の記述として直した。
+
+Veryl の directory target は、明示 `sources = [...]` だけだと現環境で出力先 directory 自体をファイルとして開こうとして失敗した。そのため暫定的に deprecated warning 付きの `source = "."` を残している。ただし Verilator へ渡す順序は `sources` 配列から作っているので、順序依存のある package/interface/module は TOML 側で管理している。
+
+Veryl 生成の package localparam は、元 SV の `/*verilator public*/` metacomment と同じ形では C++ 側へ公開されなかった。生成物後処理で戻す方針はやめ、Verilator testbench に必要な固定パラメータは `SysDeps/Verilator/VerilatorHelper.h` 側の `constexpr` として持つことにした。これは現行 `RSD_SRC_CFG` 前提なので、別マクロ構成を有効にする場合は C++ 側定数との同期が必要になる。
+
+Veryl の関数引数に unpacked array を渡す形は、Verilator の生成 C++ で配列と packed 値の型が噛み合わないことがあった。`PreDecodeStage` は中間配列型を明示し、`BypassController` / `BypassNetwork` は関数に配列を渡さずモジュール内配列を直接参照する形へ寄せた。
+
+Veryl wrapper 越しに SV leaf を使う箇所はまだ残っている。具体的には RAM、DCache 本体、Memory/AXI/queue 系のリーフ実装で、Veryl 側から `$sv::*_SV` を instantiate している。このため該当 SV は削除していない。逆に、同名 `.veryl` があり現在の Verilator file list から外れた旧 module SV は削除した。
+
+Veryl wrapper により Verilator の C++ 階層名が変わったため、`TestMain.cpp` の debug RAM 参照や main memory 参照には `body` 階層を追加した。また commit 後の register dump で必要な commit stage の PC/commit 情報は、C++ から内部 module 階層へ直接潜らず `DebugRegister` と `VerilatorHelper` 経由で読む形に寄せた。

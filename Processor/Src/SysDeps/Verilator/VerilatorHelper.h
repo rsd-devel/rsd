@@ -12,38 +12,35 @@
 #include "VMain_Zynq_Wrapper.h"
 #include "VMain_Zynq_Wrapper__Syms.h"    // To see all public symbols
 
+#include <cstdint>
 #include <stdio.h>
 #include <string>
 
 
 // Parameters
-// Write bridge code in VerilatorHelper.sv
-#define RSD_MAKE_PARAMETER(name) \
-    static const auto name = VMain_Zynq_Wrapper_VerilatorHelper::name
+static constexpr uint32_t PC_GOAL = 0x80001004u;
+static constexpr uint32_t PHY_ADDR_SECTION_0_BASE = 0x00000u;
+static constexpr uint32_t PHY_ADDR_SECTION_1_BASE = 0x10000u;
 
-RSD_MAKE_PARAMETER(PC_GOAL);
-RSD_MAKE_PARAMETER(PHY_ADDR_SECTION_0_BASE);
-RSD_MAKE_PARAMETER(PHY_ADDR_SECTION_1_BASE);
+static constexpr int LSCALAR_NUM = 32;
+static constexpr int LSCALAR_FP_NUM = 32;
+static constexpr int LREG_NUM = LSCALAR_NUM + LSCALAR_FP_NUM;
+static constexpr int FETCH_WIDTH = 2;
+static constexpr int DECODE_WIDTH = FETCH_WIDTH;
+static constexpr int RENAME_WIDTH = FETCH_WIDTH;
+static constexpr int DISPATCH_WIDTH = FETCH_WIDTH;
+static constexpr int COMMIT_WIDTH = 2;
 
-RSD_MAKE_PARAMETER(LSCALAR_NUM);
-RSD_MAKE_PARAMETER(LSCALAR_FP_NUM);
-RSD_MAKE_PARAMETER(LREG_NUM);
-RSD_MAKE_PARAMETER(FETCH_WIDTH);
-RSD_MAKE_PARAMETER(DECODE_WIDTH);
-RSD_MAKE_PARAMETER(RENAME_WIDTH);
-RSD_MAKE_PARAMETER(DISPATCH_WIDTH);
-RSD_MAKE_PARAMETER(COMMIT_WIDTH);
+static constexpr int INT_ISSUE_WIDTH = 2;
+static constexpr int COMPLEX_ISSUE_WIDTH = 1;
+static constexpr int MEM_ISSUE_WIDTH = 2;
+static constexpr int FP_ISSUE_WIDTH = 1;
 
-RSD_MAKE_PARAMETER(INT_ISSUE_WIDTH);
-RSD_MAKE_PARAMETER(COMPLEX_ISSUE_WIDTH);
-RSD_MAKE_PARAMETER(MEM_ISSUE_WIDTH);
-RSD_MAKE_PARAMETER(FP_ISSUE_WIDTH);
+static constexpr int ISSUE_QUEUE_ENTRY_NUM = 16;
+static constexpr int COMPLEX_EXEC_STAGE_DEPTH = 3;
+static constexpr int FP_EXEC_STAGE_DEPTH = 5;
 
-RSD_MAKE_PARAMETER(ISSUE_QUEUE_ENTRY_NUM);
-RSD_MAKE_PARAMETER(COMPLEX_EXEC_STAGE_DEPTH);
-RSD_MAKE_PARAMETER(FP_EXEC_STAGE_DEPTH);
-
-RSD_MAKE_PARAMETER(MEM_MOP_TYPE_CSR);
+static constexpr uint32_t MEM_MOP_TYPE_CSR = 0x4u;
 
 
 // Types
@@ -348,6 +345,7 @@ struct CommitStageDebugRegister{
     bool commit;
     bool flush;
     OpId opId;
+    PC_Path pc;
 
 #ifdef RSD_FUNCTIONAL_SIMULATION
     bool releaseReg;
@@ -692,6 +690,7 @@ static void GetDebugRegister(DebugRegister* d, VMain_Zynq_Wrapper *top)
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, commit);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, flush);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR_OP_ID(DebugRegister, cmReg, OpId, opId);
+    RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, PC_Path, pc);
 #ifdef RSD_FUNCTIONAL_SIMULATION
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, logic, releaseReg);
     RSD_MAKE_DEBUG_REG_STAGE_ACCESSOR(DebugRegister, cmReg, PRegNumPath, phyReleasedReg);
