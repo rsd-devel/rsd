@@ -105,8 +105,8 @@ module DecodeStage(
             prev_ELP_State <= LP_NOT_EXPECTED;
         end
         else begin
-            if (port.recoverELP_FromRwStage || port.recoverELP_FromCSR) begin
-                prev_ELP_State <= port.recoverELP_FromRwStage ? port.recoveredELP_FromRwStage : port.recoveredELP_FromCSR;
+            if (port.setELP_OnInterrupt || port.recoverELP) begin
+                prev_ELP_State <= port.setELP_OnInterrupt ? LP_NOT_EXPECTED : port.recoveredELP;
             end
             else begin
                 if (complete) begin
@@ -272,11 +272,11 @@ module DecodeStage(
         input logic insnValidIn[DECODE_WIDTH],
         input OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps,
         input InsnInfo [DECODE_WIDTH-1:0] insnInfo,
-        input logic prev_ELP_State,
+        input ELP_State_Type prev_ELP_State,
         output OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] modifiedMicroOps,
         output InsnInfo [DECODE_WIDTH-1:0] modifiedInsnInfo,
         output ELP_State_Type [ALL_DECODED_MICRO_OP_WIDTH-1:0] elps,
-        output logic last_ELP_State
+        output ELP_State_Type last_ELP_State
     );
         SystemMicroOpOperand systemOp;
 

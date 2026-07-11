@@ -75,6 +75,7 @@ module InterruptController(
 
         fetchStage.interruptAddrWE = triggerInterrupt;
         fetchStage.interruptAddrIn = interruptTargetAddr;
+        decodeStage.setELP_OnInterrupt = triggerInterrupt;
     end
 
 endmodule

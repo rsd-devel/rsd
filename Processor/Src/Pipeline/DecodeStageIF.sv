@@ -18,19 +18,17 @@ interface DecodeStageIF( input logic clk, rst );
     AddrPath nextRecoveredPC;
 
     ELP_State_Type elpState;
-    logic recoverELP_FromRwStage;
-    ELP_State_Type recoveredELP_FromRwStage;
-    logic recoverELP_FromCSR;
-    ELP_State_Type recoveredELP_FromCSR;
+    logic recoverELP;
+    ELP_State_Type recoveredELP;
+    logic setELP_OnInterrupt;
     
     modport ThisStage(
     input 
         clk, 
         rst,
-        recoverELP_FromRwStage,
-        recoveredELP_FromRwStage,
-        recoverELP_FromCSR,
-        recoveredELP_FromCSR,
+        recoverELP,
+        recoveredELP,
+        setELP_OnInterrupt,
     output 
         nextStage,
         nextFlush,
@@ -47,19 +45,15 @@ interface DecodeStageIF( input logic clk, rst );
 
     modport InterruptController(
     input
-        elpState
+        elpState,
+    output
+        setELP_OnInterrupt
     );
 
     modport RecoveryManager(
     output
-        recoverELP_FromRwStage,
-        recoveredELP_FromRwStage
-    );
-
-    modport CSR_Unit(
-    output
-        recoveredELP_FromCSR,
-        recoverELP_FromCSR
+        recoverELP,
+        recoveredELP
     );
     
 endinterface : DecodeStageIF

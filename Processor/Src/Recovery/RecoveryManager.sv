@@ -49,10 +49,8 @@ module RecoveryManager(
         AddrPath excptCauseDataAddr;    // fault 発生時のデータアドレス
 
         // elp
-        ELP_State_Type elp_FromCommitStage;
-        ELP_State_Type is_lp_expected_FromCommitStage;
-        ELP_State_Type elp_FromRwStage;
-        ELP_State_Type is_lp_expected_FromRwStage; 
+        ELP_State_Type elp;
+        ELP_State_Type is_lp_expected;
 
         // ActiveList中のどのエントリがどのエントリまでをフラッシュするかを示すポインタ
         ActiveListIndexPath flushRangeHeadPtr;
@@ -71,6 +69,9 @@ module RecoveryManager(
 
     // CSR からリフェッチするかどうか
     logic refetchFromCSR;
+    // ThisPCにリフェッチするかどうか
+    logic refetchToThis;
+    ELP_State_Type recoveredELP;
 
     //リカバリによって回復されるPC
     PC_Path recoveredPC;
@@ -98,10 +99,8 @@ module RecoveryManager(
 
             regState.excptCause <= EXEC_STATE_NOT_FINISHED;
             regState.excptCauseDataAddr <= '0;
-            regState.elp_FromCommitStage <= LP_NOT_EXPECTED;
-            regState.is_lp_expected_FromCommitStage <= LP_NOT_EXPECTED;
-            regState.elp_FromRwStage <= LP_NOT_EXPECTED;
-            regState.is_lp_expected_FromRwStage <= LP_NOT_EXPECTED;
+            regState.elp <= LP_NOT_EXPECTED;
+            regState.is_lp_expected <= LP_NOT_EXPECTED;
         end
     end
 
@@ -131,10 +130,8 @@ module RecoveryManager(
         // これらの要求は一旦レジスタに積む
         nextState.excptCause = port.recoveryCauseFromCommitStage;
         nextState.excptCauseDataAddr = port.faultingDataAddr;
-        nextState.elp_FromCommitStage = port.elp_FromCommitStage;
-        nextState.is_lp_expected_FromCommitStage = port.is_lp_expected_FromCommitStage;
-        nextState.elp_FromRwStage = port.elp_FromRwStage;
-        nextState.is_lp_expected_FromRwStage = port.is_lp_expected_FromRwStage;
+        nextState.elp = port.exceptionDetectedInCommitStage ? port.elp_FromCommitStage : port.elp_FromRwStage;
+        nextState.is_lp_expected = port.exceptionDetectedInCommitStage ? port.is_lp_expected_FromCommitStage : port.is_lp_expected_FromRwStage;
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
@@ -147,10 +144,19 @@ module RecoveryManager(
         csrUnit.excptCauseAddr = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
         csrUnit.excptCause = regState.excptCause;
         csrUnit.excptCauseDataAddr = regState.excptCauseDataAddr;
-        csrUnit.excptELP = regState.refetchType == REFETCH_TYPE_THIS_PC_TO_CSR_TARGET ? regState.elp_FromCommitStage : regState.is_lp_expected_FromCommitStage;
 
-        idStage.recoverELP_FromRwStage = regState.phase == PHASE_RECOVER_0 && !refetchFromCSR;
-        idStage.recoveredELP_FromRwStage = regState.refetchType == EXEC_STATE_REFETCH_THIS ? regState.elp_FromRwStage : regState.is_lp_expected_FromRwStage;
+        refetchToThis = regState.refetchType inside {
+            REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_TO_CSR_TARGET
+        };
+        if (refetchFromCSR) begin
+            recoveredELP = csrUnit.recoverELPFromCSR;
+        end
+        else begin
+            recoveredELP = refetchToThis ? regState.elp : regState.is_lp_expected;
+        end
+
+        idStage.recoverELP = regState.phase == PHASE_RECOVER_0;
+        idStage.recoveredELP = recoveredELP;
 
         // Recovered PC
         if(regState.phase == PHASE_RECOVER_0) begin

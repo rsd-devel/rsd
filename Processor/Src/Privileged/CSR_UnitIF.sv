@@ -34,7 +34,7 @@ interface CSR_UnitIF(
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
     AddrPath excptTargetAddr;   // Trap vector or MRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
-    ELP_State_Type excptELP;         // fault 発生時のELP
+    ELP_State_Type recoverELPFromCSR;// CSRからのリカバリ時のELP
 
     // Interrupt
     logic triggerInterrupt;
@@ -113,12 +113,12 @@ interface CSR_UnitIF(
     modport RecoveryManager(
     input
         excptTargetAddr,
+        recoverELPFromCSR,
     output
         triggerExcpt,
         excptCauseAddr,
         excptCause,
-        excptCauseDataAddr,
-        excptELP
+        excptCauseDataAddr
     );
 
     modport CSR_Unit(
@@ -132,7 +132,6 @@ interface CSR_UnitIF(
         excptCauseAddr,
         excptCause,
         excptCauseDataAddr,
-        excptELP,
         commitNum,
         reqTimerInterrupt,
         reqExternalInterrupt,
@@ -154,7 +153,8 @@ interface CSR_UnitIF(
         csrWholeOut,
         csrReadOut,
         excptTargetAddr,
-        externalInterruptCodeInCSR
+        externalInterruptCodeInCSR,
+        recoverELPFromCSR
     );
 
     modport InterruptController(

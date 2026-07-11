@@ -34,7 +34,7 @@ main:
 
     # Setup
     # enable Zicfilp
-    la a0, trap_vector_cfi_enable
+    la a0, trap_vector_cfi_enable_test1_1
     csrrw x0, mtvec, a0
     li t0, 0x400 # MLPE = 1
     csrrw x0, mseccfg, t0
@@ -46,8 +46,14 @@ main:
     li a1, 0
     la t1, target_nolpad
     jalr ra, t1, 0
-    
-    # check
+
+    # ---- TEST1.1 ----
+    # mret with MPELP = 1 cause exception
+    # this instruction must not be executed
+    beqz x0, fail
+
+    # --- TEST1.2 ----
+    # jump to target_nolpad caused exception
     beqz a1, fail
     li t0, 123
     beq a2, t0, fail
@@ -56,6 +62,8 @@ main:
 
     # ---------------- TEST 2 ----------------
     # indirect jump to no labeled lpad
+    la a0, trap_vector_cfi_enable_with_reset_csr
+    csrrw x0, mtvec, a0
 
     call reset_registers
     li a1, 0
@@ -100,6 +108,22 @@ main:
     bnez a2, fail
     bnez a3, fail
 
+    # ---------------- TEST 5 ----------------
+    # MPELP = 0 on non software check exception
+
+    # set MPELP = 1
+    li t0, 0x200
+    csrrs x0, mstatush, t0
+    csrr t1, mstatush
+    and t1, t1, t0
+    beqz t1, fail
+
+    # set trap vector
+    la a0, trap_vector_cfi_enable_test5
+    csrrw x0, mtvec, a0
+
+    lw x0, 1(x0) # load from misaligned address to cause exception
+
 end:
     # restore return address
     lw ra, 0(sp)
@@ -114,6 +138,14 @@ reset_registers:
 
 fail:
     # infinite loop
+    li x1, 0x1234
+    li x2, 0x4321
+    li x3, 0x1234
+    li x4, 0x4321
+    li x5, 0x5678
+    li x6, 0x8765
+    li x7, 0x5678
+    li x8, 0x8765
     j fail
 
 target_nolpad:
@@ -195,7 +227,35 @@ target_lpad_label_2:
 trap_vector_cfi_disable:
     j trap_vector_cfi_disable
 
-trap_vector_cfi_enable:
+
+# for TEST 1.1
+trap_vector_cfi_enable_test1_1:
+    # cause is 18
+    li t1, 18 # software check exception
+    csrr t0, mcause
+    bne t0, t1, fail
+
+    # MPELP = 1
+    li t1, 0x200
+    csrr t0, mstatush
+    and t0, t0, t1
+    beqz t0, fail
+
+    # trap value is 2
+    li t1, 2 # landing pad fault
+    csrr t0, mtval
+    bne t0, t1, fail
+
+    # lpad exception is trapped on lpad, so set mepc = ra to return next pc of jalr
+    csrrw x0, mepc, ra
+
+    la a0, trap_vector_cfi_enable_test_1_2
+    csrrw x0, mtvec, a0
+
+    mret
+
+# for TEST 1.2
+trap_vector_cfi_enable_test_1_2:
     # cause is 18
     li t1, 18 # software check exception
     csrr t0, mcause
@@ -215,7 +275,72 @@ trap_vector_cfi_enable:
     # set a1 to non-zero value to indicate that trap handler is called
     addi a1, a1, 1
 
+    # clear MPELP so the mret target is not required to be an LPAD
+    li t1, 0x200
+    csrc mstatush, t1
+
+    # set mepc to next next instruction of jalr (ra + 4)
+    addi ra, ra, 4
+    csrrw x0, mepc, ra
+
+    mret
+
+
+trap_vector_cfi_enable_with_reset_csr:
+    # cause is 18
+    li t1, 18 # software check exception
+    csrr t0, mcause
+    bne t0, t1, fail
+
+    # MPELP = 1
+    li t1, 0x200
+    csrr t0, mstatush
+    and t0, t0, t1
+    beqz t0, fail
+
+    # trap value is 2
+    li t1, 2 # landing pad fault
+    csrr t0, mtval
+    bne t0, t1, fail
+
+    # set a1 to non-zero value to indicate that trap handler is called
+    addi a1, a1, 1
+
+    # set mcause to 0, MPELP to 0, mtval to 0
+    csrw mcause, x0
+    li t1, 0x200
+    csrc mstatush, t1
+    csrw mtval, x0
+
     # lpad exception is trapped on lpad, so set mepc = ra to return next pc of jalr
     csrrw x0, mepc, ra
+
+    mret
+
+trap_vector_cfi_enable_test5:
+    # cause is 4 or 5
+    csrr t0, mcause
+    li t1, 4 # load misaligned
+    beq t0, t1, cause_ok_test5
+    li t1, 5 # load access fault
+    beq t0, t1, cause_ok_test5
+    call fail
+
+    cause_ok_test5:
+    # MPELP is 0
+    li t1, 0x200
+    csrr t0, mstatush
+    and t0, t0, t1
+    bnez t0, fail
+
+    # trap value is misaligned address (1)
+    li t1, 1 # misaligned address
+    csrr t0, mtval
+    bne t0, t1, fail
+
+    # add 4 to mepc
+    csrr t0, mepc
+    addi t0, t0, 4
+    csrrw x0, mepc, t0
 
     mret

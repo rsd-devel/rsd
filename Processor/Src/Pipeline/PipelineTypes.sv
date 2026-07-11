@@ -323,7 +323,7 @@ typedef struct packed // MemoryTagAccessStageRegPath
     DataPath dataIn;        // The input data for store or CSR data out
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;
-    
+
 } MemoryTagAccessStageRegPath;
 
 

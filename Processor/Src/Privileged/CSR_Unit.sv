@@ -17,7 +17,6 @@ import ActiveListIndexTypes::*;
 
 module CSR_Unit(
     CSR_UnitIF.CSR_Unit port,
-    DecodeStageIF.CSR_Unit idStage,
     PerformanceCounterIF.CSR perfCounter
 );
 
@@ -86,8 +85,7 @@ module CSR_Unit(
         csrNext.minstret = csrNext.minstret + regCommitNum;
 
         wv = '0;
-        idStage.recoverELP_FromCSR = FALSE;
-        idStage.recoveredELP_FromCSR = LP_NOT_EXPECTED;
+        port.recoverELPFromCSR = LP_NOT_EXPECTED;
 
         if (port.triggerInterrupt) begin
             // Interrupt
@@ -101,8 +99,6 @@ module CSR_Unit(
             //$display("int: from %x", port.interruptRetAddr);
 
             csrNext.mstatush.MPELP = csrNext.mseccfg.MLPE ? port.interruptELP : LP_NOT_EXPECTED;
-            idStage.recoverELP_FromCSR = TRUE;
-            idStage.recoveredELP_FromCSR = LP_NOT_EXPECTED;
         end
         else if (port.triggerExcpt) begin
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
@@ -111,8 +107,7 @@ module CSR_Unit(
                 //$display("mret: to %x", csrNext.mepc);
 
                 csrNext.mstatush.MPELP = LP_NOT_EXPECTED;
-                idStage.recoverELP_FromCSR = TRUE;
-                idStage.recoveredELP_FromCSR = csrNext.mseccfg.MLPE ? csrNext.mstatush.MPELP : LP_NOT_EXPECTED;
+                port.recoverELPFromCSR = csrReg.mseccfg.MLPE ? csrReg.mstatush.MPELP : LP_NOT_EXPECTED;
             end
             else begin
                 // Trap
@@ -125,9 +120,8 @@ module CSR_Unit(
                 csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause);
                 //$display("trap: from %x", csrNext.mepc);
 
-                csrNext.mstatush.MPELP = port.excptELP;
-                idStage.recoverELP_FromCSR = TRUE;
-                idStage.recoveredELP_FromCSR = LP_NOT_EXPECTED;
+                csrNext.mstatush.MPELP = port.excptCause == EXEC_STATE_FAULT_LPAD ? LP_EXPECTED : LP_NOT_EXPECTED;
+                port.recoverELPFromCSR = LP_NOT_EXPECTED;
             end
         end
         else if (port.csrWE) begin
@@ -146,6 +140,7 @@ module CSR_Unit(
                     csrNext.mstatus = wv;
                    //$display("mstatus: %x", wv);
                 end
+                CSR_NUM_MSTATUSH:   csrNext.mstatush.MPELP = wv.mstatush.MPELP;
 
                 // MIP                
                 // > Only the bits corresponding to lower-privilege 
