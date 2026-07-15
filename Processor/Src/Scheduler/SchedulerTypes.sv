@@ -310,7 +310,7 @@ typedef struct packed // MemIssueQueueEntry
     OpDst opDst;
     PC_Path pc;
 
-    logic elp;
+    ELP_State_Type elp;
 } MemIssueQueueEntry;
 
 typedef struct packed // FPOpInfo
