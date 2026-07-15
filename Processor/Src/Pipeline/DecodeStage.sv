@@ -97,6 +97,11 @@ module DecodeStage(
         end
     end
 
+    // Control
+    logic initiate;
+    logic complete;
+
+    // ELP
     ELP_State_Type last_ELP_State, prev_ELP_State;
 
     always_ff@ (posedge port.clk)
@@ -140,11 +145,7 @@ module DecodeStage(
         end
         ctrl.idStageEmpty = empty;
     end
-    
-    
-    // Control
-    logic initiate;
-    logic complete;
+
     
     // Early branch misprediction detection.
     RISCV_ISF_Common [DECODE_WIDTH-1:0] isfIn;
