@@ -43,7 +43,7 @@ RSD_TEST_TOOL_ROOT = $(RSD_ROOT_NATIVE)/Processor/Tools/TestDriver
 #
 CC = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc
 AS = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)as
-LD = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)ld
+LD = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc
 OBJDUMP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)objdump
 OBJCOPY = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)objcopy
 STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
@@ -68,9 +68,14 @@ CFLAGS = \
 	-nostartfiles \
 	-mstrict-align \
 	$(ARCHFLAGS) \
+	--specs=picolibc.specs
 
 LDFLAGS= \
 	-static \
+	-nostdlib \
+	-nodefaultlibs \
+	-nostartfiles \
+	--specs=picolibc.specs
 
 LIBC =
 LIBGCC = \
