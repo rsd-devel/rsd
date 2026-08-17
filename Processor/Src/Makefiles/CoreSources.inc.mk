@@ -18,6 +18,9 @@ RSD_SRC_CFG = \
 # TYPES specifies files that include packages that contain type definitions.
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
+CORE_TEMPLATE_FILES = \
+	Memory/MemoryMapTypes.sv \
+
 TYPES = \
 	MicroArchConf.sv \
 	BasicTypes.sv \

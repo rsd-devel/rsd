@@ -1,0 +1,74 @@
+INSN_RESET_VECTOR: 0x0000_1000
+PC_GOAL: 0x8000_1004
+
+memory_map:
+  physical_address_width: 22
+  pc:
+    narrow: true
+    width: 19
+
+  regions:
+    rom:
+      type: memory
+      name: Section 0 (ROM)
+      logical_base: 0x0000_1000
+      physical_base: 0x0_0000
+      size: 0x0000_f000
+      translation: low_bits
+      uncachable: false
+      constants:
+        logical_prefix: LOG_ADDR_SECTION_0
+        physical_prefix: PHY_ADDR_SECTION_0
+
+    ram:
+      type: memory
+      name: Section 1 (RAM)
+      logical_base: 0x8000_0000
+      physical_base: 0x1_0000
+      size: 0x0004_0000
+      translation: low_bits
+      uncachable: false
+      constants:
+        logical_prefix: LOG_ADDR_SECTION_1
+        physical_prefix: PHY_ADDR_SECTION_1
+
+    uncachable:
+      type: memory
+      name: Uncachable section (RAM)
+      logical_base: 0x8004_0000
+      physical_base: 0x1_0000
+      size: 0x0001_0000
+      translation: low_bits
+      uncachable: true
+      constants:
+        logical_prefix: LOG_ADDR_UNCACHABLE
+        physical_prefix: PHY_ADDR_UNCACHABLE
+
+    serial:
+      type: io
+      name: Serial IO
+      logical_base: 0x4000_2000
+      physical_base: 0x0_2000
+      size: 1
+      translation: low_bits
+      constants:
+        logical_prefix: LOG_ADDR_SERIAL
+        physical_prefix: PHY_ADDR_SERIAL
+      registers:
+        OUTPUT: 0
+
+    timer:
+      type: io
+      name: Timer IO
+      logical_base: 0x4000_0000
+      physical_base: 0x0_0000
+      size: 16
+      translation: low_bits
+      constants:
+        logical_prefix: LOG_ADDR_TIMER
+        physical_prefix: PHY_ADDR_TIMER
+      registers:
+        LOW: 0
+        HI: 4
+        CMP_LOW: 8
+        CMP_HI: 12

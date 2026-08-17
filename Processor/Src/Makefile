@@ -64,6 +64,9 @@ VSIM_OPTIONS_DUMP = \
 # Include basic command definitions.
 include Makefile.inc
 
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
+
 # Convert a RSD log to a Kanata log.
 KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 
