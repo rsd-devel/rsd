@@ -7,7 +7,7 @@
 // シリアル出力の memory-mapped address
 #define SERIAL_ADDRESS 0x40002000
 
-#include <sys/types.h>
+#include <stddef.h>
 void* __attribute((weak)) memcpy(void* dest_, const void* src_, size_t n)
 {
   char* dest = dest_;
