@@ -59,13 +59,16 @@ XSIM_OPTIONS = \
 
 # Vivado sim may require the following additonal components:
 # sudo apt install libncurses5 libtinfo5
-all: Makefiles/CoreSources.inc.mk
+all: $(CORE_TEMPLATE_FILES) Makefiles/CoreSources.inc.mk
 	mkdir $(PROJECT_WORK) -p
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
 	# elaboration
 	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
+
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
 
 run:
 	# simulation
@@ -80,6 +83,7 @@ kanata:
 
 clean:
 	rm -r -f $(PROJECT_WORK)
+	rm -f $(CORE_TEMPLATE_FILES)
 
 # -------------------------------
 # Synthesis

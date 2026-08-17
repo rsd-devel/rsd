@@ -81,13 +81,16 @@ VERILATOR_TARGET_CXXFLAGS= \
 	-D RSD_MARCH_FP_PIPE \
 	-Wno-attributes \
 
-all: $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
+all: $(CORE_TEMPLATE_FILES) $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
 	$(VERILATOR_BIN) $(VERILATOR_OPTION) $(DEPS_RTL)
 	cd $(LIBRARY_WORK_RTL); \
 		VPATH=../../../Src \
 		CXXFLAGS="$(VERILATOR_TARGET_CXXFLAGS)" \
 			$(MAKE) -f $(VERILATED_TOP_MODULE_NAME).mk
 	@echo "==== Build Successful ===="
+
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
 
 run:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
@@ -121,7 +124,7 @@ $(LIBRARY_WORK_RTL):
 
 clean:
 	rm $(LIBRARY_WORK_RTL) -f -r
-
+	rm $(CORE_TEMPLATE_FILES) -f
 
 # -------------------------------
 # Test related items are defined in this file

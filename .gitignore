@@ -79,6 +79,7 @@ synlog.tcl
 # python
 *.pyc
 .ropeproject
+!requirements.txt
 
 # other files
 /Work
