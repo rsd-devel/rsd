@@ -37,7 +37,7 @@ localparam ISSUE_QUEUE_COMPLEX_LATENCY = COMPLEX_EXEC_STAGE_DEPTH + 2;
 localparam ISSUE_QUEUE_MEM_LATENCY     = 3;
 localparam ISSUE_QUEUE_FP_LATENCY      = FP_EXEC_STAGE_DEPTH + 2;
 
-localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH + FP_ISSUE_WIDTH;    // Stores do not wakeup consumers.
+localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
 
 // --- Issue queue flush count
 // - 例外発生時に、発行キューは例外命令より後方の命令が選択的にフラッシュされる。
@@ -68,7 +68,8 @@ typedef enum logic [3:0] // ExecutionState
                                            // but it must be refetch from next op.
     EXEC_STATE_TRAP_ECALL       = 4'b0100, // Execution causes a trap (ECALL)
     EXEC_STATE_TRAP_EBREAK      = 4'b0101, // Execution causes a trap (EBREAK)
-    EXEC_STATE_TRAP_MRET        = 4'b0110,  // Execution causes a MRET
+    EXEC_STATE_TRAP_SRET        = 4'b0110,  // Execution causes a SRET
+    EXEC_STATE_TRAP_MRET        = 4'b0111,  // Execution causes a MRET
 
     EXEC_STATE_FAULT_LOAD_MISALIGNED  = 4'b1000,  // Misaligned load is executed
     EXEC_STATE_FAULT_LOAD_VIOLATION   = 4'b1001,  // Load access violation
@@ -95,6 +96,7 @@ typedef struct packed // ActiveListEntry
     
     logic isLoad;
     logic isStore;
+    logic isZaamo;
     logic isBranch; // TRUE if the op is BR or RIJ
     logic isEnv;    // TRUE if the op is ECALL/EBREAK
     
@@ -269,6 +271,10 @@ typedef struct packed // MemOpInfo
     CSR_CtrlPath csrCtrl;
     ENV_Code envCode;
 
+    // Aext
+    logic isZalrsc;
+    MemZaamo_Code amoCode;
+
     // FENCE.I
     logic isFenceI;
 
@@ -296,6 +302,8 @@ typedef struct packed // MemIssueQueueEntry
     // Whether this load has allocated MSHR or not
     logic hasAllocatedMSHR;
     MSHR_IndexPath mshrID;
+
+    logic hasLoadedAMOCache;
 
     ActiveListIndexPath activeListPtr;
     LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery

@@ -16,8 +16,8 @@ import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(
-    input logic clk, rst, rstStart, reqExternalInterrupt, 
-    ExternalInterruptCodePath externalInterruptCode
+    input logic clk, rst, rstStart, reqCustomInterrupt, 
+    CustomInterruptCodePath customInterruptCode
 );
 
     logic csrWE;  // CSR write enable
@@ -32,8 +32,9 @@ interface CSR_UnitIF(
     logic   triggerExcpt;
     ExecutionState excptCause;
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
-    AddrPath excptTargetAddr;   // Trap vector or MRET return target
+    AddrPath excptTargetAddr;   // Trap vector or xRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
+    logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
 
     // Interrupt
     logic triggerInterrupt;
@@ -43,11 +44,10 @@ interface CSR_UnitIF(
     // Timer interrupt request
     logic reqTimerInterrupt;
 
-    // Latched code, see the cooments in the CSR.
-    ExternalInterruptCodePath externalInterruptCodeInCSR;
-
     // Used in updating minstret
     CommitLaneCountPath commitNum;
+
+    PrivilegeLevelType privilegeLevel;
 
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
@@ -59,7 +59,10 @@ interface CSR_UnitIF(
     modport MemoryExecutionStage(
     input
         clk, rst, rstStart,
+        csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
+        privilegeLevel,
     output 
         csrWE,
         csrNumber,
@@ -123,8 +126,8 @@ interface CSR_UnitIF(
         excptCauseDataAddr,
         commitNum,
         reqTimerInterrupt,
-        reqExternalInterrupt,
-        externalInterruptCode,
+        reqCustomInterrupt,
+        customInterruptCode,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
@@ -139,15 +142,16 @@ interface CSR_UnitIF(
 `endif
         csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
         excptTargetAddr,
-        externalInterruptCodeInCSR
+        privilegeLevel
     );
 
     modport InterruptController(
     input
         clk, rst, rstStart,
         csrWholeOut,
-        externalInterruptCodeInCSR,
+        privilegeLevel,
     output
         triggerInterrupt,
         interruptRetAddr,

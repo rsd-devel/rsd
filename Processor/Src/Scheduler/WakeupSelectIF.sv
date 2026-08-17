@@ -21,8 +21,8 @@ interface WakeupSelectIF( input logic clk, rst, rstStart );
 
     // WakeupPipelineRegister -> DestinationRAM
     logic wakeup[ WAKEUP_WIDTH ];
-    IssueQueueIndexPath wakeupPtr[ WAKEUP_WIDTH + STORE_ISSUE_WIDTH ];
-    IssueQueueOneHotPath wakeupVector[ WAKEUP_WIDTH + STORE_ISSUE_WIDTH ];
+    IssueQueueIndexPath wakeupPtr[ WAKEUP_WIDTH  ];
+    IssueQueueOneHotPath wakeupVector[ WAKEUP_WIDTH  ];
 
     // DestinationRAM -> WakeupLogic
     // In matrix based implementation, wakeupDstTag is used only for dispatch and

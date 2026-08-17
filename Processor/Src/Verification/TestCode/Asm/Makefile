@@ -35,6 +35,7 @@ SRC_DIRS = \
 	UncachableLoadAndStore \
 	CacheFlush \
     FP \
+    Aext \
 
 # 中間ファイルのリスト
 ASM_SRCS  = $(SRC_DIRS:%=%/code.s)

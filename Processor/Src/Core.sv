@@ -27,8 +27,8 @@ input
     MemAccessResponse memAccessResponse, // メモリ書き込み完了通知
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
-    logic reqExternalInterrupt,
-    ExternalInterruptCodePath externalInterruptCode,
+    logic reqCustomInterrupt,
+    CustomInterruptCodePath customInterruptCode,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -108,10 +108,11 @@ output
     BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqExternalInterrupt, externalInterruptCode);
+    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqCustomInterrupt, customInterruptCode);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
+    AMOCacheIF amoCacheIF(clk, rst);
 
     //
     // --- Modules
@@ -178,14 +179,15 @@ output
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
-    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, perfCounterIF );
-    MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
+    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, amoCacheIF, debugIF );
+    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF, perfCounterIF );
+    MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF );
         LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreQueue storeQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF, perfCounterIF);
         DCache dCache( loadStoreUnitIF, cacheSystemIF, ctrlIF, recoveryManagerIF);
+        AMOCache amocache(amoCacheIF);
     MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, loadStoreUnitIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 
 `ifdef RSD_MARCH_FP_PIPE

@@ -13,37 +13,186 @@ import OpFormatTypes::*;
 import MicroOpTypes::*;
 import SchedulerTypes::*;
 
+typedef enum logic [1:0] {
+    PRIVILEGE_LEVEL_M = 2'b11,
+    PRIVILEGE_LEVEL_S = 2'b01,
+    PRIVILEGE_LEVEL_U = 2'b00
+} PrivilegeLevelType;
+
 // If you add additional status bits, check CSR_Unit.sv because 
 // only valid fields are updated.
 typedef struct packed {
-    logic [23:0] padding_2;  // 31:8
-    logic MPIE;               // 7
-    logic [2:0] padding_1;   // 6:4
+    logic [8:0] padding_7;  // 31:23
+    logic TSR;              // 22
+    logic padding_6;        // 21
+    logic TVM;              // 20
+    logic MXR;              // 19
+    logic SUM;              // 18
+    logic MPRV;             // 17
+    logic [3:0] padding_5;  // 16:13
+    PrivilegeLevelType MPP; // 12:11
+    logic [1:0] padding_4;  // 10:9
+    logic SPP;              // 8
+    logic MPIE;             // 7
+    logic padding_3;        // 6
+    logic SPIE;             // 5
+    logic padding_2;        // 4
     logic MIE;              // 3
-    logic [2:0] padding_0;   // 2:0
+    logic padding_1;        // 2
+    logic SIE;              // 1
+    logic padding_0;        // 0
 } CSR_MSTATUS_Path;
+
+// If you add additional sstatus fields,
+// add fields that will be copied from/to mstatus in ToSstatusFromMstatus/ToMstatusFromSstatus
+typedef struct packed {
+    logic [11:0] padding_4; // 31:20
+    logic MXR;              // 19
+    logic SUM;              // 18
+    logic [8:0] padding_3;  // 17:9
+    logic SPP;              // 8
+    logic [1:0] padding_2;  // 7:6
+    logic SPIE;             // 5
+    logic [2:0] padding_1;  // 4:2
+    logic SIE;              // 1
+    logic padding_0;        // 0
+} CSR_SSTATUS_Path;
+
+function automatic CSR_SSTATUS_Path ToSstatusFromMstatus(input CSR_MSTATUS_Path mstatus);
+    CSR_SSTATUS_Path value;
+    value      = '0;
+    value.MXR  = mstatus.MXR ;
+    value.SUM  = mstatus.SUM ;
+    value.SPP  = mstatus.SPP ;
+    value.SPIE = mstatus.SPIE;
+    value.SIE  = mstatus.SIE ;
+    return value;
+endfunction
+
+function automatic CSR_MSTATUS_Path ToMstatusFromSstatus(input CSR_SSTATUS_Path sstatus, input CSR_MSTATUS_Path currentMstatus);
+    CSR_MSTATUS_Path value;
+    value      = currentMstatus;
+    value.MXR  = sstatus.MXR ;
+    value.SUM  = sstatus.SUM ;
+    value.SPP  = sstatus.SPP ;
+    value.SPIE = sstatus.SPIE;
+    value.SIE  = sstatus.SIE ;
+    return value;
+endfunction
+
+function automatic PrivilegeLevelType ToPrivilegeLevelFromSPP(input logic SPP);
+    return SPP ? PRIVILEGE_LEVEL_S : PRIVILEGE_LEVEL_U;
+endfunction
+
+function automatic logic ToSPP_FromPrivilegeLevel(input PrivilegeLevelType privilegeLevel);
+    assert(privilegeLevel inside {PRIVILEGE_LEVEL_U, PRIVILEGE_LEVEL_S});
+    return privilegeLevel == PRIVILEGE_LEVEL_S;
+endfunction
+
+// Machine ISA
+typedef struct packed {
+    logic Z;
+    logic Y;
+    logic X;
+    logic W;
+    logic V;
+    logic U;
+    logic T;
+    logic S;
+    logic R;
+    logic Q;
+    logic P;
+    logic O;
+    logic N;
+    logic M;
+    logic L;
+    logic K;
+    logic J;
+    logic I;
+    logic H;
+    logic G;
+    logic F;
+    logic E;
+    logic D;
+    logic C;
+    logic B;
+    logic A;
+} CSR_MISA_ExtensionsType;
+
+typedef struct packed {
+    logic [1:0] MXL; // 31:30
+    logic [3:0] padding_0; // 29:26
+    CSR_MISA_ExtensionsType EXTENSIONS; // 25:0
+} CSR_MISA_Path;
 
 // Interrupt pending?
 typedef struct packed {
-    logic [19:0] padding_3; // 31:12
-    logic MEIP;             // 11:11    external interrupt
-    logic [2:0] padding_2;  // 10:8
-    logic MTIP;             // 7:7      timer interrupt
-    logic [2:0] padding_1;  // 6:4
-    logic MSIP;             // 3:3      software interrupt
-    logic [2:0] padding_0;  // 2:0
+    logic [15:0] CUSTOM;    // 31:16    designated for platform use
+    logic [3:0] padding_6;  // 15:12
+    logic MEIP;             // 11:11    machine external interrupt
+    logic padding_5;        // 10:10
+    logic SEIP;             // 11:11    supervisor external interrupt
+    logic padding_4;        // 8:8
+    logic MTIP;             // 7:7      machine timer interrupt
+    logic padding_3;        // 6:6
+    logic STIP;             // 5:5      supervisor timer interrupt
+    logic padding_2;        // 4:4
+    logic MSIP;             // 3:3      machine software interrupt
+    logic padding_1;        // 2:2
+    logic SSIP;             // 1:1      supervisor software interrupt
+    logic padding_0;        // 0:0
 } CSR_MIP_Path;
+
+typedef struct packed {
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
+    logic SEIP;             // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STIP;             // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSIP;             // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_SIP_Path;
 
 // Interrupt enable?
 typedef struct packed {
-    logic [19:0] padding_3; // 31:12
-    logic MEIE;             // 11:11    external interrupt
-    logic [2:0] padding_2;  // 10:8
-    logic MTIE;             // 7:7      timer interrupt
-    logic [2:0] padding_1;  // 6:4
-    logic MSIE;             // 3:3      software interrupt
-    logic [2:0] padding_0;  // 2:0
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [3:0] padding_6;  // 15:12
+    logic MEIE;             // 11:11    machine external interrupt
+    logic padding_5;        // 10:10
+    logic SEIE;             // 9:9      supervisor external interrupt
+    logic padding_4;        // 8:8
+    logic MTIE;             // 7:7      machine timer interrupt
+    logic padding_3;        // 6:6
+    logic STIE;             // 5:5      supervisor timer interrupt
+    logic padding_2;        // 4:4
+    logic MSIE;             // 3:3      machine software interrupt
+    logic padding_1;        // 2:2
+    logic SSIE;             // 1:1      supervisor software interrupt
+    logic padding_0;        // 0:0
 } CSR_MIE_Path;
+
+typedef struct packed {
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
+    logic SEIE;             // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STIE;             // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSIE;             // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_SIE_Path;
+
+typedef struct packed {
+    logic [15:0] CUSTOM;    // 31:16  designated for platform use
+    logic [5:0] padding_3;  // 15:10
+    logic SEI;              // 9:9    supervisor external interrupt
+    logic [2:0] padding_2;  // 8:6
+    logic STI;              // 5:5    supervisor timer interrupt
+    logic [2:0] padding_1;  // 4:2
+    logic SSI;              // 1:1    supervisor software interrupt
+    logic padding_0;        // 0:0
+} CSR_MIDELEG_Path;
 
 typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED = 0,
@@ -54,14 +203,24 @@ typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_LOAD_VIOLATION = 5,
     CSR_CAUSE_TRAP_CODE_STORE_MISALIGNED = 6,
     CSR_CAUSE_TRAP_CODE_STORE_VIOLATION = 7,
+    CSR_CAUSE_TRAP_CODE_UCALL = 8,
+    CSR_CAUSE_TRAP_CODE_SCALL = 9,
     CSR_CAUSE_TRAP_CODE_MCALL = 11,
+    CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP = 16,
 
     CSR_CAUSE_TRAP_CODE_UNKNOWN = 14
 } CSR_CAUSE_TrapCodePath;
 
-function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState state);
+function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState state, PrivilegeLevelType priv);
     case(state)
-    EXEC_STATE_TRAP_ECALL:  return CSR_CAUSE_TRAP_CODE_MCALL;
+    EXEC_STATE_TRAP_ECALL: begin
+        case (priv)
+            PRIVILEGE_LEVEL_U: return CSR_CAUSE_TRAP_CODE_UCALL;
+            PRIVILEGE_LEVEL_S: return CSR_CAUSE_TRAP_CODE_SCALL;
+            PRIVILEGE_LEVEL_M: return CSR_CAUSE_TRAP_CODE_MCALL;
+            default: return CSR_CAUSE_TRAP_CODE_UNKNOWN;
+        endcase
+    end
     EXEC_STATE_TRAP_EBREAK: return CSR_CAUSE_TRAP_CODE_BREAK;
 
     EXEC_STATE_FAULT_LOAD_MISALIGNED:  return CSR_CAUSE_TRAP_CODE_LOAD_MISALIGNED;
@@ -83,12 +242,6 @@ typedef enum logic [CSR_CAUSE_INTERRUPT_CODE_WIDTH-1:0] {
     CSR_CAUSE_INTERRUPT_CODE_MACHINE_EXTERNAL = 11
 } CSR_CAUSE_InterruptCodePath;
 
-typedef union packed    // IntOpInfo
-{
-    ExternalInterruptCodePath   exCode;
-    CSR_CAUSE_InterruptCodePath csrCode;
-} InterruptCodeConvPath;
-
 
 typedef union packed    // CSR_CAUSE_CodePath
 {
@@ -104,14 +257,14 @@ typedef struct packed {
 
 
 typedef enum logic [1:0] {
-    CSR_MTVEC_MODE_BASE = 0,
-    CSR_MTVEC_MODE_VECTORED = 1
-} CSR_MTVEC_ModePath;
+    CSR_XTVEC_MODE_BASE = 0,
+    CSR_XTVEC_MODE_VECTORED = 1
+} CSR_XTVEC_ModePath;
 
 typedef struct packed {
     logic [29:0]        base;    // 31:2
-    CSR_MTVEC_ModePath  mode;    //  1:0
-} CSR_MTVEC_Path;
+    CSR_XTVEC_ModePath  mode;    //  1:0
+} CSR_XTVEC_Path;
 
 typedef struct packed {
     logic [23:0] padding;
@@ -119,18 +272,31 @@ typedef struct packed {
     FFlags_Path fflags;
 } CSR_FCSR_Path;
 
-localparam logic [1:0] CSR_MTVEC_BASE_PADDING = 2'b0;
+localparam logic [1:0] CSR_XTVEC_BASE_PADDING = 2'b0;
 
 // All members have 32bit width
 typedef union packed {
+    CSR_SIP_Path    sip;
+    CSR_SIE_Path    sie;
+    CSR_XTVEC_Path  stvec;
+    DataPath        sscratch;
+    DataPath        sepc;
+    CSR_CAUSE_Path  scause;
+    DataPath        stval;
+
     CSR_MSTATUS_Path mstatus;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
-    CSR_MTVEC_Path mtvec;
+    CSR_XTVEC_Path mtvec;
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
+    DataPath medeleg;
+    DataPath medelegh;
+    CSR_MIDELEG_Path mideleg;
+
+    CSR_MISA_Path misa;
 
     DataPath mcycle;
     DataPath minstret;
@@ -139,14 +305,26 @@ typedef union packed {
 
 typedef struct packed {
     // Interrupt related registers
+    CSR_SIE_Path    sie;
+    CSR_XTVEC_Path  stvec;
+    DataPath        sscratch;
+    DataPath        sepc;
+    CSR_CAUSE_Path  scause;
+    DataPath        stval;
+
     CSR_MSTATUS_Path mstatus;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
-    CSR_MTVEC_Path mtvec;
+    CSR_XTVEC_Path mtvec;
     DataPath mtval;
     DataPath mepc;
     DataPath mscratch;
+    DataPath medeleg;
+    DataPath medelegh;
+    CSR_MIDELEG_Path mideleg;
+
+    CSR_MISA_Path misa;
 
     DataPath mcycle;
     DataPath minstret;
@@ -154,6 +332,51 @@ typedef struct packed {
     CSR_FCSR_Path fcsr;
 `endif
 } CSR_BodyPath;
+
+//
+// Supervisor Trap Setup
+//
+localparam CSR_NUM_SSTATUS    = 12'h100; // Supervisor status register.
+localparam CSR_NUM_SIE        = 12'h104; // Supervisor interrupt-enable register.
+localparam CSR_NUM_STVEC      = 12'h105; // Supervisor trap handler base address.
+localparam CSR_NUM_SCOUNTEREN = 12'h106; // Supervisor counter enable.
+
+//
+// Supervisor Configuration
+//
+localparam CSR_NUM_SENVCFG = 12'h10A; // Supervisor environment configuration register.
+
+//
+// Supervisor Counter Setup
+//
+localparam CSR_NUM_SCOUNTINHIBIT = 12'h120; // Supervisor counter-inhibit register.
+
+//
+// Supervisor Trap Handling
+//
+localparam CSR_NUM_SSCRATCH = 12'h140; // Supervisor scratch register.
+localparam CSR_NUM_SEPC = 12'h141; // Supervisor exception program counter.
+localparam CSR_NUM_SCAUSE = 12'h142; // Supervisor trap cause.
+localparam CSR_NUM_STVAL = 12'h143; // Supervisor trap value.
+localparam CSR_NUM_SIP = 12'h144; // Supervisor interrupt pending.
+localparam CSR_NUM_SCOUNTOVF = 12'hDA0; // Supervisor count overflow.
+
+//
+// Supervisor Protection and Translation
+//
+localparam CSR_NUM_SATP = 12'h180; // Supervisor address translation and protection.
+//
+// Debug/Trace Registers
+//
+localparam CSR_NUM_SCONTEXT = 12'h5A8; // Supervisor-mode context register.
+
+//
+// Supervisor State Enable Registers
+//
+localparam CSR_NUM_SSTATEEN0 = 12'h10C; // Supervisor State Enable 0 Register.
+localparam CSR_NUM_SSTATEEN1 = 12'h10D;
+localparam CSR_NUM_SSTATEEN2 = 12'h10E;
+localparam CSR_NUM_SSTATEEN3 = 12'h10F;
 
 //
 // Machine Information Registers
@@ -173,6 +396,8 @@ localparam CSR_NUM_MIDELEG   = 12'h303; // Machine interrupt delegation register
 localparam CSR_NUM_MIE       = 12'h304; // Machine interrupt-enable register.
 localparam CSR_NUM_MTVEC     = 12'h305; // Machine trap-handler base address.
 localparam CSR_NUM_MCOUNTEREN = 12'h306; // Machine counter enable.
+localparam CSR_NUM_MSTATUSH  = 12'h310; // Additional machine status register, RV32 only.
+localparam CSR_NUM_MEDELEGH  = 12'h312; // Upper 32 bits of medeleg, RV32 only.
 
 //
 // Machine Trap Handling

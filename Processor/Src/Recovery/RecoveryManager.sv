@@ -44,7 +44,7 @@ module RecoveryManager(
 
         // Related to CSR 
         // これらもパイプライン化のため
-        ExecutionState excptCause;      // Trap vector or MRET return target
+        ExecutionState excptCause;      // Trap vector or xRET return target
         AddrPath excptCauseDataAddr;    // fault 発生時のデータアドレス
 
         // ActiveList中のどのエントリがどのエントリまでをフラッシュするかを示すポインタ

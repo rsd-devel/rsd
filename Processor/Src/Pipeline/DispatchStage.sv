@@ -183,6 +183,8 @@ module DispatchStage(
             memEntry[i].memOpInfo.isAddAddr     = opInfo[i].operand.memOp.isAddAddr;
             memEntry[i].memOpInfo.isRegAddr     = opInfo[i].operand.memOp.isRegAddr;
             memEntry[i].memOpInfo.memAccessMode = opInfo[i].operand.memOp.memAccessMode;
+            memEntry[i].memOpInfo.isZalrsc      = opInfo[i].operand.memOp.isZalrsc;
+            memEntry[i].memOpInfo.amoCode       = opInfo[i].operand.memOp.amoCode;
 
             memEntry[i].memOpInfo.csrCtrl     = opInfo[i].operand.memOp.csrCtrl;
             memEntry[i].memOpInfo.envCode     = opInfo[i].operand.systemOp.envCode;
@@ -200,6 +202,8 @@ module DispatchStage(
 
             memEntry[i].hasAllocatedMSHR = 0;
             memEntry[i].mshrID = '0;
+
+            memEntry[i].hasLoadedAMOCache = 0;
 
             // OpSrc
             memEntry[i].opSrc = opSrc[i];

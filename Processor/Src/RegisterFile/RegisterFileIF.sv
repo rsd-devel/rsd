@@ -48,11 +48,11 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     PRegDataPath  memSrcRegDataB [ MEM_ISSUE_WIDTH ];
     
     /* Memory Register Write */
-    logic memDstRegWE  [ LOAD_ISSUE_WIDTH ];
+    logic memDstRegWE  [ MEM_ISSUE_WIDTH ];
 
-    PRegNumPath memDstRegNum [ LOAD_ISSUE_WIDTH ];
+    PRegNumPath memDstRegNum [ MEM_ISSUE_WIDTH ];
     
-    PRegDataPath memDstRegData  [ LOAD_ISSUE_WIDTH ];
+    PRegDataPath memDstRegData  [ MEM_ISSUE_WIDTH ];
 
 `ifdef RSD_MARCH_FP_PIPE
     /* FP Register Read */

@@ -34,7 +34,7 @@ module WakeupLogic (
     logic dispatchedSrcRegReady[ DISPATCH_WIDTH ][ ISSUE_QUEUE_SRC_REG_NUM ];
 
     // Dependency matrix.
-    IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH + STORE_ISSUE_WIDTH ];
+    IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH ];
     IssueQueueIndexPath [ DISPATCH_WIDTH-1:0 ][ ISSUE_QUEUE_SRC_REG_NUM-1:0 ] dispatchedSrcRegPtr;
     logic opMatrixReady[ ISSUE_QUEUE_ENTRY_NUM ];
 
@@ -159,7 +159,7 @@ module WakeupLogic (
         notIssued = port.notIssued;
 
         // Wakeup
-        for (int w = 0; w < WAKEUP_WIDTH + STORE_ISSUE_WIDTH; w++) begin
+        for (int w = 0; w < WAKEUP_WIDTH; w++) begin
             wakeupDstVector[w] = port.wakeupVector[w];
         end
 

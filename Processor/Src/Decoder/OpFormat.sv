@@ -79,6 +79,24 @@ typedef enum logic [6:0]    // enum RV32MFunct7
 } RV32MFunct7;
 
 //
+// A extension
+//
+typedef enum logic [4:0]    // enum RVAFunct5
+{
+    RVA_FUNCT5_LR      = 5'b00010,
+    RVA_FUNCT5_SC      = 5'b00011,
+    RVA_FUNCT5_AMOSWAP = 5'b00001,
+    RVA_FUNCT5_AMOADD  = 5'b00000,
+    RVA_FUNCT5_AMOXOR  = 5'b00100,
+    RVA_FUNCT5_AMOAND  = 5'b01100,
+    RVA_FUNCT5_AMOOR   = 5'b01000,
+    RVA_FUNCT5_AMOMIN  = 5'b10000,
+    RVA_FUNCT5_AMOMAX  = 5'b10100,
+    RVA_FUNCT5_AMOMINU = 5'b11000,
+    RVA_FUNCT5_AMOMAXU = 5'b11100
+} RVAFunct5;
+
+//
 // 分岐命令のfunct3
 //
 typedef enum logic [2:0]    // enum BrFunct3
@@ -132,7 +150,7 @@ typedef enum logic [2:0]    // enum MiscMemFunct3
 //
 typedef enum logic [2:0]    // enum SystemFunct3
 {
-    SYSTEM_FUNCT3_PRIV  = 3'b000,     // Privileged (ecall/ebreak/mret
+    SYSTEM_FUNCT3_PRIV  = 3'b000,     // Privileged (ecall/ebreak/mret/sret)
 
     SYSTEM_FUNCT3_CSR_RW    = 3'b001, // CSRRW
     SYSTEM_FUNCT3_CSR_RS    = 3'b010, // CSRRS
@@ -150,6 +168,7 @@ typedef enum logic [11:0]    // enum SystemFunct12
 {
     SYSTEM_FUNCT12_ECALL  = 12'b0000_0000_0000, // ECALL
     SYSTEM_FUNCT12_EBREAK = 12'b0000_0000_0001, // EBREAK
+    SYSTEM_FUNCT12_SRET   = 12'b0001_0000_0010, // SRET
     SYSTEM_FUNCT12_MRET   = 12'b0011_0000_0010, // MRET
     SYSTEM_FUNCT12_WFI    = 12'b0001_0000_0101  // WFI
 } SystemFunct12;
@@ -348,6 +367,20 @@ typedef enum logic [1:0]    // enum CSR_Code
     CSR_CLEAR   = 2'b11     // CLEAR
 } CSR_Code;
 
+
+typedef enum logic [3:0]
+{
+    MEM_ZAAMO_SWAP = 4'b0000,
+    MEM_ZAAMO_ADD  = 4'b0001,
+    MEM_ZAAMO_XOR  = 4'b0010,
+    MEM_ZAAMO_AND  = 4'b0011,
+    MEM_ZAAMO_OR   = 4'b0100,
+    MEM_ZAAMO_MIN  = 4'b0101,
+    MEM_ZAAMO_MAX  = 4'b0110,
+    MEM_ZAAMO_MINU = 4'b0111,
+    MEM_ZAAMO_MAXU = 4'b1000 
+} MemZaamo_Code;
+
 localparam CSR_NUMBER_WIDTH = 12;
 typedef logic [CSR_NUMBER_WIDTH-1:0] CSR_NumberPath;
 
@@ -366,11 +399,12 @@ typedef enum logic [2:0]      // enum ENV_Code
 {
     ENV_CALL            = 3'b000,    // ECALL
     ENV_BREAK           = 3'b001,    // EBREAK
-    ENV_MRET            = 3'b010,    // MRET
-    ENV_INSN_ILLEGAL    = 3'b011,    // Executes illegal insturction
-    ENV_INSN_VIOLATION  = 3'b100,    // Insturction access violation
+    ENV_SRET            = 3'b010,    // SRET
+    ENV_MRET            = 3'b011,    // MRET
+    ENV_INSN_ILLEGAL    = 3'b100,    // Executes illegal insturction
+    ENV_INSN_VIOLATION  = 3'b101,    // Insturction access violation
 
-    ENV_UNKNOWN         = 3'b101     //
+    ENV_UNKNOWN         = 3'b110     //
 } ENV_Code;
 
 // FPU code
@@ -456,6 +490,7 @@ typedef enum logic [6:0]    // enum OpCode
     RISCV_BR        = 7'b1100011,
     RISCV_LD        = 7'b0000011,
     RISCV_ST        = 7'b0100011,
+    RISCV_AMO       = 7'b0101111,
     RISCV_MISC_MEM  = 7'b0001111,
     RISCV_SYSTEM    = 7'b1110011,
     RISCV_F_OP      = 7'b1010011,
@@ -489,6 +524,19 @@ typedef struct packed
     logic [4:0]     rd;         // [11: 7] Rd
     RISCV_OpCode    opCode;     // [ 6: 0] 命令タイプ
 } RISCV_ISF_R;
+
+// Aext (R-Type)
+typedef struct packed
+{
+    logic [4:0]     funct5;     // [31:27] funct5
+    logic           aq;         // [26:26] aq
+    logic           rl;         // [25:25] rl
+    logic [4:0]     rs2;        // [24:20] Rs2
+    logic [4:0]     rs1;        // [19:15] Rs1
+    logic [2:0]     funct3;     // [14:12] funct3
+    logic [4:0]     rd;         // [11: 7] Rd
+    RISCV_OpCode    opCode;     // [ 6: 0] 命令タイプ
+} RISCV_ISF_R_A;
 
 // I-Type
 typedef struct packed
@@ -728,6 +776,34 @@ function automatic void RISCV_DecodeMemAccessMode(
         end
     endcase
 endfunction
+
+function automatic void RISCV_DecodeRVAFunct5(
+    output logic            undefined,
+    output logic            isLR,
+    output logic            isSC,
+    output MemZaamo_Code    amoCode,
+    input  RVAFunct5        funct5,
+);
+    undefined   = FALSE;
+    isLR        = FALSE;
+    isSC        = FALSE;
+    amoCode     = '0;
+    case(funct5)
+        RVA_FUNCT5_LR: isLR = TRUE;
+        RVA_FUNCT5_SC: isSC = TRUE;
+        RVA_FUNCT5_AMOSWAP: amoCode = MEM_ZAAMO_SWAP;
+        RVA_FUNCT5_AMOADD: amoCode = MEM_ZAAMO_ADD;
+        RVA_FUNCT5_AMOXOR: amoCode = MEM_ZAAMO_XOR;
+        RVA_FUNCT5_AMOAND: amoCode = MEM_ZAAMO_AND;
+        RVA_FUNCT5_AMOOR: amoCode = MEM_ZAAMO_OR;
+        RVA_FUNCT5_AMOMIN: amoCode = MEM_ZAAMO_MIN;
+        RVA_FUNCT5_AMOMAX: amoCode = MEM_ZAAMO_MAX;
+        RVA_FUNCT5_AMOMINU: amoCode = MEM_ZAAMO_MINU;
+        RVA_FUNCT5_AMOMAXU: amoCode = MEM_ZAAMO_MAXU;
+        default: undefined = TRUE;
+    endcase // funct5
+endfunction
+
 
 function automatic void RISCV_DecodeComplexOpFunct3(
     output IntMUL_Code mulCode,
