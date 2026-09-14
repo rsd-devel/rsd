@@ -49,16 +49,16 @@ module IO_Unit(
         // Write a timer regsiter
         if (port.ioWE) begin
             //$display("IO write %0x: %0x", port.ioWriteAddrIn, port.ioWriteDataIn);
-            if (phyRawWriteAddr == PHY_ADDR_TIMER_LOW) begin
+            if (phyRawWriteAddr == PHY_ADDR_CLINT_TIMER_LOW) begin
                 tmNext.mtime.split.low = port.ioWriteDataIn;
             end
-            else if (phyRawWriteAddr == PHY_ADDR_TIMER_HI) begin
+            else if (phyRawWriteAddr == PHY_ADDR_CLINT_TIMER_HI) begin
                 tmNext.mtime.split.hi = port.ioWriteDataIn;
             end
-            else if (phyRawWriteAddr == PHY_ADDR_TIMER_CMP_LOW) begin
+            else if (phyRawWriteAddr == PHY_ADDR_CLINT_TIMER_CMP_LOW) begin
                 tmNext.mtimecmp.split.low = port.ioWriteDataIn;
             end
-            else if (phyRawWriteAddr == PHY_ADDR_TIMER_CMP_HI) begin
+            else if (phyRawWriteAddr == PHY_ADDR_CLINT_TIMER_CMP_HI) begin
                 tmNext.mtimecmp.split.hi = port.ioWriteDataIn;
             end
             //$display(tmNext.mtime.raw);
@@ -66,17 +66,17 @@ module IO_Unit(
         end
 
         // Read a timer rigister
-        if (phyRawReadAddr == PHY_ADDR_TIMER_LOW) begin
+        if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_LOW) begin
             port.ioReadDataOut = tmReg.mtime.split.low;
         end
-        else if (phyRawReadAddr == PHY_ADDR_TIMER_HI) begin
+        else if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_HI) begin
             port.ioReadDataOut = tmReg.mtime.split.hi;
         end
-        else if (phyRawReadAddr == PHY_ADDR_TIMER_CMP_LOW) begin
+        else if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_CMP_LOW) begin
             port.ioReadDataOut = tmReg.mtimecmp.split.low;
         end
         else begin
-            //if (port.ioReadAddrIn == PHY_ADDR_TIMER_CMP_HI) begin
+            //if (port.ioReadAddrIn == PHY_ADDR_CLINT_TIMER_CMP_HI) begin
             port.ioReadDataOut = tmReg.mtimecmp.split.hi;
         end
     end

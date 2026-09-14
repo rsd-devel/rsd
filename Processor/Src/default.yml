@@ -57,18 +57,19 @@ memory_map:
       registers:
         OUTPUT: 0
 
-    timer:
+    clint:
       type: io
-      name: Timer IO
-      logical_base: 0x4000_0000
+      name: CLINT
+      logical_base: 0x4001_0000
       physical_base: 0x0_0000
-      size: 16
+      size: 0x8000
       translation: low_bits
       constants:
-        logical_prefix: LOG_ADDR_TIMER
-        physical_prefix: PHY_ADDR_TIMER
+        logical_prefix: LOG_ADDR_CLINT
+        physical_prefix: PHY_ADDR_CLINT
       registers:
-        LOW: 0
-        HI: 4
-        CMP_LOW: 8
-        CMP_HI: 12
+        MSIP: 0
+        TIMER_LOW: 0x7ff8
+        TIMER_HI: 0x7ffc
+        TIMER_CMP_LOW: 0x4000
+        TIMER_CMP_HI: 0x4004

@@ -47,7 +47,7 @@ REQUIRED_REGIONS = (
     RequiredRegionSpec("rom", RegionType.MEMORY),
     RequiredRegionSpec("ram", RegionType.MEMORY),
     RequiredRegionSpec("serial", RegionType.IO, ("OUTPUT",)),
-    RequiredRegionSpec("timer", RegionType.IO, ("LOW", "HI", "CMP_LOW", "CMP_HI")),
+    RequiredRegionSpec("clint", RegionType.IO, ("MSIP", "TIMER_LOW", "TIMER_HI", "TIMER_CMP_LOW", "TIMER_CMP_HI")),
 )
 
 

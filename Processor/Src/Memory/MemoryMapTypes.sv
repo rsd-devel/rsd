@@ -34,7 +34,7 @@ localparam PC_GOAL = 32'h80001004;
 //       0x8000_0000 --0x8003_ffff: Section 1 (RAM)
 //       0x8004_0000 --0x8004_ffff: Uncachable section (RAM)
 //       0x4000_2000 --0x4000_2000: Serial IO
-//       0x4000_0000 --0x4000_000f: Timer IO
+//       0x4001_0000 --0x4001_7fff: CLINT
 // In this map, instruction access is not performed in the IO area, so
 // the range of valid instructions is only in the ROM and RAM areas.
 // The narrow PC format keeps the most significant bit and lower address bits.
@@ -144,22 +144,24 @@ localparam PHY_ADDR_SERIAL_BASE = PHY_RAW_ADDR_WIDTH'('h0_2000);
 localparam PHY_ADDR_SERIAL_OUTPUT  = PHY_ADDR_SERIAL_BASE;
 
 //
-// Timer IO
-// logical [0x4000_0000 - 0x4000_000f] -> physical [0x0_0000 - 0x0_000f]
+// CLINT
+// logical [0x4001_0000 - 0x4001_7fff] -> physical [0x0_0000 - 0x0_7fff]
 //
-localparam LOG_ADDR_TIMER_BASE = ADDR_WIDTH'('h4000_0000);
-localparam LOG_ADDR_TIMER_LOW     = LOG_ADDR_TIMER_BASE + 0;
-localparam LOG_ADDR_TIMER_HI      = LOG_ADDR_TIMER_BASE + 4;
-localparam LOG_ADDR_TIMER_CMP_LOW = LOG_ADDR_TIMER_BASE + 8;
-localparam LOG_ADDR_TIMER_CMP_HI  = LOG_ADDR_TIMER_BASE + 12;
-localparam LOG_ADDR_TIMER_BEGIN = LOG_ADDR_TIMER_BASE;
-localparam LOG_ADDR_TIMER_END   = LOG_ADDR_TIMER_BASE + 16;
-localparam LOG_ADDR_TIMER_ADDR_BIT_WIDTH = 4;
-localparam PHY_ADDR_TIMER_BASE = PHY_RAW_ADDR_WIDTH'('h0_0000);
-localparam PHY_ADDR_TIMER_LOW     = PHY_ADDR_TIMER_BASE + PhyRawAddrPath'(LOG_ADDR_TIMER_LOW[LOG_ADDR_TIMER_ADDR_BIT_WIDTH-1:0]);
-localparam PHY_ADDR_TIMER_HI      = PHY_ADDR_TIMER_BASE + PhyRawAddrPath'(LOG_ADDR_TIMER_HI[LOG_ADDR_TIMER_ADDR_BIT_WIDTH-1:0]);
-localparam PHY_ADDR_TIMER_CMP_LOW = PHY_ADDR_TIMER_BASE + PhyRawAddrPath'(LOG_ADDR_TIMER_CMP_LOW[LOG_ADDR_TIMER_ADDR_BIT_WIDTH-1:0]);
-localparam PHY_ADDR_TIMER_CMP_HI  = PHY_ADDR_TIMER_BASE + PhyRawAddrPath'(LOG_ADDR_TIMER_CMP_HI[LOG_ADDR_TIMER_ADDR_BIT_WIDTH-1:0]);
+localparam LOG_ADDR_CLINT_BASE = ADDR_WIDTH'('h4001_0000);
+localparam LOG_ADDR_CLINT_MSIP    = LOG_ADDR_CLINT_BASE + 0;
+localparam LOG_ADDR_CLINT_TIMER_LOW = LOG_ADDR_CLINT_BASE + 32760;
+localparam LOG_ADDR_CLINT_TIMER_HI = LOG_ADDR_CLINT_BASE + 32764;
+localparam LOG_ADDR_CLINT_TIMER_CMP_LOW = LOG_ADDR_CLINT_BASE + 16384;
+localparam LOG_ADDR_CLINT_TIMER_CMP_HI = LOG_ADDR_CLINT_BASE + 16388;
+localparam LOG_ADDR_CLINT_BEGIN = LOG_ADDR_CLINT_BASE;
+localparam LOG_ADDR_CLINT_END   = LOG_ADDR_CLINT_BASE + 32768;
+localparam LOG_ADDR_CLINT_ADDR_BIT_WIDTH = 15;
+localparam PHY_ADDR_CLINT_BASE = PHY_RAW_ADDR_WIDTH'('h0_0000);
+localparam PHY_ADDR_CLINT_MSIP    = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_MSIP[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
+localparam PHY_ADDR_CLINT_TIMER_LOW = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_LOW[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
+localparam PHY_ADDR_CLINT_TIMER_HI = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_HI[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
+localparam PHY_ADDR_CLINT_TIMER_CMP_LOW = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_CMP_LOW[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
+localparam PHY_ADDR_CLINT_TIMER_CMP_HI = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_CMP_HI[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
 
 
 // Get a memory type from a logical address
@@ -176,7 +178,7 @@ function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
     else if (LOG_ADDR_SERIAL_BEGIN <= addr && addr < LOG_ADDR_SERIAL_END) begin
         return MMT_IO;
     end
-    else if (LOG_ADDR_TIMER_BEGIN <= addr && addr < LOG_ADDR_TIMER_END) begin
+    else if (LOG_ADDR_CLINT_BEGIN <= addr && addr < LOG_ADDR_CLINT_END) begin
         return MMT_IO;
     end
     else begin
@@ -211,10 +213,10 @@ function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_SERIAL_BASE;
     end
-    else if (LOG_ADDR_TIMER_BEGIN <= logAddr && logAddr < LOG_ADDR_TIMER_END) begin
+    else if (LOG_ADDR_CLINT_BEGIN <= logAddr && logAddr < LOG_ADDR_CLINT_END) begin
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
-        phyAddr.addr = PHY_ADDR_TIMER_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_TIMER_ADDR_BIT_WIDTH-1:0]);
+        phyAddr.addr = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
     end
     else begin
         // Invalid
