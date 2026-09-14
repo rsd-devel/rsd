@@ -30,6 +30,7 @@ SRC_DIRS = \
 	CSR \
 	ENV \
 	Timer \
+	MSWI \
 	Fault \
 	MisalignedMemAccess \
 	UncachableLoadAndStore \

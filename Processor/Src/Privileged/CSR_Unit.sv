@@ -349,6 +349,7 @@ module CSR_Unit(
 
         csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
         csrNext.mip.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;   // Custom interrupt request
+        csrNext.mip.MSIP = port.msip; // Machine Software Interrupt request
 
         port.csrReadOut = rv;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin

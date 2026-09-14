@@ -31,6 +31,19 @@ module IO_Unit(
         end
     end
 
+    // clint register
+    always_ff@(posedge port.clk) begin
+        if (port.rst) begin
+            csrUnit.msip <= FALSE;
+        end
+        else begin
+            if (port.ioWE && phyRawWriteAddr == PHY_ADDR_CLINT_MSIP) begin
+                csrUnit.msip <= port.ioWriteDataIn[0];
+            end
+        end
+    end
+
+
     PhyRawAddrPath phyRawReadAddr, phyRawWriteAddr;
 
     always_comb begin
@@ -65,8 +78,12 @@ module IO_Unit(
             //$display(tmNext.mtimecmp.raw);
         end
 
+        // clint
+        if (phyRawReadAddr == PHY_ADDR_CLINT_MSIP) begin
+            port.ioReadDataOut = {31'h0, csrUnit.msip}; // zero-extend
+        end
         // Read a timer rigister
-        if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_LOW) begin
+        else if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_LOW) begin
             port.ioReadDataOut = tmReg.mtime.split.low;
         end
         else if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_HI) begin

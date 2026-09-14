@@ -37,7 +37,11 @@ module InterruptController(
         interruptCode = 0;
 
         // Machine timer interrupt
-        if (csrReg.mie.MTIE && csrReg.mip.MTIP) begin
+        if (csrReg.mie.MSIE && csrReg.mip.MSIP) begin
+            reqInterrupt = 1;
+            interruptCode = CSR_CAUSE_INTERRUPT_CODE_SOFTWARE;
+        end
+        else if (csrReg.mie.MTIE && csrReg.mip.MTIP) begin
             reqInterrupt = 1;
             interruptCode = CSR_CAUSE_INTERRUPT_CODE_TIMER;
         end

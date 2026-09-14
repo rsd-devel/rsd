@@ -40,6 +40,7 @@ interface CSR_UnitIF(
     logic triggerInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
+    logic msip;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
@@ -84,7 +85,8 @@ interface CSR_UnitIF(
     // FetchStage and CSR_Unit
     modport IO_Unit(
     output 
-        reqTimerInterrupt
+        reqTimerInterrupt,
+        msip
     );
 
     // For counter update
@@ -127,6 +129,7 @@ interface CSR_UnitIF(
         commitNum,
         reqTimerInterrupt,
         reqCustomInterrupt,
+        msip,
         customInterruptCode,
         triggerInterrupt,
         interruptCode,

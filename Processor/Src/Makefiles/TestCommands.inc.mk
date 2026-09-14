@@ -28,6 +28,7 @@ LEVEL1_TESTS = \
 	test-RV32I-Fence \
 	test-RV32I-CSR \
 	test-RV32I-Timer \
+	test-RV32I-MSWI \
 	test-RV32I-Fault \
 	test-RV32M-IntMulZynq \
 	test-RV32M-IntDivZynq \
@@ -167,6 +168,8 @@ test-RV32I-Fence:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fence
 test-RV32I-CSR:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/CSR
+test-RV32I-MSWI:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MSWI
 test-RV32I-Timer:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Timer
 test-RV32I-Fault:
