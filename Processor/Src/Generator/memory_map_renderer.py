@@ -90,6 +90,9 @@ class MemoryMapRenderer:
                 f"{region.address_bit_width};",
                 f"localparam {physical_prefix}_BASE = "
                 f"{SystemVerilog.physical_address(region.physical_base, raw_width)};",
+                # The exclusive end needs an extra bit at the address-space limit.
+                f"localparam {physical_prefix}_END   = "
+                f"{SystemVerilog.sized_hex_literal(physical_end + 1, raw_width + 1)};",
             ]
         )
         for register in region.registers:

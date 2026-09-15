@@ -110,6 +110,7 @@ output
     RecoveryManagerIF recoveryManagerIF( clk, rst );
     CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqCustomInterrupt, customInterruptCode);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
+    PLIC_UnitIF plicUnitIF(clk, rst, rstStart);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
     AMOCacheIF amoCacheIF(clk, rst);
@@ -206,9 +207,10 @@ output
     CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
         RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, idStageIF, ctrlIF, perfCounterIF );
 
-    CSR_Unit csrUnit(csrUnitIF, perfCounterIF);
+    CSR_Unit csrUnit(csrUnitIF, plicUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
     InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
-    IO_Unit ioUnit(ioUnitIF, csrUnitIF);
+    IO_Unit ioUnit(ioUnitIF, plicUnitIF, csrUnitIF);
+    PLIC_Unit plicUnit(plicUnitIF, csrUnitIF, ioUnitIF);
 
 endmodule : Core

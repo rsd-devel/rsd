@@ -116,6 +116,9 @@ module MemoryAccessStage(
 
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             if (i == 0) begin
+                ioUnit.ioRE = isLoad[i] && valid[i] && !flush[i] && !clear &&
+                              pipeReg[i].memMapType == MMT_IO &&
+                              pipeReg[i].execState == EXEC_STATE_SUCCESS;
                 ioUnit.ioReadAddrIn = pipeReg[i].phyAddrOut;
             end
 

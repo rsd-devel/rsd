@@ -296,6 +296,7 @@ class Region:
         yield self.logical_constant("END")
         yield self.logical_constant("ADDR_BIT_WIDTH")
         yield self.physical_constant("BASE")
+        yield self.physical_constant("END")
         for register in self.registers:
             yield self.logical_constant(register.name)
             yield self.physical_constant(register.name)

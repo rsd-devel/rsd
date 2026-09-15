@@ -167,6 +167,8 @@ CORE_MODULES = \
 	Privileged/CSR_UnitIF.sv \
 	IO/IO_Unit.sv \
 	IO/IO_UnitIF.sv \
+	IO/PLIC_Unit.sv \
+	IO/PLIC_UnitIF.sv \
 	Primitives/FlipFlop.sv \
 	Primitives/FreeList.sv \
 	Primitives/Queue.sv \

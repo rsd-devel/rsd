@@ -16,6 +16,7 @@ import DebugTypes::*;
 
 module IO_Unit(
     IO_UnitIF.IO_Unit port,
+    PLIC_UnitIF.IO_Unit plicUnit,
     CSR_UnitIF.IO_Unit csrUnit
 );
 
@@ -59,6 +60,13 @@ module IO_Unit(
             tmNext.mtime.raw >= tmNext.mtimecmp.raw ? TRUE : FALSE;
         //$display("time, cmp: %d, %d", tmNext.mtime.raw, tmNext.mtimecmp.raw);
 
+        // control PLIC
+        plicUnit.ioWE = port.ioWE;
+        plicUnit.ioWriteDataIn = port.ioWriteDataIn;
+        plicUnit.phyRawWriteAddrIn = phyRawWriteAddr;
+        plicUnit.ioRE = port.ioRE;
+        plicUnit.phyRawReadAddrIn = phyRawReadAddr;
+
         // Write a timer regsiter
         if (port.ioWE) begin
             //$display("IO write %0x: %0x", port.ioWriteAddrIn, port.ioWriteDataIn);
@@ -81,6 +89,10 @@ module IO_Unit(
         // clint
         if (phyRawReadAddr == PHY_ADDR_CLINT_MSIP) begin
             port.ioReadDataOut = {31'h0, csrUnit.msip}; // zero-extend
+        end
+        // PLIC
+        else if (PHY_ADDR_PLIC_BASE <= phyRawReadAddr && phyRawReadAddr < PHY_ADDR_PLIC_END) begin
+            port.ioReadDataOut = plicUnit.ioReadDataOut;
         end
         // Read a timer rigister
         else if (phyRawReadAddr == PHY_ADDR_CLINT_TIMER_LOW) begin

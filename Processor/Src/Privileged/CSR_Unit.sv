@@ -17,6 +17,7 @@ import ActiveListIndexTypes::*;
 
 module CSR_Unit(
     CSR_UnitIF.CSR_Unit port,
+    PLIC_UnitIF.CSR_Unit plicUnit,
     PerformanceCounterIF.CSR perfCounter
 );
 
@@ -26,6 +27,8 @@ module CSR_Unit(
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
     CommitLaneCountPath regCommitNum;
+
+    CSR_MIP_Path mipReg, mipRegNext, mipWired;
 
     PrivilegeLevelType privilegeLevel, privilegeLevelNext;
 
@@ -55,17 +58,28 @@ module CSR_Unit(
     always_ff@(posedge port.clk) begin
         if (port.rst) begin
             csrReg <= GetCSRResetValue();
+            mipReg <= '0;
             regCommitNum <= '0;
             privilegeLevel <= PRIVILEGE_LEVEL_M;
         end
         else begin
             csrReg <= csrNext;
+            mipReg <= mipRegNext;
             privilegeLevel <= privilegeLevelNext;
             regCommitNum <= port.commitNum;
             // if (privilegeLevel != privilegeLevelNext) begin
             //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
             // end
         end
+    end
+
+    always_comb begin
+        mipWired = '0;
+        mipWired.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;   // Custom interrupt request
+        mipWired.MEIP = plicUnit.reqExternalInterrupt[0]; // external interrupt for hart 0
+        mipWired.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
+        mipWired.MSIP = port.msip; // Machine Software Interrupt request
+        mipWired.SEIP = plicUnit.reqExternalInterrupt[1]; // external interrupt for hart 0
     end
 
     always_comb begin
@@ -93,7 +107,7 @@ module CSR_Unit(
                 end
                 rv = value;
             end
-            CSR_NUM_MIP:        rv = csrReg.mip;
+            CSR_NUM_MIP:        rv = mipReg;
             CSR_NUM_MIE:        rv = csrReg.mie;
             CSR_NUM_MCAUSE:     rv = csrReg.mcause;
             CSR_NUM_MTVEC:      rv = csrReg.mtvec;
@@ -145,6 +159,7 @@ module CSR_Unit(
 
         // Writeback 
         csrNext = csrReg;
+        mipRegNext = mipReg;
 
         // Update Cycles
         csrNext.mcycle = csrNext.mcycle + 1;
@@ -279,17 +294,13 @@ module CSR_Unit(
                     end
                     //$display("mstatus: %x", wv);
                 end
-                // MIP                
-                // > Only the bits corresponding to lower-privilege 
-                // > software interrupts (USIP, SSIP), timer interrupts (UTIP,
-                // > STIP), and external interrupts (UEIP, SEIP) in mip are writable 
-                // > through this CSR address; the remaining bits are read-only.
+                // MIP
                 CSR_NUM_MIP: begin
-                    csrNext.mip.CUSTOM = wv.mip.CUSTOM;
+                    mipRegNext.CUSTOM = wv.mip.CUSTOM;
                     if (csrReg.misa.EXTENSIONS.S) begin
-                        csrNext.mip.SEIP = wv.mip.SEIP;
-                        csrNext.mip.STIP = wv.mip.STIP;
-                        csrNext.mip.SSIP = wv.mip.SSIP;
+                        mipRegNext.SEIP = wv.mip.SEIP;
+                        mipRegNext.STIP = wv.mip.STIP;
+                        mipRegNext.SSIP = wv.mip.SSIP;
                     end
                 end
                 CSR_NUM_MIE:begin
@@ -347,11 +358,13 @@ module CSR_Unit(
         port.frm = csrReg.fcsr.frm;
 `endif
 
-        csrNext.mip.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
-        csrNext.mip.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;   // Custom interrupt request
-        csrNext.mip.MSIP = port.msip; // Machine Software Interrupt request
-
+        if (port.csrNumber == CSR_NUM_MIP) begin
+            rv = csrReg.mip;
+        end
         port.csrReadOut = rv;
+
+        csrNext.mip = mipWired | mipReg;
+
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
             port.excptTargetAddr = csrReg.mepc;
             //$display("mret: to %x", csrNext.mepc);
