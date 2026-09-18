@@ -216,7 +216,7 @@ module DecodeStage(
             if (port.serializeNextInsn) begin
                 currentSerializeNextInsn <= TRUE;
             end
-            else if (complete) begin
+            else if (complete && !stallBranchResolver) begin
                 currentSerializeNextInsn <= nextSerializeNextInsn;
             end
         end
