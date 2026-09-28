@@ -365,6 +365,7 @@ module CSR_Unit(
 
         csrNext.mip = mipWired | mipReg;
 
+        port.excptTargetAddr = '0;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
             port.excptTargetAddr = csrReg.mepc;
             //$display("mret: to %x", csrNext.mepc);
