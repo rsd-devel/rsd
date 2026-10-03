@@ -16,7 +16,6 @@ RSD_ENV_NATIVE = $(shell cygpath -u "$$RSD_ENV")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
-RSD_GCC_VERSION = $(shell ls ${RSD_GCC_PATH} | grep -E "^${RSD_GCC_PREFIX}\gcc\-[0-9\.]+" | sed -r 's/([^ ]+)-gcc-([0-9\.]+)/\2/')
 RSD_GCC_NAME = $(shell echo ${RSD_GCC_PREFIX} | sed -e 's/-$$//')
 
 # Check required environment variables
@@ -26,8 +25,10 @@ endif
 ifndef RSD_GCC_PREFIX
 $(error RSD_GCC_PREFIX is not set.)
 endif
+
+RSD_GCC_VERSION := $(shell "$(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc" -dumpversion 2>/dev/null)
 ifndef RSD_GCC_VERSION
-$(error RSD_GCC_PATH and/or RSD_GCC_PREFIX have a wront value.)
+$(error Cannot execute $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc.)
 endif
 ifndef RSD_GCC_NAME
 $(error RSD_GCC_PREFIX has a wront value.)
