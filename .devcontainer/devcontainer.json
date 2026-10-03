@@ -2,7 +2,7 @@
     "name": "rsd-devcontainer",
     "build": {
         "dockerfile": "Dockerfile",
-        "context": ".."
+        "context": "."
     },
     "customizations": {
         "vscode": {

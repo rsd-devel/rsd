@@ -53,5 +53,5 @@ RUN cd verilator \
     && make install
 
 # install python requirements
-COPY .devcontainer/requirements.txt /workspaces/requirements.txt
+COPY requirements.txt /workspaces/requirements.txt
 RUN pip3 install -r /workspaces/requirements.txt
