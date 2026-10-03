@@ -9,7 +9,7 @@
             "extensions": []
         }
     },
-    "remoteEnv": {
+    "containerEnv": {
         "RSD_ROOT": "${containerWorkspaceFolder}",
         "RSD_GCC_PATH": "/usr/bin",
         "RSD_GCC_PREFIX": "riscv64-unknown-elf-",
