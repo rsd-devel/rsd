@@ -52,6 +52,22 @@ LEVEL2_TESTS = \
 	test-Zephyr \
 
 
+# Build the in-repository tests without external test sources.
+# Clean first when changing the toolchain or command-line build flags.
+.PHONY: test-build-basic test-clean-basic test-build-crt test-clean-crt
+.PHONY: test-build-asm test-clean-asm test-build-C test-clean-C
+test-build-basic: test-build-asm test-build-C
+test-clean-basic: test-clean-asm test-clean-C test-clean-crt
+
+# Always check source dependencies before running a basic test.
+# Each test depends on its build, including when make runs in parallel.
+BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS)) \
+	test-RV32F-Asm test-RV32I-MisalignedMemAccess
+BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache test-RV32F-C
+.PHONY: $(BASIC_ASM_TESTS) $(BASIC_C_TESTS)
+$(BASIC_ASM_TESTS): test-build-asm
+$(BASIC_C_TESTS): test-build-C
+
 # TestCodeのビルドとクリーンアップ
 test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-compliance
 test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-compliance
@@ -73,15 +89,15 @@ test-clean-crt:
 
 # アセンブラで書かれたテスト
 test-build-asm: test-build-crt
-	(cd Verification/TestCode/Asm; make)
+	$(MAKE) -C Verification/TestCode/Asm
 test-clean-asm:
-	(cd Verification/TestCode/Asm; make clean)
+	$(MAKE) -C Verification/TestCode/Asm clean
 
 # C で書かれたもの
 test-build-C: test-build-crt
-	(cd Verification/TestCode/C; make)
+	$(MAKE) -C Verification/TestCode/C
 test-clean-C:
-	(cd Verification/TestCode/C; make clean)
+	$(MAKE) -C Verification/TestCode/C clean
 
 
 # Coremark 関連

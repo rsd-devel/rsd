@@ -103,14 +103,14 @@ LDSCRIPT = $(RSD_TEST_CODE_ROOT)/rsd-ld.script
 DUMMY_ROM = $(RSD_TEST_CODE_ROOT)/dummy_rom.bin
 
 # スタートアップルーチンのコンパイル
-$(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h
-	$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+$(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc
+	$(CC) $(CFLAGS) -MMD -MP -x assembler-with-cpp -o $@ -c $<
 
-$(LDOBJ): $(LDSRC)
-	$(CC) $(CFLAGS) -o $@ -c $<
+$(LDOBJ): $(LDSRC) $(RSD_TEST_CODE_ROOT)/Makefile.inc
+	$(CC) $(CFLAGS) -MMD -MP -o $@ -c $<
 
 
-$(DUMMY_ROM):
+$(DUMMY_ROM): $(RSD_TEST_CODE_ROOT)/Makefile.inc
 	head -c $(ROM_PADDING_SIZE) /dev/zero > $(DUMMY_ROM)
 
 # --------
@@ -155,6 +155,9 @@ BIN_TO_HEX = \
 HEX_TO_IHEX = \
 	python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
 
+
+# Track headers used by the shared startup objects.
+-include $(CRTOBJ:.o=.d) $(LDOBJ:.o=.d)
 
 # --------
 # このファイルをインクルードする Makefile 内でデフォルトターゲットを

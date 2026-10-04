@@ -1,4 +1,5 @@
 # test bench 
+/Processor/Src/Verification/TestCode/**/*.d
 /Processor/Src/Verification/TestCode/C/*/reg.out.hex
 /Processor/Src/Verification/TestCode/C/*/serial.out.txt
 /Processor/Src/Verification/TestCode/Asm/*/reg.out.hex
