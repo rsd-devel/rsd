@@ -4,6 +4,7 @@
 # It runs test programs and verify results
 
 import os, sys, subprocess
+import shlex
 from optparse import OptionParser
 from xml.etree import ElementTree
 
@@ -29,6 +30,39 @@ VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
 class TestConfigError(Exception):
     """ Exception class """
     pass
+
+class SimulationError(Exception):
+    """The simulator could not start or exited unsuccessfully."""
+    pass
+
+
+def RunSimulationCommand(command, logPath, omitStdout, omitPrintCommand, cwd=None):
+    # Capture the simulator's status directly; a shell pipeline reports tee's status.
+    if not omitPrintCommand:
+        displayCommand = " ".join(shlex.quote(arg) for arg in command)
+        if cwd is not None:
+            displayCommand = "cd %s && %s" % (shlex.quote(cwd), displayCommand)
+        print(displayCommand, flush=True)
+
+    logFilePath = os.path.join(cwd, logPath) if cwd is not None else logPath
+    try:
+        with open(logFilePath, 'wb') as logFile:
+            with subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT) as process:
+                for chunk in iter(lambda: process.stdout.read1(65536), b''):
+                    logFile.write(chunk)
+                    if not omitStdout:
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+                returnCode = process.wait()
+    except OSError as error:
+        raise SimulationError("Cannot run %s: %s (log: %s)" %
+                              (command[0], error, logFilePath)) from error
+
+    if returnCode != 0:
+        raise SimulationError("%s exited with status %d (log: %s)" %
+                              (command[0], returnCode, logFilePath))
+
 
 class ConfigParser( object ):
     """ Parse a test configuration XML file. """
@@ -156,27 +190,12 @@ class SimulationDriver( object ):
     # Perform simulation
     def RunSimulation(self):
         QUESTASIM_DIR_PATH = os.environ['RSD_QUESTASIM_PATH']
-        VSIM_PATH = QUESTASIM_DIR_PATH + '/vsim -c +SEED=0'
-
-        cmd = """
-            %s %s/%s.%s \
-            +TEST_CODE=%s \
-            %s -do "run -all" %s
-            """ % ( VSIM_PATH,
-            self.projectDirPath,
-            self.LIBRARY_NAME,
-            self.TOP_MODULE_NAME,
-            self.testCodeDirPath,
-            " ".join( self.additionalOptionList ),
-            "> " + self.vsimLogPath if self.omitStdout else "| tee " + self.vsimLogPath
-        )
-
-        # Module "subprocess doesn't work correctly.
-        #    - command : "subprocess.call( cmd, cwd=projectDir )"
-        # Use os.system.
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [
+            os.path.join(QUESTASIM_DIR_PATH, 'vsim'), '-c', '+SEED=0',
+            '%s/%s.%s' % (self.projectDirPath, self.LIBRARY_NAME, self.TOP_MODULE_NAME),
+            '+TEST_CODE=%s' % self.testCodeDirPath,
+        ] + self.additionalOptionList + ['-do', 'run -all']
+        RunSimulationCommand(cmd, self.vsimLogPath, self.omitStdout, self.omitPrintCommand)
 
     def GetLogPath(self):
         return self.vsimLogPath
@@ -201,16 +220,8 @@ class VerilatorSimulationDriver(object):
 
     # シミュレーションを実行
     def RunSimulation(self):
-
-        cmd = """%s %s %s""" % (
-            VERILATED_FILE_NAME, 
-            " ".join(self.additionalOptionList),
-            "> " + self.verilatorLogPath if self.omitStdout else "| tee " + self.verilatorLogPath
-        )
-
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.verilatedBinPath] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.verilatorLogPath, self.omitStdout, self.omitPrintCommand)
 
     def GetLogPath(self):
         return self.verilatorLogPath
@@ -232,37 +243,23 @@ class VivadoSimulationDriver(object):
         self.testID = testCodeDirPath.replace("/", "-") # Make test id from testCodeDirPath
 
         self.additionalOptionList = []
-        self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("-testplusarg TEST_CODE=%s"       % self.SOURCE_ROOT + (testCodeDirPath))
-        self.additionalOptionList.append("-testplusarg DUMMY_DATA_FILE=%s" % self.SOURCE_ROOT + "Verification/DummyData.hex")
-        self.additionalOptionList.append("-testplusarg ENABLE_PC_GOAL=%d"  % (config.enablePC_Goal))
+        self.additionalOptionList.extend(['-testplusarg', 'MAX_TEST_CYCLES=%d' % config.maxTestCycles])
+        self.additionalOptionList.extend(['-testplusarg', 'TEST_CODE=%s' % (self.SOURCE_ROOT + testCodeDirPath)])
+        self.additionalOptionList.extend(['-testplusarg', 'DUMMY_DATA_FILE=%s' % (self.SOURCE_ROOT + 'Verification/DummyData.hex')])
+        self.additionalOptionList.extend(['-testplusarg', 'ENABLE_PC_GOAL=%d' % config.enablePC_Goal])
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 
 
     # Run simulation
     def RunSimulation(self):
-        cmd = "cd %s && %s -relax -s %s %s %s" % (
-            self.projectDirPath,
-            self.xelabPath,
-            self.testID,
-            self.TOP_MODULE_NAME,
-            "> " + self.xelabLogPath if self.omitStdout else "| tee " + self.xelabLogPath
-        )
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.xelabPath, '-relax', '-s', self.testID, self.TOP_MODULE_NAME]
+        RunSimulationCommand(cmd, self.xelabLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
 
-        cmd = "cd %s && %s -runall %s %s %s" % (
-            self.projectDirPath,
-            self.xsimPath,
-            " ".join( self.additionalOptionList ),
-            self.testID,
-            "> " + self.xsimLogPath if self.omitStdout else "| tee " + self.xsimLogPath
-        )
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.xsimPath, '-runall'] + self.additionalOptionList + [self.testID]
+        RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
 
     def GetLogPath(self):
         return self.xsimLogPath
@@ -431,8 +428,12 @@ for testCodePath in testCodePathList:
     elif simName == "vivadosim":
         simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
-        simDriver = VerilatorSimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
-    simDriver.RunSimulation()
+        simDriver = VerilatorSimulationDriver(VERILATED_FILE_NAME, testCodePath, config, options)
+    try:
+        simDriver.RunSimulation()
+    except SimulationError as error:
+        print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
+        sys.exit(3)
 
     # シミュレーション時のレジスタの値を、リファレンスと比較
     regValueComparator = RegisterValueComparator( testCodePath )
