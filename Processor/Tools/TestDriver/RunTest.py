@@ -4,6 +4,7 @@
 # It runs test programs and verify results
 
 import os, sys, subprocess
+import re
 import shlex
 from optparse import OptionParser
 from xml.etree import ElementTree
@@ -60,8 +61,12 @@ def RunSimulationCommand(command, logPath, omitStdout, omitPrintCommand, cwd=Non
                               (command[0], error, logFilePath)) from error
 
     if returnCode != 0:
-        raise SimulationError("%s exited with status %d (log: %s)" %
-                              (command[0], returnCode, logFilePath))
+        try:
+            reason = ' (%s)' % ReadSimulationResult(logFilePath)
+        except SimulationError:
+            reason = ''
+        raise SimulationError("%s exited with status %d%s (log: %s)" %
+                              (command[0], returnCode, reason, logFilePath))
 
 
 class ConfigParser( object ):
@@ -145,17 +150,26 @@ class ConfigParser( object ):
         self.xmlFileName = xmlFileName
         tree = ElementTree.parse( xmlFileName )
 
-        # Set max test cycle
-        self.maxTestCycles = int( tree.findtext('./MaxTestCycles') )
-        if ( self.maxTestCycles is None ):
-            raise TestConfigError( 'Element "./MaxTestCycles" is not found in %s' % xmlFileName )
+        def readInteger(name, default, minimum=0):
+            text = tree.findtext('./' + name)
+            try:
+                value = default if text is None else int(text)
+            except ValueError:
+                raise TestConfigError('%s must be an integer in %s' % (name, xmlFileName))
+            if not minimum <= value <= 2**63 - 1:
+                raise TestConfigError('%s is out of range in %s' % (name, xmlFileName))
+            return value
 
-        # PC_Goal configuration
-        self.enablePC_Goal = tree.findtext('./EnablePC_Goal')
-        if ( self.enablePC_Goal is None ):
-            self.enablePC_Goal = 1
-        else:
-            self.enablePC_Goal = int(self.enablePC_Goal)
+        # A zero total budget disables that limit. Retain cycle-only settings
+        # for external tests until their configurations are migrated.
+        self.maxTestInstructions = readInteger('MaxTestInstructions', 0)
+        self.maxTestCycles = readInteger('MaxTestCycles', 0)
+        self.maxNoCommitCycles = readInteger('MaxNoCommitCycles', 500, minimum=1)
+        if self.maxTestInstructions == 0 and self.maxTestCycles == 0:
+            raise TestConfigError('A positive MaxTestInstructions or MaxTestCycles is required in %s' % xmlFileName)
+        self.enablePC_Goal = readInteger('EnablePC_Goal', 1)
+        if self.enablePC_Goal not in (0, 1):
+            raise TestConfigError('EnablePC_Goal must be 0 or 1 in %s' % xmlFileName)
 
         # Set reference register values.
         elemRegisterValues = tree.find('./RegisterValues')
@@ -166,6 +180,43 @@ class ConfigParser( object ):
             regNum = self.REG_NUMS[ elem.tag ]
             regValue = int( elem.text.lstrip().rstrip(), 0 )
             self.registerValueDict[regNum] = regValue
+
+    def GetSimulationParameters(self):
+        return [
+            ('MAX_TEST_INSTRUCTIONS', self.maxTestInstructions),
+            ('MAX_NO_COMMIT_CYCLES', self.maxNoCommitCycles),
+            ('MAX_TEST_CYCLES', self.maxTestCycles),
+            ('ENABLE_PC_GOAL', self.enablePC_Goal),
+        ]
+
+
+def ReadSimulationResult(logPath):
+    try:
+        with open(logPath, errors='replace') as log:
+            contents = log.read()
+    except OSError as error:
+        raise SimulationError('Cannot read simulation result: %s (log: %s)' % (error, logPath)) from error
+    reasons = re.findall(r'^(?:#\s*)?Simulation result: (\w+)\s*$', contents, re.MULTILINE)
+    if len(reasons) != 1:
+        raise SimulationError('Missing or ambiguous simulation result; rebuild the simulator (log: %s)' % logPath)
+    return reasons[0]
+
+
+def CheckSimulationResult(config, logPath):
+    # Check the reason independently of the process status: simulator frontends
+    # do not all propagate $fatal in the same way. Also reject stale models
+    # which do not implement the requested progress limits.
+    reason = ReadSimulationResult(logPath)
+    if config.enablePC_Goal:
+        expected = 'pc_goal'
+    elif config.maxTestInstructions:
+        expected = 'instruction_limit'
+    else:
+        expected = 'cycle_limit'
+    if reason != expected:
+        raise SimulationError('Simulation stopped with %s; expected %s (log: %s)' %
+                              (reason, expected, logPath))
+    return reason
 
 
 class SimulationDriver( object ):
@@ -179,9 +230,7 @@ class SimulationDriver( object ):
 
         self.vsimLogPath = os.path.join(testCodeDirPath, self.VSIM_LOG_FILE_NAME)
 
-        self.additionalOptionList = []
-        self.additionalOptionList.append("+MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("+ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
+        self.additionalOptionList = ['+%s=%d' % parameter for parameter in config.GetSimulationParameters()]
         if options.rsdLogFileName is not None:
             self.additionalOptionList.append("+RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
@@ -211,8 +260,7 @@ class VerilatorSimulationDriver(object):
 
         self.additionalOptionList = []
         self.additionalOptionList.append("TEST_CODE=%s" % (testCodeDirPath))
-        self.additionalOptionList.append("MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
+        self.additionalOptionList.extend('%s=%d' % parameter for parameter in config.GetSimulationParameters())
         if options.rsdLogFileName is not None:
             self.additionalOptionList.append("RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
@@ -243,10 +291,10 @@ class VivadoSimulationDriver(object):
         self.testID = testCodeDirPath.replace("/", "-") # Make test id from testCodeDirPath
 
         self.additionalOptionList = []
-        self.additionalOptionList.extend(['-testplusarg', 'MAX_TEST_CYCLES=%d' % config.maxTestCycles])
+        for parameter in config.GetSimulationParameters():
+            self.additionalOptionList.extend(['-testplusarg', '%s=%d' % parameter])
         self.additionalOptionList.extend(['-testplusarg', 'TEST_CODE=%s' % (self.SOURCE_ROOT + testCodeDirPath)])
         self.additionalOptionList.extend(['-testplusarg', 'DUMMY_DATA_FILE=%s' % (self.SOURCE_ROOT + 'Verification/DummyData.hex')])
-        self.additionalOptionList.extend(['-testplusarg', 'ENABLE_PC_GOAL=%d' % config.enablePC_Goal])
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 
@@ -262,7 +310,7 @@ class VivadoSimulationDriver(object):
                              self.omitPrintCommand, cwd=self.projectDirPath)
 
     def GetLogPath(self):
-        return self.xsimLogPath
+        return os.path.normpath(os.path.join(self.projectDirPath, self.xsimLogPath))
 
 
 class RegisterValueComparator( object ):
@@ -430,7 +478,11 @@ for testCodePath in testCodePathList:
     # cfg.xml読み込み
     cfgXmlPath = os.path.join( testCodePath, CFG_XML_FILE_NAME )
     config = ConfigParser()
-    config.Parse( cfgXmlPath )
+    try:
+        config.Parse( cfgXmlPath )
+    except (TestConfigError, ElementTree.ParseError, OSError, ValueError, KeyError) as error:
+        print('NG ( %s ) : Invalid configuration: %s' % (testCodePath, error), file=sys.stderr)
+        sys.exit(3)
 
     # シミュレーション実行
     simDriver = None
@@ -442,6 +494,7 @@ for testCodePath in testCodePathList:
         simDriver = VerilatorSimulationDriver(VERILATED_FILE_NAME, testCodePath, config, options)
     try:
         simDriver.RunSimulation()
+        terminationReason = CheckSimulationResult(config, simDriver.GetLogPath())
     except SimulationError as error:
         print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
         sys.exit(3)
@@ -449,7 +502,10 @@ for testCodePath in testCodePathList:
     # シミュレーション時のレジスタの値を、リファレンスと比較
     regValueComparator = RegisterValueComparator( testCodePath )
     regValueComparator.Compare( config.registerValueDict, regOutPath )
-    regValueComparator.PrintCompareResult()
+    if config.registerValueDict:
+        regValueComparator.PrintCompareResult()
+    else:
+        print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
 
     # シミュレーション時のシリアル出力を、リファレンスと比較
     if os.path.exists( serialRefPath ):

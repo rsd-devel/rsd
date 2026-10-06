@@ -1,8 +1,10 @@
 
 # Makefile for synthesizing on Vivado only (not using Synplify netlist)
 
-# Specify test code and simulation cycles
-MAX_TEST_CYCLES = 10000
+# Specify test code and progress limits (independent of cfg.xml)
+MAX_TEST_INSTRUCTIONS = 100000
+MAX_NO_COMMIT_CYCLES = 500
+MAX_TEST_CYCLES = 0
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL  = 1
 TEST_CODE       = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
@@ -50,6 +52,8 @@ XVLOG_OPTIONS = \
 	-d RSD_VIVADO_SIMULATION \
 
 XSIM_OPTIONS = \
+	-testplusarg MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+	-testplusarg MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
 	-testplusarg MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
 	-testplusarg TEST_CODE=$(TEST_CODE) \
 	-testplusarg DUMMY_DATA_FILE=$(DUMMY_DATA_FILE) \

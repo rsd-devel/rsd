@@ -98,6 +98,7 @@ import MemoryMapTypes::*;
 `RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, LRegNumPath, logDstRegNum);
 `RSD_MAKE_STRUCT_ACCESSOR_LV2(ActiveListEntry, phyDstRegNum, PScalarRegNumPath, regNum);
 `RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, PC_Path, pc);
+`RSD_MAKE_STRUCT_ACCESSOR(ActiveListEntry, logic, last);
 
 `RSD_MAKE_STRUCT_ACCESSOR(OpId, OpSerial, sid);
 `RSD_MAKE_STRUCT_ACCESSOR(OpId, MicroOpIndex, mid);

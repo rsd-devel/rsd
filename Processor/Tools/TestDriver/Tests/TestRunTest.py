@@ -30,6 +30,15 @@ if name != 'xelab':
     (test_dir / 'reg.out.hex').write_text('0x00000000\\n' * 65)
     serial_output = bytes.fromhex(os.environ['FAKE_SERIAL_HEX']) if 'FAKE_SERIAL_HEX' in os.environ else b'done\\n'
     (test_dir / 'serial.out.txt').write_bytes(serial_output)
+    parameters = dict(arg.lstrip('+').split('=', 1) for arg in sys.argv[1:] if '=' in arg)
+    default_reason = ('pc_goal' if parameters['ENABLE_PC_GOAL'] == '1' else
+                      'instruction_limit' if int(parameters['MAX_TEST_INSTRUCTIONS']) else 'cycle_limit')
+    reason = os.environ.get('FAKE_RESULT', default_reason)
+    prefix = '# ' if name == 'vsim' else ''
+    if reason != 'missing':
+        print(prefix + 'Simulation result: ' + reason, flush=True)
+        if os.environ.get('FAKE_DUPLICATE_RESULT'):
+            print(prefix + 'Simulation result: ' + reason, flush=True)
 if os.environ.get('FAKE_SIGNAL') == name:
     os.kill(os.getpid(), signal.SIGTERM)
 sys.exit(int(os.environ.get('FAKE_STATUS_' + name, '0')))
@@ -45,7 +54,8 @@ class RunTestProcessTests(unittest.TestCase):
         self.case = self.src / 'Verification/TestCode/Case'
         self.case.mkdir(parents=True)
         (self.case / 'cfg.xml').write_text(
-            '<Config><MaxTestCycles>10</MaxTestCycles>'
+            '<Config><MaxTestInstructions>10000</MaxTestInstructions>'
+            '<MaxNoCommitCycles>500</MaxNoCommitCycles>'
             '<RegisterValues><R0>0</R0></RegisterValues></Config>')
         (self.case / 'serial.ref.txt').write_text('done\n')
         self.runner = self.root / 'Processor/Tools/TestDriver/RunTest.py'
@@ -166,7 +176,7 @@ class RunTestProcessTests(unittest.TestCase):
                     self.assertEqual([call['name'] for call in calls], ['xelab', 'xsim'])
                     self.assertTrue(all(call['cwd'] == str(self.vivado_cwd) for call in calls))
                     args = calls[-1]['args']
-                    self.assertEqual(args.count('-testplusarg'), 4)
+                    self.assertEqual(args.count('-testplusarg'), 6)
                     self.assertIn('TEST_CODE=../../../Src/Verification/TestCode/Case with spaces', args)
                 else:
                     self.assertEqual(calls[0]['cwd'], str(self.src))
@@ -257,6 +267,90 @@ class RunTestProcessTests(unittest.TestCase):
         result = self.run_runner('verilator', '-e', '0')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('Serial output text is incorrect', result.stdout)
+
+    def test_progress_parameters_reach_every_backend(self):
+        for simulator in self.executables:
+            for limits, expected in (
+                ('<MaxTestInstructions>6000000000</MaxTestInstructions>'
+                 '<MaxNoCommitCycles>900</MaxNoCommitCycles>',
+                 ['MAX_TEST_INSTRUCTIONS=6000000000', 'MAX_NO_COMMIT_CYCLES=900', 'MAX_TEST_CYCLES=0']),
+                ('<MaxTestCycles>10000</MaxTestCycles>',
+                 ['MAX_TEST_INSTRUCTIONS=0', 'MAX_NO_COMMIT_CYCLES=500', 'MAX_TEST_CYCLES=10000']),
+                ('<MaxTestInstructions>10000</MaxTestInstructions><MaxTestCycles>20000</MaxTestCycles>',
+                 ['MAX_TEST_INSTRUCTIONS=10000', 'MAX_NO_COMMIT_CYCLES=500', 'MAX_TEST_CYCLES=20000']),
+            ):
+                with self.subTest(simulator=simulator, limits=limits):
+                    (self.case / 'cfg.xml').write_text('<Config>' + limits + '<RegisterValues/></Config>')
+                    result = self.run_runner(simulator)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    arguments = [arg.lstrip('+') for arg in self.calls()[-1]['args']]
+                    for argument in expected:
+                        self.assertIn(argument, arguments)
+
+    def test_invalid_limits_fail_before_starting_simulator(self):
+        for limits in (
+            '', '<MaxTestInstructions>0</MaxTestInstructions>',
+            '<MaxTestInstructions>-1</MaxTestInstructions>',
+            '<MaxTestInstructions>1.5</MaxTestInstructions>',
+            '<MaxTestInstructions/>',
+            '<MaxTestInstructions>9223372036854775808</MaxTestInstructions>',
+            '<MaxTestInstructions>100</MaxTestInstructions><MaxNoCommitCycles>0</MaxNoCommitCycles>',
+            '<MaxTestInstructions>100</MaxTestInstructions><MaxNoCommitCycles>-2</MaxNoCommitCycles>',
+            '<MaxTestInstructions>100</MaxTestInstructions><MaxTestCycles>-1</MaxTestCycles>',
+            '<MaxTestInstructions>100</MaxTestInstructions><EnablePC_Goal>2</EnablePC_Goal>',
+        ):
+            with self.subTest(limits=limits):
+                (self.case / 'cfg.xml').write_text('<Config>' + limits + '<RegisterValues/></Config>')
+                result = self.run_runner('verilator')
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertIn('Invalid configuration', result.stderr)
+                self.assertNotIn('Traceback', result.stderr)
+                self.assertEqual(self.calls(), [])
+
+    def test_premature_termination_fails_even_with_zero_process_status(self):
+        for simulator in self.executables:
+            for reason in ('instruction_limit', 'no_commit_limit', 'cycle_limit',
+                           'unexpected_finish', 'runtime_error', 'missing'):
+                for options in ((), ('-o',), ('-e', '0')):
+                    with self.subTest(simulator=simulator, reason=reason, options=options):
+                        self.env['FAKE_RESULT'] = reason
+                        result = self.run_runner(simulator, *options)
+                        self.assert_simulation_failure(result)
+                        self.assertIn('rebuild the simulator' if reason == 'missing' else reason, result.stderr)
+
+    def test_duplicate_simulation_result_is_rejected(self):
+        self.env['FAKE_DUPLICATE_RESULT'] = '1'
+        for simulator in self.executables:
+            with self.subTest(simulator=simulator):
+                self.assert_simulation_failure(self.run_runner(simulator))
+
+    def test_execution_only_test_requires_its_instruction_budget(self):
+        (self.case / 'cfg.xml').write_text(
+            '<Config><MaxTestInstructions>10000</MaxTestInstructions>'
+            '<MaxTestCycles>20000</MaxTestCycles><EnablePC_Goal>0</EnablePC_Goal>'
+            '<RegisterValues/></Config>')
+        (self.case / 'serial.ref.txt').unlink()
+        for simulator in self.executables:
+            for reason in ('instruction_limit', 'pc_goal', 'cycle_limit', 'no_commit_limit'):
+                with self.subTest(simulator=simulator, reason=reason):
+                    self.env['FAKE_RESULT'] = reason
+                    result = self.run_runner(simulator)
+                    if reason == 'instruction_limit':
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertIn('Execution completed (instruction_limit)', result.stdout)
+                        self.assertNotIn('0 registers have correct values', result.stdout)
+                    else:
+                        self.assert_simulation_failure(result)
+
+    def test_legacy_continuous_test_accepts_cycle_budget(self):
+        (self.case / 'cfg.xml').write_text(
+            '<Config><MaxTestCycles>10000</MaxTestCycles><EnablePC_Goal>0</EnablePC_Goal>'
+            '<RegisterValues/></Config>')
+        for simulator in self.executables:
+            with self.subTest(simulator=simulator):
+                result = self.run_runner(simulator)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('Execution completed (cycle_limit)', result.stdout)
 
 
 if __name__ == '__main__':

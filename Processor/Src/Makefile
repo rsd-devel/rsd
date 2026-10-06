@@ -1,5 +1,7 @@
-# Specify test code and simulation cycles
-MAX_TEST_CYCLES = 50000
+# Specify test code and progress limits (independent of cfg.xml)
+MAX_TEST_INSTRUCTIONS = 100000
+MAX_NO_COMMIT_CYCLES = 500
+MAX_TEST_CYCLES = 0
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
 #TEST_CODE = Verification/TestCode/Asm/CacheFlush
@@ -41,6 +43,8 @@ VLOG_OPTIONS = \
 
 # Simulation options
 VSIM_OPTIONS = \
+	+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+	+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
 	+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
 	+TEST_CODE=$(TEST_CODE) \
 	+ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) \

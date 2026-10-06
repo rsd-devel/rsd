@@ -396,28 +396,8 @@ module CommitStage(
             );
         end
     endgenerate
-`ifdef RSD_FUNCTIONAL_SIMULATION
-    localparam DEADLOCK_DETECT_CYCLES = 500;
-    integer cycles;
-    always_ff @(posedge port.clk) begin
-        if (port.rst || commit[0]) begin
-            cycles <= 0;
-        end
-        else begin
-            cycles <= cycles + 1;
-        end
-    end
+    // The test benches monitor commit progress using per-test limits.
 
-
-    generate
-        `RSD_ASSERT_CLK(
-            port.clk,
-            !(cycles > DEADLOCK_DETECT_CYCLES),
-            "Deadlock detected"
-        );
-    endgenerate
-
-`endif
 
 endmodule : CommitStage
 
