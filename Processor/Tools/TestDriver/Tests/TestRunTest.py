@@ -28,7 +28,8 @@ if name != 'xelab':
                      if arg.lstrip('+').startswith('TEST_CODE='))
     test_dir = Path(test_code)
     (test_dir / 'reg.out.hex').write_text('0x00000000\\n' * 65)
-    (test_dir / 'serial.out.txt').write_text('done\\n')
+    serial_output = bytes.fromhex(os.environ['FAKE_SERIAL_HEX']) if 'FAKE_SERIAL_HEX' in os.environ else b'done\\n'
+    (test_dir / 'serial.out.txt').write_bytes(serial_output)
 if os.environ.get('FAKE_SIGNAL') == name:
     os.kill(os.getpid(), signal.SIGTERM)
 sys.exit(int(os.environ.get('FAKE_STATUS_' + name, '0')))
@@ -173,6 +174,89 @@ class RunTestProcessTests(unittest.TestCase):
                     self.assertIn(prefix + 'RSD_LOG_FILE=trace with spaces.log', calls[0]['args'])
                     if simulator == 'modelsim':
                         self.assertEqual(calls[0]['args'][-2:], ['-do', 'run -all'])
+
+    def test_serial_output_requires_exact_match_by_default(self):
+        for simulator in self.executables:
+            for output, matched in (
+                (b'done\n', True),
+                (b'', False),
+                (b'don', False),
+                (b'done', False),
+                (b'done\nmore\n', False),
+                (b'wrong\n', False),
+                (b'do\xffne\n', False),
+                (b'do\rne\n', False),
+            ):
+                with self.subTest(simulator=simulator, output=output):
+                    self.env['FAKE_SERIAL_HEX'] = output.hex()
+                    result = self.run_runner(simulator)
+                    self.assertEqual(result.returncode, 0 if matched else 1,
+                                     result.stdout + result.stderr)
+                    self.assertIn('Serial output text is ' + ('correct' if matched else 'incorrect'),
+                                  result.stdout)
+                    self.assertNotIn('Traceback', result.stderr)
+
+    def test_serial_prefix_requires_the_entire_reference(self):
+        for simulator in self.executables:
+            for output, matched in (
+                (b'done\n', True),
+                (b'done\nmore\n', True),
+                (b'', False),
+                (b'don', False),
+                (b'done', False),
+                (b'wrong\ndone\n', False),
+                (b'do\xffne\n', False),
+            ):
+                with self.subTest(simulator=simulator, output=output):
+                    self.env['FAKE_SERIAL_HEX'] = output.hex()
+                    result = self.run_runner(simulator, '--serial-prefix')
+                    self.assertEqual(result.returncode, 0 if matched else 1,
+                                     result.stdout + result.stderr)
+                    self.assertIn('Serial output text is ' + ('correct' if matched else 'incorrect'),
+                                  result.stdout)
+
+    def test_empty_reference_only_accepts_silence_in_exact_mode(self):
+        (self.case / 'serial.ref.txt').write_bytes(b'')
+        for options in ((), ('--serial-prefix',)):
+            for output in (b'', b'unexpected\n', b'\xff'):
+                with self.subTest(options=options, output=output):
+                    self.env['FAKE_SERIAL_HEX'] = output.hex()
+                    result = self.run_runner('verilator', *options)
+                    matched = not options and not output
+                    self.assertEqual(result.returncode, 0 if matched else 1,
+                                     result.stdout + result.stderr)
+
+    def test_serial_line_endings_are_normalized(self):
+        for reference, output in ((b'done\r\n', b'done\n'), (b'done\n', b'done\r\n'),
+                                  (b'done\r', b'done\n'), (b'done\n', b'done\r')):
+            for options in ((), ('--serial-prefix',)):
+                with self.subTest(reference=reference, output=output, options=options):
+                    (self.case / 'serial.ref.txt').write_bytes(reference)
+                    self.env['FAKE_SERIAL_HEX'] = output.hex()
+                    result = self.run_runner('verilator', *options)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_no_serial_reference_skips_serial_comparison(self):
+        (self.case / 'serial.ref.txt').unlink()
+        for options in ((), ('--serial-prefix',)):
+            with self.subTest(options=options):
+                result = self.run_runner('verilator', *options)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotIn('Serial output', result.stdout)
+
+    def test_disabling_pc_goal_does_not_allow_incomplete_serial_output(self):
+        config = self.case / 'cfg.xml'
+        config.write_text(config.read_text().replace('<Config>', '<Config><EnablePC_Goal>0</EnablePC_Goal>'))
+        self.env['FAKE_SERIAL_HEX'] = b'don'.hex()
+        result = self.run_runner('verilator')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('ENABLE_PC_GOAL=0', self.calls()[0]['args'])
+
+    def test_serial_mismatch_respects_result_exit_option(self):
+        self.env['FAKE_SERIAL_HEX'] = b'don'.hex()
+        result = self.run_runner('verilator', '-e', '0')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Serial output text is incorrect', result.stdout)
 
 
 if __name__ == '__main__':

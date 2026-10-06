@@ -322,17 +322,23 @@ class RegisterValueComparator( object ):
 # シリアル出力を検証するため、
 # あらかじめ用意したrefファイルと比較する。
 class SerialOutputComparator( object ):
-    def __init__( self, testCodeName ):
+    def __init__( self, testCodeName, matchPrefix=False ):
         self.testCodeName = testCodeName
+        self.matchPrefix = matchPrefix
 
     def Compare( self, refFileName, outFileName ):
-        # 比較するファイル読み込む。改行コードはLFに統一。
-        self.outStr = open( outFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
-        self.refStr = open( refFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
+        # Preserve all output bytes; decoding errors must not hide mismatches.
+        # Normalize CRLF and CR to LF, as the previous text-mode reads did.
+        with open(outFileName, 'rb') as outFile:
+            self.outData = outFile.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+        with open(refFileName, 'rb') as refFile:
+            self.refData = refFile.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
-        # 比較
-        #self.isMatched = ( self.outStr == self.refStr )
-        self.isMatched = ( self.outStr == self.refStr[:len(self.outStr)] )
+        if self.matchPrefix:
+            # Continuous tests must produce the entire, nonempty reference.
+            self.isMatched = bool(self.refData) and self.outData.startswith(self.refData)
+        else:
+            self.isMatched = self.outData == self.refData
 
     # 比較結果を表示。Compareを呼んだ後に呼ぶ必要がある
     def PrintCompareResult( self ):
@@ -340,10 +346,12 @@ class SerialOutputComparator( object ):
             print("OK ( %s ) : Serial output text is correct." % ( self.testCodeName ))
         else:
             print("NG ( %s ) : Serial output text is incorrect." % ( self.testCodeName ))
+            print("Expected %d bytes, got %d (%s match)." %
+                  (len(self.refData), len(self.outData), 'prefix' if self.matchPrefix else 'exact'))
             print("--------\nREF\n--------")
-            print(self.refStr)
+            print(self.refData.decode('utf-8', errors='backslashreplace'))
             print("--------\nOUT\n--------")
-            print(self.outStr)
+            print(self.outData.decode('utf-8', errors='backslashreplace'))
 
     # refとoutが一致しているかどうかを返す。Compareを呼んだ後に呼ぶ必要がある
     def IsMatched( self ):
@@ -385,6 +393,9 @@ parser.add_option('-q', '--quiet',
 parser.add_option('-e', '--return-error-code',
                   action='store', type='int', dest='returnNonZeroOnError', default=True,
                   help="Return error code on results are not correct")
+parser.add_option('--serial-prefix',
+                  action='store_true', dest='serialPrefix', default=False,
+                  help="When serial.ref.txt exists, require its entire nonempty contents at the start of serial output, allowing additional output (default: exact match).")
 options, testCodePathList = parser.parse_args()
 
 if not testCodePathList:
@@ -443,7 +454,7 @@ for testCodePath in testCodePathList:
     # シミュレーション時のシリアル出力を、リファレンスと比較
     if os.path.exists( serialRefPath ):
         # シリアル出力比較は、refファイルがある場合のみやる
-        serialOutComparator = SerialOutputComparator( testCodePath )
+        serialOutComparator = SerialOutputComparator( testCodePath, matchPrefix=options.serialPrefix )
         serialOutComparator.Compare( serialRefPath, serialOutPath )
         serialOutComparator.PrintCompareResult()
 

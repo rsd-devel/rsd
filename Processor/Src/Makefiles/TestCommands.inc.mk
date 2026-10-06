@@ -238,9 +238,10 @@ ZEPHYR_TESTS =  \
 
 ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test-Zephyr-%)
 
+# Zephyr keeps running: require the full serial reference, allowing later output.
 .PHONY: $(ZEPHYR_TEST_TARGETS)
 $(ZEPHYR_TEST_TARGETS):
-	@$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/$(patsubst test-Zephyr-%,%,$@)
+	@$(RUN_TEST_OMIT_MSG) --serial-prefix Verification/TestCode/Zephyr/$(patsubst test-Zephyr-%,%,$@)
 
 test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test-Zephyr) ===="
