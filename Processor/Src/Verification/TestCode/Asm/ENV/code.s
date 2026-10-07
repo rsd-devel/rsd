@@ -25,7 +25,11 @@ end:
 
 trap_vector:
     nop
-    csrrw a1, mcause, a1
+    csrr a1, mcause
+    # ECALL and EBREAK are both 32-bit instructions; resume after the trap.
+    csrr t0, mepc
+    addi t0, t0, 4
+    csrw mepc, t0
     mret
 
 

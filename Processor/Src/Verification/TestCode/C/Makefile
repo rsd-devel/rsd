@@ -15,6 +15,7 @@ SRC_DIRS = \
 	Exception \
 	DCache \
 	FP \
+	PerformanceCounter \
 
 
 # TARGETS の中のどれかに該当した場合，SRC_DIRS が依存元となる

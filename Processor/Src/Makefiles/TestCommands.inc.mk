@@ -27,6 +27,7 @@ LEVEL1_TESTS = \
 	test-RV32I-MemoryDependenyPrediction \
 	test-RV32I-Fence \
 	test-RV32I-CSR \
+	test-RV32I-ENV \
 	test-RV32I-Timer \
 	test-RV32I-MSWI \
 	test-RV32I-Fault \
@@ -38,11 +39,10 @@ LEVEL1_TESTS = \
 	test-Fibonacci \
 	test-Exception \
 	test-DCache \
+	test-PerformanceCounter \
+	test-RV32F-C \
 
 #	test-RV32I-MisalignedMemAccess \
-
-# アドレス変更に伴い，一時的に無効に
-#	test-PerformanceCounter \
 
 LEVEL2_TESTS = \
 	test-riscv-compliance \
@@ -63,7 +63,8 @@ test-clean-basic: test-clean-asm test-clean-C test-clean-crt
 # Each test depends on its build, including when make runs in parallel.
 BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS)) \
 	test-RV32F-Asm test-RV32I-MisalignedMemAccess
-BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache test-RV32F-C
+BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache test-RV32F-C \
+	test-PerformanceCounter
 .PHONY: $(BASIC_ASM_TESTS) $(BASIC_C_TESTS)
 $(BASIC_ASM_TESTS): test-build-asm
 $(BASIC_C_TESTS): test-build-C
@@ -184,6 +185,9 @@ test-RV32I-Fence:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fence
 test-RV32I-CSR:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/CSR
+test-RV32I-ENV:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ENV
+
 test-RV32I-MSWI:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MSWI
 test-RV32I-Timer:
