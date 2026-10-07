@@ -52,6 +52,7 @@ make -f Makefile.verilator.mk test-1       # Build and run the basic tests
 ```
 
 `test-1` builds the test HEX files automatically and prints `Test Successful (test-1)` on success.
+See the [test program instructions](Processor/Src/Verification/TestCode/README.md) for FP configurations and CoreMark.
 The first launch builds the environment; later launches reuse it and rebuild when its configuration changes.
 From the host repository root, use `./DevContainer.sh --help` for command execution and rebuild options.
 With VS Code's Dev Containers extension, you can instead use **Reopen in Container** and run the same `cd` and `make` commands.

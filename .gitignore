@@ -17,9 +17,12 @@
 /Processor/Tools/SetEnv/MySetEnv.bat
 /Processor/Tools/SetEnv/MySetEnv.sh
 
-# Coremark/Drhystone/Zephyr related files are copied from RSD-env
+# Downloaded CoreMark sources and per-variant build artifacts.
+/Processor/Src/Verification/TestCode/Coremark/External/
 /Processor/Src/Verification/TestCode/Coremark/Coremark/*
+!/Processor/Src/Verification/TestCode/Coremark/Coremark/cfg.xml
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_RV32I/*
+!/Processor/Src/Verification/TestCode/Coremark/Coremark_for_RV32I/cfg.xml
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_Synthesis/*
 
 /Processor/Src/Verification/TestCode/Dhrystone/*

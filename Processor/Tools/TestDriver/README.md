@@ -1,12 +1,3 @@
-# FP test selection
-
-`RSD_MARCH_FP_PIPE` in `Processor/Src/Makefiles/CoreSources.inc.mk` enables
-the assembly and C FP tests in `test-1`. Without it, basic builds omit FP
-tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
-test fails. When changing the configuration, clean and rebuild both the
-simulator and test programs (`make -f Makefile.verilator.mk clean test-clean-basic`,
-then rebuild with the same `RSD_SRC_CFG` used to run the tests).
-
 # Test execution limits
 
 `RunTest.py` reads each test's `cfg.xml`. For example:
