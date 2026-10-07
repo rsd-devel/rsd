@@ -1,3 +1,12 @@
+# FP test selection
+
+`RSD_MARCH_FP_PIPE` in `Processor/Src/Makefiles/CoreSources.inc.mk` enables
+the assembly and C FP tests in `test-1`. Without it, basic builds omit FP
+tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
+test fails. When changing the configuration, clean and rebuild both the
+simulator and test programs (`make -f Makefile.verilator.mk clean test-clean-basic`,
+then rebuild with the same `RSD_SRC_CFG` used to run the tests).
+
 # Test execution limits
 
 `RunTest.py` reads each test's `cfg.xml`. For example:
@@ -36,7 +45,8 @@ IPC. IPC uses cycles since reset release and is informational, not a pass criter
 The in-repository instruction budgets allow roughly twice the measured work,
 rounded up to 10,000-instruction increments. Normal tests allow 500 no-commit
 cycles; `CacheFlush` and `Fence` allow 5,000 and 2,500 respectively because their
-measured cache-flush waits were 2,338 and 1,170 cycles.
+measured cache-flush waits were 2,338 and 1,170 cycles. `IntDivZynq` allows 1,100
+cycles because division replay without the FP pipeline produced a 529-cycle wait.
 
 Rebuild the simulator after changing its test bench; the runner rejects models
 that do not report a termination reason. `make run`, `make kanata`, and `make dump`

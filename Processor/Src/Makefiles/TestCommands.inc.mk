@@ -40,7 +40,10 @@ LEVEL1_TESTS = \
 	test-Exception \
 	test-DCache \
 	test-PerformanceCounter \
-	test-RV32F-C \
+
+ifeq ($(RSD_HAS_FP),1)
+LEVEL1_TESTS += test-RV32F-Asm test-RV32F-C
+endif
 
 #	test-RV32I-MisalignedMemAccess \
 
@@ -62,9 +65,13 @@ test-clean-basic: test-clean-asm test-clean-C test-clean-crt
 # Always check source dependencies before running a basic test.
 # Each test depends on its build, including when make runs in parallel.
 BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS)) \
-	test-RV32F-Asm test-RV32I-MisalignedMemAccess
-BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache test-RV32F-C \
+	test-RV32I-MisalignedMemAccess
+BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache \
 	test-PerformanceCounter
+ifeq ($(RSD_HAS_FP),1)
+BASIC_ASM_TESTS += test-RV32F-Asm
+BASIC_C_TESTS += test-RV32F-C
+endif
 .PHONY: $(BASIC_ASM_TESTS) $(BASIC_C_TESTS)
 $(BASIC_ASM_TESTS): test-build-asm
 $(BASIC_C_TESTS): test-build-C
@@ -207,10 +214,17 @@ test-RV32M-DividerTest:
 test-RV32A-Aext:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Aext
 
+ifeq ($(RSD_HAS_FP),1)
 test-RV32F-Asm:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/FP
 test-RV32F-C:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/FP
+else
+.PHONY: test-RV32F-Asm test-RV32F-C
+test-RV32F-Asm test-RV32F-C:
+	@echo "FP tests require RSD_MARCH_FP_PIPE in RSD_SRC_CFG" >&2
+	@exit 1
+endif
 
 test-HelloWorld:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HelloWorld

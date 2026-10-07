@@ -39,6 +39,11 @@ SRC_DIRS = \
     FP \
     Aext \
 
+# Keep FP artifacts in the clean target regardless of the configuration.
+ifeq ($(RSD_HAS_FP)$(filter clean,$(MAKECMDGOALS)),0)
+SRC_DIRS := $(filter-out FP,$(SRC_DIRS))
+endif
+
 # 中間ファイルのリスト
 ASM_SRCS  = $(SRC_DIRS:%=%/code.s)
 ASM_OBJS  = $(SRC_DIRS:%=%/code.o)

@@ -1,7 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Config>
   <MaxTestInstructions>10000</MaxTestInstructions>
-  <MaxNoCommitCycles>500</MaxNoCommitCycles>
+  <!-- Division replay can delay commit for 529 cycles without the FP pipeline. -->
+  <MaxNoCommitCycles>1100</MaxNoCommitCycles>
   <RegisterValues>
       <R0>0x00000000</R0>
       <R1>0x7FFFFFFF</R1>

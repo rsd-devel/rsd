@@ -29,6 +29,8 @@ ifndef RSD_GCC_VERSION
 $(error Cannot execute $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc.)
 endif
 
+include $(RSD_ROOT_NATIVE)/Processor/Src/Makefiles/CoreSources.inc.mk
+
 RSD_TEST_CODE_ROOT = $(RSD_ROOT_NATIVE)/Processor/Src/Verification/TestCode
 RSD_TOOL_ROOT      = $(RSD_ROOT_NATIVE)/Processor/Tools
 RSD_TEST_TOOL_ROOT = $(RSD_ROOT_NATIVE)/Processor/Tools/TestDriver
@@ -49,7 +51,7 @@ STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
 # コンパイルオプションとリンクオプション
 #
 ARCHFLAGS = \
-	-march=rv32imaf \
+	-march=$(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima) \
 	-mabi=ilp32 \
 
 # Ubuntu 22.04's GCC has no rv32imaf/ilp32 multilib. Link against RV32IM

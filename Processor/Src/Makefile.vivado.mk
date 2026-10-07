@@ -50,6 +50,7 @@ TYPES += Verification/Dumper.sv
 XVLOG_OPTIONS = \
 	-d RSD_FUNCTIONAL_SIMULATION \
 	-d RSD_VIVADO_SIMULATION \
+	$(patsubst +define+%,-d %,$(RSD_SRC_CFG)) \
 
 XSIM_OPTIONS = \
 	-testplusarg MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \

@@ -15,6 +15,9 @@ RSD_SRC_CFG = \
 #	+define+RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
 
 
+# Keep test selection and compiler flags consistent with the RTL configuration.
+RSD_HAS_FP = $(if $(filter +define+RSD_MARCH_FP_PIPE +define+RSD_MARCH_FP_PIPE=%,$(RSD_SRC_CFG)),1,0)
+
 # TYPES specifies files that include packages that contain type definitions.
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
