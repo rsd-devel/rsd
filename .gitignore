@@ -35,8 +35,10 @@
 /Processor/Src/Verification/TestCode/Zephyr/*
 !/Processor/Src/Verification/TestCode/Zephyr/Makefile
 
-/Processor/Src/Verification/TestCode/riscv-compliance/*
-!/Processor/Src/Verification/TestCode/riscv-compliance/Makefile
+# Downloaded legacy compliance sources and generated case directories.
+/Processor/Src/Verification/TestCode/riscv-compliance/External/
+/Processor/Src/Verification/TestCode/riscv-compliance/I-*/
+/Processor/Src/Verification/TestCode/riscv-compliance/dummy_rom.bin
 
 
 # Verilator

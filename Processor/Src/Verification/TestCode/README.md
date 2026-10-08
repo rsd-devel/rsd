@@ -71,3 +71,25 @@ no-commit waits are limited to 500 cycles.
 `test-clean-Dhrystone` preserves the checkout and test inputs;
 clean before changing compilers or build flags. The contest variant is outside
 this migration.
+
+## Legacy riscv-compliance
+
+```sh
+make -f Makefile.verilator.mk test-fetch-riscv-compliance
+make -j"$(nproc)" -f Makefile.verilator.mk test-build-riscv-compliance
+make -f Makefile.verilator.mk test-riscv-compliance
+```
+
+The fetch target downloads the public 2018 suite at the commit pinned in
+[riscv-compliance/Makefile](riscv-compliance/Makefile), under `riscv-compliance/External/`.
+Builds use unmodified upstream sources and signature references, without network
+access or `RSD_ENV`. Each case directory contains generated files; the RSD entry
+point and serial signature adapter are maintained here. Test targets build these
+files as needed. `test-clean-riscv-compliance` preserves the checkout and adapters;
+clean before changing compilers or build flags.
+
+The existing 54 RV32I cases remain enabled, including CSR and exception tests.
+`I-FENCE.I-01` is built but remains excluded from the default test list.
+The FP compliance targets use the separate `old-framework-2.x` generation and
+are outside this RV32I migration. This preserves the legacy regression suite;
+it does not establish coverage of the current RISC-V architecture tests.
