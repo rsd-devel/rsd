@@ -25,8 +25,12 @@
 !/Processor/Src/Verification/TestCode/Coremark/Coremark_for_RV32I/cfg.xml
 /Processor/Src/Verification/TestCode/Coremark/Coremark_for_Synthesis/*
 
-/Processor/Src/Verification/TestCode/Dhrystone/*
-!/Processor/Src/Verification/TestCode/Dhrystone/Makefile
+# Downloaded Dhrystone sources and build artifacts.
+/Processor/Src/Verification/TestCode/Dhrystone/External/
+/Processor/Src/Verification/TestCode/Dhrystone/Dhrystone/*
+!/Processor/Src/Verification/TestCode/Dhrystone/Dhrystone/cfg.xml
+!/Processor/Src/Verification/TestCode/Dhrystone/Dhrystone/serial.ref.txt
+/Processor/Src/Verification/TestCode/Dhrystone/Dhrystone_for_Contest/
 
 /Processor/Src/Verification/TestCode/Zephyr/*
 !/Processor/Src/Verification/TestCode/Zephyr/Makefile

@@ -82,7 +82,7 @@ test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-
 
 # test-env-build は env 側のバイナリと hex を再生成する
 # test-build 時は，単純にこれをコピーする
-test-env-build: test-env-build-Dhrystone test-env-build-Zephyr
+test-env-build: test-env-build-Zephyr
 	$(MAKE) test-build
 
 test-env-clean: test-env-clean-Zephyr
@@ -120,12 +120,14 @@ test-clean-Coremark:
 test-Coremark test-Coremark_for_RV32I: test-build-Coremark
 
 # Dhrystone 関連
+.PHONY: test-fetch-Dhrystone test-build-Dhrystone test-clean-Dhrystone test-Dhrystone
+test-fetch-Dhrystone:
+	$(MAKE) -C Verification/TestCode/Dhrystone fetch
 test-build-Dhrystone:
-	(cd Verification/TestCode/Dhrystone; make copy)
-test-env-build-Dhrystone:
-	(cd Verification/TestCode/Dhrystone; make)
+	$(MAKE) -C Verification/TestCode/Dhrystone
 test-clean-Dhrystone:
-	(cd Verification/TestCode/Dhrystone; make clean)
+	$(MAKE) -C Verification/TestCode/Dhrystone clean
+test-Dhrystone: test-build-Dhrystone
 
 # Zephyr 関連
 test-build-Zephyr:

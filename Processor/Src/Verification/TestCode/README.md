@@ -45,3 +45,29 @@ the measured work; no-commit waits are limited to 500 cycles.
 `test-clean-Coremark` removes generated files and preserves `External/` and the
 test configurations. Clean before changing compilers or build flags.
 `Coremark_for_Synthesis` is outside this simulation-test migration.
+
+## Dhrystone
+
+```sh
+make -f Makefile.verilator.mk test-fetch-Dhrystone
+make -j"$(nproc)" -f Makefile.verilator.mk test-build-Dhrystone
+make -f Makefile.verilator.mk test-Dhrystone
+```
+
+The fetch target checks out [SiFive's Dhrystone C 2.1](https://github.com/sifive/benchmark-dhrystone)
+under `Dhrystone/External/`, at the commit pinned in
+[Dhrystone/Makefile](Dhrystone/Makefile). Builds need neither network access nor
+`RSD_ENV`. The test target also builds its HEX as needed.
+
+The RSD port runs 100 iterations, as the previous test did, using the downloaded
+source without patches. Dedicated `malloc`, `time`, and `printf` functions supply
+two static records, synthetic zero time, and final-result checking. Six local
+values are checked through the original final report; globals are checked
+directly, with full string comparisons. Missing local reports also fail the test.
+This is an RV32IM functional test, without a timing score or an FP pipeline
+requirement. Success requires a zero return value and the complete serial
+reference. The instruction budget allows about twice the measured work;
+no-commit waits are limited to 500 cycles.
+`test-clean-Dhrystone` preserves the checkout and test inputs;
+clean before changing compilers or build flags. The contest variant is outside
+this migration.
