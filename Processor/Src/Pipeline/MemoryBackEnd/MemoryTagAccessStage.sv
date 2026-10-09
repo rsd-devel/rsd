@@ -412,9 +412,9 @@ module MemoryTagAccessStage(
             if (ldNextStage[i].execState inside {EXEC_STATE_SUCCESS, EXEC_STATE_REFETCH_NEXT}) begin
                 if (isLoad[i]) begin
                     if (ldPipeReg[i].memMapType == MMT_ILLEGAL)
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
+                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_VIOLATION;
                     else if (IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size))
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
+                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_MISALIGNED;
                 end
             end
 
