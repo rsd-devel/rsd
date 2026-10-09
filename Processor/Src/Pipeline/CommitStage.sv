@@ -142,8 +142,7 @@ function automatic void DecideCommit(
             EXEC_STATE_TRAP_ECALL, 
             EXEC_STATE_TRAP_EBREAK, 
             EXEC_STATE_TRAP_SRET,
-            EXEC_STATE_TRAP_MRET,
-            EXEC_STATE_FAULT_INSN_MISALIGNED
+            EXEC_STATE_TRAP_MRET
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = tailOfThisInsn[i];
@@ -155,7 +154,8 @@ function automatic void DecideCommit(
             EXEC_STATE_FAULT_STORE_MISALIGNED,
             EXEC_STATE_FAULT_STORE_VIOLATION,
             EXEC_STATE_FAULT_INSN_ILLEGAL,
-            EXEC_STATE_FAULT_INSN_VIOLATION
+            EXEC_STATE_FAULT_INSN_VIOLATION,
+            EXEC_STATE_FAULT_INSN_MISALIGNED
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = headOfThisInsn[i];
@@ -205,7 +205,8 @@ function automatic void DecideCommit(
                             EXEC_STATE_FAULT_STORE_MISALIGNED,
                             EXEC_STATE_FAULT_STORE_VIOLATION,
                             EXEC_STATE_FAULT_INSN_ILLEGAL,
-                            EXEC_STATE_FAULT_INSN_VIOLATION
+                            EXEC_STATE_FAULT_INSN_VIOLATION,
+                            EXEC_STATE_FAULT_INSN_MISALIGNED
                         }) || unableToStartRecovery) ? FALSE : TRUE);
                 end
                 else begin
