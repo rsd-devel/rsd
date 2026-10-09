@@ -4,6 +4,21 @@
     .align    2
     .globl    main
     .type     main, @function
+
+    .macro EXPECT_ILLEGAL_CSR instruction:vararg
+    la t0, 1f
+    la t2, 2f
+1:
+    \instruction
+    j fail
+2:
+    .endm
+
+    .macro EXPECT_ZERO_CSR csr
+    csrr t3, \csr
+    bnez t3, fail
+    .endm
+
 main:
 
     li a1, 0x00
@@ -35,6 +50,67 @@ main:
     csrr t0, misa
     bne t0, t1, fail
 
+    la t0, trap_vector
+    csrrw a0, mtvec, t0
+    li a3, 0x13579bdf
+    mv a2, a3
+    li a4, 0
+
+    # A missing CSR must trap for all six CSR instruction forms.
+    EXPECT_ILLEGAL_CSR csrrw a2, 0x7c0, a3
+    EXPECT_ILLEGAL_CSR csrrs a2, 0x7c0, a3
+    EXPECT_ILLEGAL_CSR csrrc a2, 0x7c0, a3
+    EXPECT_ILLEGAL_CSR csrrwi a2, 0x7c0, 1
+    EXPECT_ILLEGAL_CSR csrrsi a2, 0x7c0, 1
+    EXPECT_ILLEGAL_CSR csrrci a2, 0x7c0, 1
+
+    # Discarding the result or suppressing a write must not suppress the trap.
+    EXPECT_ILLEGAL_CSR csrrw zero, 0x7c0, zero
+    EXPECT_ILLEGAL_CSR csrrs a2, 0x7c0, zero
+    EXPECT_ILLEGAL_CSR csrrc a2, 0x7c0, zero
+    EXPECT_ILLEGAL_CSR csrrsi a2, 0x7c0, 0
+    EXPECT_ILLEGAL_CSR csrrci a2, 0x7c0, 0
+
+    # Supervisor CSRs are unavailable when misa.S is disabled.
+    li t6, 0x40000
+    csrc misa, t6
+    EXPECT_ILLEGAL_CSR csrr a2, sscratch
+    EXPECT_ILLEGAL_CSR csrr a2, medeleg
+    csrs misa, t6
+    EXPECT_ZERO_CSR sscratch
+
+#ifndef __riscv_flen
+    # A core without the FPU must not expose the floating-point CSRs.
+    EXPECT_ILLEGAL_CSR csrr a2, fflags
+    EXPECT_ILLEGAL_CSR csrr a2, frm
+    EXPECT_ILLEGAL_CSR csrr a2, fcsr
+    li t3, 16
+#else
+    li t3, 13
+#endif
+    bne a4, t3, fail
+
+    # These implemented CSRs remain readable even though their value is zero.
+    EXPECT_ZERO_CSR mvendorid
+    EXPECT_ZERO_CSR marchid
+    EXPECT_ZERO_CSR mimpid
+    EXPECT_ZERO_CSR mhartid
+    EXPECT_ZERO_CSR 0x310       # mstatush (not named by older assemblers).
+    EXPECT_ZERO_CSR mcounteren
+    EXPECT_ZERO_CSR scounteren
+    EXPECT_ZERO_CSR satp
+    EXPECT_ZERO_CSR mcycleh
+    EXPECT_ZERO_CSR minstreth
+
+    # An implemented writable CSR must still work after the traps.
+    csrr t3, mscratch
+    bne t3, a5, fail
+    csrrw t3, mscratch, a1
+    bne t3, a5, fail
+    csrr t3, mscratch
+    bne t3, a1, fail
+    csrw mscratch, a5
+    csrw mtvec, a0
 
     li      a0, 0x400
 end:
@@ -43,3 +119,17 @@ end:
 
 fail:
     j fail
+
+trap_vector:
+    csrr t3, mcause
+    li t4, 2
+    bne t3, t4, fail
+    csrr t3, mepc
+    bne t3, t0, fail
+    # A fault must not update the destination or another CSR.
+    bne a2, a3, fail
+    csrr t3, mscratch
+    bne t3, a5, fail
+    addi a4, a4, 1
+    csrw mepc, t2
+    mret

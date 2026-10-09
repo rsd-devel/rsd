@@ -23,6 +23,7 @@ module CSR_Unit(
 
     CSR_BodyPath csrReg, csrNext;
     DataPath rv;
+    logic csrImplemented;
     CSR_ValuePath wv;
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
@@ -90,6 +91,7 @@ module CSR_Unit(
         privilegeLevelNext = privilegeLevel;
 
         // Read a CSR value
+        csrImplemented = TRUE;
         unique case (port.csrNumber) 
             CSR_NUM_MSTATUS: begin
                 CSR_MSTATUS_Path value;
@@ -119,6 +121,11 @@ module CSR_Unit(
 
             CSR_NUM_MISA: rv = csrReg.misa;
 
+            // Implemented fixed-zero CSRs must not be treated as missing.
+            CSR_NUM_MVENDORID, CSR_NUM_MARCHID, CSR_NUM_MIMPID, CSR_NUM_MHARTID,
+            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN,
+            CSR_NUM_MCYCLEH, CSR_NUM_MINSTRETH: rv = '0;
+
             CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
             CSR_NUM_MINSTRET: rv = csrReg.minstret;
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
@@ -143,21 +150,27 @@ module CSR_Unit(
                         CSR_NUM_SEPC:       rv = csrReg.sepc;
                         CSR_NUM_SCAUSE:     rv = csrReg.scause;
                         CSR_NUM_STVAL:      rv = csrReg.stval;
+                        CSR_NUM_SCOUNTEREN, CSR_NUM_SATP: rv = '0;
 
                         CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
                         CSR_NUM_MEDELEGH:   rv = csrReg.medelegh;
                         CSR_NUM_MIDELEG:    rv = csrReg.mideleg;
-                        default: rv = '0;
+                        default: begin
+                            rv = '0;
+                            csrImplemented = FALSE;
+                        end
                     endcase
                 end
                 else begin
                     rv = '0;
+                    csrImplemented = FALSE;
                 end
             end
         endcase 
 
-        // check csr read/write permission
-        port.csrUnitTriggerExcpt = port.csrWE && privilegeLevel < port.csrNumber[9:8];
+        // Check CSR existence and read/write privilege.
+        port.csrUnitTriggerExcpt = port.csrWE &&
+            (!csrImplemented || privilegeLevel < port.csrNumber[9:8]);
 
         // Writeback 
         csrNext = csrReg;
