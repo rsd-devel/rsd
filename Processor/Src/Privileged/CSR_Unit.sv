@@ -39,8 +39,10 @@ module CSR_Unit(
         value.misa.EXTENSIONS.I = 1;
         value.misa.EXTENSIONS.M = 1;
         value.misa.EXTENSIONS.A = 1;
+`ifdef RSD_MARCH_FP_PIPE
         value.misa.EXTENSIONS.F = 1;
-        value.misa.EXTENSIONS.D = 1;
+`endif
+        value.misa.EXTENSIONS.D = 0;
         value.misa.EXTENSIONS.U = 1;
         value.misa.EXTENSIONS.S = 1;
         return value;

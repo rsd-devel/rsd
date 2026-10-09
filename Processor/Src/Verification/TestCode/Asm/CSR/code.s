@@ -20,8 +20,26 @@ main:
     csrrci a5, mscratch, 1   # (0x1) を clear
     csrr   a5, mscratch      # a5 に読み出す（0xe）
 
+    # Check the implemented ISA, including the optional single-precision FPU.
+    csrr t0, misa
+#ifdef __riscv_flen
+    li t1, 0x40141121       # RV32 with I/M/A/F/S/U, without D.
+#else
+    li t1, 0x40141101       # RV32 with I/M/A/S/U, without F/D.
+#endif
+    bne t0, t1, fail
+
+    # Software cannot enable unsupported F/D extensions.
+    li t2, 0x28
+    csrs misa, t2
+    csrr t0, misa
+    bne t0, t1, fail
+
 
     li      a0, 0x400
 end:
     ret
     #j       end               # ここでループして終了
+
+fail:
+    j fail
