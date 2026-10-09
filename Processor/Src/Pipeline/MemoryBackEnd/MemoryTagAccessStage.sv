@@ -410,11 +410,11 @@ module MemoryTagAccessStage(
             // 実行が正しく終了してる場合，フォールト判定を行う
             // ストアの依存予測ではこちらの方が優先される
             if (ldNextStage[i].execState inside {EXEC_STATE_SUCCESS, EXEC_STATE_REFETCH_NEXT}) begin
-                if (isLoad[i]) begin
+                if (isLoad[i] || isZaamo[i]) begin
                     if (ldPipeReg[i].memMapType == MMT_ILLEGAL)
-                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_VIOLATION;
+                        ldNextStage[i].execState = isZaamo[i] ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
                     else if (IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size))
-                        ldNextStage[i].execState = EXEC_STATE_FAULT_LOAD_MISALIGNED;
+                        ldNextStage[i].execState = isZaamo[i] ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
                 end
             end
 
@@ -445,7 +445,8 @@ module MemoryTagAccessStage(
             
             // Zaamoのストア
             if (i == 0) begin
-                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i];
+                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i] &&
+                    ldNextStage[i].execState == EXEC_STATE_SUCCESS;
                 executeStore[STORE_ISSUE_WIDTH] = TRUE;
                 executedStoreData[STORE_ISSUE_WIDTH] = ldPipeReg[i].dataIn;
                 executedStoreVectorData[STORE_ISSUE_WIDTH] = '0;

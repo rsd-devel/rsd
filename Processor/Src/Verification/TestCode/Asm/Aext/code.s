@@ -64,7 +64,7 @@ main:
     lw t2, 0(t3)
     bne t1, t2, fail
 
-    # LR faults are load exceptions; SC faults are store/AMO exceptions.
+    # LR faults are load exceptions; SC and AMO faults are store/AMO exceptions.
     la t4, trap_vector
     csrrw a0, mtvec, t4
     li a3, 0x13579bdf
@@ -73,6 +73,11 @@ main:
     li a6, 0x55667788
     sw a5, 0(sp)
     sw a6, 4(sp)
+    sw a5, 8(sp)
+    li a1, 0x80040000
+    sw a5, 0(a1)
+    sw a6, 4(a1)
+    sw a5, 8(a1)
     li a7, 0
 
     # Check all three misaligned offsets for a word access.
@@ -120,10 +125,78 @@ unmapped_sc:
     sc.w a2, a5, (t1)
     j fail
 after_unmapped_sc:
+
+    # Include offsets that cross the current eight-byte cache-line boundary.
+    li a4, 1
+misaligned_amo_loop:
+    add t1, sp, a4
+    la t0, misaligned_amo
+    la t2, after_misaligned_amo
+    li t3, 6
+misaligned_amo:
+    amoadd.w a2, a5, (t1)
+    j fail
+after_misaligned_amo:
+    addi a4, a4, 1
+    li t4, 4
+    bne a4, t4, misaligned_amo_next
+    addi a4, a4, 1
+misaligned_amo_next:
     li t4, 8
+    bltu a4, t4, misaligned_amo_loop
+
+    li a4, 1
+misaligned_uncached_amo_loop:
+    add t1, a1, a4
+    la t0, misaligned_uncached_amo
+    la t2, after_misaligned_uncached_amo
+    li t3, 6
+misaligned_uncached_amo:
+    amoadd.w a2, a5, (t1)
+    j fail
+after_misaligned_uncached_amo:
+    addi a4, a4, 1
+    li t4, 4
+    bne a4, t4, misaligned_uncached_amo_next
+    addi a4, a4, 1
+misaligned_uncached_amo_next:
+    li t4, 8
+    bltu a4, t4, misaligned_uncached_amo_loop
+
+unmapped_amo_setup:
+    li t1, 0xcdcd0000
+    la t0, unmapped_amo
+    la t2, after_unmapped_amo
+    li t3, 7
+unmapped_amo:
+    amoadd.w a2, a5, (t1)
+    j fail
+after_unmapped_amo:
+    # Discarding the result must not suppress the exception.
+    la t0, unmapped_amo_zero_rd
+    la t2, after_unmapped_amo_zero_rd
+unmapped_amo_zero_rd:
+    amoswap.w zero, a5, (t1)
+    j fail
+after_unmapped_amo_zero_rd:
+    li t4, 22
     bne a7, t4, fail
+
+    # Valid cached and uncached AMOs must still succeed after the faults.
+    li t4, 1
+    amoadd.w a2, t4, (sp)
+    bne a2, a5, fail
+    addi t5, a5, 1
+    lw t4, 0(sp)
+    bne t4, t5, fail
+    li t4, 1
+    amoadd.w a2, t4, (a1)
+    bne a2, a5, fail
+    lw t4, 0(a1)
+    bne t4, t5, fail
     csrw mtvec, a0
     li a0, 0
+    li a1, 0
 
 end:
     ret
@@ -145,6 +218,14 @@ trap_vector:
     bne t4, a5, fail
     lw t4, 4(sp)
     bne t4, a6, fail
+    lw t4, 8(sp)
+    bne t4, a5, fail
+    lw t4, 0(a1)
+    bne t4, a5, fail
+    lw t4, 4(a1)
+    bne t4, a6, fail
+    lw t4, 8(a1)
+    bne t4, a5, fail
     addi a7, a7, 1
     csrw mepc, t2
     mret
