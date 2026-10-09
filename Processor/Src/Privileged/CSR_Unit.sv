@@ -322,7 +322,10 @@ module CSR_Unit(
 `ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
-                CSR_NUM_FCSR:       csrNext.fcsr = FFlags_Path'(wv);
+                CSR_NUM_FCSR: begin
+                    csrNext.fcsr.frm = wv.fcsr.frm;
+                    csrNext.fcsr.fflags = wv.fcsr.fflags;
+                end
 `endif
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)

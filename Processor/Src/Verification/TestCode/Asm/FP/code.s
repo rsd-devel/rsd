@@ -6,6 +6,49 @@
     .type     main, @function
 main:
 
+    # A full FCSR write updates both aliases and ignores reserved upper bits.
+    li t0, 0xffffff71
+    csrw fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x71
+    bne t2, t1, fail
+    csrr t2, frm
+    li t1, 3
+    bne t2, t1, fail
+    csrr t2, fflags
+    li t1, 0x11
+    bne t2, t1, fail
+
+    # Set/clear operations through FCSR also update the rounding-mode field.
+    li t0, 0x40
+    csrc fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x31
+    bne t2, t1, fail
+    csrs fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x71
+    bne t2, t1, fail
+
+    # Writing either alias preserves the other field.
+    li t0, 2
+    csrw frm, t0
+    csrr t2, fcsr
+    li t1, 0x51
+    bne t2, t1, fail
+    li t0, 8
+    csrw fflags, t0
+    csrr t2, fcsr
+    li t1, 0x48
+    bne t2, t1, fail
+
+    # Restore RNE and clear flags before the existing arithmetic checks.
+    csrw fcsr, zero
+    csrr t2, fcsr
+    bnez t2, fail
+    li t1, 0
+    li t2, 0
+
     li  a0, -0x10000
     add a0, sp, a0
 /*  fp arithmetic  */
@@ -85,3 +128,6 @@ main:
 end:
     ret
     #j       end               # ここでループして終了
+
+fail:
+    j fail
