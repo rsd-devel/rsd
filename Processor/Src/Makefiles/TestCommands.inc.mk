@@ -148,6 +148,16 @@ test-setup-riscv-arch-test:
 test-check-riscv-arch-test:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test check
 
+# ACT4's first self-checking RSD test uses the normal TestDriver.
+.PHONY: test-build-riscv-arch-test test-clean-riscv-arch-test test-riscv-arch-test test-riscv-arch-test-I-addi-00
+test-build-riscv-arch-test:
+	$(MAKE) -C Verification/TestCode/riscv-arch-test build
+test-clean-riscv-arch-test:
+	$(MAKE) -C Verification/TestCode/riscv-arch-test clean
+test-riscv-arch-test: test-riscv-arch-test-I-addi-00
+test-riscv-arch-test-I-addi-00: test-build-riscv-arch-test
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/riscv-arch-test/Build/I-addi-00
+
 # Legacy riscv-compliance RV32I suite.
 .PHONY: test-fetch-riscv-compliance test-build-riscv-compliance test-clean-riscv-compliance test-riscv-compliance
 test-fetch-riscv-compliance:

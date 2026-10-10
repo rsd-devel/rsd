@@ -29,8 +29,8 @@ export XDG_DATA_HOME := /tmp/rsd-arch-test-$(shell id -u)/data
 export PATH := $(VIRTUAL_ENV)/bin:$(GEM_HOME)/bin:/usr/lib/llvm-22/bin:$(BUILD_ROOT)/sail/bin:$(PATH)
 BUNDLE = "$(GEM_HOME)/bin/bundle" _$(BUNDLER_VERSION)_
 
-.DEFAULT_GOAL := check
-.PHONY: fetch setup check check-source check-platform
+.DEFAULT_GOAL := build
+.PHONY: fetch setup check check-source check-platform build clean
 
 fetch:
 	@if test -e External; then \
@@ -86,3 +86,35 @@ check: check-source check-platform
 	clang --version
 	ld.lld --version
 	llvm-objcopy --version
+
+# Build one unmodified upstream test first, before expanding the test list.
+# ACT4 runs Sail to generate expected values, then embeds them in a self-check ELF.
+build: check
+	mkdir -p "$(BUILD_ROOT)/Tests/rv32i/I"
+	cp -p External/tests/rv32i/I/I-addi-00.S "$(BUILD_ROOT)/Tests/rv32i/I/"
+	cp -a External/tests/env "$(BUILD_ROOT)/Tests/"
+	act test_config.yaml --test-dir "$(BUILD_ROOT)/Tests" --coverpoint-dir External/coverpoints \
+		--workdir "$(BUILD_ROOT)/act" --extensions I --fast --jobs $(JOBS)
+	$(MAKE) "$(BUILD_ROOT)/I-addi-00/code.hex" "$(BUILD_ROOT)/I-addi-00/cfg.xml"
+
+ACT_ELF := $(BUILD_ROOT)/act/rsd-rv32i/elfs/rv32i/I/I-addi-00.elf
+$(BUILD_ROOT)/I-addi-00/code.hex: $(ACT_ELF) Makefile
+	mkdir -p "$(@D)"
+	llvm-objcopy -O binary --only-section=.text.reset --only-section=.text.init \
+		--only-section=.text.rvtest --only-section=.text.rvmodel \
+		--gap-fill=0 --pad-to=0x10000 "$<" "$(@D)/rom.bin"
+	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq 61440
+	llvm-objcopy -O binary --only-section=.data \
+		--gap-fill=0 --pad-to=0x80040000 "$<" "$(@D)/ram.bin"
+	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq 262144
+	dd if=/dev/zero of="$(@D)/code.bin" bs=4096 count=1 status=none
+	cat "$(@D)/rom.bin" "$(@D)/ram.bin" >> "$(@D)/code.bin"
+	$(PYTHON) ../../../../Tools/TestDriver/BinaryToHex.py "$(@D)/code.bin" "$@.tmp"
+	mv "$@.tmp" "$@"
+
+$(BUILD_ROOT)/I-addi-00/cfg.xml: cfg.xml
+	mkdir -p "$(@D)"
+	cp "$<" "$@"
+
+clean:
+	rm -rf "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(BUILD_ROOT)/I-addi-00"

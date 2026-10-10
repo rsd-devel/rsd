@@ -80,6 +80,7 @@ In the Ubuntu 26.04 dev container, explicitly fetch the source and install its d
 make -f Makefile.verilator.mk test-fetch-riscv-arch-test
 make -f Makefile.verilator.mk test-setup-riscv-arch-test
 make -f Makefile.verilator.mk test-check-riscv-arch-test
+make -f Makefile.verilator.mk test-riscv-arch-test-I-addi-00
 ```
 
 The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
@@ -90,8 +91,22 @@ without building a compiler or installing mise/uv. Fetch and setup need network
 access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
-This prepares the environment; the RSD configuration and execution adapter
-will be added separately. Existing legacy compliance tests remain available.
+
+The first RSD case is the unmodified upstream `rv32i/I/I-addi-00.S` (378 result
+checks). `test-build-riscv-arch-test` builds it without downloads: ACT4 compiles
+a signature ELF, runs Sail to obtain expected values, and embeds those values
+in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
+and termination; the HEX includes ROM and RAM contents. Generated tests and
+simulation output stay under `riscv-arch-test/Build/`.
+
+`test-riscv-arch-test` currently aliases this single case. It runs through the
+normal TestDriver: the test must reach the goal PC with `a0 = 0`, within the
+instruction and no-commit limits. ACT4 prints failures, including the test
+number, instruction, approximate PC, actual value and expected value, to
+`Build/I-addi-00/serial.out.txt`. This initial RV32I subset runs in M-mode;
+FP, interrupts and privileged tests are not yet ported. It is not included
+in `test-all` yet. Existing legacy compliance tests remain available.
+`test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.
 
 ## Legacy riscv-compliance
 

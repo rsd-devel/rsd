@@ -1,0 +1,8 @@
+<Config>
+  <MaxTestInstructions>6000</MaxTestInstructions>
+  <MaxNoCommitCycles>500</MaxNoCommitCycles>
+  <RegisterValues>
+    <R10>0</R10>
+    <PC>0x1004</PC>
+  </RegisterValues>
+</Config>
