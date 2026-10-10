@@ -139,6 +139,15 @@ test-clean-Zephyr:
 test-env-clean-Zephyr:
 	(cd Verification/TestCode/Zephyr; make env-clean)
 
+# ACT4 source checkout and isolated dependency setup.
+.PHONY: test-fetch-riscv-arch-test test-setup-riscv-arch-test test-check-riscv-arch-test
+test-fetch-riscv-arch-test:
+	$(MAKE) -C Verification/TestCode/riscv-arch-test fetch
+test-setup-riscv-arch-test:
+	$(MAKE) -C Verification/TestCode/riscv-arch-test setup
+test-check-riscv-arch-test:
+	$(MAKE) -C Verification/TestCode/riscv-arch-test check
+
 # Legacy riscv-compliance RV32I suite.
 .PHONY: test-fetch-riscv-compliance test-build-riscv-compliance test-clean-riscv-compliance test-riscv-compliance
 test-fetch-riscv-compliance:

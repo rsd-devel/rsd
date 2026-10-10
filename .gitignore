@@ -35,6 +35,10 @@
 /Processor/Src/Verification/TestCode/Zephyr/*
 !/Processor/Src/Verification/TestCode/Zephyr/Makefile
 
+# ACT4 source checkout, isolated dependencies and build artifacts.
+/Processor/Src/Verification/TestCode/riscv-arch-test/External/
+/Processor/Src/Verification/TestCode/riscv-arch-test/Build/
+
 # Downloaded legacy compliance sources and generated case directories.
 /Processor/Src/Verification/TestCode/riscv-compliance/External/
 /Processor/Src/Verification/TestCode/riscv-compliance/I-*/

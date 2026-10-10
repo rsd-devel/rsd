@@ -1,6 +1,6 @@
 # Test programs
 
-Run the commands below from `Processor/Src` after building the simulator.
+Run the commands below from `Processor/Src`. Build the simulator before running tests.
 
 ```sh
 make -j"$(nproc)" -f Makefile.verilator.mk test-build-basic
@@ -71,6 +71,27 @@ no-commit waits are limited to 500 cycles.
 `test-clean-Dhrystone` preserves the checkout and test inputs;
 clean before changing compilers or build flags. The contest variant is outside
 this migration.
+
+## riscv-arch-test (ACT4)
+
+In the Ubuntu 26.04 dev container, explicitly fetch the source and install its dependencies:
+
+```sh
+make -f Makefile.verilator.mk test-fetch-riscv-arch-test
+make -f Makefile.verilator.mk test-setup-riscv-arch-test
+make -f Makefile.verilator.mk test-check-riscv-arch-test
+```
+
+The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
+and Sail release. Sources are checked out under `riscv-arch-test/External/`;
+its Python/Ruby environments, download caches, and checksum-verified Sail binary stay
+under `riscv-arch-test/Build/`. Setup uses Ubuntu's Python, Ruby and LLVM 22
+without building a compiler or installing mise/uv. Fetch and setup need network
+access; the check target uses the installed tools without downloads.
+UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
+the container because its read-only exclusive locks fail on NFS.
+This prepares the environment; the RSD configuration and execution adapter
+will be added separately. Existing legacy compliance tests remain available.
 
 ## Legacy riscv-compliance
 
