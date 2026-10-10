@@ -150,6 +150,9 @@ module CSR_Unit(
                         CSR_NUM_SEPC:       rv = csrReg.sepc;
                         CSR_NUM_SCAUSE:     rv = csrReg.scause;
                         CSR_NUM_STVAL:      rv = csrReg.stval;
+                        // satp is fixed to Bare (zero); writes are ignored because no
+                        // page-table translation is implemented. Revisit its state and
+                        // supported MODE/ASID/PPN values when adding paging support.
                         CSR_NUM_SCOUNTEREN, CSR_NUM_SATP: rv = '0;
 
                         CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
@@ -169,9 +172,14 @@ module CSR_Unit(
         endcase 
 
         // Check CSR existence, privilege and writes to read-only CSRs.
+        // TVM lets M-mode software intercept S-mode virtual-memory management.
+        // TVM is writable here, so S-mode satp reads/writes must trap when it
+        // is set, even with Bare-only support. Keep this check if paging is added.
         port.csrUnitTriggerExcpt = (port.csrRE || port.csrWE) &&
             (!csrImplemented || privilegeLevel < port.csrNumber[9:8] ||
-             (port.csrWE && port.csrNumber[11:10] == 2'b11));
+             (port.csrWE && port.csrNumber[11:10] == 2'b11) ||
+             (privilegeLevel == PRIVILEGE_LEVEL_S && csrReg.mstatus.TVM &&
+              port.csrNumber == CSR_NUM_SATP));
 
         // Writeback 
         csrNext = csrReg;
