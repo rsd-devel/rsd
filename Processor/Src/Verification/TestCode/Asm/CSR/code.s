@@ -19,6 +19,43 @@
     bnez t3, fail
     .endm
 
+    .macro CHECK_READ_ONLY_CSR csr
+    # Zero-source SET/CLEAR instructions only read the CSR, even with rd = x0.
+    EXPECT_ZERO_CSR \csr
+    csrrc t3, \csr, zero
+    bnez t3, fail
+    csrrsi t3, \csr, 0
+    bnez t3, fail
+    csrrci t3, \csr, 0
+    bnez t3, fail
+    csrrs zero, \csr, zero
+    csrrc zero, \csr, zero
+    csrrsi zero, \csr, 0
+    csrrci zero, \csr, 0
+
+    # All six CSR forms must trap when they attempt a write.
+    EXPECT_ILLEGAL_CSR csrrw a2, \csr, a3
+    EXPECT_ILLEGAL_CSR csrrs a2, \csr, a3
+    EXPECT_ILLEGAL_CSR csrrc a2, \csr, a3
+    EXPECT_ILLEGAL_CSR csrrwi a2, \csr, 1
+    EXPECT_ILLEGAL_CSR csrrsi a2, \csr, 1
+    EXPECT_ILLEGAL_CSR csrrci a2, \csr, 1
+
+    # WRITE always writes, including zero and a discarded result.
+    EXPECT_ILLEGAL_CSR csrrw a2, \csr, zero
+    EXPECT_ILLEGAL_CSR csrrwi a2, \csr, 0
+    EXPECT_ILLEGAL_CSR csrrw zero, \csr, zero
+    EXPECT_ILLEGAL_CSR csrrwi zero, \csr, 0
+
+    # A zero value in a nonzero register still requests a SET/CLEAR write.
+    EXPECT_ILLEGAL_CSR csrrs a2, \csr, t1
+    EXPECT_ILLEGAL_CSR csrrc a2, \csr, t1
+    EXPECT_ILLEGAL_CSR csrrs zero, \csr, t1
+    EXPECT_ILLEGAL_CSR csrrc zero, \csr, t1
+    EXPECT_ILLEGAL_CSR csrrsi zero, \csr, 1
+    EXPECT_ILLEGAL_CSR csrrci zero, \csr, 1
+    .endm
+
 main:
 
     li a1, 0x00
@@ -84,9 +121,17 @@ main:
     EXPECT_ILLEGAL_CSR csrr a2, fflags
     EXPECT_ILLEGAL_CSR csrr a2, frm
     EXPECT_ILLEGAL_CSR csrr a2, fcsr
-    li t3, 16
+#endif
+
+    li t1, 0
+    CHECK_READ_ONLY_CSR mvendorid
+    CHECK_READ_ONLY_CSR marchid
+    CHECK_READ_ONLY_CSR mimpid
+    CHECK_READ_ONLY_CSR mhartid
+#ifndef __riscv_flen
+    li t3, 80
 #else
-    li t3, 13
+    li t3, 77
 #endif
     bne a4, t3, fail
 

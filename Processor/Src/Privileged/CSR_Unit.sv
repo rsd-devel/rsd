@@ -168,9 +168,10 @@ module CSR_Unit(
             end
         endcase 
 
-        // Check CSR existence and read/write privilege.
-        port.csrUnitTriggerExcpt = port.csrWE &&
-            (!csrImplemented || privilegeLevel < port.csrNumber[9:8]);
+        // Check CSR existence, privilege and writes to read-only CSRs.
+        port.csrUnitTriggerExcpt = (port.csrRE || port.csrWE) &&
+            (!csrImplemented || privilegeLevel < port.csrNumber[9:8] ||
+             (port.csrWE && port.csrNumber[11:10] == 2'b11));
 
         // Writeback 
         csrNext = csrReg;
@@ -426,8 +427,8 @@ module CSR_Unit(
     `RSD_ASSERT_CLK(
         port.clk, 
         !(
-            (port.triggerExcpt && port.csrWE) || 
-            (port.triggerInterrupt && port.csrWE) || 
+            (port.triggerExcpt && (port.csrRE || port.csrWE)) ||
+            (port.triggerInterrupt && (port.csrRE || port.csrWE)) ||
             (port.triggerExcpt && port.triggerInterrupt)
         ),
         "CSR update, trap or interrupt are performed at the same cycle"
