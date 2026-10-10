@@ -12,6 +12,7 @@ Invocations from outside the checkout use the repository directory.
 Changes under .devcontainer/ automatically recreate this script's container,
 using Docker's build cache. --rebuild forces recreation with the same cache.
 The container is separate from containers opened by VS Code.
+Startup state is stored in Processor/Tools/DevContainer/State/<Docker daemon ID>/.
 
 Host requirements: Bash, Python 3, flock, Docker, and the Dev Container CLI.
 Examples:
@@ -62,10 +63,16 @@ except ValueError:
     print('.')
 PYCWD
 )
-state_dir="$repo_root/Work/DevContainer"
+# NFS shares the checkout, but each Docker daemon has its own containers.
+# Track each daemon separately so another machine cannot consume its changes.
+daemon_id=$(docker info --format '{{.ID}}')
+case "$daemon_id" in
+    ''|*[!a-zA-Z0-9:_-]*) printf 'Docker daemon did not return a valid ID.\n' >&2; exit 1 ;;
+esac
+state_dir="$repo_root/Processor/Tools/DevContainer/State/$daemon_id"
 mkdir -p "$state_dir"
 
-# Serialize startup so concurrent invocations cannot race when recreating it.
+# Serialize startup for this daemon without blocking other machines on NFS.
 exec 9>"$state_dir/start.lock"
 flock 9
 

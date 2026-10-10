@@ -10,6 +10,18 @@ import unittest
 
 
 LAUNCHER = Path(__file__).resolve().parents[1] / 'DevContainer.sh'
+FAKE_DOCKER = '''#!/usr/bin/env python3
+import os
+import sys
+
+assert sys.argv[1:] == ['info', '--format', '{{.ID}}']
+status = int(os.environ.get('FAKE_DOCKER_STATUS', '0'))
+if status:
+    print('Docker daemon unavailable', file=sys.stderr)
+    sys.exit(status)
+print(os.environ['FAKE_DOCKER_ID'])
+'''
+
 FAKE_CLI = '''#!/usr/bin/env python3
 import json
 import os
@@ -78,15 +90,16 @@ class DevContainerLauncherTests(unittest.TestCase):
         self.bin.mkdir()
         (self.bin / 'devcontainer').write_text(FAKE_CLI)
         (self.bin / 'devcontainer').chmod(0o755)
-        (self.bin / 'docker').write_text('#!/bin/sh\nexit 0\n')
+        (self.bin / 'docker').write_text(FAKE_DOCKER)
         (self.bin / 'docker').chmod(0o755)
         self.calls_path = self.root / 'calls.jsonl'
         self.env = os.environ.copy()
         self.env.update(PATH=str(self.bin) + os.pathsep + self.env['PATH'],
                         FAKE_CALLS=str(self.calls_path),
+                        FAKE_DOCKER_ID='daemon-a',
                         FAKE_REMOTE_WORKSPACE=str(self.remote),
                         FAKE_REMOTE_BIN=str(self.remote_bin))
-        self.state = self.root / 'Work/DevContainer/fingerprint'
+        self.state = self.implementation.parent / 'State/daemon-a/fingerprint'
 
     def run_launcher(self, *args, input='', cwd='/tmp', launcher=None):
         return subprocess.run([str(launcher or self.launcher), *args], cwd=cwd, env=self.env,
@@ -100,6 +113,7 @@ class DevContainerLauncherTests(unittest.TestCase):
     def test_shell_default_and_container_reuse(self):
         result = self.run_launcher()
         self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.root / 'Work').exists())
         self.assertEqual(json.loads(result.stdout)['command'], ['bash', '-l'])
         first_up, first_exec = self.calls()
         self.assertIn('--remove-existing-container', first_up)
@@ -181,6 +195,64 @@ class DevContainerLauncherTests(unittest.TestCase):
         result = self.run_launcher('--rebuild', 'true')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--remove-existing-container', self.calls()[-2])
+
+    def test_shared_checkout_tracks_each_daemon(self):
+        for daemon in ('daemon-a', 'daemon-b'):
+            with self.subTest(daemon=daemon):
+                self.env['FAKE_DOCKER_ID'] = daemon
+                result = self.run_launcher('true')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('--remove-existing-container', self.calls()[-2])
+                directory = self.implementation.parent / 'State' / daemon
+                self.assertTrue((directory / 'fingerprint').is_file())
+                self.assertTrue((directory / 'start.lock').is_file())
+                self.assertEqual(self.run_launcher('true').returncode, 0)
+                self.assertNotIn('--remove-existing-container', self.calls()[-2])
+
+    def test_each_daemon_detects_changes_after_another_daemon_rebuilds(self):
+        for daemon in ('daemon-a', 'daemon-b'):
+            self.env['FAKE_DOCKER_ID'] = daemon
+            self.assertEqual(self.run_launcher('true').returncode, 0)
+        previous = self.state.read_bytes()
+        dockerfile = self.config / 'Dockerfile'
+        dockerfile.write_text(dockerfile.read_text() + '# Updated configuration\n')
+        for daemon in ('daemon-a', 'daemon-b'):
+            with self.subTest(daemon=daemon):
+                self.env['FAKE_DOCKER_ID'] = daemon
+                result = self.run_launcher('true')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('--remove-existing-container', self.calls()[-2])
+                if daemon == 'daemon-a':
+                    other = self.implementation.parent / 'State/daemon-b/fingerprint'
+                    self.assertEqual(other.read_bytes(), previous)
+        self.assertEqual(self.run_launcher('true').returncode, 0)
+        self.assertNotIn('--remove-existing-container', self.calls()[-2])
+
+    def test_old_shared_state_is_not_used(self):
+        self.assertEqual(self.run_launcher('true').returncode, 0)
+        legacy = self.root / 'Work/DevContainer'
+        legacy.mkdir(parents=True)
+        (legacy / 'fingerprint').write_bytes(self.state.read_bytes())
+        self.env['FAKE_DOCKER_ID'] = 'daemon-b'
+        self.assertEqual(self.run_launcher('true').returncode, 0)
+        self.assertIn('--remove-existing-container', self.calls()[-2])
+
+    def test_daemon_lookup_failure_does_not_start_container(self):
+        self.env['FAKE_DOCKER_STATUS'] = '7'
+        result = self.run_launcher('true')
+        self.assertEqual(result.returncode, 7, result.stderr)
+        self.assertEqual(self.calls(), [])
+        self.assertFalse((self.implementation.parent / 'State').exists())
+
+    def test_missing_or_invalid_daemon_id_does_not_start_container(self):
+        for daemon in ('', '../outside'):
+            with self.subTest(daemon=daemon):
+                self.env['FAKE_DOCKER_ID'] = daemon
+                result = self.run_launcher('true')
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('Docker daemon did not return a valid ID', result.stderr)
+                self.assertEqual(self.calls(), [])
+                self.assertFalse((self.implementation.parent / 'State').exists())
 
     def test_arguments_stdin_and_exit_status_are_preserved(self):
         self.env['FAKE_EXEC_STATUS'] = '7'

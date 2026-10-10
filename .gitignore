@@ -99,6 +99,9 @@ synlog.tcl
 .ropeproject
 !requirements.txt
 
+# Dev container startup state, separated by Docker daemon.
+/Processor/Tools/DevContainer/State/
+
 # other files
 /Work
 
