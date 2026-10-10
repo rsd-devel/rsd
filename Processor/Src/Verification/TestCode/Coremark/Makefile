@@ -6,8 +6,8 @@ VARIANTS = Coremark Coremark_for_RV32I
 # The same Makefile is used inside each output directory.
 ifneq ($(COREMARK_ARCH),)
 include ../../Makefile.inc
-ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
-LIBRARY_ARCHFLAGS = $(ARCHFLAGS)
+ARCHFLAGS = -march=$(COREMARK_ARCH)_zicsr_zifencei -mabi=ilp32
+LIBRARY_ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
 # This integer-only port needs GCC helpers, but no libc or math library.
 LIBGCC = -lgcc
 DUMMY_ROM = dummy_rom.bin

@@ -5,8 +5,8 @@ DHRYSTONE_REVISION = 0ddff533cc9052c524990d5ace4560372053314b
 # The same Makefile is used inside the output directory.
 ifeq ($(DHRYSTONE_BUILD),1)
 include ../../Makefile.inc
-ARCHFLAGS = -march=rv32im -mabi=ilp32
-LIBRARY_ARCHFLAGS = $(ARCHFLAGS)
+ARCHFLAGS = -march=rv32im_zicsr_zifencei -mabi=ilp32
+LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
 LIBGCC = -lgcc
 # Use picolibc's strcpy/strcmp; the port supplies allocation, time and output.
 LIBC = -lc

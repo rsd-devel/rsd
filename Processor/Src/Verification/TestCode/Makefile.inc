@@ -50,11 +50,13 @@ STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
 #
 # コンパイルオプションとリンクオプション
 #
+# Newer toolchains require explicit Zicsr/Zifencei for CSR and fence.i
+# instructions, which were previously included in the base I extension.
 ARCHFLAGS = \
-	-march=$(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima) \
+	-march=$(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima)_zicsr_zifencei \
 	-mabi=ilp32 \
 
-# Ubuntu 22.04's GCC has no rv32imaf/ilp32 multilib. Link against RV32IM
+# Ubuntu's GCC packages have no rv32imaf/ilp32 multilib. Link against RV32IM
 # libraries, which use the same soft-float ABI and require no C/D extensions.
 LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
 

@@ -5,8 +5,8 @@ SUITE = External/riscv-test-suite/rv32i
 TESTS = $(basename $(notdir $(wildcard $(SUITE)/src/*.S)))
 
 include ../Makefile.inc
-ARCHFLAGS = -march=rv32i -mabi=ilp32
-LIBRARY_ARCHFLAGS = $(ARCHFLAGS)
+ARCHFLAGS = -march=rv32i_zicsr_zifencei -mabi=ilp32
+LIBRARY_ARCHFLAGS = -march=rv32i -mabi=ilp32
 DUMMY_ROM = dummy_rom.bin
 # The simulator loads the first 64 KiB into ROM, then 32 KiB into RAM.
 BIN_SIZE = 0x18000
