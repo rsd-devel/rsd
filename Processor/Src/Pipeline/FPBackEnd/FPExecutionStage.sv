@@ -177,7 +177,8 @@ module FPExecutionStage(
             fmaMulLHS[i] = fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data;
             fmaMulRHS[i] = fpuCode[i] inside {FC_ADD, FC_SUB} ? 32'h3f800000 : fuOpB[i].data;
             if(fpuCode[i] == FC_MUL) begin
-                fmaAddend[i] = 32'h00000000;
+                // A same-sign zero addend preserves the sign of an exact product.
+                fmaAddend[i] = {fuOpA[i].data[31] ^ fuOpB[i].data[31], 31'b0};
             end
             else if (fpuCode[i] == FC_ADD) begin
                 fmaAddend[i] = fuOpB[i].data;

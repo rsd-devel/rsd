@@ -141,7 +141,7 @@ The current RTL passes all 46 integer/privileged cases, including `mepc` bit 1 r
 for trap values; the ACT4 and Sail configurations match this choice.
 Any case failure makes the command fail after collecting all results.
 The F suite currently has 43 passes and 238 failures. The first mismatch is
-`fflags` in 206 files and the numerical result in 32. Arithmetic exception flags,
+`fflags` in 209 files and the numerical result in 29. Arithmetic exception flags,
 rounding modes and signed zero need RTL work; these failures remain visible.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.

@@ -46,6 +46,26 @@ main:
     csrw fcsr, zero
     csrr t2, fcsr
     bnez t2, fail
+
+    # Multiplication preserves the XOR of operand signs even for exact zero.
+    fmv.w.x ft0, zero
+    li t0, 0xbf800000 # -1.0
+    fmv.w.x ft1, t0
+    li t1, 0x80000000 # -0.0
+    fmul.s ft2, ft0, ft1
+    fmv.x.w t2, ft2
+    bne t2, t1, fail
+    fmul.s ft2, ft1, ft0
+    fmv.x.w t2, ft2
+    bne t2, t1, fail
+    fmv.w.x ft0, t1
+    fmul.s ft2, ft0, ft1 # -0.0 * -1.0 = +0.0
+    fmv.x.w t2, ft2
+    bnez t2, fail
+    fmv.w.x ft0, zero
+    fmv.w.x ft1, zero
+    fmv.w.x ft2, zero
+
     li t1, 0
     li t2, 0
 
