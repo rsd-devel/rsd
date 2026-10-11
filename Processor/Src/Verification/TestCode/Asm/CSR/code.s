@@ -284,6 +284,9 @@ trap_vector:
     bne t3, a6, fail
     csrr t3, mepc
     bne t3, t0, fail
+    # CSR faults and ECALL report a zero trap value.
+    csrr t3, mtval
+    bnez t3, fail
     csrr t3, mstatus
     li t4, 0x1800
     and t3, t3, t4

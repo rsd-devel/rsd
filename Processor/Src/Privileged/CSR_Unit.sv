@@ -28,6 +28,7 @@ module CSR_Unit(
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
     AddrPath mepc;
+    AddrPath trapValue;
     CommitLaneCountPath regCommitNum;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
@@ -92,6 +93,11 @@ module CSR_Unit(
         // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
         // Revisit this mask if compressed instructions are supported.
         mepc = {csrReg.mepc[ADDR_WIDTH-1:2], 2'b0};
+
+        // Instruction encodings are optional trap values. Report zero for illegal
+        // instructions so the pipeline does not need to retain their bits.
+        trapValue = port.excptCause == EXEC_STATE_FAULT_INSN_ILLEGAL ?
+            '0 : port.excptCauseDataAddr;
 
         privilegeLevelNext = privilegeLevel;
 
@@ -262,7 +268,7 @@ module CSR_Unit(
                     csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
                     csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
                     csrNext.mepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
-                    csrNext.mtval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.mtval = trapValue;
                     csrNext.mcause.isInterrupt = FALSE;
                     csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 end
@@ -271,7 +277,7 @@ module CSR_Unit(
                     csrNext.mstatus.SIE = 0;    // グローバル割り込み許可を落とす
                     csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel); // トラップ前の特権レベル
                     csrNext.sepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
-                    csrNext.stval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.stval = trapValue;
                     csrNext.scause.isInterrupt = FALSE;
                     csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 end

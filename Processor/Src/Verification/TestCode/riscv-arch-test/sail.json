@@ -22,7 +22,7 @@
     "medeleg": {"delegatable_bits": {"len": 64, "value": "0x0"}},
     "mideleg": {"delegatable_bits": {"len": "xlen", "value": "0x0"}},
     "xtval_nonzero": {
-      "illegal_instruction": true,
+      "illegal_instruction": false,
       "virtual_instruction": true,
       "software_breakpoint": false,
       "hardware_breakpoint": true,

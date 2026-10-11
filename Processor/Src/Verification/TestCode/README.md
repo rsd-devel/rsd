@@ -130,9 +130,10 @@ ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. The exception case checks ECALL,
 EBREAK, illegal instructions, and misaligned branch/jump/load/store traps in M-mode.
-The current RTL passes the 39 integer cases but fails all six CSR cases on
-`mepc` bit 1 readback and the exception case on the illegal-CSR instruction's
-`mtval` value. The command reports these failures rather than excluding them.
+The current RTL passes all 46 cases, including `mepc` bit 1 readback and
+`mtval = 0` for illegal instructions. RSD does not retain instruction encodings
+for trap values; the ACT4 and Sail configurations match this choice.
+Any case failure makes the command fail after collecting all results.
 FP, interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the
 legacy default list, Zifencei is excluded. The preloaded exception handler uses
 writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
