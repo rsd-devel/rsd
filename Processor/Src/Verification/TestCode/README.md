@@ -81,7 +81,7 @@ make -f Makefile.verilator.mk test-fetch-riscv-arch-test
 make -f Makefile.verilator.mk test-setup-riscv-arch-test
 make -f Makefile.verilator.mk test-check-riscv-arch-test
 make -j"$(nproc)" -f Makefile.verilator.mk
-make -f Makefile.verilator.mk test-riscv-arch-test
+make -j16 -f Makefile.verilator.mk test-riscv-arch-test
 ```
 
 The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
@@ -102,9 +102,12 @@ simulation output stay under `riscv-arch-test/Build/`.
 The larger cases execute from RAM.
 
 `test-riscv-arch-test` runs all selected cases through the normal TestDriver,
-with a fresh simulator process for each. Failures do not stop the remaining
-cases; `Build/summary.log` lists every result, and any failure makes the command
-fail. Narrow the selection for debugging:
+with a fresh simulator process for each. Make's `-j` controls Verilator test
+parallelism (`-j16` runs up to 16 cases, `-j1` runs sequentially).
+Failures do not stop the remaining cases; each case has a `result.log`, and
+`Build/summary.log` lists all results in test-name order after execution finishes.
+Any failure makes the command fail. Vivado retains sequential execution.
+Narrow the selection for debugging:
 
 ```sh
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I

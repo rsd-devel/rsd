@@ -24,6 +24,7 @@ TEST_DRIVER ?= $(PYTHON) ../Tools/TestDriver/RunTest.py -o --simulator=verilator
 # Keep environments, downloaded tools and caches beside this test suite.
 BUILD_ROOT := $(CURDIR)/Build
 CASE_ROOT := $(BUILD_ROOT)/Cases
+ACT_RESULTS := $(sort $(addprefix $(CASE_ROOT)/,$(addsuffix /result.log,$(ACT_CASES))))
 ACT_ELF_ROOT := $(BUILD_ROOT)/act/rsd-rv32i/elfs
 SAIL_ARCHIVE = $(BUILD_ROOT)/sail-riscv-$(SAIL_VERSION)-Linux-$(SAIL_ARCH).tar.gz
 SAIL_BINARY = $(BUILD_ROOT)/sail/bin/sail_riscv_sim
@@ -42,7 +43,14 @@ export PATH := $(VIRTUAL_ENV)/bin:$(GEM_HOME)/bin:/usr/lib/llvm-22/bin:$(BUILD_R
 BUNDLE = "$(GEM_HOME)/bin/bundle" _$(BUNDLER_VERSION)_
 
 .DEFAULT_GOAL := build
-.PHONY: fetch setup check check-source check-platform check-selection build run clean
+.PHONY: fetch setup check check-source check-platform check-selection build run run-cases clean
+# Always rerun selected cases, even when their result files already exist.
+.PHONY: $(ACT_RESULTS)
+
+# Keep Vivado's elaboration workflow sequential.
+ifneq ($(findstring --simulator=vivadosim,$(TEST_DRIVER)),)
+.NOTPARALLEL:
+endif
 
 fetch:
 	@if test -e External; then \
@@ -145,20 +153,35 @@ $(CASE_ROOT)/%/serial.ref.txt: Makefile
 	mkdir -p "$(@D)"
 	printf '\nRVCP-SUMMARY: TEST PASSED - Test File "%s.S"\n\n' "$(notdir $*)" > "$@"
 
-# Run each case from Src for simulator-relative paths, with a fresh model process.
-# Preserve every result and report failure after all selected cases have run.
+# Finish the build before starting cases; inherit make's jobserver for execution.
 run: build
+	rm -f "$(BUILD_ROOT)/summary.log"
+	$(MAKE) --output-sync=target run-cases
+
+# Catch test failures so make runs every case without requiring -k.
+# Each worker writes its own result, keeping parallel output files independent.
+$(ACT_RESULTS): $(CASE_ROOT)/%/result.log:
 	@cd ../../..; \
-	summary="Verification/TestCode/riscv-arch-test/Build/summary.log"; \
+	test_dir="Verification/TestCode/riscv-arch-test/Build/Cases/$*"; \
+	rm -f "$$test_dir/result.log" || exit 1; \
+	if $(TEST_DRIVER) "$$test_dir"; then \
+		printf 'PASS %s\n' "$*" > "$$test_dir/result.log"; \
+	else \
+		status=$$?; \
+		printf 'FAIL %s (exit %s)\n' "$*" "$$status" > "$$test_dir/result.log"; \
+	fi
+
+# Aggregate in test-name order only after all workers have finished.
+run-cases: $(ACT_RESULTS)
+	@summary="$(BUILD_ROOT)/summary.log"; \
 	printf 'ACT4 results:\n' > "$$summary"; \
 	passed=0; failed=0; \
-	for test in $(ACT_CASES); do \
-		if $(TEST_DRIVER) "Verification/TestCode/riscv-arch-test/Build/Cases/$$test"; then \
-			printf 'PASS %s\n' "$$test" >> "$$summary"; \
+	for result in $(ACT_RESULTS); do \
+		IFS= read -r line < "$$result" || exit 1; \
+		printf '%s\n' "$$line" >> "$$summary"; \
+		if test "$${line%% *}" = PASS; then \
 			passed=$$((passed + 1)); \
 		else \
-			status=$$?; \
-			printf 'FAIL %s (exit %s)\n' "$$test" "$$status" >> "$$summary"; \
 			failed=$$((failed + 1)); \
 		fi; \
 	done; \
