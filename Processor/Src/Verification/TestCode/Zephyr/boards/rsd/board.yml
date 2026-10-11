@@ -1,0 +1,6 @@
+board:
+  name: rsd
+  full_name: RSD simulation
+  vendor: others
+  socs:
+    - name: rsd

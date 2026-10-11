@@ -32,6 +32,11 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     gcc-riscv64-unknown-elf \
     binutils-riscv64-unknown-elf \
     picolibc-riscv64-unknown-elf \
+    # Configure/build Zephyr and generate its device tree and lookup tables.
+    cmake \
+    ninja-build \
+    device-tree-compiler \
+    gperf \
     # Build ACT4 tests with the supported LLVM release from Ubuntu packages.
     # Clang compiles RISC-V code, LLD links it, and LLVM supplies binary tools.
     clang-22 \

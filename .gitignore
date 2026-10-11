@@ -32,8 +32,14 @@
 !/Processor/Src/Verification/TestCode/Dhrystone/Dhrystone/serial.ref.txt
 /Processor/Src/Verification/TestCode/Dhrystone/Dhrystone_for_Contest/
 
-/Processor/Src/Verification/TestCode/Zephyr/*
-!/Processor/Src/Verification/TestCode/Zephyr/Makefile
+# Public Zephyr checkout, dependencies and build artifacts.
+/Processor/Src/Verification/TestCode/Zephyr/External/
+/Processor/Src/Verification/TestCode/Zephyr/Build/
+# Retain ignored local artifacts from the previous environment-based tests.
+/Processor/Src/Verification/TestCode/Zephyr/HelloWorld/
+/Processor/Src/Verification/TestCode/Zephyr/Philosophers/
+/Processor/Src/Verification/TestCode/Zephyr/Synchronization/
+/Processor/Src/Verification/TestCode/Zephyr/Dhrystone/
 
 # ACT4 source checkout, isolated dependencies and build artifacts.
 /Processor/Src/Verification/TestCode/riscv-arch-test/External/

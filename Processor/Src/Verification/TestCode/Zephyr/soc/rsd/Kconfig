@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+config SOC_RSD
+	select RISCV
+	select RISCV_PRIVILEGED
+	select INCLUDE_RESET_VECTOR
+	select RISCV_SOC_HAS_GP_RELATIVE_ADDRESSING
+
+if SOC_RSD
+
+config NUM_IRQS
+	default 32
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
+
+endif

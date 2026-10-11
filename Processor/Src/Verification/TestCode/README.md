@@ -72,6 +72,26 @@ no-commit waits are limited to 500 cycles.
 clean before changing compilers or build flags. The contest variant is outside
 this migration.
 
+## Zephyr
+
+```sh
+make -f Makefile.verilator.mk test-fetch-Zephyr
+make -f Makefile.verilator.mk test-setup-Zephyr
+make -f Makefile.verilator.mk test-Zephyr
+```
+
+The [Zephyr Makefile](Zephyr/Makefile) pins public Zephyr 4.4.0 under
+`Zephyr/External/zephyr`; its Python environment and outputs stay under
+`Zephyr/Build/`. The first migrated case is the unmodified upstream Hello World
+sample, built with RSD's out-of-tree board/SoC, Ubuntu's RISC-V GCC and Zephyr's
+minimal libc. No `RSD_ENV`, west, SDK or external modules are needed.
+The dev container provides CMake, Ninja, gperf and the devicetree compiler.
+Fetch/setup require network access; builds and tests do not download anything.
+The test requires the exact UART greeting and runs to its instruction budget,
+with the normal no-commit limit. Philosophers, Synchronization and Zephyr
+Dhrystone are not included until their current versions are validated.
+`test-clean-Zephyr` preserves the downloaded source and Python environment.
+
 ## riscv-arch-test (ACT4)
 
 In the Ubuntu 26.04 dev container, explicitly fetch the source and install its dependencies:

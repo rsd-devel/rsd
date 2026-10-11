@@ -80,15 +80,6 @@ $(BASIC_C_TESTS): test-build-C
 test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-arch-test
 test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-arch-test
 
-# test-env-build は env 側のバイナリと hex を再生成する
-# test-build 時は，単純にこれをコピーする
-test-env-build: test-env-build-Zephyr
-	$(MAKE) test-build
-
-test-env-clean: test-env-clean-Zephyr
-	$(MAKE) test-clean
-	
-
 # テストで使用するスタートアップルーチン
 test-build-crt:
 	(cd Verification/TestCode; $(MAKE))
@@ -129,15 +120,18 @@ test-clean-Dhrystone:
 	$(MAKE) -C Verification/TestCode/Dhrystone clean
 test-Dhrystone: test-build-Dhrystone
 
-# Zephyr 関連
+# Public Zephyr source and isolated Python build dependencies.
+.PHONY: test-fetch-Zephyr test-setup-Zephyr test-check-Zephyr test-build-Zephyr test-clean-Zephyr
+test-fetch-Zephyr:
+	$(MAKE) -C Verification/TestCode/Zephyr fetch
+test-setup-Zephyr:
+	$(MAKE) -C Verification/TestCode/Zephyr setup
+test-check-Zephyr:
+	$(MAKE) -C Verification/TestCode/Zephyr check
 test-build-Zephyr:
-	(cd Verification/TestCode/Zephyr; make copy)
-test-env-build-Zephyr:
-	(cd Verification/TestCode/Zephyr; make)
+	$(MAKE) -C Verification/TestCode/Zephyr build
 test-clean-Zephyr:
-	(cd Verification/TestCode/Zephyr; make clean)
-test-env-clean-Zephyr:
-	(cd Verification/TestCode/Zephyr; make env-clean)
+	$(MAKE) -C Verification/TestCode/Zephyr clean
 
 # ACT4 source checkout and isolated dependency setup.
 .PHONY: test-fetch-riscv-arch-test test-setup-riscv-arch-test test-check-riscv-arch-test
@@ -258,20 +252,14 @@ test-DCache:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
 
 
-# Zephyr のテストターゲット
-# test-Zephyr-* の形でテストタスクを作る
-ZEPHYR_TESTS =  \
-	HelloWorld \
-	Philosophers \
-	Synchronization \
-	Dhrystone \
-
+# Start the current Zephyr port with its upstream Hello World sample.
+ZEPHYR_TESTS = HelloWorld
 ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test-Zephyr-%)
 
-# Zephyr keeps running: require the full serial reference, allowing later output.
-.PHONY: $(ZEPHYR_TEST_TARGETS)
-$(ZEPHYR_TEST_TARGETS):
-	@$(RUN_TEST_OMIT_MSG) --serial-prefix Verification/TestCode/Zephyr/$(patsubst test-Zephyr-%,%,$@)
+# Zephyr remains in its kernel idle loop after main returns.
+.PHONY: test-Zephyr $(ZEPHYR_TEST_TARGETS)
+$(ZEPHYR_TEST_TARGETS): test-build-Zephyr
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/$(patsubst test-Zephyr-%,%,$@)
 
 test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test-Zephyr) ===="
