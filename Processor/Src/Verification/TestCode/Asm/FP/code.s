@@ -62,6 +62,62 @@ main:
     fmul.s ft2, ft0, ft1 # -0.0 * -1.0 = +0.0
     fmv.x.w t2, ft2
     bnez t2, fail
+
+    # Zero times infinity produces a canonical NaN and sets NV.
+    fmv.w.x ft0, zero
+    li t0, 0x7f800000 # +infinity
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    csrr t2, fflags
+    li t1, 0x10 # NV
+    bne t2, t1, fail
+    fmv.x.w t2, ft2
+    li t1, 0x7fc00000 # canonical quiet NaN
+    bne t2, t1, fail
+
+    # A subsequent valid operation must preserve the accrued NV flag.
+    fadd.s ft2, ft1, ft1
+    csrr t2, fflags
+    li t1, 0x10
+    bne t2, t1, fail
+
+    # Infinity minus infinity is invalid even without a NaN input.
+    csrw fflags, zero
+    fsub.s ft2, ft1, ft1
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    # Signaling NaNs raise NV in the multiplicand and addend paths.
+    li t0, 0x7f800001
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    csrr t2, fflags
+    bne t2, t1, fail
+    csrw fflags, zero
+    fmadd.s ft2, ft1, ft1, ft0
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    # Quiet NaNs do not raise NV, including when the other inputs are infinite.
+    li t0, 0xffc00000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    fmadd.s ft2, ft0, ft1, ft1
+    fmadd.s ft2, ft1, ft0, ft1
+    csrr t2, fflags
+    bnez t2, fail
+
+    # An invalid product still raises NV when the FMA addend is a quiet NaN.
+    fmv.w.x ft2, zero
+    csrw fflags, zero
+    fmadd.s ft2, ft2, ft1, ft0
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    csrw fflags, zero
     fmv.w.x ft0, zero
     fmv.w.x ft1, zero
     fmv.w.x ft2, zero

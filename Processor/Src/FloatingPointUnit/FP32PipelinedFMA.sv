@@ -4,6 +4,7 @@ package FP32PipelinedFMATypes;
         logic [9:0] mulres_expo;
         logic result_is_inf;
         logic result_is_nan;
+        logic invalid;
         logic res_is_addend;
         logic mul_sign;
         logic prop_inf_sign;
@@ -17,6 +18,7 @@ package FP32PipelinedFMATypes;
         logic [9:0] mulres_expo;
         logic result_is_inf;
         logic result_is_nan;
+        logic invalid;
         logic res_is_addend;
         logic mul_sign;
         logic prop_inf_sign;
@@ -32,6 +34,7 @@ package FP32PipelinedFMATypes;
         logic res_is_negative;
         logic result_is_inf;
         logic result_is_nan;
+        logic invalid;
         logic res_is_zero;
         logic res_is_addend;
         logic result_sign;
@@ -50,6 +53,7 @@ package FP32PipelinedFMATypes;
         logic res_is_negative;
         logic result_is_inf;
         logic result_is_nan;
+        logic invalid;
         logic res_is_zero;
         logic res_is_addend;
         logic result_sign;
@@ -130,9 +134,13 @@ module FMAStage0(
     wire mullhs_is_nan  = mullhs_expo == 8'hff & mullhs_mant != 0;
     wire mulrhs_is_nan  = mulrhs_expo == 8'hff & mulrhs_mant != 0;
     wire addend_is_nan  = addend_expo == 8'hff & addend_mant != 0;
-    wire result_is_nan  = mullhs_is_nan | mulrhs_is_nan | addend_is_nan // One of the input is NaN
-                          | (mullhs_is_zero & mulrhs_is_inf) | (mullhs_is_inf & mulrhs_is_zero) // Inf * Zero
-                          | (is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf); // Inf - Inf
+    wire invalid_product = (mullhs_is_zero & mulrhs_is_inf) | (mullhs_is_inf & mulrhs_is_zero);
+    // A quiet NaN multiplicand does not make an infinite-sum operation invalid.
+    wire invalid_sum = is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf
+                       & ~mullhs_is_nan & ~mulrhs_is_nan;
+    wire invalid = (mullhs_is_nan & ~mullhs_mant[22]) | (mulrhs_is_nan & ~mulrhs_mant[22])
+                   | (addend_is_nan & ~addend_mant[22]) | invalid_product | invalid_sum;
+    wire result_is_nan = mullhs_is_nan | mulrhs_is_nan | addend_is_nan | invalid;
     //wire[31:0]      nan = mullhs_is_nan ? mullhs | 32'h00400000 : mulrhs_is_nan ? mulrhs | 32'h00400000 : addend_is_nan ? addend | 32'h00400000 : 32'hffc00000; // qNan
     wire[31:0]      nan = 32'h7fc00000;
 
@@ -154,7 +162,7 @@ module FMAStage0(
     assign mlhs    = { 51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0 }; // lhs_expo != 8'h00 is the hidden bit of a normalized number
     assign mrhs    = { 52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0 }; // rhs_expo != 8'h00 is the hidden bit of a normalized number
 
-    assign stg0Out = {mulres_expo, result_is_inf, result_is_nan,
+    assign stg0Out = {mulres_expo, result_is_inf, result_is_nan, invalid,
                       res_is_addend, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
 endmodule
 
@@ -188,7 +196,7 @@ module FMAStage2(
     wire       result_sign     = mul_sign ^ res_is_negative;
     
     assign stg2Out = {abs_fma_result, pipeReg.mulres_expo, res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, res_is_zero, pipeReg.res_is_addend, result_sign,
+                      pipeReg.result_is_nan, pipeReg.invalid, res_is_zero, pipeReg.res_is_addend, result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
@@ -217,7 +225,7 @@ module FMAStage3(
                                            : 51 - leading_zeros;   // (75 - addend_sticky(1bit)) - shifter_result(24bit)
     
     assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, pipeReg.res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.result_sign,
+                      pipeReg.result_is_nan, pipeReg.invalid, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
@@ -265,6 +273,6 @@ module FMAStage4(
                               res_is_addend ? addend :
                               res_is_zero   ? zero   : { result_sign, result_expo, result_mant };
     assign result = result_is_nan ? nan : final_result;
-    // Exception flags are not implemented yet.
-    assign fflags = '0;
+    // NV comes from operand classification; rounding flags remain unimplemented.
+    assign fflags = '{NV: pipeReg.invalid, default: 1'b0};
 endmodule
