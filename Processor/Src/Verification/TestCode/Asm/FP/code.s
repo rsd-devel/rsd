@@ -4,6 +4,20 @@
     .align    2
     .globl    main
     .type     main, @function
+
+    # Checks use ft2 as the result and t1/t2 as scratch registers.
+    .macro CHECK_FFLAGS expected
+    csrr t2, fflags
+    li t1, \expected
+    bne t2, t1, fail
+    .endm
+
+    .macro CHECK_FP_RESULT expected
+    fmv.x.w t2, ft2
+    li t1, \expected
+    bne t2, t1, fail
+    .endm
+
 main:
 
     # A full FCSR write updates both aliases and ignores reserved upper bits.
@@ -116,6 +130,92 @@ main:
     fmadd.s ft2, ft2, ft1, ft0
     csrr t2, fflags
     bne t2, t1, fail
+
+    # Division distinguishes finite/zero (DZ) from zero/zero (NV).
+    li t0, 0x3f800000 # 1.0
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x08
+    CHECK_FP_RESULT 0x7f800000
+    li t0, 0x80000000 # -0.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x08
+    CHECK_FP_RESULT 0xff800000
+    csrw fflags, zero
+    fdiv.s ft2, ft1, ft1
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
+
+    # Infinity/infinity is invalid; infinity/zero does not raise DZ.
+    li t0, 0x7f800000
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7f800000
+
+    # Signaling NaNs raise NV in either operand; quiet NaNs raise neither flag.
+    li t0, 0x7f800001
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    fmv.w.x ft1, t0
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    li t0, 0xffc00000 # Negative quiet NaN
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7fc00000
+
+    # Square root rejects negative numbers, but accepts -0 and quiet NaNs.
+    li t0, 0xbf800000 # -1.0
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
+
+    # A finite subnormal/zero accrues DZ beside the existing NV flag.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x18
+    CHECK_FP_RESULT 0x7f800000
+
+    li t0, 0x80000000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x80000000
+    li t0, 0xffc00000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7fc00000
+    li t0, 0xff800001 # Negative signaling NaN
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
 
     csrw fflags, zero
     fmv.w.x ft0, zero

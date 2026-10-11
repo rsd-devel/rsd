@@ -299,8 +299,7 @@ module FPExecutionStage(
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
                     dataOut[i].data = fpDivSqrtUnit.DataOut[i];
-                    //fflagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
-                    fflagsOut[i] = '0;
+                    fflagsOut[i] = fpDivSqrtUnit.FFlagsOut[i];
                 end 
                 default: begin /* FP_MOP_TYPE_OTHER */
                     dataOut[i].data = otherDataOut[i];

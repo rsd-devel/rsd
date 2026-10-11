@@ -115,6 +115,8 @@ typedef struct packed {
     logic res_is_zero;
     logic res_is_nan;
     logic res_is_inf;
+    logic invalid;
+    logic divide_by_zero;
     logic [31:0] nan;
     logic [26:0] rem;
     logic [25:0] quo;
