@@ -14,14 +14,28 @@ _rsd_goal:
 
 #define RVMODEL_DATA_SECTION
 
-// Reset already enters M-mode with interrupts disabled. This initial port
-// runs unprivileged tests only; do not enable STANDARD_SM_SUPPORTED yet.
+// Exception tests explicitly allocate a trap signature before including this file.
+#if defined(TRAP_SIGUPD_COUNT) && TRAP_SIGUPD_COUNT > 0
+#define STANDARD_SM_SUPPORTED
+// Install ACT4's M-mode trap handler without initializing unsupported HPM CSRs.
+#define RVMODEL_BOOT_TO_MMODE \
+  csrw mie, zero; \
+  csrw mip, zero; \
+  RVTEST_TRAP_PROLOG M; \
+  li t0, 0x1800; \
+  csrw mstatus, t0; \
+  csrw mepc, zero; \
+  csrw mtval, zero; \
+  csrw mcause, zero
+#else
+// Unexpected traps in integer/CSR instruction tests fail directly.
 #define RVMODEL_BOOT_TO_MMODE \
   la t0, rvmodel_halt_fail; \
   csrw mtvec, t0
+#endif
 
 // ACT4 calls these only after checking its embedded Sail-generated results.
-// Flush pending UART writes before reaching the TestDriver's goal PC.
+// Drain pending UART writes before entering the termination loop.
 #define RSD_ACT4_HALT(_STATUS) \
   li a0, _STATUS; \
   fence iorw, iorw; \
@@ -38,7 +52,12 @@ _rsd_goal:
   j 1b; \
 2:
 
-// Required framework definitions; interrupt tests are outside this first port.
+// RSD CLINT addresses used by ACT4; the trap prolog parks the timer.
+#define RVMODEL_MTIME_ADDRESS 0x40017ff8
+#define RVMODEL_MTIMECMP_ADDRESS 0x40014000
+#define RVMODEL_MSIP_ADDRESS 0x40010000
+
+// Interrupt tests are outside this synchronous exception subset.
 #define RVMODEL_INTERRUPT_LATENCY 10
 #define RVMODEL_TIMER_INT_SOON_DELAY 10000
 

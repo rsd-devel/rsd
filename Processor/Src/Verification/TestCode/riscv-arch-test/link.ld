@@ -26,6 +26,7 @@ SECTIONS {
     __stack_bottom = .;
     . += 0x1000;
     __stack_top = .;
+    _end = .;
   } > ram
   ASSERT(__stack_top <= 0x80010000, "ACT4 data/stack overlaps test code")
 

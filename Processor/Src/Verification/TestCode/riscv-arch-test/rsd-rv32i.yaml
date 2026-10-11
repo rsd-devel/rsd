@@ -1,14 +1,14 @@
-# This is the initial RV32I test subset, not a description of every RSD feature.
-# Sm provides XLEN/boot parameters. Its tests and standard trap setup are disabled.
+# This RV32I/CSR/M-mode exception subset does not describe every RSD feature.
 $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rsd-rv32i
-description: RSD RV32I integration tests in machine mode
+description: RSD RV32I and synchronous exception tests in machine mode
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: Zicsr, version: "= 2.0" }
-  - { name: Zifencei, version: "= 2.0" }
+  # FENCE.I remains outside this legacy-suite replacement. Trap code is preloaded
+  # and mtvec is writable, so these tests need no instruction-stream sync.
   - { name: Sm, version: "= 1.11.0" }
 params:
   MXLEN: 32
@@ -26,7 +26,8 @@ params:
   # The current decoder treats WFI as a NOP in every privilege mode.
   WFI_FINITE: true
   WFI_U_MODE: true
-  MEI_INTR_IMPL: true
+  # The simulation adapter cannot inject an external interrupt.
+  MEI_INTR_IMPL: false
   MSI_INTR_IMPL: true
   MTI_INTR_IMPL: true
   REPORT_VA_IN_MTVAL_ON_BREAKPOINT: false

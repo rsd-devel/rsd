@@ -5,5 +5,5 @@ ref_model_exe: sail_riscv_sim
 udb_config: rsd-rv32i.yaml
 linker_script: link.ld
 dut_include_dir: .
-# Start with unprivileged RV32I tests; privileged coverage needs a separate port.
-include_priv_tests: false
+# Include the selected machine-mode exception test.
+include_priv_tests: true

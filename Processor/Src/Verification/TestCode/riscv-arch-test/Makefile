@@ -11,14 +11,17 @@ SAIL_URL = https://github.com/riscv/sail-riscv/releases/download/$(SAIL_VERSION)
 PYTHON ?= python3
 JOBS ?= $(shell nproc)
 # Add extensions here as their RSD configuration and adapters are validated.
-ACT_AVAILABLE_EXTENSIONS := I
-ACT_EXTENSIONS ?= $(ACT_AVAILABLE_EXTENSIONS)
+ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm
+ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm
 comma := ,
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
-ACT_SOURCES := $(sort $(foreach extension,$(ACT_EXTENSION_LIST),$(wildcard External/tests/rv32i/$(extension)/*.S)))
+# Only the M-mode exception case is used; delegation cases need an S-mode port.
+ACT_GENERATED_SOURCES := Build/Generated/priv/ExceptionsSm/ExceptionsSm-00.S
+ACT_SOURCES := $(sort $(foreach extension,$(ACT_EXTENSION_LIST),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
+	$(if $(filter ExceptionsSm,$(ACT_EXTENSION_LIST)),$(ACT_GENERATED_SOURCES)))
 ACT_TESTS ?= $(basename $(notdir $(ACT_SOURCES)))
 ACT_SELECTED_SOURCES := $(foreach test,$(ACT_TESTS),$(filter %/$(test).S,$(ACT_SOURCES)))
-ACT_CASES := $(patsubst External/tests/%.S,%,$(ACT_SELECTED_SOURCES))
+ACT_CASES := $(patsubst External/tests/%.S,%,$(patsubst Build/Generated/%.S,%,$(ACT_SELECTED_SOURCES)))
 TEST_DRIVER ?= $(PYTHON) ../Tools/TestDriver/RunTest.py -o --simulator=verilator
 
 # Keep environments, downloaded tools and caches beside this test suite.
@@ -115,11 +118,16 @@ check-selection:
 	@test -z "$(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))" || \
 		{ echo "Unknown ACT_TESTS: $(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))." >&2; exit 1; }
 
-build: check-source check-selection check
+$(ACT_GENERATED_SOURCES): Makefile | check-source
+	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions ExceptionsSm --jobs $(JOBS)
+	@test -s "$@"
+	touch "$@"
+
+build: check-source check-selection check $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
 # Replace only the staged sources, so narrowing the filter cannot include old tests.
-	rm -rf "$(BUILD_ROOT)/Tests/rv32i"
+	rm -rf "$(BUILD_ROOT)/Tests"
 	@for source in $(ACT_SELECTED_SOURCES); do \
-		relative=$${source#External/tests/}; \
+		relative=$${source#External/tests/}; relative=$${relative#Build/Generated/}; \
 		mkdir -p "$(BUILD_ROOT)/Tests/$${relative%/*}" && \
 		cp -p "$$source" "$(BUILD_ROOT)/Tests/$$relative" || exit 1; \
 	done
@@ -144,9 +152,13 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 	$(PYTHON) ../../../../Tools/TestDriver/BinaryToHex.py "$(@D)/code.bin" "$@.tmp"
 	mv "$@.tmp" "$@"
 
-$(CASE_ROOT)/%/cfg.xml: cfg.xml
+$(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
-	cp "$<" "$@"
+# The exception case includes many trap-handler invocations.
+	@case "$*" in \
+		priv/ExceptionsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		*) cp "$<" "$@" ;; \
+	esac
 
 # Match the complete upstream self-check pass message, including its filename.
 $(CASE_ROOT)/%/serial.ref.txt: Makefile
@@ -190,4 +202,4 @@ run-cases: $(ACT_RESULTS)
 	test "$$failed" -eq 0
 
 clean:
-	rm -rf "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"
+	rm -rf "$(BUILD_ROOT)/Generated" "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"

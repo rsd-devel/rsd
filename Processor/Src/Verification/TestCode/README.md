@@ -93,7 +93,10 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The initial RSD suite uses the 39 unmodified upstream `rv32i/I/*.S` files.
+The default RSD suite runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
+files, six `rv32i/Zicsr/*.S` files and the generated M-mode `ExceptionsSm-00.S`.
+The pinned `testgen` generates exception sources under `Build/Generated/`;
+only the M-mode case is selected, without its S/U-mode delegation variants.
 `test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
@@ -111,20 +114,29 @@ Narrow the selection for debugging:
 
 ```sh
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
 
-Only the selected cases are built and run; unknown selections fail. Currently,
-only the I extension is ported. PC-based termination is disabled because the LED
+Only the selected cases are built and run; unknown selections fail.
+PC-based termination is disabled because the LED
 exposes only the low 16 bits. Each case runs to its instruction budget, then
 TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filename.
 The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
+Integer/CSR cases have a 20,000-instruction budget, and the exception case has
+100,000 instructions for trap-handler work; all use a 500-cycle no-commit limit.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
-`Build/Cases/rv32i/I/<test>/serial.out.txt`. This initial RV32I subset runs in M-mode;
-FP, interrupts and privileged tests are not yet ported. It is not included
-in `test-all` yet. Existing legacy compliance tests remain available.
+`Build/Cases/<suite>/<test>/serial.out.txt`. The exception case checks ECALL,
+EBREAK, illegal instructions, and misaligned branch/jump/load/store traps in M-mode.
+The current RTL passes the 39 integer cases but fails all six CSR cases on
+`mepc` bit 1 readback and the exception case on the illegal-CSR instruction's
+`mtval` value. The command reports these failures rather than excluding them.
+FP, interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the
+legacy default list, Zifencei is excluded. The preloaded exception handler uses
+writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
+It is not included in `test-all` yet. Existing legacy compliance tests remain available.
 `test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.
 
 ## Legacy riscv-compliance

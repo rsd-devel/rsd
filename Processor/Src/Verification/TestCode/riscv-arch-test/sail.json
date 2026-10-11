@@ -1,5 +1,5 @@
 // Sail 0.15 requires a complete configuration, including unused extensions.
-// This models the initial RV32I subset; CLINT/SIG are reference-only devices.
+// This models RV32I/CSR/M-mode exceptions; CLINT/SIG are reference-only devices.
 {
   "base": {
     "xlen": 32,
@@ -67,7 +67,7 @@
     },
     "misaligned": {
       "exceptions": {
-        "load_store": {"None": null},
+        "load_store": {"Some": "AlignmentException"},
         "vector": {"None": null},
         "amo": {"None": null},
         "lrsc": {"Some": "AccessFault"}
@@ -178,7 +178,7 @@
     "interrupts": {
       "machine": {
         "software": {"supported": true},
-        "external": {"supported": true},
+        "external": {"supported": false},
         "timer": {"supported": true}
       }
     },
@@ -251,7 +251,7 @@
     "Zicond": {"supported": false},
     "Zicntr": {"supported": false},
     "Zicsr": {"supported": true},
-    "Zifencei": {"supported": true},
+    "Zifencei": {"supported": false},
     "Zihintntl": {"supported": false},
     "Zihintpause": {"supported": false},
     "Zihpm": {"supported": false},
