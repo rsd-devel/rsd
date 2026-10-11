@@ -283,6 +283,7 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Memory/MemoryMapTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Cache/CacheSystemTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Memory/MemoryTypes.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/FloatingPointUnit/FPUTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Decoder/OpFormat.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Decoder/MicroOp.sv"] \
  [file normalize "${origin_dir}/../../../../Src/RegisterFile/BypassTypes.sv"] \
@@ -451,6 +452,11 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/Memory/MemoryTypes.sv"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
+set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
+
+set file "$origin_dir/../../../../Src/FloatingPointUnit/FPUTypes.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"

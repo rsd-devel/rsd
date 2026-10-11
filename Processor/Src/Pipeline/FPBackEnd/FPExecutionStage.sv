@@ -137,7 +137,7 @@ module FPExecutionStage(
 
     FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
-    FFlags_Path   fmaFFlagsOut [ FP_ISSUE_WIDTH ];
+    FPUTypes::FFlags fmaFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   otherFFlagsOut [ FP_ISSUE_WIDTH ];
 
 
@@ -154,8 +154,8 @@ module FPExecutionStage(
             .mulrhs (fmaMulRHS[i]),
             .addend (fmaAddend[i]),
             //.rm (rm[i]),
-            .result ( fmaDataOut[i] )
-            //.fflags ( fmaFFlagsOut[i])
+            .result ( fmaDataOut[i] ),
+            .fflags ( fmaFFlagsOut[i])
         );
         
         FP32PipelinedOther #(
@@ -295,8 +295,7 @@ module FPExecutionStage(
             unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
                 FP_MOP_TYPE_ADD, FP_MOP_TYPE_MUL, FP_MOP_TYPE_FMA: begin
                     dataOut[i].data = fmaDataOut[i];
-                    //fflagsData[i] = fmaFFlagsOut[i];
-                    fflagsOut[i] = '0;
+                    fflagsOut[i] = fmaFFlagsOut[i];
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
                     dataOut[i].data = fpDivSqrtUnit.DataOut[i];

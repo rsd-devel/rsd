@@ -1,10 +1,74 @@
-import FPUTypes::*;
+// Pipeline types are local to this file so the FMA can be compiled independently of RSD.
+package FP32PipelinedFMATypes;
+    typedef struct packed {
+        logic [9:0] mulres_expo;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic res_is_addend;
+        logic mul_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage1RegPath;
+
+    typedef struct packed {
+        logic [9:0] mulres_expo;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic res_is_addend;
+        logic mul_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage2RegPath;
+
+    typedef struct packed {
+        logic [75:0] abs_fma_result;
+        logic [9:0] mulres_expo;
+        logic res_is_negative;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic res_is_zero;
+        logic res_is_addend;
+        logic result_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage3RegPath;
+
+    typedef struct packed {
+        logic [75:0] abs_fma_result;
+        logic [7:0] fmares_shift;
+        logic [9:0] virtual_expo;
+        logic subnormal;
+        logic res_is_negative;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic res_is_zero;
+        logic res_is_addend;
+        logic result_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage4RegPath;
+endpackage
+
+import FP32PipelinedFMATypes::*;
 module FP32PipelinedFMA(
     input  logic clk,
     input  logic [31:0] mullhs,
     input  logic [31:0] mulrhs,
     input  logic [31:0] addend,
-    output logic [31:0] result
+    output logic [31:0] result,
+    output FPUTypes::FFlags fflags
 );
 
     FMAStage1RegPath stg0Out;
@@ -31,7 +95,7 @@ module FP32PipelinedFMA(
     FMAStage1 stg1(clk, stg0Out, stg1Out);
     FMAStage2 stg2(clk, stg1Out, stg2Out, fma_result);
     FMAStage3 stg3(clk, stg2Out, stg3Out);
-    FMAStage4 stg4(clk, stg3Out, result);
+    FMAStage4 stg4(clk, stg3Out, result, fflags);
 endmodule
 
 module FMAStage0(
@@ -160,7 +224,8 @@ endmodule
 module FMAStage4(
     input logic clk,
     input FMAStage4RegPath stg4In,
-    output logic [31:0] result
+    output logic [31:0] result,
+    output FPUTypes::FFlags fflags
 );
     FMAStage4RegPath pipeReg;
     always_ff @(posedge clk) begin
@@ -200,4 +265,6 @@ module FMAStage4(
                               res_is_addend ? addend :
                               res_is_zero   ? zero   : { result_sign, result_expo, result_mant };
     assign result = result_is_nan ? nan : final_result;
+    // Exception flags are not implemented yet.
+    assign fflags = '0;
 endmodule

@@ -447,13 +447,8 @@ typedef enum logic [2:0]    // enum Rounding_Mode
     RM_DYN = 3'b111     // Dynamic Rounding Mode held in frm
 } Rounding_Mode;
 
-typedef struct packed {
-    logic NV;
-    logic DZ;
-    logic OF;
-    logic UF;
-    logic NX;
-} FFlags_Path;
+// Keep the RSD name as an alias of the shared FPU exception flags.
+typedef FPUTypes::FFlags FFlags_Path;
 
 typedef enum logic [6:0] {
     ZBA_FUNCT7_SHADD = 7'b0010000

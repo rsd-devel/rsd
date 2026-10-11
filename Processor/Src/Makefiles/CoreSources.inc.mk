@@ -31,11 +31,11 @@ TYPES = \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	Memory/MemoryTypes.sv \
+	FloatingPointUnit/FPUTypes.sv \
 	Decoder/OpFormat.sv \
 	Decoder/MicroOp.sv \
 	RegisterFile/BypassTypes.sv \
 	FetchUnit/FetchUnitTypes.sv \
-	FloatingPointUnit/FPUTypes.sv \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
 	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \

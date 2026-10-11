@@ -1,5 +1,14 @@
 package FPUTypes;
 
+// Floating-point exception flags in architectural fflags bit order (4:0).
+typedef struct packed {
+    logic NV; // Invalid operation
+    logic DZ; // Divide by zero
+    logic OF; // Overflow
+    logic UF; // Underflow
+    logic NX; // Inexact
+} FFlags;
+
 typedef struct packed {
     logic sign;
     logic [7:0] expo;
@@ -110,65 +119,5 @@ typedef struct packed {
     logic [26:0] rem;
     logic [25:0] quo;
 } FDivSqrtRegPath;
-
-typedef struct packed {
-    logic [9:0] mulres_expo;
-    logic result_is_inf;
-    logic result_is_nan;
-    logic res_is_addend;
-    logic mul_sign;
-    logic prop_inf_sign;
-    logic addend_sign;
-    logic is_subtract;
-    logic [31:0] nan;
-    logic [31:0] addend;
-} FMAStage1RegPath;
-
-typedef struct packed {
-    logic [9:0] mulres_expo;
-    logic result_is_inf;
-    logic result_is_nan;
-    logic res_is_addend;
-    logic mul_sign;
-    logic prop_inf_sign;
-    logic addend_sign;
-    logic is_subtract;
-    logic [31:0] nan;
-    logic [31:0] addend;
-} FMAStage2RegPath;
-
-typedef struct packed {
-    logic [75:0] abs_fma_result;
-    logic [9:0] mulres_expo;
-    logic res_is_negative;
-    logic result_is_inf;
-    logic result_is_nan;
-    logic res_is_zero;
-    logic res_is_addend;
-    logic result_sign;
-    logic prop_inf_sign;
-    logic addend_sign;
-    logic is_subtract;
-    logic [31:0] nan;
-    logic [31:0] addend;
-} FMAStage3RegPath;
-
-typedef struct packed {
-    logic [75:0] abs_fma_result;
-    logic [7:0] fmares_shift;
-    logic [9:0] virtual_expo;
-    logic subnormal;
-    logic res_is_negative;
-    logic result_is_inf;
-    logic result_is_nan;
-    logic res_is_zero;
-    logic res_is_addend;
-    logic result_sign;
-    logic prop_inf_sign;
-    logic addend_sign;
-    logic is_subtract;
-    logic [31:0] nan;
-    logic [31:0] addend;
-} FMAStage4RegPath;
 
 endpackage
