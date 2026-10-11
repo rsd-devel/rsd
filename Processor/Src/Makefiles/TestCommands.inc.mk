@@ -252,14 +252,23 @@ test-DCache:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
 
 
-# Start the current Zephyr port with its upstream Hello World sample.
-ZEPHYR_TESTS = HelloWorld
+# Build and run the current upstream Zephyr samples.
+ZEPHYR_TESTS = HelloWorld Philosophers Synchronization
 ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test-Zephyr-%)
 
-# Zephyr remains in its kernel idle loop after main returns.
+# Zephyr samples continue running until the instruction budget is reached.
 .PHONY: test-Zephyr $(ZEPHYR_TEST_TARGETS)
 $(ZEPHYR_TEST_TARGETS): test-build-Zephyr
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/$(patsubst test-Zephyr-%,%,$@)
+
+test-Zephyr-HelloWorld:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/HelloWorld
+
+test-Zephyr-Synchronization:
+	$(RUN_TEST_OMIT_MSG) --serial-prefix Verification/TestCode/Zephyr/Build/Synchronization
+
+test-Zephyr-Philosophers:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/Philosophers
+	python3 Verification/TestCode/Zephyr/CheckOutput.py Verification/TestCode/Zephyr/Build/Philosophers/serial.out.txt
 
 test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test-Zephyr) ===="

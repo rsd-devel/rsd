@@ -82,14 +82,24 @@ make -f Makefile.verilator.mk test-Zephyr
 
 The [Zephyr Makefile](Zephyr/Makefile) pins public Zephyr 4.4.0 under
 `Zephyr/External/zephyr`; its Python environment and outputs stay under
-`Zephyr/Build/`. The first migrated case is the unmodified upstream Hello World
-sample, built with RSD's out-of-tree board/SoC, Ubuntu's RISC-V GCC and Zephyr's
-minimal libc. No `RSD_ENV`, west, SDK or external modules are needed.
+`Zephyr/Build/`. HelloWorld, Philosophers and Synchronization use the unmodified
+upstream samples, built with RSD's out-of-tree board/SoC, Ubuntu's RISC-V GCC
+and Zephyr's minimal libc. No `RSD_ENV`, west, SDK or external modules are needed.
 The dev container provides CMake, Ninja, gperf and the devicetree compiler.
 Fetch/setup require network access; builds and tests do not download anything.
-The test requires the exact UART greeting and runs to its instruction budget,
-with the normal no-commit limit. Philosophers, Synchronization and Zephyr
-Dhrystone are not included until their current versions are validated.
+`test-Zephyr` runs all three; individual targets include `test-Zephyr-Philosophers`
+and `test-Zephyr-Synchronization`. Each runs through TestDriver to its instruction
+budget with the normal no-commit limit. HelloWorld requires the exact UART greeting.
+Synchronization uses TestDriver's `--serial-prefix` to require the first four
+A/B/A/B greetings, allowing subsequent output and an incomplete final UART line.
+Philosophers uses [CheckOutput.py](Zephyr/CheckOutput.py) after TestDriver to check
+fork states and two eating/thinking rounds per philosopher after sleep/wakeup,
+allowing mutex priority inheritance and interleaved UART fragments. Its check
+ignores the final incomplete UART line and rejects kernel error messages.
+The simulation board uses a virtual 1 MHz clock to shorten sample sleeps without
+changing the RTL or upstream source. Philosophers uses upstream `DEBUG_PRINTF=1`
+to disable terminal cursor control and `CONFIG_PRINTK_SYNC=y` to synchronize each
+print call. Zephyr Dhrystone remains outside this migration.
 `test-clean-Zephyr` preserves the downloaded source and Python environment.
 
 ## riscv-arch-test (ACT4)

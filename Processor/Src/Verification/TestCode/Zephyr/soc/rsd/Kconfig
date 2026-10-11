@@ -4,6 +4,9 @@ config SOC_RSD
 	select RISCV_PRIVILEGED
 	select INCLUDE_RESET_VECTOR
 	select RISCV_SOC_HAS_GP_RELATIVE_ADDRESSING
+	# console.c supplies both printk and libc stdout hooks.
+	select CONSOLE
+	select CONSOLE_HAS_DRIVER
 
 if SOC_RSD
 
