@@ -48,7 +48,7 @@ endif
 #	test-RV32I-MisalignedMemAccess \
 
 LEVEL2_TESTS = \
-	test-riscv-compliance \
+	test-riscv-arch-test \
 	test-Coremark \
 	test-Coremark_for_RV32I \
 	test-Dhrystone \
@@ -77,8 +77,8 @@ $(BASIC_ASM_TESTS): test-build-asm
 $(BASIC_C_TESTS): test-build-C
 
 # TestCodeのビルドとクリーンアップ
-test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-compliance
-test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-compliance
+test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-arch-test
+test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-arch-test
 
 # test-env-build は env 側のバイナリと hex を再生成する
 # test-build 時は，単純にこれをコピーする
@@ -156,16 +156,6 @@ test-clean-riscv-arch-test:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test clean
 test-riscv-arch-test:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test run TEST_DRIVER="$(patsubst @%,%,$(RUN_TEST_OMIT_MSG))"
-
-# Legacy riscv-compliance RV32I suite.
-.PHONY: test-fetch-riscv-compliance test-build-riscv-compliance test-clean-riscv-compliance test-riscv-compliance
-test-fetch-riscv-compliance:
-	$(MAKE) -C Verification/TestCode/riscv-compliance fetch
-test-build-riscv-compliance:
-	$(MAKE) -C Verification/TestCode/riscv-compliance
-test-clean-riscv-compliance:
-	$(MAKE) -C Verification/TestCode/riscv-compliance clean
-
 
 # test / test-* コマンドでは、RSD.logは出力しない
 
@@ -285,236 +275,6 @@ $(ZEPHYR_TEST_TARGETS):
 
 test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test-Zephyr) ===="
-
-RISCV_RV32I_COMPLIANCE_TESTS =    \
-    I-ENDIANESS-01 \
-    I-RF_x0-01 \
-    I-RF_size-01 \
-    I-RF_width-01 \
-    I-DELAY_SLOTS-01 \
-    I-JAL-01 \
-    I-LUI-01 \
-    I-AUIPC-01 \
-    I-LW-01 \
-    I-LH-01 \
-    I-LHU-01 \
-    I-LB-01 \
-    I-LBU-01 \
-    I-SW-01 \
-    I-SH-01 \
-    I-SB-01 \
-    I-ADD-01 \
-    I-ADDI-01 \
-    I-AND-01 \
-    I-OR-01 \
-    I-ORI-01 \
-    I-XORI-01 \
-    I-XOR-01 \
-    I-SUB-01 \
-    I-ANDI-01 \
-    I-SLTI-01 \
-    I-SLTIU-01 \
-    I-BEQ-01 \
-    I-BNE-01 \
-    I-BLT-01 \
-    I-BLTU-01 \
-    I-BGE-01 \
-    I-BGEU-01 \
-    I-SLL-01 \
-    I-SLT-01 \
-    I-CSRRW-01 \
-    I-CSRRWI-01 \
-    I-NOP-01 \
-    I-CSRRSI-01 \
-    I-CSRRC-01 \
-    I-CSRRCI-01 \
-    I-ECALL-01 \
-    I-EBREAK-01 \
-    I-IO \
-    I-SRLI-01 \
-    I-CSRRS-01 \
-    I-JALR-01 \
-    I-SRL-01 \
-    I-SLLI-01 \
-	I-SRA-01 \
-    I-SRAI-01 \
-    I-SLTU-01 \
-    I-MISALIGN_JMP-01 \
-	I-MISALIGN_LDST-01 \
-
-#    I-FENCE.I-01 \
-
-RISCV_RV32I_COMPLIANCE_TEST_TARGETS = $(RISCV_RV32I_COMPLIANCE_TESTS:%=test-riscv-compliance-%)
-
-.PHONY: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
-$(RISCV_RV32I_COMPLIANCE_TEST_TARGETS): test-build-riscv-compliance
-	@$(RUN_TEST_OMIT_MSG) Verification/TestCode/riscv-compliance/$(patsubst test-riscv-compliance-%,%,$@)
-
-test-riscv-compliance: $(RISCV_RV32I_COMPLIANCE_TEST_TARGETS)
-	@echo "==== Test Successful (test-riscv-compliance) ===="
-
-# rom size over
-    #fadd_b11-01 \
-    fadd_b3-01 \
-    fadd_b8-01 \
-    fdiv_b21-01 \
-    fdiv_b3-01 \
-    fdiv_b8-01 \
-    fdiv_b9-01 \
-    feq_b19-01 \
-    fle_b19-01 \
-    flt_b19-01 \
-    fmadd_b1-01 \
-    fmadd_b15-01 \
-    fmadd_b3-01 \
-    fmadd_b8-01 \
-    fmax_b19-01 \
-    fmin_b19-01 \
-    fmsub_b1-01 \
-    fmsub_b15-01 \
-    fmsub_b3-01 \
-    fmsub_b8-01 \
-    fmul_b3-01 \
-    fmul_b8-01 \
-    fmul_b9-01 \
-    fnmadd_b1-01 \
-    fnmadd_b15-01 \
-    fnmadd_b3-01 \
-    fnmadd_b8-01 \
-    fnmsub_b1-01 \
-    fnmsub_b15-01 \
-    fnmsub_b3-01 \
-    fnmsub_b8-01 \
-    fsub_b11-01 \
-    fsub_b3-01 \
-    fsub_b8-01 \
-
-# unsupported rounding mode
-    #fadd_b7-01 \
-    fadd_b2-01 \
-    fadd_b4-01 \
-    fadd_b5-01 \
-    fdiv_b4-01 \
-    fdiv_b5-01 \
-    fdiv_b6-01 \
-    fdiv_b7-01 \
-    fmadd_b4-01 \
-    fmadd_b5-01 \
-    fmadd_b6-01 \
-    fmadd_b7-01 \
-    fmsub_b4-01 \
-    fmsub_b5-01 \
-    fmsub_b6-01 \
-    fmsub_b7-01 \
-    fmul_b4-01 \
-    fmul_b5-01 \
-    fmul_b6-01 \
-    fmul_b7-01 \
-    fnmadd_b4-01 \
-    fnmadd_b5-01 \
-    fnmadd_b6-01 \
-    fnmadd_b7-01 \
-    fnmsub_b4-01 \
-    fnmsub_b5-01 \
-    fnmsub_b6-01 \
-    fnmsub_b7-01 \
-    fsqrt_b3-01 \
-    fsqrt_b4-01 \
-    fsqrt_b5-01 \
-    fsqrt_b7-01 \
-    fsqrt_b8-01 \
-    fsub_b4-01 \
-    fsub_b5-01 \
-    fsub_b7-01 \
-
-# unsupported fflags
-    #fadd_b1-01 \
-    fadd_b10-01 \
-    fadd_b12-01 \
-    fadd_b13-01 \
-    fdiv_b1-01 \
-    fdiv_b2-01 \
-    fdiv_b20-01 \
-    fmadd_b14-01 \
-    fmadd_b16-01 \
-    fmadd_b17-01 \
-    fmadd_b18-01 \
-    fmadd_b2-01 \
-    fmsub_b14-01 \
-    fmsub_b16-01 \
-    fmsub_b17-01 \
-    fmsub_b18-01 \
-    fmsub_b2-01 \
-    fmul_b1-01 \
-    fmul_b2-01 \
-    fnmadd_b14-01 \
-    fnmadd_b16-01 \
-    fnmadd_b17-01 \
-    fnmadd_b18-01 \
-    fnmadd_b2-01 \
-    fnmsub_b14-01 \
-    fnmsub_b16-01 \
-    fnmsub_b17-01 \
-    fnmsub_b18-01 \
-    fnmsub_b2-01 \
-    fsqrt_b1-01 \
-    fsqrt_b2-01 \
-    fsqrt_b20-01 \
-    fsqrt_b9-01 \
-    fsub_b1-01 \
-    fsub_b10-01 \
-    fsub_b12-01 \
-    fsub_b13-01 \
-    fsub_b2-01 \
-
-RISCV_RV32F_COMPLIANCE_TESTS =    \
-  fcvt.s.w_b25-01 \
-  fcvt.s.w_b26-01 \
-  fcvt.s.wu_b25-01 \
-  fcvt.s.wu_b26-01 \
-  fcvt.w.s_b1-01 \
-  fcvt.w.s_b22-01 \
-  fcvt.w.s_b23-01 \
-  fcvt.w.s_b24-01 \
-  fcvt.w.s_b27-01 \
-  fclass_b1-01 \
-  fcvt.w.s_b28-01 \
-  fcvt.w.s_b29-01 \
-  fcvt.wu.s_b1-01 \
-  fcvt.wu.s_b22-01 \
-  fcvt.wu.s_b23-01 \
-  fcvt.wu.s_b24-01 \
-  fcvt.wu.s_b27-01 \
-  fcvt.wu.s_b28-01 \
-  fcvt.wu.s_b29-01 \
-  feq_b1-01 \
-  fle_b1-01 \
-  flt_b1-01 \
-  flw-align-01 \
-  fmax_b1-01 \
-  fmin_b1-01 \
-  fmv.w.x_b25-01 \
-  fmv.w.x_b26-01 \
-  fmv.x.w_b1-01 \
-  fmv.x.w_b22-01 \
-  fmv.x.w_b23-01 \
-  fmv.x.w_b24-01 \
-  fmv.x.w_b27-01 \
-  fmv.x.w_b28-01 \
-  fmv.x.w_b29-01 \
-  fsgnj_b1-01 \
-  fsgnjn_b1-01 \
-  fsgnjx_b1-01 \
-  fsw-align-01 \
-
-RISCV_RV32F_COMPLIANCE_TEST_TARGETS = $(RISCV_RV32F_COMPLIANCE_TESTS:%=test-riscv-compliance-%)
-
-.PHONY: $(RISCV_RV32F_COMPLIANCE_TEST_TARGETS)
-$(RISCV_RV32F_COMPLIANCE_TEST_TARGETS):
-	@$(RUN_TEST_OMIT_MSG) Verification/TestCode/riscv-compliance/$(patsubst test-riscv-compliance-%,%,$@)
-
-test-riscv-compliance-f: $(RISCV_RV32F_COMPLIANCE_TEST_TARGETS)
-	@echo "==== Test Successful (test-riscv-compliance) ===="
 
 # Aggregate cycle/IPC information from verilator/modelsim log.
 test-summary-all:

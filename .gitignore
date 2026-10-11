@@ -39,11 +39,6 @@
 /Processor/Src/Verification/TestCode/riscv-arch-test/External/
 /Processor/Src/Verification/TestCode/riscv-arch-test/Build/
 
-# Downloaded legacy compliance sources and generated case directories.
-/Processor/Src/Verification/TestCode/riscv-compliance/External/
-/Processor/Src/Verification/TestCode/riscv-compliance/I-*/
-/Processor/Src/Verification/TestCode/riscv-compliance/dummy_rom.bin
-
 
 # Verilator
 /Processor/Project/Verilator/obj_dir
