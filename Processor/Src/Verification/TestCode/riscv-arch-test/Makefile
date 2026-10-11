@@ -10,14 +10,23 @@ SAIL_SHA256 = $(SAIL_SHA256_$(SAIL_ARCH))
 SAIL_URL = https://github.com/riscv/sail-riscv/releases/download/$(SAIL_VERSION)/sail-riscv-Linux-$(SAIL_ARCH).tar.gz
 PYTHON ?= python3
 JOBS ?= $(shell nproc)
+include ../../../Makefiles/CoreSources.inc.mk
 # Add extensions here as their RSD configuration and adapters are validated.
-ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm
-ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm
 comma := ,
+ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm $(if $(filter 1,$(RSD_HAS_FP)),F)
+ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm$(if $(filter 1,$(RSD_HAS_FP)),$(comma)F)
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
+# Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
+# Include the generated list so make also selects new chunks on the first build.
+ifneq ($(filter F,$(ACT_EXTENSION_LIST)),)
+ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)),)
+include Build/Generated/F.mk
+endif
+endif
 # Only the M-mode exception case is used; delegation cases need an S-mode port.
 ACT_GENERATED_SOURCES := Build/Generated/priv/ExceptionsSm/ExceptionsSm-00.S
-ACT_SOURCES := $(sort $(foreach extension,$(ACT_EXTENSION_LIST),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
+ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
+	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \
 	$(if $(filter ExceptionsSm,$(ACT_EXTENSION_LIST)),$(ACT_GENERATED_SOURCES)))
 ACT_TESTS ?= $(basename $(notdir $(ACT_SOURCES)))
 ACT_SELECTED_SOURCES := $(foreach test,$(ACT_TESTS),$(filter %/$(test).S,$(ACT_SOURCES)))
@@ -46,7 +55,7 @@ export PATH := $(VIRTUAL_ENV)/bin:$(GEM_HOME)/bin:/usr/lib/llvm-22/bin:$(BUILD_R
 BUNDLE = "$(GEM_HOME)/bin/bundle" _$(BUNDLER_VERSION)_
 
 .DEFAULT_GOAL := build
-.PHONY: fetch setup check check-source check-platform check-selection build run run-cases clean
+.PHONY: fetch setup check check-source check-platform check-selection config build run run-cases clean
 # Always rerun selected cases, even when their result files already exist.
 .PHONY: $(ACT_RESULTS)
 
@@ -123,7 +132,33 @@ $(ACT_GENERATED_SOURCES): Makefile | check-source
 	@test -s "$@"
 	touch "$@"
 
-build: check-source check-selection check $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
+# Keep all upstream coverpoints; change only the number of testcases per ELF.
+Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
+	@test -x "$(VIRTUAL_ENV)/bin/python3" || { echo "Run make test-setup-riscv-arch-test from Processor/Src first." >&2; exit 1; }
+	"$(VIRTUAL_ENV)/bin/python3" -c 'from pathlib import Path; import testgen.generate.unpriv as gen; gen.TESTCASES_PER_FILE = 250; gen.generate_unpriv_extension_tests(32, False, "F", Path("External/testplans"), Path("Build/Generated"))'
+	@printf 'ACT_FP_SOURCES := %s\n' "$$(echo Build/Generated/rv32i/F/*.S)" > "$@.tmp"
+	mv "$@.tmp" "$@"
+
+# Generate the selected FP reference profile without duplicating configuration.
+# Preserve unchanged timestamps so ACT4 can reuse its build and Sail results.
+config:
+	mkdir -p "$(BUILD_ROOT)/Config"
+	@for file in rsd-rv32i.yaml sail.json rvmodel_macros.h; do \
+		cp "$$file" "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1; \
+		if test -n "$(filter F,$(ACT_EXTENSION_LIST))"; then \
+			case "$$file" in \
+				rsd-rv32i.yaml) sed '/name: Zicsr,/a\  - { name: F, version: "= 2.2.0" }' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" && \
+					printf '\n  MUTABLE_MISA_F: false\n  HW_MSTATUS_FS_DIRTY_UPDATE: precise\n  MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]\n' >> "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
+				sail.json) sed -e 's/"fs_legal_states": "ExtContext_Off"/"fs_legal_states": "ExtContext_FourState"/' \
+					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
+			esac; \
+		fi; \
+		if cmp -s "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; then \
+			rm "$(BUILD_ROOT)/Config/$$file.tmp"; \
+		else mv "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; fi || exit 1; \
+	done
+
+build: check-source check-selection check config $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
 # Replace only the staged sources, so narrowing the filter cannot include old tests.
 	rm -rf "$(BUILD_ROOT)/Tests"
 	@for source in $(ACT_SELECTED_SOURCES); do \
@@ -154,8 +189,9 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
-# The exception case includes many trap-handler invocations.
+# FP cases have thousands of operands and self-checks; exceptions invoke handlers.
 	@case "$*" in \
+		rv32i/F/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
 		priv/ExceptionsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
@@ -202,4 +238,4 @@ run-cases: $(ACT_RESULTS)
 	test "$$failed" -eq 0
 
 clean:
-	rm -rf "$(BUILD_ROOT)/Generated" "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"
+	rm -rf "$(BUILD_ROOT)/Config" "$(BUILD_ROOT)/Generated" "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"

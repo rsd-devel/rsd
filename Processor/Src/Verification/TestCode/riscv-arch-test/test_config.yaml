@@ -2,8 +2,8 @@ name: rsd-rv32i
 compiler_exe: clang
 objdump_exe: llvm-objdump
 ref_model_exe: sail_riscv_sim
-udb_config: rsd-rv32i.yaml
+udb_config: Build/Config/rsd-rv32i.yaml
 linker_script: link.ld
-dut_include_dir: .
+dut_include_dir: Build/Config
 # Include the selected machine-mode exception test.
 include_priv_tests: true

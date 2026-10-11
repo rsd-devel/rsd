@@ -93,8 +93,12 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The default RSD suite runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
+The integer/privileged subset runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
 files, six `rv32i/Zicsr/*.S` files and the generated M-mode `ExceptionsSm-00.S`.
+When `RSD_HAS_FP=1`, the default also includes F: the pinned generator divides
+the upstream testplan into 281 files, targeting 250 testcases per ELF to fit
+RSD's existing RAM layout. All coverpoints are retained, without upstream patches.
+FP-disabled configurations exclude F and reject explicit F selections.
 The pinned `testgen` generates exception sources under `Build/Generated/`;
 only the M-mode case is selected, without its S/U-mode delegation variants.
 `test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
@@ -115,6 +119,7 @@ Narrow the selection for debugging:
 ```sh
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
+make -j16 -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=F
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
 
@@ -124,17 +129,23 @@ exposes only the low 16 bits. Each case runs to its instruction budget, then
 TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filename.
 The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
-Integer/CSR cases have a 20,000-instruction budget, and the exception case has
-100,000 instructions for trap-handler work; all use a 500-cycle no-commit limit.
+Integer/CSR cases have a 20,000-instruction budget, FP cases have 50,000,
+and the exception case has 100,000 for trap-handler work;
+all use a 500-cycle no-commit limit.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. The exception case checks ECALL,
 EBREAK, illegal instructions, and misaligned branch/jump/load/store traps in M-mode.
-The current RTL passes all 46 cases, including `mepc` bit 1 readback and
+The current RTL passes all 46 integer/privileged cases, including `mepc` bit 1 readback and
 `mtval = 0` for illegal instructions. RSD does not retain instruction encodings
 for trap values; the ACT4 and Sail configurations match this choice.
 Any case failure makes the command fail after collecting all results.
-FP, interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the
+The F suite currently has 43 passes and 238 failures. The first mismatch is
+`fflags` in 206 files and the numerical result in 32. Arithmetic exception flags,
+rounding modes and signed zero need RTL work; these failures remain visible.
+The FP reference profile enables standard `mstatus.FS` state for instruction
+execution; this suite does not validate RSD's FS gating or dirty tracking.
+Interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the
 legacy default list, Zifencei is excluded. The preloaded exception handler uses
 writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
 It is not included in `test-all` yet. Existing legacy compliance tests remain available.
