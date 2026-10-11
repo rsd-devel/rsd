@@ -217,6 +217,71 @@ main:
     CHECK_FFLAGS 0x10
     CHECK_FP_RESULT 0x7fc00000
 
+    # Exact multiplication and a zero-product bypass do not raise NX.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x3f800000
+    fmv.w.x ft0, zero
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x3f800000
+
+    # A nonzero product lost when bypassing to the addend still raises NX.
+    li t0, 0x30800000 # 2^-30
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x3f800000
+
+    # Finite overflow raises OF and NX together.
+    li t0, 0x7f7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x40000000 # 2.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x05
+    CHECK_FP_RESULT 0x7f800000
+
+    # An exact subnormal result does not raise UF.
+    li t0, 0x00800000 # Minimum normal
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000 # 0.5
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x00400000
+
+    # Tiny, inexact results raise UF and NX, even when all bits are lost.
+    li t0, 0x00000001 # Minimum subnormal
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+
+    # Tininess is tested after rounding: rounding to normal raises only NX.
+    li t0, 0x3f000000
+    fmv.w.x ft1, t0
+    li t0, 0x007fffff # Maximum subnormal
+    fmv.w.x ft2, t0
+    csrw fflags, zero
+    fmadd.s ft2, ft0, ft1, ft2
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x00800000
+
     csrw fflags, zero
     fmv.w.x ft0, zero
     fmv.w.x ft1, zero

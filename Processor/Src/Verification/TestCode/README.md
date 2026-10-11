@@ -140,10 +140,12 @@ The current RTL passes all 46 integer/privileged cases, including `mepc` bit 1 r
 `mtval = 0` for illegal instructions. RSD does not retain instruction encodings
 for trap values; the ACT4 and Sail configurations match this choice.
 Any case failure makes the command fail after collecting all results.
-The F suite currently has 89 passes and 192 failures. The first mismatch is
-`fflags` in 140 files and the numerical result in 52. Addition/multiplication/FMA
-report NV; division/square-root flags, rounding flags, rounding modes and remaining
-signed-zero cases need RTL work. These failures remain visible.
+The F suite currently has 99 passes and 182 failures. The first mismatch is
+`fflags` in eight division/square-root files and the numerical result in 174
+rounding-mode coverpoints. Addition/multiplication/FMA report NV, OF, UF and NX
+under RNE; division/square root report NV, and division also reports DZ.
+Other rounding modes and division/square-root rounding flags need RTL work.
+These failures remain visible.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
 Interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the

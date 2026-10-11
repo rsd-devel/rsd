@@ -6,6 +6,7 @@ package FP32PipelinedFMATypes;
         logic result_is_nan;
         logic invalid;
         logic res_is_addend;
+        logic addend_inexact;
         logic mul_sign;
         logic prop_inf_sign;
         logic addend_sign;
@@ -20,6 +21,7 @@ package FP32PipelinedFMATypes;
         logic result_is_nan;
         logic invalid;
         logic res_is_addend;
+        logic addend_inexact;
         logic mul_sign;
         logic prop_inf_sign;
         logic addend_sign;
@@ -37,6 +39,7 @@ package FP32PipelinedFMATypes;
         logic invalid;
         logic res_is_zero;
         logic res_is_addend;
+        logic addend_inexact;
         logic result_sign;
         logic prop_inf_sign;
         logic addend_sign;
@@ -50,12 +53,13 @@ package FP32PipelinedFMATypes;
         logic [7:0] fmares_shift;
         logic [9:0] virtual_expo;
         logic subnormal;
-        logic res_is_negative;
+        logic round_sticky;
         logic result_is_inf;
         logic result_is_nan;
         logic invalid;
         logic res_is_zero;
         logic res_is_addend;
+        logic addend_inexact;
         logic result_sign;
         logic prop_inf_sign;
         logic addend_sign;
@@ -155,6 +159,8 @@ module FMAStage0(
     wire [9:0] mulres_expo   = v_mullhs_expo + v_mulrhs_expo - 127;
     wire [9:0] addend_shift  = v_addend_expo - mulres_expo + 23;
     wire       res_is_addend = ($signed(addend_shift) > 49 | mullhs_is_zero | mulrhs_is_zero) & !addend_is_zero; // |lhs*rhs| < 0.5ULP(|addend|-eps); assuming round to nearest, result is equal to the addend.
+    // A nonzero product below the addend's rounding threshold is still inexact.
+    wire       addend_inexact = !mullhs_is_zero & !mulrhs_is_zero;
     wire       addend_sticky = $signed(addend_shift) >=  0 ? 1'b0 :
                                $signed(addend_shift) < -26 ? { addend_expo != 8'h00, addend_mant } != 0
                                                            : { addend_expo != 8'h00, addend_mant } << (10'd26 + addend_shift) != 24'h000000; // shifted out part of { mantissa(24bit), guard(1bit), round(1bit) } >> -addend_shift
@@ -163,7 +169,7 @@ module FMAStage0(
     assign mrhs    = { 52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0 }; // rhs_expo != 8'h00 is the hidden bit of a normalized number
 
     assign stg0Out = {mulres_expo, result_is_inf, result_is_nan, invalid,
-                      res_is_addend, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
+                      res_is_addend, addend_inexact, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
 endmodule
 
 module FMAStage1(
@@ -196,7 +202,7 @@ module FMAStage2(
     wire       result_sign     = mul_sign ^ res_is_negative;
     
     assign stg2Out = {abs_fma_result, pipeReg.mulres_expo, res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, pipeReg.invalid, res_is_zero, pipeReg.res_is_addend, result_sign,
+                      pipeReg.result_is_nan, pipeReg.invalid, res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
@@ -223,9 +229,15 @@ module FMAStage3(
     wire       subnormal       = $signed(virtual_expo) <= 0;
     wire [7:0] fmares_shift    = subnormal ? 26 - mulres_expo[7:0] // There are 3 bits below lhs*rhs<<3, and 23 bits will be lost due to rounding, assuming no carryover occurs in lhs*rhs.
                                            : 51 - leading_zeros;   // (75 - addend_sticky(1bit)) - shifter_result(24bit)
+    wire signed [9:0] rounding_shift = subnormal ? 10'sd26 - $signed(mulres_expo)
+                                                : 10'sd51 - $signed({2'b00, leading_zeros});
+    // Left shifts discard no bits; shifts beyond the accumulator discard all bits.
+    wire round_sticky = rounding_shift <= 0 ? 1'b0 :
+                        rounding_shift >= 76 ? abs_fma_result != 0 :
+                        abs_fma_result << (10'sd76 - rounding_shift) != 0;
     
-    assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, pipeReg.res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, pipeReg.invalid, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.result_sign,
+    assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, round_sticky, pipeReg.result_is_inf,
+                      pipeReg.result_is_nan, pipeReg.invalid, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, pipeReg.result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
@@ -244,7 +256,6 @@ module FMAStage4(
     wire [9:0] virtual_expo    = pipeReg.virtual_expo;
     wire[31:0] nan             = pipeReg.nan;
     wire[31:0] addend          = pipeReg.addend;
-    wire res_is_negative       = pipeReg.res_is_negative;
     wire result_is_inf         = pipeReg.result_is_inf;
     wire result_is_nan         = pipeReg.result_is_nan;
     wire res_is_zero           = pipeReg.res_is_zero;
@@ -258,7 +269,7 @@ module FMAStage4(
     /* verilator lint_off WIDTH */
     wire[23:0] shifter_result = { abs_fma_result, 23'b0 } >> (7'd23 + fmares_shift);
     /* verilator lint_on WIDTH */
-    wire       sticky         = abs_fma_result << (76 - fmares_shift) != 0; // the part shifted out above
+    wire       sticky         = pipeReg.round_sticky;
 
     wire       round_to_away  = shifter_result[0] & (shifter_result[1] | sticky); // round to nearest, ties to even
     wire       exp_plus_one   = shifter_result >= 24'hffffff; // carry is generated with rounding taken into account
@@ -273,6 +284,15 @@ module FMAStage4(
                               res_is_addend ? addend :
                               res_is_zero   ? zero   : { result_sign, result_expo, result_mant };
     assign result = result_is_nan ? nan : final_result;
-    // NV comes from operand classification; rounding flags remain unimplemented.
-    assign fflags = '{NV: pipeReg.invalid, default: 1'b0};
+    // Detect tininess after rounding, including results rounded to zero.
+    wire finite_operation = !result_is_nan & !result_is_inf;
+    wire overflow = !subnormal & (($signed(virtual_expo) >= 255)
+                                 | (virtual_expo == 254 & exp_plus_one));
+    wire discarded_bits = shifter_result[0] | sticky;
+    wire inexact = res_is_addend ? pipeReg.addend_inexact : !res_is_zero & discarded_bits;
+    wire tiny = res_is_addend ? addend[30:23] == 0 : subnormal & result_expo == 0;
+    assign fflags = '{NV: pipeReg.invalid, DZ: 1'b0,
+                      OF: finite_operation & !res_is_addend & !res_is_zero & overflow,
+                      UF: finite_operation & tiny & inexact,
+                      NX: finite_operation & (inexact | (!res_is_addend & !res_is_zero & overflow))};
 endmodule
