@@ -12,6 +12,20 @@ Use `test-clean-basic` to remove their generated files.
 For `cfg.xml`, execution limits, and result checking, see the
 [TestDriver documentation](../../../Tools/TestDriver/README.md).
 
+`test-all` runs the normal tests: `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone).
+Fetch the benchmark sources as described below before running it.
+`test-ex` runs the heavier ACT4 and Zephyr suites after their explicit fetch/setup.
+Both targets build HEX files as needed. `test-build` builds only the normal tests;
+`test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
+preserving downloaded sources and installed dependencies.
+
+```sh
+make -j4 -f Makefile.verilator.mk test-all
+make -j4 -f Makefile.verilator.mk test-ex
+```
+
+Specify `test-all test-ex` together to run both groups.
+
 ## FP test selection
 
 `RSD_MARCH_FP_PIPE` in [CoreSources.inc.mk](../../Makefiles/CoreSources.inc.mk) enables
@@ -182,6 +196,7 @@ execution; this suite does not validate RSD's FS gating or dirty tracking.
 Interrupt, S/U-mode and FENCE.I tests are outside this subset; Zifencei is
 excluded. The preloaded exception handler uses
 writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
-`test-2` and `test-all` include this suite; `test-build` and `test-clean` also use it.
-Run the fetch/setup steps above before aggregate build or test targets.
+`test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
+removes its generated files. Run the fetch/setup steps above before `test-ex`
+or `test-build-ex`.
 `test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.

@@ -48,11 +48,13 @@ endif
 #	test-RV32I-MisalignedMemAccess \
 
 LEVEL2_TESTS = \
-	test-riscv-arch-test \
 	test-Coremark \
 	test-Coremark_for_RV32I \
-	test-Dhrystone \
-	test-Zephyr \
+	test-Dhrystone
+
+EX_TESTS = \
+	test-riscv-arch-test \
+	test-Zephyr
 
 
 # Build the in-repository tests without external test sources.
@@ -76,8 +78,10 @@ endif
 $(BASIC_ASM_TESTS): test-build-asm
 $(BASIC_C_TESTS): test-build-C
 
-# TestCodeのビルドとクリーンアップ
-test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone test-build-Zephyr test-build-riscv-arch-test
+# Build standard and extended tests separately; clean both groups.
+.PHONY: test-build test-build-ex test-clean
+test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone
+test-build-ex: test-build-Zephyr test-build-riscv-arch-test
 test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-arch-test
 
 # テストで使用するスタートアップルーチン
@@ -157,12 +161,15 @@ test:
 	$(RUN_TEST) $(TEST_CODE)
 	@echo "==== Test Successful ===="
 
+.PHONY: test-all test-1 test-2 test-ex
 test-all: test-1 test-2
 	@echo "==== Test Successful (all) ===="
 test-1: $(LEVEL1_TESTS)
 	@echo "==== Test Successful (test-1) ===="
 test-2: $(LEVEL2_TESTS)
 	@echo "==== Test Successful (test-2) ===="
+test-ex: $(EX_TESTS)
+	@echo "==== Test Successful (test-ex) ===="
 
 test-RV32I-ControlTransfer:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransfer
