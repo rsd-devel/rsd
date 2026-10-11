@@ -93,7 +93,12 @@
     li t3, \mpp
     csrs mstatus, t3
     la t3, 1f
+    # IALIGN=32 masks bit 1 on both CSR reads and MRET's implicit read.
+    ori t3, t3, 2
     csrw mepc, t3
+    csrr t4, mepc
+    la t3, 1f
+    bne t4, t3, fail
     li a7, \mpp
     mret
 1:

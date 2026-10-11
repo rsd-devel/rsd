@@ -27,6 +27,7 @@ module CSR_Unit(
     CSR_ValuePath wv;
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
+    AddrPath mepc;
     CommitLaneCountPath regCommitNum;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
@@ -88,6 +89,10 @@ module CSR_Unit(
     always_comb begin
         mcycle = csrReg.mcycle;
 
+        // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
+        // Revisit this mask if compressed instructions are supported.
+        mepc = {csrReg.mepc[ADDR_WIDTH-1:2], 2'b0};
+
         privilegeLevelNext = privilegeLevel;
 
         // Read a CSR value
@@ -116,7 +121,7 @@ module CSR_Unit(
             CSR_NUM_MCAUSE:     rv = csrReg.mcause;
             CSR_NUM_MTVEC:      rv = csrReg.mtvec;
             CSR_NUM_MTVAL:      rv = csrReg.mtval;
-            CSR_NUM_MEPC:       rv = csrReg.mepc;
+            CSR_NUM_MEPC:       rv = mepc;
             CSR_NUM_MSCRATCH:   rv = csrReg.mscratch;
 
             CSR_NUM_MISA: rv = csrReg.misa;
@@ -394,7 +399,7 @@ module CSR_Unit(
 
         port.excptTargetAddr = '0;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
-            port.excptTargetAddr = csrReg.mepc;
+            port.excptTargetAddr = mepc;
             //$display("mret: to %x", csrNext.mepc);
         end
         else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
