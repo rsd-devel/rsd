@@ -93,9 +93,10 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The integer/privileged subset runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
+The default integer/privileged subset runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
 files, six `rv32i/Zicsr/*.S` files and the generated M-mode `ExceptionsSm-00.S`.
-When `RSD_HAS_FP=1`, the default also includes F: the pinned generator divides
+F is temporarily opt-in while the remaining RTL fixes are deferred. With
+`RSD_HAS_FP=1`, select it using `ACT_EXTENSIONS=F`: the pinned generator divides
 the upstream testplan into 281 files, targeting 250 testcases per ELF to fit
 RSD's existing RAM layout. All coverpoints are retained, without upstream patches.
 FP-disabled configurations exclude F and reject explicit F selections.
@@ -145,7 +146,7 @@ The F suite currently has 99 passes and 182 failures. The first mismatch is
 rounding-mode coverpoints. Addition/multiplication/FMA report NV, OF, UF and NX
 under RNE; division/square root report NV, and division also reports DZ.
 Other rounding modes and division/square-root rounding flags need RTL work.
-These failures remain visible.
+These failures remain visible when F is explicitly selected.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
 Interrupt, S/U-mode and FENCE.I tests are outside this subset; as in the

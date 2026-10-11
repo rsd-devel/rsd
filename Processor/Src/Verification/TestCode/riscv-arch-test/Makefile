@@ -14,7 +14,8 @@ include ../../../Makefiles/CoreSources.inc.mk
 # Add extensions here as their RSD configuration and adapters are validated.
 comma := ,
 ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm $(if $(filter 1,$(RSD_HAS_FP)),F)
-ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm$(if $(filter 1,$(RSD_HAS_FP)),$(comma)F)
+# Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
+ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.
