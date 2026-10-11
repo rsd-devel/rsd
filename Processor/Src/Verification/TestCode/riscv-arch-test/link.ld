@@ -7,16 +7,17 @@ MEMORY {
 }
 
 SECTIONS {
-  /* Reset and the TestDriver's fixed goal PC must remain at 0x1000/0x1004. */
+  /* Keep reset and the legacy termination loop at 0x1000/0x1004. */
   .text.reset 0x1000 : { KEEP(*(.text.reset)) } > rom
   .text.init : { *(.text.init) } > rom
-  .text.rvtest : { *(.text.rvtest) *(.text.rvtest.*) } > rom
+  /* Reserve the first 64 KiB of RAM for test data and the stack. */
+  .text.rvtest 0x80010000 : { *(.text.rvtest) *(.text.rvtest.*) } > ram
 
   .data 0x80000000 : {
     *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*)
     *(.data) *(.data.*) *(.sdata) *(.sdata.*)
   } > ram
-  .bss (NOLOAD) : {
+  .bss ALIGN(ADDR(.data) + SIZEOF(.data), 16) (NOLOAD) : {
     . = ALIGN(16);
     __bss_start = .;
     *(.sbss) *(.sbss.*) *(.bss) *(.bss.*) *(COMMON)
@@ -26,6 +27,7 @@ SECTIONS {
     . += 0x1000;
     __stack_top = .;
   } > ram
+  ASSERT(__stack_top <= 0x80010000, "ACT4 data/stack overlaps test code")
 
   /* DUT/Sail IO code differs in size: keep it after test data so that
      signature addresses are identical in the reference and self-check ELFs. */

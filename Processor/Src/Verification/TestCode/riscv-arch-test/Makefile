@@ -10,9 +10,21 @@ SAIL_SHA256 = $(SAIL_SHA256_$(SAIL_ARCH))
 SAIL_URL = https://github.com/riscv/sail-riscv/releases/download/$(SAIL_VERSION)/sail-riscv-Linux-$(SAIL_ARCH).tar.gz
 PYTHON ?= python3
 JOBS ?= $(shell nproc)
+# Add extensions here as their RSD configuration and adapters are validated.
+ACT_AVAILABLE_EXTENSIONS := I
+ACT_EXTENSIONS ?= $(ACT_AVAILABLE_EXTENSIONS)
+comma := ,
+ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
+ACT_SOURCES := $(sort $(foreach extension,$(ACT_EXTENSION_LIST),$(wildcard External/tests/rv32i/$(extension)/*.S)))
+ACT_TESTS ?= $(basename $(notdir $(ACT_SOURCES)))
+ACT_SELECTED_SOURCES := $(foreach test,$(ACT_TESTS),$(filter %/$(test).S,$(ACT_SOURCES)))
+ACT_CASES := $(patsubst External/tests/%.S,%,$(ACT_SELECTED_SOURCES))
+TEST_DRIVER ?= $(PYTHON) ../Tools/TestDriver/RunTest.py -o --simulator=verilator
 
 # Keep environments, downloaded tools and caches beside this test suite.
 BUILD_ROOT := $(CURDIR)/Build
+CASE_ROOT := $(BUILD_ROOT)/Cases
+ACT_ELF_ROOT := $(BUILD_ROOT)/act/rsd-rv32i/elfs
 SAIL_ARCHIVE = $(BUILD_ROOT)/sail-riscv-$(SAIL_VERSION)-Linux-$(SAIL_ARCH).tar.gz
 SAIL_BINARY = $(BUILD_ROOT)/sail/bin/sail_riscv_sim
 export VIRTUAL_ENV := $(BUILD_ROOT)/venv
@@ -30,7 +42,7 @@ export PATH := $(VIRTUAL_ENV)/bin:$(GEM_HOME)/bin:/usr/lib/llvm-22/bin:$(BUILD_R
 BUNDLE = "$(GEM_HOME)/bin/bundle" _$(BUNDLER_VERSION)_
 
 .DEFAULT_GOAL := build
-.PHONY: fetch setup check check-source check-platform build clean
+.PHONY: fetch setup check check-source check-platform check-selection build run clean
 
 fetch:
 	@if test -e External; then \
@@ -87,24 +99,36 @@ check: check-source check-platform
 	ld.lld --version
 	llvm-objcopy --version
 
-# Build one unmodified upstream test first, before expanding the test list.
 # ACT4 runs Sail to generate expected values, then embeds them in a self-check ELF.
-build: check
-	mkdir -p "$(BUILD_ROOT)/Tests/rv32i/I"
-	cp -p External/tests/rv32i/I/I-addi-00.S "$(BUILD_ROOT)/Tests/rv32i/I/"
+check-selection:
+	@test -z "$(filter-out $(ACT_AVAILABLE_EXTENSIONS),$(ACT_EXTENSION_LIST))" || \
+		{ echo "Unsupported ACT_EXTENSIONS: $(filter-out $(ACT_AVAILABLE_EXTENSIONS),$(ACT_EXTENSION_LIST)); available: $(ACT_AVAILABLE_EXTENSIONS)." >&2; exit 1; }
+	@test -n "$(ACT_CASES)" || { echo "No ACT4 tests selected." >&2; exit 1; }
+	@test -z "$(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))" || \
+		{ echo "Unknown ACT_TESTS: $(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))." >&2; exit 1; }
+
+build: check-source check-selection check
+# Replace only the staged sources, so narrowing the filter cannot include old tests.
+	rm -rf "$(BUILD_ROOT)/Tests/rv32i"
+	@for source in $(ACT_SELECTED_SOURCES); do \
+		relative=$${source#External/tests/}; \
+		mkdir -p "$(BUILD_ROOT)/Tests/$${relative%/*}" && \
+		cp -p "$$source" "$(BUILD_ROOT)/Tests/$$relative" || exit 1; \
+	done
 	cp -a External/tests/env "$(BUILD_ROOT)/Tests/"
 	act test_config.yaml --test-dir "$(BUILD_ROOT)/Tests" --coverpoint-dir External/coverpoints \
-		--workdir "$(BUILD_ROOT)/act" --extensions I --fast --jobs $(JOBS)
-	$(MAKE) "$(BUILD_ROOT)/I-addi-00/code.hex" "$(BUILD_ROOT)/I-addi-00/cfg.xml"
+		--workdir "$(BUILD_ROOT)/act" --extensions "$(ACT_EXTENSIONS)" --fast --jobs $(JOBS)
+	$(MAKE) $(addprefix $(CASE_ROOT)/,$(addsuffix /code.hex,$(ACT_CASES))) \
+		$(addprefix $(CASE_ROOT)/,$(addsuffix /cfg.xml,$(ACT_CASES))) \
+		$(addprefix $(CASE_ROOT)/,$(addsuffix /serial.ref.txt,$(ACT_CASES)))
 
-ACT_ELF := $(BUILD_ROOT)/act/rsd-rv32i/elfs/rv32i/I/I-addi-00.elf
-$(BUILD_ROOT)/I-addi-00/code.hex: $(ACT_ELF) Makefile
+$(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 	mkdir -p "$(@D)"
 	llvm-objcopy -O binary --only-section=.text.reset --only-section=.text.init \
-		--only-section=.text.rvtest --only-section=.text.rvmodel \
+		--only-section=.text.rvmodel \
 		--gap-fill=0 --pad-to=0x10000 "$<" "$(@D)/rom.bin"
 	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq 61440
-	llvm-objcopy -O binary --only-section=.data \
+	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest \
 		--gap-fill=0 --pad-to=0x80040000 "$<" "$(@D)/ram.bin"
 	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq 262144
 	dd if=/dev/zero of="$(@D)/code.bin" bs=4096 count=1 status=none
@@ -112,9 +136,35 @@ $(BUILD_ROOT)/I-addi-00/code.hex: $(ACT_ELF) Makefile
 	$(PYTHON) ../../../../Tools/TestDriver/BinaryToHex.py "$(@D)/code.bin" "$@.tmp"
 	mv "$@.tmp" "$@"
 
-$(BUILD_ROOT)/I-addi-00/cfg.xml: cfg.xml
+$(CASE_ROOT)/%/cfg.xml: cfg.xml
 	mkdir -p "$(@D)"
 	cp "$<" "$@"
 
+# Match the complete upstream self-check pass message, including its filename.
+$(CASE_ROOT)/%/serial.ref.txt: Makefile
+	mkdir -p "$(@D)"
+	printf '\nRVCP-SUMMARY: TEST PASSED - Test File "%s.S"\n\n' "$(notdir $*)" > "$@"
+
+# Run each case from Src for simulator-relative paths, with a fresh model process.
+# Preserve every result and report failure after all selected cases have run.
+run: build
+	@cd ../../..; \
+	summary="Verification/TestCode/riscv-arch-test/Build/summary.log"; \
+	printf 'ACT4 results:\n' > "$$summary"; \
+	passed=0; failed=0; \
+	for test in $(ACT_CASES); do \
+		if $(TEST_DRIVER) "Verification/TestCode/riscv-arch-test/Build/Cases/$$test"; then \
+			printf 'PASS %s\n' "$$test" >> "$$summary"; \
+			passed=$$((passed + 1)); \
+		else \
+			status=$$?; \
+			printf 'FAIL %s (exit %s)\n' "$$test" "$$status" >> "$$summary"; \
+			failed=$$((failed + 1)); \
+		fi; \
+	done; \
+	printf '%s passed, %s failed\n' "$$passed" "$$failed" >> "$$summary"; \
+	printf '\n'; cat "$$summary"; \
+	test "$$failed" -eq 0
+
 clean:
-	rm -rf "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(BUILD_ROOT)/I-addi-00"
+	rm -rf "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"

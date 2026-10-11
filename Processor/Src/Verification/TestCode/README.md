@@ -80,7 +80,8 @@ In the Ubuntu 26.04 dev container, explicitly fetch the source and install its d
 make -f Makefile.verilator.mk test-fetch-riscv-arch-test
 make -f Makefile.verilator.mk test-setup-riscv-arch-test
 make -f Makefile.verilator.mk test-check-riscv-arch-test
-make -f Makefile.verilator.mk test-riscv-arch-test-I-addi-00
+make -j"$(nproc)" -f Makefile.verilator.mk
+make -f Makefile.verilator.mk test-riscv-arch-test
 ```
 
 The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
@@ -92,18 +93,33 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The first RSD case is the unmodified upstream `rv32i/I/I-addi-00.S` (378 result
-checks). `test-build-riscv-arch-test` builds it without downloads: ACT4 compiles
+The initial RSD suite uses the 39 unmodified upstream `rv32i/I/*.S` files.
+`test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
 and termination; the HEX includes ROM and RAM contents. Generated tests and
 simulation output stay under `riscv-arch-test/Build/`.
+The larger cases execute from RAM.
 
-`test-riscv-arch-test` currently aliases this single case. It runs through the
-normal TestDriver: the test must reach the goal PC with `a0 = 0`, within the
-instruction and no-commit limits. ACT4 prints failures, including the test
-number, instruction, approximate PC, actual value and expected value, to
-`Build/I-addi-00/serial.out.txt`. This initial RV32I subset runs in M-mode;
+`test-riscv-arch-test` runs all selected cases through the normal TestDriver,
+with a fresh simulator process for each. Failures do not stop the remaining
+cases; `Build/summary.log` lists every result, and any failure makes the command
+fail. Narrow the selection for debugging:
+
+```sh
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
+```
+
+Only the selected cases are built and run; unknown selections fail. Currently,
+only the I extension is ported. PC-based termination is disabled because the LED
+exposes only the low 16 bits. Each case runs to its instruction budget, then
+TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filename.
+The build generates each `serial.ref.txt`; no-commit limits detect stalls.
+Successful cases wait in their termination loop until the budget is reached.
+ACT4 prints failures, including the test number, instruction, approximate PC,
+actual value and expected value, to
+`Build/Cases/rv32i/I/<test>/serial.out.txt`. This initial RV32I subset runs in M-mode;
 FP, interrupts and privileged tests are not yet ported. It is not included
 in `test-all` yet. Existing legacy compliance tests remain available.
 `test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.
