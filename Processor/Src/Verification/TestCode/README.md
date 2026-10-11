@@ -82,6 +82,22 @@ This is an RV32IM functional test, without a timing score or an FP pipeline
 requirement. Success requires a zero return value and the complete serial
 reference. The instruction budget allows about twice the measured work;
 no-commit waits are limited to 500 cycles.
+
+GCC's libc builtins are enabled by default for Dhrystone. To disable them, use:
+
+```sh
+make -f Makefile.verilator.mk test-Dhrystone DHRYSTONE_BUILTINS=0
+```
+
+The default is `DHRYSTONE_BUILTINS=1`, which appends `-fbuiltin`
+after the shared freestanding flags, while retaining the RV32IM bare-metal
+environment and separate compilation. GCC may expand constant-size string and
+memory operations inline; calls it cannot expand still use the linked libc.
+With GCC 14.2.0, Dhrystone's constant-string `strcpy` calls are expanded, while
+the `strcmp` in `Func_2` still calls picolibc. Its structure copies already use
+inline loads/stores. Changing this option automatically rebuilds the objects.
+Report the builtin setting with any performance measurements.
+
 `test-clean-Dhrystone` preserves the checkout and test inputs;
 clean before changing compilers or build flags. The contest variant is outside
 this migration.

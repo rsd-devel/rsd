@@ -1,6 +1,12 @@
 # Public Dhrystone 2.1; fetch explicitly before building.
 DHRYSTONE_URL = https://github.com/sifive/benchmark-dhrystone.git
 DHRYSTONE_REVISION = 0ddff533cc9052c524990d5ace4560372053314b
+DHRYSTONE_BUILTINS ?= 1
+ifneq ($(DHRYSTONE_BUILTINS),0)
+ifneq ($(DHRYSTONE_BUILTINS),1)
+$(error DHRYSTONE_BUILTINS must be 0 or 1)
+endif
+endif
 
 # The same Makefile is used inside the output directory.
 ifeq ($(DHRYSTONE_BUILD),1)
@@ -10,13 +16,24 @@ LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
 LIBGCC = -lgcc
 # Use picolibc's strcpy/strcmp; the port supplies allocation, time and output.
 LIBC = -lc
+ifeq ($(DHRYSTONE_BUILTINS),1)
+# Override the shared -fno-builtin after -ffreestanding, for this test only.
+CFLAGS += -fbuiltin
+endif
 DUMMY_ROM = dummy_rom.bin
 # The upstream C uses K&R definitions and implicit procedure declarations.
 XCFLAGS = -I../External -include string.h -std=gnu99 -DTIME -DDHRY_ITERS=100 \
 	-Wno-implicit-int -Wno-implicit-function-declaration
 OBJS = dhrystone_port.o dhry_2.o rsd-crt.o rsd-loader.o
-BUILD_MAKEFILES = ../Makefile ../../Makefile.inc
+BUILD_MAKEFILES = ../Makefile ../../Makefile.inc .builtin-config
 vpath %.c ../External ..
+
+# Recompile when toggling builtins, including when switching back to zero.
+.PHONY: force-builtin-config
+.builtin-config: force-builtin-config
+	@if ! test -f $@ || test "$$(cat $@)" != "$(DHRYSTONE_BUILTINS)"; then \
+		printf '%s\n' "$(DHRYSTONE_BUILTINS)" > $@; \
+	fi
 
 %.o: %.c $(BUILD_MAKEFILES)
 	$(CC) $(CFLAGS) $(XCFLAGS) -MMD -MP -c $< -o $@
@@ -59,5 +76,5 @@ check-source:
 
 # Preserve the checkout and tracked test inputs.
 clean:
-	rm -f $(addprefix Dhrystone/,*.o *.d code.elf code.bin code.rom.bin code.hex code.dump dummy_rom.bin reg.out.hex serial.out.txt *.log)
+	rm -f $(addprefix Dhrystone/,*.o *.d code.elf code.bin code.rom.bin code.hex code.dump dummy_rom.bin reg.out.hex serial.out.txt *.log .builtin-config)
 endif
