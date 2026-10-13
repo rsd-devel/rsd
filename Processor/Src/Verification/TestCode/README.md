@@ -102,6 +102,45 @@ Report the builtin setting with any performance measurements.
 clean before changing compilers or build flags. The contest variant is outside
 this migration.
 
+## Cycle measurements
+
+```sh
+make -f Makefile.verilator.mk bench-Coremark
+make -f Makefile.verilator.mk bench-Dhrystone
+# Compare Dhrystone without GCC libc builtins:
+make -f Makefile.verilator.mk bench-Dhrystone DHRYSTONE_BUILTINS=0
+# Short run for comparison:
+make -f Makefile.verilator.mk bench-Dhrystone DHRYSTONE_BENCH_ITERATIONS=100
+```
+
+These targets build with `BENCHMARK=1`, retain the normal result checks, and
+append counter measurements to the UART output. Only after validation,
+TestDriver prints `CoreMark/MHz = iterations * 1000000 / cycles` or
+`DMIPS/MHz = iterations * 1000000 / (cycles * 1757)`.
+The measured interval covers the existing loop timing hooks, excluding startup,
+initialization, result checking and UART output. CSR timing overhead is included.
+
+These are short simulation estimates: one CoreMark iteration or 2000 Dhrystone
+iterations, starting from reset. `DHRYSTONE_BENCH_ITERATIONS` changes the latter;
+changing it automatically rebuilds the benchmark. Normal `test-Dhrystone`
+still uses 100 iterations. The benchmark instruction budget defaults to
+2000000; set `MAX_TEST_INSTRUCTIONS` when requesting a longer run.
+They do not meet the minimum-duration rules for
+published benchmark scores. The upstream synthetic timing remains solely for
+functional checks; the estimates use only the separate real cycle counts.
+RSD's 32-bit counter requires intervals shorter than `2^32` cycles.
+
+Dhrystone measures `mcycle` and reports the iteration count with the cycle count.
+Make passes the same iteration count to GCC and TestDriver. GCC builtins and
+8-byte function/loop alignment are set explicitly for Dhrystone because both
+strongly affect its score. Code/data placement can still affect performance;
+report the compiler version and build settings when comparing measurements.
+
+Run benchmark and normal test modes separately: they reuse the same output
+directories. Mode changes automatically rebuild; normal `test-*` targets restore
+`BENCHMARK=0` and the original exact UART comparison. `test-all` does not run
+the benchmark targets.
+
 ## Zephyr
 
 ```sh

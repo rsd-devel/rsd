@@ -406,6 +406,34 @@ class SerialOutputComparator( object ):
         return self.isMatched
 
 
+def PrintBenchmarkScore(benchmark, comparator, expectedIterations=None):
+    # The complete reference must precede exactly one measurement report.
+    record = comparator.outData[len(comparator.refData):]
+    match = re.fullmatch(rb'RSD benchmark: iterations=([0-9]+) cycles=0x([0-9a-fA-F]{8})\n', record)
+    if match is not None:
+        iterations, cycles = int(match[1]), int(match[2], 16)
+        if expectedIterations is not None and iterations != expectedIterations:
+            raise ValueError('Benchmark iteration count differs from the build setting')
+    elif benchmark == 'dhrystone' and expectedIterations is not None:
+        # Accept reports from the earlier mcycle/minstret measurement port.
+        # Its report omits the iteration count, so the caller must supply it.
+        match = re.fullmatch(rb'RSD measured cycles : ([0-9]+)\nRSD measured instructions : ([0-9]+)\n', record)
+        if match is None or not 0 < int(match[2]) <= 0xffffffff:
+            raise ValueError('Missing or malformed benchmark measurement')
+        iterations, cycles = expectedIterations, int(match[1])
+    else:
+        raise ValueError('Missing or malformed benchmark measurement')
+    if not 0 < iterations <= 0xffffffff or not 0 < cycles <= 0xffffffff:
+        raise ValueError('Benchmark iterations and cycles must be positive 32-bit values')
+    score = iterations * 1000000 / cycles
+    label = 'CoreMark/MHz'
+    if benchmark == 'dhrystone':
+        score /= 1757
+        label = 'Dhrystone DMIPS/MHz'
+    print('%s: %.6f (%d iterations, %d cycles; simulation estimate)' %
+          (label, score, iterations, cycles))
+
+
 # テストに失敗して結果が出なかった時に、
 # CompareRegValue()で前回のテスト結果が使われるのを防ぐため、
 # 前回のテスト結果のファイルを削除する。
@@ -444,7 +472,18 @@ parser.add_option('-e', '--return-error-code',
 parser.add_option('--serial-prefix',
                   action='store_true', dest='serialPrefix', default=False,
                   help="When serial.ref.txt exists, require its entire nonempty contents at the start of serial output, allowing additional output (default: exact match).")
+parser.add_option('--benchmark', type='choice', choices=['coremark', 'dhrystone'],
+                  help="Validate the serial reference and appended cycle measurement, then display a CoreMark/MHz or DMIPS/MHz estimate.")
+parser.add_option('--benchmark-iterations', type='int', dest='benchmarkIterations',
+                  help="Iteration count used to build a benchmark whose measurement report omits it.")
+parser.add_option('--max-test-instructions', type='int', dest='maxTestInstructions',
+                  help="Override the configuration's instruction budget for this run.")
 options, testCodePathList = parser.parse_args()
+if options.benchmarkIterations is not None:
+    if not options.benchmark or not 0 < options.benchmarkIterations <= 0xffffffff:
+        parser.error('--benchmark-iterations requires --benchmark and a positive 32-bit count')
+if options.maxTestInstructions is not None and not 0 < options.maxTestInstructions <= 2**63 - 1:
+    parser.error('--max-test-instructions must be a positive 64-bit count')
 
 if not testCodePathList:
     print ("Error : no TestCode specified.")
@@ -471,6 +510,9 @@ for testCodePath in testCodePathList:
     regOutPath = os.path.join( testCodePath, REG_OUT_FILE_NAME )
     serialOutPath = os.path.join( testCodePath, SERIAL_OUT_FILE_NAME )
     serialRefPath = os.path.join( testCodePath, SERIAL_REF_FILE_NAME )
+    if options.benchmark and not os.path.isfile(serialRefPath):
+        print('NG ( %s ) : Benchmark requires serial.ref.txt.' % testCodePath, file=sys.stderr)
+        sys.exit(3)
 
     # 過去のテスト結果を消去
     RemoveTestResult( regOutPath, serialOutPath )
@@ -480,6 +522,8 @@ for testCodePath in testCodePathList:
     config = ConfigParser()
     try:
         config.Parse( cfgXmlPath )
+        if options.maxTestInstructions is not None:
+            config.maxTestInstructions = options.maxTestInstructions
     except (TestConfigError, ElementTree.ParseError, OSError, ValueError, KeyError) as error:
         print('NG ( %s ) : Invalid configuration: %s' % (testCodePath, error), file=sys.stderr)
         sys.exit(3)
@@ -510,9 +554,17 @@ for testCodePath in testCodePathList:
     # シミュレーション時のシリアル出力を、リファレンスと比較
     if os.path.exists( serialRefPath ):
         # シリアル出力比較は、refファイルがある場合のみやる
-        serialOutComparator = SerialOutputComparator( testCodePath, matchPrefix=options.serialPrefix )
+        serialOutComparator = SerialOutputComparator(
+            testCodePath, matchPrefix=options.serialPrefix or bool(options.benchmark))
         serialOutComparator.Compare( serialRefPath, serialOutPath )
         serialOutComparator.PrintCompareResult()
+
+    if options.benchmark and regValueComparator.IsMatched() and serialOutComparator.IsMatched():
+        try:
+            PrintBenchmarkScore(options.benchmark, serialOutComparator, options.benchmarkIterations)
+        except ValueError as error:
+            print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
+            sys.exit(3)
 
     # テスト結果が違っていたら、エラーを返す
     if not options.returnNonZeroOnError:

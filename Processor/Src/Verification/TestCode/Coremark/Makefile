@@ -2,6 +2,12 @@
 COREMARK_URL = https://github.com/eembc/coremark.git
 COREMARK_REVISION = d5fad6bd094899101a4e5fd53af7298160ced6ab
 VARIANTS = Coremark Coremark_for_RV32I
+BENCHMARK ?= 0
+ifneq ($(BENCHMARK),0)
+ifneq ($(BENCHMARK),1)
+$(error BENCHMARK must be 0 or 1)
+endif
+endif
 
 # The same Makefile is used inside each output directory.
 ifneq ($(COREMARK_ARCH),)
@@ -11,11 +17,18 @@ LIBRARY_ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
 # This integer-only port needs GCC helpers, but no libc or math library.
 LIBGCC = -lgcc
 DUMMY_ROM = dummy_rom.bin
-XCFLAGS = -I.. -I../External -DITERATIONS=1
+XCFLAGS = -I.. -I../External -DITERATIONS=1 -DRSD_BENCHMARK=$(BENCHMARK)
 CORE_SRCS = core_list_join.c core_main.c core_matrix.c core_state.c core_util.c
 OBJS = $(CORE_SRCS:.c=.o) core_portme.o ee_printf.o rsd-crt.o rsd-loader.o
-BUILD_MAKEFILES = ../Makefile ../../Makefile.inc
+BUILD_MAKEFILES = ../Makefile ../../Makefile.inc .build-config
 vpath %.c ../External ..
+
+# Recompile only when the measurement setting changes.
+.PHONY: force-build-config
+.build-config: force-build-config
+	@if ! test -f $@ || test "$$(cat $@)" != "$(BENCHMARK)"; then \
+		printf '%s\n' "$(BENCHMARK)" > $@; \
+	fi
 
 %.o: %.c $(BUILD_MAKEFILES)
 	$(CC) $(CFLAGS) $(XCFLAGS) -MMD -MP -c $< -o $@
@@ -70,5 +83,5 @@ $(VARIANTS): check-source
 
 # Preserve the checkout and the tracked test configuration.
 clean:
-	rm -f $(foreach dir,$(VARIANTS),$(addprefix $(dir)/,*.o *.d code.elf code.bin code.rom.bin code.hex code.dump dummy_rom.bin ee_printf.c serial.ref.txt reg.out.hex serial.out.txt *.log))
+	rm -f $(foreach dir,$(VARIANTS),$(addprefix $(dir)/,*.o *.d code.elf code.bin code.rom.bin code.hex code.dump dummy_rom.bin ee_printf.c serial.ref.txt reg.out.hex serial.out.txt *.log .build-config))
 endif

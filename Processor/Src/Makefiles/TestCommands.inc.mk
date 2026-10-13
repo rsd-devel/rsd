@@ -109,7 +109,7 @@ test-clean-C:
 test-fetch-Coremark:
 	$(MAKE) -C Verification/TestCode/Coremark fetch
 test-build-Coremark:
-	$(MAKE) -C Verification/TestCode/Coremark
+	$(MAKE) -C Verification/TestCode/Coremark BENCHMARK=0
 test-clean-Coremark:
 	$(MAKE) -C Verification/TestCode/Coremark clean
 test-Coremark test-Coremark_for_RV32I: test-build-Coremark
@@ -119,10 +119,21 @@ test-Coremark test-Coremark_for_RV32I: test-build-Coremark
 test-fetch-Dhrystone:
 	$(MAKE) -C Verification/TestCode/Dhrystone fetch
 test-build-Dhrystone:
-	$(MAKE) -C Verification/TestCode/Dhrystone
+	$(MAKE) -C Verification/TestCode/Dhrystone BENCHMARK=0
 test-clean-Dhrystone:
 	$(MAKE) -C Verification/TestCode/Dhrystone clean
 test-Dhrystone: test-build-Dhrystone
+
+# Measure benchmark loops using mcycle.
+DHRYSTONE_BENCH_ITERATIONS ?= 2000
+.PHONY: bench-Coremark bench-Dhrystone
+bench-Coremark:
+	$(MAKE) -C Verification/TestCode/Coremark Coremark BENCHMARK=1
+	$(RUN_TEST_OMIT_MSG) --benchmark=coremark Verification/TestCode/Coremark/Coremark
+bench-Dhrystone: MAX_TEST_INSTRUCTIONS = 2000000
+bench-Dhrystone:
+	$(MAKE) -C Verification/TestCode/Dhrystone BENCHMARK=1 DHRYSTONE_ITERATIONS=$(DHRYSTONE_BENCH_ITERATIONS)
+	$(RUN_TEST_OMIT_MSG) --benchmark=dhrystone --benchmark-iterations=$(DHRYSTONE_BENCH_ITERATIONS) --max-test-instructions=$(MAX_TEST_INSTRUCTIONS) Verification/TestCode/Dhrystone/Dhrystone
 
 # Public Zephyr source and isolated Python build dependencies.
 .PHONY: test-fetch-Zephyr test-setup-Zephyr test-check-Zephyr test-build-Zephyr test-clean-Zephyr

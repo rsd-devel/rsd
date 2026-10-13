@@ -93,6 +93,97 @@ class RunTestProcessTests(unittest.TestCase):
             return []
         return [json.loads(line) for line in self.calls_path.read_text().splitlines()]
 
+    def test_benchmark_scores_after_validation(self):
+        self.env['FAKE_SERIAL_HEX'] = (
+            b'done\nRSD benchmark: iterations=100 cycles=0x00030d40\n').hex()
+        for simulator in self.executables:
+            for benchmark, expected in [('coremark', 'CoreMark/MHz: 500.000000'),
+                                        ('dhrystone', 'Dhrystone DMIPS/MHz: 0.284576')]:
+                with self.subTest(simulator=simulator, benchmark=benchmark):
+                    result = self.run_runner(simulator, '--benchmark=' + benchmark, '-o')
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertIn(expected, result.stdout)
+                    self.assertIn('100 iterations, 200000 cycles', result.stdout)
+
+    def test_benchmark_rejects_invalid_measurements(self):
+        record = b'RSD benchmark: iterations=1 cycles=0x00000001\n'
+        for suffix in [b'', b'partial', record + record,
+                       record.replace(b'iterations=1', b'iterations=0'),
+                       record.replace(b'iterations=1', b'iterations=4294967296'),
+                       record.replace(b'0x00000001', b'0x00000000')]:
+            with self.subTest(suffix=suffix):
+                self.env['FAKE_SERIAL_HEX'] = (b'done\n' + suffix).hex()
+                result = self.run_runner('verilator', '--benchmark=coremark')
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertNotIn('CoreMark/MHz:', result.stdout)
+
+    def test_dhrystone_cycle_and_instruction_report(self):
+        report = b'done\nRSD measured cycles : 474383\nRSD measured instructions : 656036\n'
+        self.env['FAKE_SERIAL_HEX'] = report.hex()
+        for simulator in self.executables:
+            with self.subTest(simulator=simulator):
+                result = self.run_runner(simulator, '--benchmark=dhrystone',
+                                         '--benchmark-iterations=2000', '-o')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('Dhrystone DMIPS/MHz: 2.399546', result.stdout)
+        result = self.run_runner('verilator', '--benchmark=dhrystone')
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        for invalid in (report.replace(b'474383', b'0'),
+                        report.replace(b'474383', b'4294967296'),
+                        report.replace(b'656036', b'0'),
+                        report.replace(b'656036', b'4294967296'),
+                        report + b'extra\n'):
+            with self.subTest(invalid=invalid):
+                self.env['FAKE_SERIAL_HEX'] = invalid.hex()
+                result = self.run_runner('verilator', '--benchmark=dhrystone',
+                                         '--benchmark-iterations=2000')
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertNotIn('DMIPS/MHz:', result.stdout)
+
+    def test_benchmark_rejects_iteration_mismatch(self):
+        self.env['FAKE_SERIAL_HEX'] = (
+            b'done\nRSD benchmark: iterations=100 cycles=0x00030d40\n').hex()
+        result = self.run_runner('verilator', '--benchmark=coremark',
+                                 '--benchmark-iterations=2000')
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertNotIn('CoreMark/MHz:', result.stdout)
+
+    def test_instruction_budget_override_reaches_every_backend(self):
+        for simulator in self.executables:
+            with self.subTest(simulator=simulator):
+                result = self.run_runner(simulator, '--max-test-instructions=2000000')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                arguments = [arg.lstrip('+') for arg in self.calls()[-1]['args']]
+                self.assertIn('MAX_TEST_INSTRUCTIONS=2000000', arguments)
+        for invalid in ('0', '-1', '9223372036854775808'):
+            with self.subTest(invalid=invalid):
+                result = self.run_runner('verilator', '--max-test-instructions=' + invalid)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(self.calls(), [])
+
+    def test_benchmark_requires_reference_and_correct_results(self):
+        self.env['FAKE_SERIAL_HEX'] = (
+            b'wrong\nRSD benchmark: iterations=1 cycles=0x00000001\n').hex()
+        result = self.run_runner('verilator', '--benchmark=coremark')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertNotIn('CoreMark/MHz:', result.stdout)
+        self.env['FAKE_SERIAL_HEX'] = (
+            b'done\nRSD benchmark: iterations=1 cycles=0x00000001\n').hex()
+        config = self.case / 'cfg.xml'
+        config.write_text(config.read_text().replace('<R0>0</R0>', '<R0>1</R0>'))
+        result = self.run_runner('verilator', '--benchmark=coremark')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertNotIn('CoreMark/MHz:', result.stdout)
+        self.env['FAKE_RESULT'] = 'no_commit_limit'
+        result = self.run_runner('verilator', '--benchmark=coremark')
+        self.assert_simulation_failure(result)
+        self.assertNotIn('CoreMark/MHz:', result.stdout)
+        del self.env['FAKE_RESULT']
+        (self.case / 'serial.ref.txt').unlink()
+        result = self.run_runner('verilator', '--benchmark=coremark')
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertEqual(self.calls(), [])
+
     def assert_simulation_failure(self, result):
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertNotIn('OK (', result.stdout)

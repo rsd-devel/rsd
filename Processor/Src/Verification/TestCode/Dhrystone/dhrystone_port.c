@@ -22,6 +22,9 @@ static int dhrystone_printf(const char *, ...);
 static Rec_Type records[2];
 static unsigned int allocated, checked;
 static int port_failed;
+#if RSD_BENCHMARK
+static unsigned int timer_calls, start_cycle, measured_cycles;
+#endif
 
 // These six locals are available through the upstream final report.
 // Require every entry to be reported; format changes must not skip checks.
@@ -52,6 +55,12 @@ static char *dhrystone_malloc(size_t size)
 // Synthetic time keeps the upstream code out of its performance-score path.
 static long dhrystone_time(long *result)
 {
+#if RSD_BENCHMARK
+    unsigned int cycle;
+    __asm__ volatile ("csrr %0, mcycle" : "=r" (cycle) :: "memory");
+    if (timer_calls++ == 0) start_cycle = cycle;
+    else measured_cycles = cycle - start_cycle;
+#endif
     if (result) *result = 0;
     return 0;
 }
@@ -81,6 +90,9 @@ int main(void)
 {
     allocated = checked = 0;
     port_failed = 0;
+#if RSD_BENCHMARK
+    timer_calls = 0;
+#endif
     // The legacy main has no defined return value; validate its results below.
     dhrystone_main();
     int failed = port_failed || allocated != 2 ||
@@ -100,8 +112,22 @@ int main(void)
         Next_Ptr_Glob->variant.var_1.Int_Comp != 18 ||
         strcmp(Next_Ptr_Glob->variant.var_1.Str_Comp,
                "DHRYSTONE PROGRAM, SOME STRING") != 0;
+#if RSD_BENCHMARK
+    failed |= timer_calls != 2;
+#endif
     const char *message = failed ? "Dhrystone failed\n" : "The program ran correctly\n";
     while (*message) serial_out_char(*message++);
+#if RSD_BENCHMARK
+    if (!failed) {
+        message = "RSD benchmark: iterations=";
+        while (*message) serial_out_char(*message++);
+        serial_out_dec(DHRY_ITERS);
+        message = " cycles=0x";
+        while (*message) serial_out_char(*message++);
+        serial_out_hex(measured_cycles);
+        serial_out_char('\n');
+    }
+#endif
     serial_flush();
     return failed;
 }
