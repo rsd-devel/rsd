@@ -24,7 +24,7 @@ LEVEL1_TESTS = \
 	test-RV32I-MemoryAccessZynq \
 	test-RV32I-ReplayQueueTest \
 	test-RV32I-DynamicRecovery \
-	test-RV32I-MemoryDependenyPrediction \
+	test-RV32I-MemoryDependencyPrediction \
 	test-RV32I-Fence \
 	test-RV32I-CSR \
 	test-RV32I-ENV \
@@ -210,7 +210,7 @@ test-RV32I-ReplayQueueTest:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ReplayQueueTest
 test-RV32I-DynamicRecovery:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DynamicRecovery
-test-RV32I-MemoryDependenyPrediction:
+test-RV32I-MemoryDependencyPrediction:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MemoryDependencyPrediction
 test-RV32I-Fence:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fence
