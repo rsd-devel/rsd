@@ -5,14 +5,12 @@ HOST_TYPE = $(shell uname)
 # Platform: linux
 ifneq (,$(findstring Linux,$(HOST_TYPE)))
 RSD_GCC_NATIVE = $(RSD_GCC_PATH)
-RSD_ENV_NATIVE = $(RSD_ENV)
 RSD_ROOT_NATIVE = $(RSD_ROOT)
 endif
 
 # Platform: cygwin
 ifneq (,$(findstring CYGWIN,$(HOST_TYPE)))
 RSD_GCC_NATIVE = $(shell cygpath -u "$$RSD_GCC_PATH")
-RSD_ENV_NATIVE = $(shell cygpath -u "$$RSD_ENV")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
