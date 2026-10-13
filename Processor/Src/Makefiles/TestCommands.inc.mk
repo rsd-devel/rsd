@@ -262,8 +262,6 @@ test-PerformanceCounter:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/PerformanceCounter
 test-Dhrystone:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone
-test-Dhrystone-for-contest:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone_for_Contest
 test-Exception:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Exception
 test-DCache:

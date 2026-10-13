@@ -99,8 +99,7 @@ inline loads/stores. Changing this option automatically rebuilds the objects.
 Report the builtin setting with any performance measurements.
 
 `test-clean-Dhrystone` preserves the checkout and test inputs;
-clean before changing compilers or build flags. The contest variant is outside
-this migration.
+clean before changing compilers or build flags.
 
 ## Cycle measurements
 
