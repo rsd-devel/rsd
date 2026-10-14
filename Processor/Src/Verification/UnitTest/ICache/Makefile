@@ -33,7 +33,6 @@ TEST_MODULES = \
 # ここの順番は適当でも大丈夫．
 MODULES = \
 	ResetController.sv \
-	Primitives/LRU_Counter.sv \
 	Primitives/RAM.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
 	Pipeline/MemoryBackEnd/MemoryAccessStageIF.sv \

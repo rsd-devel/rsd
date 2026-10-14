@@ -168,9 +168,7 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/FetchUnit/Bimodal.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/BitCounter.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Cache/CachePrimitives.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/LRU_Counter.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/PipelinedRefDivider.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Scheduler/SourceCAM.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/RegisterFile/VectorBypassNetwork.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/VectorUnit.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/MemoryBackEnd/MemoryRegisterWriteStageIF.sv"
@@ -386,7 +384,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/ReadyBitTable.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/Scheduler.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/SelectLogic.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Scheduler/SourceCAM.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/WakeupLogic.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/WakeupPipelineRegister.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Scheduler/ProducerMatrix.sv"] \
@@ -412,7 +409,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Primitives/FreeList.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/Queue.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/RAM.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Primitives/LRU_Counter.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/Picker.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/Multiplier.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/Divider.sv"] \
@@ -971,11 +967,6 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
-set file "$origin_dir/../../../../Src/Scheduler/SourceCAM.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
 set file "$origin_dir/../../../../Src/Scheduler/WakeupLogic.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
@@ -1097,11 +1088,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/Primitives/RAM.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
-set file "$origin_dir/../../../../Src/Primitives/LRU_Counter.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"

@@ -147,7 +147,6 @@ CORE_MODULES = \
 	Scheduler/ReadyBitTable.sv \
 	Scheduler/Scheduler.sv \
 	Scheduler/SelectLogic.sv \
-	Scheduler/SourceCAM.sv \
 	Scheduler/WakeupLogic.sv \
 	Scheduler/WakeupPipelineRegister.sv \
 	Scheduler/ProducerMatrix.sv \
@@ -176,7 +175,6 @@ CORE_MODULES = \
 	Primitives/FreeList.sv \
 	Primitives/Queue.sv \
 	Primitives/RAM.sv \
-	Primitives/LRU_Counter.sv \
 	Primitives/Picker.sv \
 	Primitives/Multiplier.sv \
 	Primitives/Divider.sv \
