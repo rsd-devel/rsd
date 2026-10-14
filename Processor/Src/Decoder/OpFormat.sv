@@ -777,12 +777,12 @@ function automatic void RISCV_DecodeRVAFunct5(
     output logic            isLR,
     output logic            isSC,
     output MemZaamo_Code    amoCode,
-    input  RVAFunct5        funct5,
+    input  RVAFunct5        funct5
 );
     undefined   = FALSE;
     isLR        = FALSE;
     isSC        = FALSE;
-    amoCode     = '0;
+    amoCode     = MEM_ZAAMO_SWAP;
     case(funct5)
         RVA_FUNCT5_LR: isLR = TRUE;
         RVA_FUNCT5_SC: isSC = TRUE;

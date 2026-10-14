@@ -64,7 +64,7 @@ module InterruptController(
         // priority order is
         // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
         reqInterrupt = 0;
-        interruptCode = 0;
+        interruptCode = CSR_CAUSE_InterruptCodePath'(0);
         interruptToSmode = 0;
 
         checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_TIMER   , reqInterrupt, interruptToSmode, interruptCode);

@@ -17,6 +17,7 @@ import PipelineTypes::*;
 import RenameLogicTypes::*;
 import DebugTypes::*;
 import MemoryMapTypes::*;
+import CSR_UnitTypes::*;
 
 module AmoALU(
 output

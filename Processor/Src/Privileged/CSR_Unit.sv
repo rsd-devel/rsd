@@ -53,7 +53,7 @@ module CSR_Unit(
 
     function logic IsSupportedPrivilegeLevel(
         input PrivilegeLevelType level,
-        input CSR_MISA_Path misa,
+        input CSR_MISA_Path misa
     );
         return level == PRIVILEGE_LEVEL_M ||
                misa.EXTENSIONS.S && level == PRIVILEGE_LEVEL_S ||
@@ -118,7 +118,7 @@ module CSR_Unit(
                 end
                 if (!csrReg.misa.EXTENSIONS.U) begin
                     value.MPRV = '0;
-                    value.MPP = '0;
+                    value.MPP = PRIVILEGE_LEVEL_U;
                 end
                 rv = value;
             end
