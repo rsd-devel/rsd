@@ -18,6 +18,7 @@ LEVEL1_TESTS = \
 	test-RV32I-IntRegRegZynq \
 	test-RV32I-LoadAndStore \
 	test-RV32I-LoadAndStoreZynq \
+	test-RV32I-MisalignedMemAccess \
 	test-RV32I-UncachableLoadAndStore \
 	test-RV32I-CacheFlush \
 	test-RV32I-ZeroRegister \
@@ -45,8 +46,6 @@ ifeq ($(RSD_HAS_FP),1)
 LEVEL1_TESTS += test-RV32F-Asm test-RV32F-C
 endif
 
-#	test-RV32I-MisalignedMemAccess \
-
 LEVEL2_TESTS = \
 	test-Coremark \
 	test-Coremark_for_RV32I \
@@ -66,8 +65,7 @@ test-clean-basic: test-clean-asm test-clean-C test-clean-crt
 
 # Always check source dependencies before running a basic test.
 # Each test depends on its build, including when make runs in parallel.
-BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS)) \
-	test-RV32I-MisalignedMemAccess
+BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS))
 BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache \
 	test-PerformanceCounter
 ifeq ($(RSD_HAS_FP),1)
