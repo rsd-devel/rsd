@@ -1183,29 +1183,27 @@ module DCache(
         end
 
         for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
-            if (!missReq[i] || mshrConflict[i]) begin
-                // This access hits the cache or is invalid.
-                // An access with the same index cannot enter to the MSHR.
-                continue;
-            end
-
-            // Search free MSHR entry and allocate.
-            for (int m = 0; m < MSHR_NUM; m++) begin
-                if (!port.mshrValid[m] && !portInitMSHR[m]) begin
-                    portInitMSHR[m] = TRUE;
-                    portInitMSHR_Addr[m] = missAddr[i];
-                    portInitMSHR_ActiveListPtr[m] = missActiveListPtr[i]; 
-                    portIsUncachable[m] = missIsUncachable[i];
-                    if (i < DCACHE_LSU_READ_PORT_NUM) begin
-                        lsuLoadHasAllocatedMSHR[i] = TRUE;
-                        lsuLoadMSHRID[i] = m;
+            // Only allocate for misses without an index conflict.
+            // Avoid an outer continue with an inner break for Synplify.
+            if (missReq[i] && !mshrConflict[i]) begin
+                // Search free MSHR entry and allocate.
+                for (int m = 0; m < MSHR_NUM; m++) begin
+                    if (!port.mshrValid[m] && !portInitMSHR[m]) begin
+                        portInitMSHR[m] = TRUE;
+                        portInitMSHR_Addr[m] = missAddr[i];
+                        portInitMSHR_ActiveListPtr[m] = missActiveListPtr[i];
+                        portIsUncachable[m] = missIsUncachable[i];
+                        if (i < DCACHE_LSU_READ_PORT_NUM) begin
+                            lsuLoadHasAllocatedMSHR[i] = TRUE;
+                            lsuLoadMSHRID[i] = m;
+                        end
+                        else begin
+                            lsuStoreHasAllocatedMSHR[i-DCACHE_LSU_READ_PORT_NUM] = TRUE;
+                            lsuStoreMSHRID[i-DCACHE_LSU_READ_PORT_NUM] = m;
+                            portIsAllocatedByStore[m] = TRUE;
+                        end
+                        break;
                     end
-                    else begin
-                        lsuStoreHasAllocatedMSHR[i-DCACHE_LSU_READ_PORT_NUM] = TRUE;
-                        lsuStoreMSHRID[i-DCACHE_LSU_READ_PORT_NUM] = m;
-                        portIsAllocatedByStore[m] = TRUE;
-                    end
-                    break;
                 end
             end
         end
