@@ -114,40 +114,29 @@ $(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_FILE_DEPS)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl
 
 # -------------------------------
-# Post synthesis simulation
-#
-# -------------------------------
-# Synthesis
-# This procedure uses Vivado only.
+# Project-based timing and post-implementation simulation.
+# Functional post-synthesis tests use the XSim flow below.
 VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/Zedboard
 VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/rsd_post_synthesis
 VIVADO_POST_SYNTHESIS_PROJECT_FILE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.xpr
-POST_SYNTHESIS_CODE_HEX = $(TEST_CODE)/code.hex
 
 POST_SYNTHESIS_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/synth_1/Main_Zynq_Wrapper.dcp
 POST_IMPLEMENTATION_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/impl_1/Main_Zynq_Wrapper.dcp
 
 POST_SYNTHESIS_SIMULATION_ROOT = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.sim/sim_1
-POST_SYNTHESIS_FUNCTIONAL_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/synth/func/xsim
 POST_SYNTHESIS_TIMING_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/synth/timing/xsim
 POST_IMPLEMENTATION_FUNCTIONAL_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/impl/func/xsim
 POST_IMPLEMENTATION_TIMING_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/impl/timing/xsim
 
-RSD_LOG_FILE_POST_SYNTHESIS 	        = $(POST_SYNTHESIS_FUNCTIONAL_WORK)/RSD-post-synthesis.log
 RSD_LOG_FILE_POST_SYNTHESIS_TIMING      = $(POST_SYNTHESIS_TIMING_WORK)/RSD-post-synthesis.log
 RSD_LOG_FILE_POST_IMPLEMENTATION        = $(POST_IMPLEMENTATION_FUNCTIONAL_WORK)/RSD-post-synthesis.log
 RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING = $(POST_IMPLEMENTATION_TIMING_WORK)/RSD-post-synthesis.log
 
-KANATA_LOG_FILE_POST_SYNTHESIS 	           = $(POST_SYNTHESIS_FUNCTIONAL_WORK)/Kanata-post-synthesis.log
 KANATA_LOG_FILE_POST_SYNTHESIS_TIMING      = $(POST_SYNTHESIS_TIMING_WORK)/Kanata-post-synthesis.log
 KANATA_LOG_FILE_POST_IMPLEMENTATION        = $(POST_IMPLEMENTATION_FUNCTIONAL_WORK)/Kanata-post-synthesis.log
 KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING = $(POST_IMPLEMENTATION_TIMING_WORK)/Kanata-post-synthesis.log
 
-# Run and verify post-synthesis simulation
-post-synthesis: post-synthesis-run
-	diff $(POST_SYNTHESIS_FUNCTIONAL_WORK)/serial.out.txt $(TEST_CODE)/serial.ref.txt
-	@echo "==== Post Synthesis Functional Simulation Successful ===="
-
+# Run and verify timing and post-implementation simulation.
 post-synthesis-timing: post-synthesis-timing-run
 	diff $(POST_SYNTHESIS_TIMING_WORK)/serial.out.txt $(TEST_CODE)/serial.ref.txt
 	@echo "==== Post Synthesis Timing Simulation Successful ===="
@@ -165,17 +154,11 @@ post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	$(RSD_VIVADO_BIN)/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) & 
 
 # Run post-synthesis simulation
-post-synthesis-run: $(RSD_LOG_FILE_POST_SYNTHESIS)
 post-synthesis-timing-run: $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
 post-implementation-run: $(RSD_LOG_FILE_POST_IMPLEMENTATION)
 post-implementation-timing-run: $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING)
 
 # Run post-synthesis simulation with GUI
-post-synthesis-run-gui: $(POST_SYNTHESIS_MODULE)
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
-		-tclargs post-synthesis functional
-
 post-synthesis-timing-run-gui: $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
@@ -193,14 +176,15 @@ post-implementation-timing-run-gui: $(POST_IMPLEMENTATION_MODULE)
 
 
 # Generate post-synthesis Kanata log file
-post-synthesis-kanata: $(KANATA_LOG_FILE_POST_SYNTHESIS)
 post-synthesis-timing-kanata: $(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING)
 post-implementation-kanata: $(KANATA_LOG_FILE_POST_IMPLEMENTATION)
 post-implementation-timing-kanata: $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING)
 
 
 # Remove post-synthesis simulation related files
+.PHONY: post-synthesis-clean
 post-synthesis-clean:
+	rm -rf ../Project/PostSynthesis/vivado
 	rm -f -r $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)
 	rm -f vivado*.jou
 	rm -f vivado*.log
@@ -228,12 +212,7 @@ $(POST_IMPLEMENTATION_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	touch $(POST_IMPLEMENTATION_MODULE) # Update timestamp to avoid re-synthesis
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
-	$(MAKE) post-synthesis-create || $(MAKE) post-synthesis-clean
-
-$(RSD_LOG_FILE_POST_SYNTHESIS): $(POST_SYNTHESIS_MODULE)
-	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
-		-tclargs post-synthesis functional
+	$(MAKE) post-synthesis-create || { rm -rf $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT); exit 1; }
 
 $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
@@ -250,17 +229,14 @@ $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(POST_IMPLEMENTATION_MODULE)
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-implementation timing
 
-$(KANATA_LOG_FILE_POST_SYNTHESIS): $(RSD_LOG_FILE_POST_SYNTHESIS)
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS)
-
 $(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING): $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING)
+	$(KANATA_CONVERTER) $< $@
 
 $(KANATA_LOG_FILE_POST_IMPLEMENTATION): $(RSD_LOG_FILE_POST_IMPLEMENTATION)
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_IMPLEMENTATION)
+	$(KANATA_CONVERTER) $< $@
 
 $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING)
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_POST_SYNTHESIS) $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING)
+	$(KANATA_CONVERTER) $< $@
 
 # -------------------------------
 # Test related items are defined in this file
@@ -301,3 +277,7 @@ test-post-synthesis: post-synthesis-build
 	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xelab -relax -timescale 1ns/1ps -L unisims_ver \
 		-s post_synthesis work.TestMain work.glbl
 	timeout 12h python3 ../Tools/TestDriver/RunTest.py --simulator=post-synthesis $(POST_SYNTHESIS_WORK)
+
+# Keep the existing entry points on the same XSim test flow.
+.PHONY: post-synthesis post-synthesis-run
+post-synthesis post-synthesis-run: test-post-synthesis
