@@ -27,7 +27,8 @@ if name != 'xelab':
     test_code = next(arg.lstrip('+').split('=', 1)[1] for arg in sys.argv[1:]
                      if arg.lstrip('+').startswith('TEST_CODE='))
     test_dir = Path(test_code)
-    (test_dir / 'reg.out.hex').write_text('0x00000000\\n' * 65)
+    if not os.environ.get('FAKE_SKIP_REGISTER_DUMP'):
+        (test_dir / 'reg.out.hex').write_text('0x00000000\\n' * 65)
     serial_output = bytes.fromhex(os.environ['FAKE_SERIAL_HEX']) if 'FAKE_SERIAL_HEX' in os.environ else b'done\\n'
     (test_dir / 'serial.out.txt').write_bytes(serial_output)
     parameters = dict(arg.lstrip('+').split('=', 1) for arg in sys.argv[1:] if '=' in arg)
@@ -92,6 +93,40 @@ class RunTestProcessTests(unittest.TestCase):
         if not self.calls_path.exists():
             return []
         return [json.loads(line) for line in self.calls_path.read_text().splitlines()]
+
+    def test_post_synthesis_checks_uart_and_termination_without_register_dump(self):
+        self.env['FAKE_SKIP_REGISTER_DUMP'] = '1'
+        self.env.pop('RSD_QUESTASIM_PATH', None)
+        for reason, serial, expected in [('pc_goal', b'done\n', 0),
+                                         ('pc_goal', b'wrong\n', 1),
+                                         ('no_commit_limit', b'done\n', 3),
+                                         ('missing', b'done\n', 3)]:
+            with self.subTest(reason=reason, serial=serial):
+                self.env.update(FAKE_RESULT=reason, FAKE_SERIAL_HEX=serial.hex())
+                result = self.run_runner('post-synthesis', '-o')
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertFalse((self.case / 'reg.out.hex').exists())
+                self.assertNotIn('registers have correct values', result.stdout)
+                call = self.calls()[0]
+                self.assertEqual(Path(call['cwd']), self.case)
+                self.assertEqual(call['name'], 'xsim')
+                self.assertIn('post_synthesis', call['args'])
+                self.assertIn('MAX_TEST_INSTRUCTIONS=10000', call['args'])
+                self.assertIn('TEST_CODE=.', call['args'])
+                self.assertTrue((self.case / 'xsim.log').is_file())
+        self.env.update(FAKE_RESULT='pc_goal', FAKE_STATUS_xsim='7')
+        self.assert_simulation_failure(self.run_runner('post-synthesis'))
+
+    def test_post_synthesis_requires_nonempty_uart_reference(self):
+        reference = self.case / 'serial.ref.txt'
+        reference.write_bytes(b'')
+        for missing in (False, True):
+            if missing:
+                reference.unlink()
+            result = self.run_runner('post-synthesis')
+            self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+            self.assertIn('requires a nonempty serial.ref.txt', result.stderr)
+            self.assertEqual(self.calls(), [])
 
     def test_benchmark_scores_after_validation(self):
         self.env['FAKE_SERIAL_HEX'] = (

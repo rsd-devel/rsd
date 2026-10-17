@@ -313,6 +313,20 @@ class VivadoSimulationDriver(object):
         return os.path.normpath(os.path.join(self.projectDirPath, self.xsimLogPath))
 
 
+class PostSynthesisSimulationDriver(VivadoSimulationDriver):
+    SOURCE_ROOT = ''
+
+    def __init__(self, projectDirPath, config, options):
+        super().__init__(projectDirPath, '.', config, options)
+
+    def RunSimulation(self):
+        # Make compiles the netlist and testbench into this XSim snapshot.
+        cmd = [self.xsimPath, 'post_synthesis', '-runall', '-nolog', '-onerror', 'quit',
+               '-testplusarg', 'SHOW_SERIAL_OUT=1'] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
+
+
 class RegisterValueComparator( object ):
     def __init__( self, testCodeName ):
         self.testCodeName = testCodeName
@@ -462,7 +476,7 @@ parser.add_option('-l', '--rsd-log',
                   help="Specify an RSD log file name.")
 parser.add_option('-s', '--simulator',
                   action='store', type='string', dest='simulatorName',
-                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim]. If this option is not specified, modelsim is used.")
+                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim/post-synthesis]. Post-synthesis uses XSim and checks termination and UART only. Default: modelsim.")
 parser.add_option('-q', '--quiet',
                   action='store_true', dest='quietMode', default=False,
                   help="Omit any messages of this script")
@@ -497,6 +511,8 @@ if options.simulatorName is not None:
         simName = "verilator"
     elif simName == "vivadosim":
         simName = "vivadosim"
+    elif simName == "post-synthesis":
+        simName = "post-synthesis"
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -510,6 +526,11 @@ for testCodePath in testCodePathList:
     regOutPath = os.path.join( testCodePath, REG_OUT_FILE_NAME )
     serialOutPath = os.path.join( testCodePath, SERIAL_OUT_FILE_NAME )
     serialRefPath = os.path.join( testCodePath, SERIAL_REF_FILE_NAME )
+    if simName == "post-synthesis" and (
+            not os.path.isfile(serialRefPath) or os.path.getsize(serialRefPath) == 0):
+        print('NG ( %s ) : Post-synthesis requires a nonempty serial.ref.txt.' % testCodePath,
+              file=sys.stderr)
+        sys.exit(3)
     if options.benchmark and not os.path.isfile(serialRefPath):
         print('NG ( %s ) : Benchmark requires serial.ref.txt.' % testCodePath, file=sys.stderr)
         sys.exit(3)
@@ -532,6 +553,8 @@ for testCodePath in testCodePathList:
     simDriver = None
     if simName == "modelsim":
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
+    elif simName == "post-synthesis":
+        simDriver = PostSynthesisSimulationDriver(testCodePath, config, options)
     elif simName == "vivadosim":
         simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
@@ -544,12 +567,18 @@ for testCodePath in testCodePathList:
         sys.exit(3)
 
     # シミュレーション時のレジスタの値を、リファレンスと比較
-    regValueComparator = RegisterValueComparator( testCodePath )
-    regValueComparator.Compare( config.registerValueDict, regOutPath )
-    if config.registerValueDict:
-        regValueComparator.PrintCompareResult()
-    else:
+    # Synthesized netlists do not expose the architectural register dump.
+    regValuesMatched = True
+    if simName == "post-synthesis":
         print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
+    else:
+        regValueComparator = RegisterValueComparator( testCodePath )
+        regValueComparator.Compare( config.registerValueDict, regOutPath )
+        regValuesMatched = regValueComparator.IsMatched()
+        if config.registerValueDict:
+            regValueComparator.PrintCompareResult()
+        else:
+            print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
 
     # シミュレーション時のシリアル出力を、リファレンスと比較
     if os.path.exists( serialRefPath ):
@@ -559,7 +588,7 @@ for testCodePath in testCodePathList:
         serialOutComparator.Compare( serialRefPath, serialOutPath )
         serialOutComparator.PrintCompareResult()
 
-    if options.benchmark and regValueComparator.IsMatched() and serialOutComparator.IsMatched():
+    if options.benchmark and regValuesMatched and serialOutComparator.IsMatched():
         try:
             PrintBenchmarkScore(options.benchmark, serialOutComparator, options.benchmarkIterations)
         except ValueError as error:
@@ -571,10 +600,10 @@ for testCodePath in testCodePathList:
         sys.exit(0)
     else:
         if os.path.exists( serialRefPath ):
-            if not regValueComparator.IsMatched():
+            if not regValuesMatched:
                 sys.exit(2)
             if not serialOutComparator.IsMatched():
                 sys.exit(1)
         else:
-            if not regValueComparator.IsMatched():
+            if not regValuesMatched:
                 sys.exit(2)

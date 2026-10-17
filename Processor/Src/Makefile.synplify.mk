@@ -168,3 +168,37 @@ $(POST_SYNTHESIS_MODULE): $(SYNPLIFY_POST_SYNTHESIS_NETLIST) $(VIVADO_POST_SYNTH
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 	$(MAKE) vivado-post-synthesis-create || $(MAKE) vivado-post-synthesis-clean
 
+# Functional simulation of a synthesized Zedboard core using XSim.
+# Build TEST_CODE first; each invocation synthesizes its HEX into internal RAM.
+SYNPLIFY ?= synplify_premier_dp
+POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/synplify/$(notdir $(TEST_CODE)))
+
+export RSD_VIVADO_BIN
+export RSD_POST_SYNTHESIS_SRC = $(CURDIR)
+POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisSynplify.tcl)
+POST_SYNTHESIS_XILINX = $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
+
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+	python3 Generator/cpu_generator.py --rsd-root $(abspath ../..)
+
+.PHONY: test-post-synthesis post-synthesis-build
+# These targets need UART output; command-line TEST_CODE overrides this default.
+test-post-synthesis post-synthesis-build: TEST_CODE = Verification/TestCode/C/HelloWorld
+post-synthesis-build: $(CORE_TEMPLATE_FILES)
+	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
+	test -x $(RSD_VIVADO_BIN)/xsim
+	mkdir -p $(POST_SYNTHESIS_WORK)
+	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
+	rm -f $(POST_SYNTHESIS_WORK)/netlist.vm
+	cd $(POST_SYNTHESIS_WORK) && $(SYNPLIFY) -batch $(POST_SYNTHESIS_SCRIPT)
+	test -s $(POST_SYNTHESIS_WORK)/netlist.vm
+
+test-post-synthesis: post-synthesis-build
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog -sv \
+		-i $(CURDIR) $(patsubst +define+%,-d %,$(RSD_SRC_CFG)) \
+		-d RSD_FUNCTIONAL_SIMULATION -d RSD_POST_SYNTHESIS_SIMULATION \
+		$(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(TEST_MODULES))
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog netlist.vm $(POST_SYNTHESIS_XILINX)/glbl.v
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xelab -relax -timescale 1ns/1ps -L unisims_ver \
+		-s post_synthesis work.TestMain work.glbl
+	timeout 12h python3 ../Tools/TestDriver/RunTest.py --simulator=post-synthesis $(POST_SYNTHESIS_WORK)

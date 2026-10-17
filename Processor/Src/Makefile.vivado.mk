@@ -268,3 +268,36 @@ RUN_TEST = @python3 ../Tools/TestDriver/RunTest.py --simulator=vivadosim
 RUN_TEST_OMIT_MSG = \
 	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
 include Makefiles/TestCommands.inc.mk
+
+# Functional simulation of a synthesized Zedboard core using XSim.
+# Build TEST_CODE first; each invocation synthesizes its HEX into internal RAM.
+POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado/$(notdir $(TEST_CODE)))
+
+export RSD_VIVADO_BIN
+export RSD_POST_SYNTHESIS_SRC = $(CURDIR)
+export RSD_POST_SYNTHESIS_SOURCES = $(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(MODULES))
+POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisVivado.tcl)
+POST_SYNTHESIS_XILINX = $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
+
+.PHONY: test-post-synthesis post-synthesis-build
+# These targets need UART output; command-line TEST_CODE overrides this default.
+test-post-synthesis post-synthesis-build: TEST_CODE = Verification/TestCode/C/HelloWorld
+post-synthesis-build: $(CORE_TEMPLATE_FILES)
+	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
+	test -x $(RSD_VIVADO_BIN)/xsim
+	mkdir -p $(POST_SYNTHESIS_WORK)
+	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
+	rm -f $(POST_SYNTHESIS_WORK)/netlist.v
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT)
+	test -s $(POST_SYNTHESIS_WORK)/netlist.v
+
+test-post-synthesis: post-synthesis-build
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog -sv \
+		-i $(CURDIR) $(patsubst +define+%,-d %,$(RSD_SRC_CFG)) \
+		-d RSD_FUNCTIONAL_SIMULATION -d RSD_POST_SYNTHESIS_SIMULATION \
+		-d RSD_SYNTHESIS_VIVADO \
+		$(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(TEST_MODULES))
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog netlist.v $(POST_SYNTHESIS_XILINX)/glbl.v
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xelab -relax -timescale 1ns/1ps -L unisims_ver \
+		-s post_synthesis work.TestMain work.glbl
+	timeout 12h python3 ../Tools/TestDriver/RunTest.py --simulator=post-synthesis $(POST_SYNTHESIS_WORK)

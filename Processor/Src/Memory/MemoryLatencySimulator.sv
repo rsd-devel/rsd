@@ -97,7 +97,10 @@ output
     `RSD_ASSERT_CLK(clk, !full, "Cannot response so many memory request.");
 
 `ifdef RSD_SYNTHESIS
-    `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
+    // Post-synthesis tests include the internal memory and its latency model.
+    `ifndef RSD_POST_SYNTHESIS
+        `RSD_STATIC_ASSERT(FALSE, "This module must not be used in synthesis.");
+    `endif
 `endif
 
 endmodule : MemoryLatencySimulator
