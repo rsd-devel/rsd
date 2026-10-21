@@ -121,7 +121,7 @@ VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/rsd_post_synthesis
 VIVADO_POST_SYNTHESIS_PROJECT_FILE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.xpr
 
 POST_SYNTHESIS_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/synth_1/Main_Zynq_Wrapper.dcp
-POST_IMPLEMENTATION_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/impl_1/Main_Zynq_Wrapper.dcp
+POST_IMPLEMENTATION_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/impl_1/Main_Zynq_Wrapper_routed.dcp
 
 export RSD_POST_SYNTHESIS_DEFINES = $(patsubst +define+%,%,$(RSD_SRC_CFG))
 
@@ -205,12 +205,13 @@ $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/run_synthesis.tcl
+	test -s $(POST_SYNTHESIS_MODULE)
 	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
 
-$(POST_IMPLEMENTATION_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
-	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
+$(POST_IMPLEMENTATION_MODULE): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
 	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/run_implementation.tcl
+	test -s $(POST_IMPLEMENTATION_MODULE)
 	touch $(POST_IMPLEMENTATION_MODULE) # Update timestamp to avoid re-synthesis
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
