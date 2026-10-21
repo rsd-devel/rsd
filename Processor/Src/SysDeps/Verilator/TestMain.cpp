@@ -360,7 +360,8 @@ int main(int argc, char** argv) {
             start = !top->posResetOut;
 
             main_time += RSD_STEP; // 62.5MHz
-            if (main_time == RSD_INITIALIZATION_CYCLE*RSD_STEP*2) {
+            // Release reset on the falling edge, as in TestBenchClockGenerator.
+            if (main_time == RSD_INITIALIZATION_CYCLE*RSD_STEP*2 + RSD_STEP) {
                 top->negResetIn = 1; // リセット解除
             }
             
