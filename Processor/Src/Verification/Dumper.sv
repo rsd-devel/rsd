@@ -108,7 +108,10 @@ package DumperTypes;
                 );
             end
             for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-                str =debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
+                // Avoid a string ternary with an unknown condition in XSim.
+                str = "";
+                if (debugRegister.ifReg[i].icMiss)
+                    str = "i-cache-miss\\n";
                 this.DumpStage(
                     KS_IF, // stage id
                     debugRegister.ifReg[i].valid, // valid
@@ -464,7 +467,7 @@ package DumperTypes;
                     if (debugRegister.mtReg[i].executeLoad) begin
                         $sformat( str, "%s\\n = load([#0x%0x])",
                             str,
-                            debugRegister.mtReg[i].executedLoadAddr,
+                            debugRegister.mtReg[i].executedLoadAddr
                         );
                         if (debugRegister.mtReg[i].mshrAllocated) begin
                             $sformat( str, 
