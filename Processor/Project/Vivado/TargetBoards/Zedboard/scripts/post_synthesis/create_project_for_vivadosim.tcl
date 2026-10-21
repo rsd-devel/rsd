@@ -1317,6 +1317,11 @@ set_property -name "top" -value "Main_Zynq_Wrapper" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
 set_property -name "verilog_define" -value "RSD_SYNTHESIS RSD_POST_SYNTHESIS RSD_SYNTHESIS_VIVADO" -objects $obj
 
+# Use the same synthesis configuration as the functional post-synthesis flow.
+set header [get_files */SysDeps/SynthesisMacros.svh]
+set_property is_global_include true $header
+set_property used_in_simulation false $header
+
 # Create 'constrs_1' fileset (if not found)
 if {[string equal [get_filesets -quiet constrs_1] ""]} {
   create_fileset -constrset constrs_1
@@ -1365,7 +1370,7 @@ set_property -name "sim_mode" -value "post-synthesis" -objects $obj
 set_property -name "top" -value "TestMain" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
 set_property -name "top_lib" -value "xil_defaultlib" -objects $obj
-set_property -name "verilog_define" -value "RSD_VIVADO_SIMULATION RSD_POST_SYNTHESIS_SIMULATION" -objects $obj
+set_property verilog_define [concat {RSD_FUNCTIONAL_SIMULATION RSD_VIVADO_SIMULATION RSD_POST_SYNTHESIS_SIMULATION RSD_SYNTHESIS_VIVADO} $env(RSD_POST_SYNTHESIS_DEFINES)] $obj
 set_property -name "xsim.simulate.xsim.more_options" -value "-testplusarg MAX_TEST_CYCLES=1000000 -testplusarg TEST_CODE=./ -testplusarg ENABLE_PC_GOAL=1 -testplusarg SHOW_SERIAL_OUT=0 -testplusarg RSD_LOG_FILE=RSD-post-synthesis.log" -objects $obj
 
 # Set 'utils_1' fileset object
