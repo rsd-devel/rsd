@@ -1330,7 +1330,14 @@ if {[string equal [get_filesets -quiet constrs_1] ""]} {
 # Set 'constrs_1' fileset object
 set obj [get_filesets constrs_1]
 
-# Empty (no sources present)
+# Match the 16 ns clock period in Verification/TestMain.sv.
+set timing_file "$proj_dir/post_synthesis.xdc"
+set timing [open $timing_file w]
+puts $timing {create_clock -name core_clk -period 16.000 [get_ports clk_p]}
+# Preserve hierarchical connections used by the testbench and Kanata dumper.
+puts $timing {set_property DONT_TOUCH true [get_nets -segments -regexp {debugRegister\[[0-9]+\]}]}
+close $timing
+add_files -fileset constrs_1 $timing_file
 
 # Set 'constrs_1' fileset properties
 set obj [get_filesets constrs_1]
