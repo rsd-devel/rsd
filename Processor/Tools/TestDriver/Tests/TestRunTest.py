@@ -23,6 +23,8 @@ with open(os.environ['FAKE_CALLS_LOG'], 'a') as log:
     log.write(json.dumps({'name': name, 'args': sys.argv[1:], 'cwd': os.getcwd()}) + '\\n')
 print('simulator stdout: ' + name, flush=True)
 print('simulator stderr: ' + name, file=sys.stderr, flush=True)
+if os.environ.get('FAKE_TIMING_VIOLATION'):
+    print('Timing violation in test cell', flush=True)
 if name != 'xelab':
     test_code = next(arg.lstrip('+').split('=', 1)[1] for arg in sys.argv[1:]
                      if arg.lstrip('+').startswith('TEST_CODE='))
@@ -73,7 +75,7 @@ class RunTestProcessTests(unittest.TestCase):
             'modelsim': self.bin_dir / 'vsim',
             'vivadosim': self.bin_dir / 'xsim',
         }
-        for path in [*self.executables.values(), self.bin_dir / 'xelab']:
+        for path in [*self.executables.values(), self.bin_dir / 'xelab', self.case / 'simv']:
             path.write_text(FAKE_SIMULATOR)
             path.chmod(0o755)
         self.calls_path = self.root / 'calls.jsonl'
@@ -123,10 +125,31 @@ class RunTestProcessTests(unittest.TestCase):
         for missing in (False, True):
             if missing:
                 reference.unlink()
-            result = self.run_runner('post-synthesis')
-            self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
-            self.assertIn('requires a nonempty serial.ref.txt', result.stderr)
-            self.assertEqual(self.calls(), [])
+            for simulator in ('post-synthesis', 'post-synthesis-vcs'):
+                result = self.run_runner(simulator)
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertIn('requires a nonempty serial.ref.txt', result.stderr)
+                self.assertEqual(self.calls(), [])
+
+    def test_vcs_checks_termination_uart_and_timing_without_register_dump(self):
+        self.env['FAKE_SKIP_REGISTER_DUMP'] = '1'
+        self.env.pop('RSD_VIVADO_BIN', None)
+        for reason, serial, violation, expected in [
+                ('pc_goal', b'done\n', '', 0),
+                ('pc_goal', b'wrong\n', '', 1),
+                ('no_commit_limit', b'done\n', '', 3),
+                ('missing', b'done\n', '', 3),
+                ('pc_goal', b'done\n', '1', 3)]:
+            with self.subTest(reason=reason, serial=serial, violation=violation):
+                self.env.update(FAKE_RESULT=reason, FAKE_SERIAL_HEX=serial.hex(),
+                                FAKE_TIMING_VIOLATION=violation)
+                result = self.run_runner('post-synthesis-vcs', '-o')
+                self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertFalse((self.case / 'reg.out.hex').exists())
+                self.assertEqual(Path(self.calls()[0]['cwd']), self.case)
+                self.assertTrue((self.case / 'vcs.log').is_file())
+        self.env.update(FAKE_RESULT='pc_goal', FAKE_TIMING_VIOLATION='', FAKE_STATUS_simv='7')
+        self.assert_simulation_failure(self.run_runner('post-synthesis-vcs'))
 
     def test_benchmark_scores_after_validation(self):
         self.env['FAKE_SERIAL_HEX'] = (

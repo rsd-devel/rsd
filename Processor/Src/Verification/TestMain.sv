@@ -19,13 +19,15 @@ import IO_UnitTypes::*;
 import DebugTypes::*;
 
 
-parameter STEP = 8; // 62.5Mhz
+module TestMain #(
+    parameter real CLOCK_PERIOD_NS = 16 // 62.5 MHz by default.
+);
+
+localparam STEP = CLOCK_PERIOD_NS / 2.0;
 parameter HOLD = 2;
 parameter SETUP = 2;
 parameter WAIT = STEP*2-HOLD-SETUP;
 parameter HOLD_PLUS_WAIT = HOLD + WAIT;
-
-module TestMain;
 
     //
     // Check compiler directives.

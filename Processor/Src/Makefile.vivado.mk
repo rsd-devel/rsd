@@ -187,6 +187,7 @@ post-implementation-timing-kanata: $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING)
 .PHONY: post-synthesis-clean
 post-synthesis-clean:
 	rm -rf ../Project/PostSynthesis/vivado
+	rm -rf ../Project/PostSynthesis/vivado-timing
 	rm -f -r $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)
 	rm -f vivado*.jou
 	rm -f vivado*.log
@@ -248,9 +249,11 @@ RUN_TEST_OMIT_MSG = \
 	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=vivadosim
 include Makefiles/TestCommands.inc.mk
 
-# Functional simulation of a synthesized Zedboard core using XSim.
+# Build a Zedboard netlist for XSim functional tests or VCS timing tests.
 # Build TEST_CODE first; each invocation synthesizes its HEX into internal RAM.
 POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado/$(notdir $(TEST_CODE)))
+POST_SYNTHESIS_MODE = functional
+POST_IMPLEMENTATION_CLOCK_NS ?= 32
 
 export RSD_VIVADO_BIN
 export RSD_POST_SYNTHESIS_SRC = $(CURDIR)
@@ -258,16 +261,20 @@ export RSD_POST_SYNTHESIS_SOURCES = $(abspath $(filter-out $(TEST_MODULES),$(TYP
 POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisVivado.tcl)
 POST_SYNTHESIS_XILINX = $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
 
-.PHONY: test-post-synthesis post-synthesis-build
+.PHONY: test-post-synthesis post-synthesis-build post-implementation-build
 # These targets need UART output; command-line TEST_CODE overrides this default.
 test-post-synthesis post-synthesis-build: TEST_CODE = Verification/TestCode/C/HelloWorld
-post-synthesis-build: $(CORE_TEMPLATE_FILES)
+post-implementation-build: TEST_CODE = Verification/TestCode/C/HelloWorld
+post-implementation-build: POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))
+post-implementation-build: POST_SYNTHESIS_MODE = timing
+post-synthesis-build post-implementation-build: $(CORE_TEMPLATE_FILES)
 	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
-	test -x $(RSD_VIVADO_BIN)/xsim
+	test -x $(RSD_VIVADO_BIN)/vivado
 	mkdir -p $(POST_SYNTHESIS_WORK)
-	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
 	rm -f $(POST_SYNTHESIS_WORK)/netlist.v
-	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT)
+	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT) \
+		-tclargs $(POST_SYNTHESIS_MODE) $(POST_IMPLEMENTATION_CLOCK_NS)
 	test -s $(POST_SYNTHESIS_WORK)/netlist.v
 
 test-post-synthesis: post-synthesis-build

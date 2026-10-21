@@ -327,6 +327,25 @@ class PostSynthesisSimulationDriver(VivadoSimulationDriver):
                              self.omitPrintCommand, cwd=self.projectDirPath)
 
 
+class VCSPostSynthesisSimulationDriver(SimulationDriver):
+    VSIM_LOG_FILE_NAME = 'vcs.log'
+
+    def __init__(self, projectDirPath, config, options):
+        super().__init__(projectDirPath, '.', config, options)
+
+    def RunSimulation(self):
+        cmd = ['./simv', '+TEST_CODE=.', '+SHOW_SERIAL_OUT=1'] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.vsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
+        # VCS can report timing violations without returning a failing status.
+        with open(self.GetLogPath(), errors='replace') as log:
+            if re.search(r'Timing violation', log.read(), re.IGNORECASE):
+                raise SimulationError('Timing violation (log: %s)' % self.GetLogPath())
+
+    def GetLogPath(self):
+        return os.path.join(self.projectDirPath, self.vsimLogPath)
+
+
 class RegisterValueComparator( object ):
     def __init__( self, testCodeName ):
         self.testCodeName = testCodeName
@@ -476,7 +495,7 @@ parser.add_option('-l', '--rsd-log',
                   help="Specify an RSD log file name.")
 parser.add_option('-s', '--simulator',
                   action='store', type='string', dest='simulatorName',
-                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim/post-synthesis]. Post-synthesis uses XSim and checks termination and UART only. Default: modelsim.")
+                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim/post-synthesis/post-synthesis-vcs]. Post-synthesis modes check termination and UART without register dumps. Default: modelsim.")
 parser.add_option('-q', '--quiet',
                   action='store_true', dest='quietMode', default=False,
                   help="Omit any messages of this script")
@@ -511,8 +530,8 @@ if options.simulatorName is not None:
         simName = "verilator"
     elif simName == "vivadosim":
         simName = "vivadosim"
-    elif simName == "post-synthesis":
-        simName = "post-synthesis"
+    elif simName in ("post-synthesis", "post-synthesis-vcs"):
+        pass
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -526,7 +545,7 @@ for testCodePath in testCodePathList:
     regOutPath = os.path.join( testCodePath, REG_OUT_FILE_NAME )
     serialOutPath = os.path.join( testCodePath, SERIAL_OUT_FILE_NAME )
     serialRefPath = os.path.join( testCodePath, SERIAL_REF_FILE_NAME )
-    if simName == "post-synthesis" and (
+    if simName in ("post-synthesis", "post-synthesis-vcs") and (
             not os.path.isfile(serialRefPath) or os.path.getsize(serialRefPath) == 0):
         print('NG ( %s ) : Post-synthesis requires a nonempty serial.ref.txt.' % testCodePath,
               file=sys.stderr)
@@ -555,6 +574,8 @@ for testCodePath in testCodePathList:
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
     elif simName == "post-synthesis":
         simDriver = PostSynthesisSimulationDriver(testCodePath, config, options)
+    elif simName == "post-synthesis-vcs":
+        simDriver = VCSPostSynthesisSimulationDriver(testCodePath, config, options)
     elif simName == "vivadosim":
         simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
@@ -569,7 +590,7 @@ for testCodePath in testCodePathList:
     # シミュレーション時のレジスタの値を、リファレンスと比較
     # Synthesized netlists do not expose the architectural register dump.
     regValuesMatched = True
-    if simName == "post-synthesis":
+    if simName in ("post-synthesis", "post-synthesis-vcs"):
         print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
     else:
         regValueComparator = RegisterValueComparator( testCodePath )
