@@ -47,9 +47,10 @@ use Makefile variables rather than `cfg.xml`; pass `MAX_TEST_INSTRUCTIONS`,
 Run the driver tests from the repository root:
 
 ```sh
-python3 -B -m unittest discover -s Processor/Tools/TestDriver/Tests -p 'Test*.py' -v
+make -C Processor/Tools/TestDriver test
 ```
 
 The CLI tests use simulator stubs. The model tests also run when the Verilator
 binary and Fibonacci HEX have been built with `make -f Makefile.verilator.mk` and
 `make -f Makefile.verilator.mk test-build-basic` in `Processor/Src`.
+Otherwise, the model tests are reported as skipped.

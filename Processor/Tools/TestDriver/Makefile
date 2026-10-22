@@ -1,4 +1,6 @@
+PYTHON ?= python3
+
+# Test the test infrastructure itself: runner result checks and simulation limits.
+.PHONY: test
 test:
-	cd ../../Src/; \
-		python ../Tools/TestDriver/RunTest.py \
-			-o --simulator=verilator Verification/TestCode/Asm/ControlTransfer
+	$(PYTHON) -B -m unittest discover -s Tests -p 'Test*.py' -v
