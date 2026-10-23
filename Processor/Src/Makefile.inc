@@ -166,6 +166,13 @@ run: rtl-run
 # Simulation on a GUI mode.
 run-gui: rtl-run-gui
 
+# Build and run a self-checking RTL testbench, returning failures to make.
+# Questa TESTSTATUS: 0 = passed, 1 = warning, 2 or higher = failed.
+.PHONY: test
+test: rtl
+	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) -onfinish stop \
+		-do 'set BreakOnAssertion 2; run -all; quit -code [expr {[coverage attribute -name TESTSTATUS -concise] >= 2}]'
+
 # -------------------------------
 # Functional simulation
 #
