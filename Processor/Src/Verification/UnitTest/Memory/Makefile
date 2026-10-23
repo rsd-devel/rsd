@@ -3,25 +3,20 @@ UNIT_NAME         = Memory
 
 # ライブラリ名とトップレベルモジュール（シミュレーション対象）
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
-TOP_MODULE        = $(TEST_BENCH_MODULE)Top
 
 SOURCE_ROOT  = ../../../
 TOOLS_ROOT   = ../../../../Tools/
 PROJECT_WORK = ../../../../Project/ModelSim
-ISE_PROJECT_ROOT = ../../../../Project/Synplify/$(UNIT_NAME)/pr_1/
 
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
 TYPES = \
+	MicroArchConf.sv \
 	BasicTypes.sv \
+	Memory/MemoryMapTypes.sv \
+	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
-	Decoder/OpFormat.sv \
-	Decoder/MicroOp.sv \
-	RegisterFile/BypassTypes.sv \
-	RenameLogic/RenameLogicTypes.sv \
-	LoadStoreUnit/LoadStoreUnitTypes.sv \
-	Scheduler/SchedulerTypes.sv \
-	Pipeline/PipelineTypes.sv \
+	Memory/MemoryTypes.sv \
 
 # テスト時のみ使用し、合成時は使用しない module の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．
@@ -32,15 +27,18 @@ TEST_MODULES = \
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．
 MODULES = \
-	ResetController.sv \
 	Primitives/RAM.sv \
+	Primitives/Queue.sv \
 	Cache/CacheSystemIF.sv \
-	Cache/Memory.sv \
-	Verification/UnitTest/Memory/TestMemoryTop.sv \
+	Cache/MemoryAccessController.sv \
+	Memory/MemoryLatencySimulator.sv \
+	Memory/Memory.sv \
 
 # 合成時に、特定の警告を非表示にする
+# また，マクロの定義をインクルードするためにインクルード・パスを追加する
 VLOG_OPTIONS = \
 	-suppress 2605 \
+	+incdir+$(SOURCE_ROOT) \
 
 # シミュレーション時に、特定の警告を非表示にする
 VSIM_OPTIONS = \
