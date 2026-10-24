@@ -372,12 +372,10 @@ typedef struct packed // SchedulerEntry
 
 
 //
-// A tag for a source CAM and a ready bit table.
-// These tags are used for a ready bit table, thus they are necessary in
-// matrix based implementation.
+// A register tag for the ready bit table.
 //
 
-// For a physic's register.
+// For a physical register.
 typedef struct packed // SchedulerRegTag
 {
     PRegNumPath num;

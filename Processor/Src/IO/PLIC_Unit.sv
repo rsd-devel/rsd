@@ -1,6 +1,10 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
+import BasicTypes::*;
+import IO_UnitTypes::*;
+import MemoryMapTypes::*;
+
 module PLIC_Unit(
     PLIC_UnitIF.PLIC_Unit port,
     CSR_UnitIF.IO_Unit csrUnit,

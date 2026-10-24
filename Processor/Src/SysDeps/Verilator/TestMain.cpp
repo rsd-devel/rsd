@@ -15,7 +15,7 @@
 
 using namespace std;
 
-unsigned int main_time = 0;     // Current simulation time
+uint64_t main_time = 0;     // Current simulation time
 
 double sc_time_stamp () {       // Called by $time in Verilog
     return main_time;
@@ -75,6 +75,8 @@ int main(int argc, char** argv) {
 
     // Initialize test bench
     int64_t MAX_TEST_CYCLES = 100;
+    int64_t MAX_TEST_INSTRUCTIONS = 0;
+    int64_t MAX_NO_COMMIT_CYCLES = 500;
     bool ENABLE_PC_GOAL = true;
     bool SHOW_SERIAL_OUT = false;
     string TEST_CODE = "Verification/TestCode/C/Fibonacci";
@@ -83,7 +85,9 @@ int main(int argc, char** argv) {
     string WAVE_LOG_FILE = "";
 
     // Parse command line parameters
-    //     MAX_TEST_CYCLES=<cycles>
+    //     MAX_TEST_INSTRUCTIONS=<committed RISC-V instructions>
+    //     MAX_NO_COMMIT_CYCLES=<consecutive cycles without any commit>
+    //     MAX_TEST_CYCLES=<cycles, or 0 to disable>
     //     TEST_CODE=<path to code>
     regex re("([^=]+)=([^=]+)");
     for (int i = 1; i < argc; i++) {
@@ -92,7 +96,13 @@ int main(int argc, char** argv) {
             auto name = results[1].str();
             auto value = results[2].str();
             if (name == "MAX_TEST_CYCLES") {
-                MAX_TEST_CYCLES = stoi(value);
+                MAX_TEST_CYCLES = stoll(value);
+            }
+            else if (name == "MAX_TEST_INSTRUCTIONS") {
+                MAX_TEST_INSTRUCTIONS = stoll(value);
+            }
+            else if (name == "MAX_NO_COMMIT_CYCLES") {
+                MAX_NO_COMMIT_CYCLES = stoll(value);
             }
             else if (name == "ENABLE_PC_GOAL") {
                 ENABLE_PC_GOAL = stoi(value) ? true : false;
@@ -119,6 +129,13 @@ int main(int argc, char** argv) {
         else {
             printf("Unknown parameter:%s\n", argv[i]);
         }
+    }
+
+    if (MAX_TEST_CYCLES < 0 || MAX_TEST_INSTRUCTIONS < 0 ||
+        MAX_NO_COMMIT_CYCLES <= 0 ||
+        (MAX_TEST_CYCLES == 0 && MAX_TEST_INSTRUCTIONS == 0)) {
+        fprintf(stderr, "Invalid simulation limits.\n");
+        return 1;
     }
 
 #ifdef RSD_VERILATOR_TRACE
@@ -214,8 +231,12 @@ int main(int argc, char** argv) {
     loadHexFile(codeFileName, mainMem, 0, true);
     
 
-    int numCommittedARM_Op = 0;
-    int numCommittedMicroOp = 0;
+    int64_t numCommittedRISCV_Op = 0;
+    int64_t numCommittedMicroOp = 0;
+    int64_t elapsedCycles = 0;
+    int64_t noCommitCycles = 0;
+    int64_t maxNoCommitCycles = 0;
+    string terminationReason = "unexpected_finish";
     LED_Path lastCommittedPC = 0;
     DebugRegister debugRegister;
     memset(&debugRegister, 0x0, sizeof(DebugRegister));
@@ -248,6 +269,8 @@ int main(int argc, char** argv) {
             top->clk_p = !top->clk_p;
             top->clk_n = !top->clk_n;
             top->eval();    // 評価
+            if (Verilated::gotFinish())
+                break; // Keep unexpected_finish even if a budget is reached.
 
             // ダンプ
 #ifdef RSD_VERILATOR_TRACE
@@ -258,6 +281,7 @@ int main(int argc, char** argv) {
             if (top->clk_p && start){
                 kanataCycle++;
                 cycle++;
+                elapsedCycles++;
 
                 // ダンプ
                 GetDebugRegister(&debugRegister, top);
@@ -291,41 +315,61 @@ int main(int argc, char** argv) {
                     }
                 }
 
-                // Count number of committed Ops.
+                // Use the same commit signals as lastCommittedPC and the
+                // register dump; DebugRegister is delayed by one clock.
+                // Count an instruction when its last micro-op commits.
+                bool committedThisCycle = false;
                 for (int i = 0; i < COMMIT_WIDTH; i++) {
-                    if (debugRegister.cmReg[i].commit) {
+                    if (core->cmStage->commit[i]) {
+                        committedThisCycle = true;
                         numCommittedMicroOp += 1;
-                        if ( debugRegister.cmReg[i].opId.mid == 0 ){
-                            numCommittedARM_Op += 1;
+                        if (helper->ActiveListEntry_last(core->cmStage->alReadData[i])) {
+                            numCommittedRISCV_Op += 1;
                         }
                     }
                 }
 
-                // Check end of simulation.
+                // Start monitoring at reset release, including the first fetch.
+                noCommitCycles = committedThisCycle ? 0 : noCommitCycles + 1;
+                if (noCommitCycles > maxNoCommitCycles)
+                    maxNoCommitCycles = noCommitCycles;
+                if (noCommitCycles > MAX_NO_COMMIT_CYCLES) {
+                    terminationReason = "no_commit_limit";
+                    break;
+                }
+
+                // A goal reached on the budget boundary still completes the test.
+                lastCommittedPC = top->ledOut;
                 if (ENABLE_PC_GOAL) {
-                    lastCommittedPC = top->ledOut;
                     if (lastCommittedPC == static_cast<typeof(top->ledOut)>(PC_GOAL)) {
                         // lastCommittedPC は 16bit 分しか外に出てきていないので，下位で判定しておく
+                        terminationReason = "pc_goal";
                         printf("PC reached PC_GOAL: %08x\n", PC_GOAL);
                         break;
                     }
+                }
+                if (MAX_TEST_INSTRUCTIONS > 0 && numCommittedRISCV_Op >= MAX_TEST_INSTRUCTIONS) {
+                    terminationReason = "instruction_limit";
+                    break;
+                }
+                if (MAX_TEST_CYCLES > 0 && elapsedCycles >= MAX_TEST_CYCLES) {
+                    terminationReason = "cycle_limit";
+                    break;
                 }
             }
             start = !top->posResetOut;
 
             main_time += RSD_STEP; // 62.5MHz
-            if (main_time == RSD_INITIALIZATION_CYCLE*RSD_STEP*2) {
+            // Release reset on the falling edge, as in TestBenchClockGenerator.
+            if (main_time == RSD_INITIALIZATION_CYCLE*RSD_STEP*2 + RSD_STEP) {
                 top->negResetIn = 1; // リセット解除
             }
             
-            // 指定サイクル数の実行で終了
-            // Modelsim 側とクロック数の計算をあわすため +1
-            if (cycle + 1 >= MAX_TEST_CYCLES)
-                break;         
         }
 
-    } catch (const std::runtime_error& error) {
-
+    } catch (const std::exception& error) {
+        fprintf(stderr, "Simulation failed: %s\n", error.what());
+        terminationReason = "runtime_error";
     }
 
     // Count the number of commit in the last cycle.
@@ -351,13 +395,15 @@ int main(int argc, char** argv) {
     printf("Num of store-load-forwanind misses: %d\n", debugRegister.perfCounter.numStoreLoadForwardingFail);
     printf("Num of memory dependency prediction misses: %d\n", debugRegister.perfCounter.numMemDepPredMiss);
 
-    printf("Num of committed RISC-V-ops: %d\n", numCommittedARM_Op);
-    printf("Num of committed micro-ops: %d\n", numCommittedMicroOp);
-    if (cycle != 0) {
-        printf("IPC (RISC-V instruction): %f\n", (double)numCommittedARM_Op / (double)cycle);
-        printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)cycle);
+    printf("Num of committed RISC-V-ops: %lld\n", (long long)numCommittedRISCV_Op);
+    printf("Num of committed micro-ops: %lld\n", (long long)numCommittedMicroOp);
+    if (elapsedCycles != 0) {
+        printf("IPC (RISC-V instruction): %f\n", (double)numCommittedRISCV_Op / (double)elapsedCycles);
+        printf("IPC (micro-op): %f\n", (double)numCommittedMicroOp / (double)elapsedCycles);
     }
-    printf("Elapsed cycles: %d\n", (int32_t)cycle);
+    printf("Elapsed cycles: %lld\n", (long long)elapsedCycles);
+    printf("Max consecutive no-commit cycles: %lld\n", (long long)maxNoCommitCycles);
+    printf("Simulation result: %s\n", terminationReason.c_str());
 
     // Dump Register File
     RegisterFileHexDumper registerFileHexDumper;
@@ -375,4 +421,11 @@ int main(int argc, char** argv) {
     }
 #endif
     top->final();        // シミュレーション終了
+
+    // Continuous tests complete their instruction budget. Cycle-only settings
+    // remain supported for external tests that have not yet been migrated.
+    const bool success = terminationReason == "pc_goal" ||
+        (!ENABLE_PC_GOAL && (terminationReason == "instruction_limit" ||
+            (MAX_TEST_INSTRUCTIONS == 0 && terminationReason == "cycle_limit")));
+    return success ? 0 : 1;
 }

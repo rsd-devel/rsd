@@ -23,9 +23,12 @@ module CSR_Unit(
 
     CSR_BodyPath csrReg, csrNext;
     DataPath rv;
+    logic csrImplemented;
     CSR_ValuePath wv;
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
+    AddrPath mepc;
+    AddrPath trapValue;
     CommitLaneCountPath regCommitNum;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
@@ -39,8 +42,10 @@ module CSR_Unit(
         value.misa.EXTENSIONS.I = 1;
         value.misa.EXTENSIONS.M = 1;
         value.misa.EXTENSIONS.A = 1;
+`ifdef RSD_MARCH_FP_PIPE
         value.misa.EXTENSIONS.F = 1;
-        value.misa.EXTENSIONS.D = 1;
+`endif
+        value.misa.EXTENSIONS.D = 0;
         value.misa.EXTENSIONS.U = 1;
         value.misa.EXTENSIONS.S = 1;
         return value;
@@ -48,7 +53,7 @@ module CSR_Unit(
 
     function logic IsSupportedPrivilegeLevel(
         input PrivilegeLevelType level,
-        input CSR_MISA_Path misa,
+        input CSR_MISA_Path misa
     );
         return level == PRIVILEGE_LEVEL_M ||
                misa.EXTENSIONS.S && level == PRIVILEGE_LEVEL_S ||
@@ -85,9 +90,19 @@ module CSR_Unit(
     always_comb begin
         mcycle = csrReg.mcycle;
 
+        // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
+        // Revisit this mask if compressed instructions are supported.
+        mepc = {csrReg.mepc[ADDR_WIDTH-1:2], 2'b0};
+
+        // Instruction encodings are optional trap values. Report zero for illegal
+        // instructions so the pipeline does not need to retain their bits.
+        trapValue = port.excptCause == EXEC_STATE_FAULT_INSN_ILLEGAL ?
+            '0 : port.excptCauseDataAddr;
+
         privilegeLevelNext = privilegeLevel;
 
         // Read a CSR value
+        csrImplemented = TRUE;
         unique case (port.csrNumber) 
             CSR_NUM_MSTATUS: begin
                 CSR_MSTATUS_Path value;
@@ -103,7 +118,7 @@ module CSR_Unit(
                 end
                 if (!csrReg.misa.EXTENSIONS.U) begin
                     value.MPRV = '0;
-                    value.MPP = '0;
+                    value.MPP = PRIVILEGE_LEVEL_U;
                 end
                 rv = value;
             end
@@ -112,10 +127,15 @@ module CSR_Unit(
             CSR_NUM_MCAUSE:     rv = csrReg.mcause;
             CSR_NUM_MTVEC:      rv = csrReg.mtvec;
             CSR_NUM_MTVAL:      rv = csrReg.mtval;
-            CSR_NUM_MEPC:       rv = csrReg.mepc;
+            CSR_NUM_MEPC:       rv = mepc;
             CSR_NUM_MSCRATCH:   rv = csrReg.mscratch;
 
             CSR_NUM_MISA: rv = csrReg.misa;
+
+            // Implemented fixed-zero CSRs must not be treated as missing.
+            CSR_NUM_MVENDORID, CSR_NUM_MARCHID, CSR_NUM_MIMPID, CSR_NUM_MHARTID,
+            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN,
+            CSR_NUM_MCYCLEH, CSR_NUM_MINSTRETH: rv = '0;
 
             CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
             CSR_NUM_MINSTRET: rv = csrReg.minstret;
@@ -141,21 +161,36 @@ module CSR_Unit(
                         CSR_NUM_SEPC:       rv = csrReg.sepc;
                         CSR_NUM_SCAUSE:     rv = csrReg.scause;
                         CSR_NUM_STVAL:      rv = csrReg.stval;
+                        // satp is fixed to Bare (zero); writes are ignored because no
+                        // page-table translation is implemented. Revisit its state and
+                        // supported MODE/ASID/PPN values when adding paging support.
+                        CSR_NUM_SCOUNTEREN, CSR_NUM_SATP: rv = '0;
 
                         CSR_NUM_MEDELEG:    rv = csrReg.medeleg;
                         CSR_NUM_MEDELEGH:   rv = csrReg.medelegh;
                         CSR_NUM_MIDELEG:    rv = csrReg.mideleg;
-                        default: rv = '0;
+                        default: begin
+                            rv = '0;
+                            csrImplemented = FALSE;
+                        end
                     endcase
                 end
                 else begin
                     rv = '0;
+                    csrImplemented = FALSE;
                 end
             end
         endcase 
 
-        // check csr read/write permission
-        port.csrUnitTriggerExcpt = port.csrWE && privilegeLevel < port.csrNumber[9:8];
+        // Check CSR existence, privilege and writes to read-only CSRs.
+        // TVM lets M-mode software intercept S-mode virtual-memory management.
+        // TVM is writable here, so S-mode satp reads/writes must trap when it
+        // is set, even with Bare-only support. Keep this check if paging is added.
+        port.csrUnitTriggerExcpt = (port.csrRE || port.csrWE) &&
+            (!csrImplemented || privilegeLevel < port.csrNumber[9:8] ||
+             (port.csrWE && port.csrNumber[11:10] == 2'b11) ||
+             (privilegeLevel == PRIVILEGE_LEVEL_S && csrReg.mstatus.TVM &&
+              port.csrNumber == CSR_NUM_SATP));
 
         // Writeback 
         csrNext = csrReg;
@@ -233,7 +268,7 @@ module CSR_Unit(
                     csrNext.mstatus.MIE = 0;    // グローバル割り込み許可を落とす
                     csrNext.mstatus.MPP = privilegeLevel; // トラップ前の特権レベル
                     csrNext.mepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
-                    csrNext.mtval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.mtval = trapValue;
                     csrNext.mcause.isInterrupt = FALSE;
                     csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 end
@@ -242,7 +277,7 @@ module CSR_Unit(
                     csrNext.mstatus.SIE = 0;    // グローバル割り込み許可を落とす
                     csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(privilegeLevel); // トラップ前の特権レベル
                     csrNext.sepc = ToAddrFromPC(port.excptCauseAddr); // 例外の発生元 PC を書き込む
-                    csrNext.stval = port.excptCauseDataAddr;// ECALL/EBREAK の場合は PC?
+                    csrNext.stval = trapValue;
                     csrNext.scause.isInterrupt = FALSE;
                     csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
                 end
@@ -320,7 +355,10 @@ module CSR_Unit(
 `ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
-                CSR_NUM_FCSR:       csrNext.fcsr = FFlags_Path'(wv);
+                CSR_NUM_FCSR: begin
+                    csrNext.fcsr.frm = wv.fcsr.frm;
+                    csrNext.fcsr.fflags = wv.fcsr.fflags;
+                end
 `endif
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
@@ -367,7 +405,7 @@ module CSR_Unit(
 
         port.excptTargetAddr = '0;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
-            port.excptTargetAddr = csrReg.mepc;
+            port.excptTargetAddr = mepc;
             //$display("mret: to %x", csrNext.mepc);
         end
         else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
@@ -408,8 +446,8 @@ module CSR_Unit(
     `RSD_ASSERT_CLK(
         port.clk, 
         !(
-            (port.triggerExcpt && port.csrWE) || 
-            (port.triggerInterrupt && port.csrWE) || 
+            (port.triggerExcpt && (port.csrRE || port.csrWE)) ||
+            (port.triggerInterrupt && (port.csrRE || port.csrWE)) ||
             (port.triggerExcpt && port.triggerInterrupt)
         ),
         "CSR update, trap or interrupt are performed at the same cycle"

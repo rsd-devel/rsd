@@ -127,6 +127,8 @@ module IntegerRegisterWriteStage(
             if (alWriteData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_SUCCESS}) begin
                 if (brResult[i].nextAddr[INSN_ADDR_BIT_WIDTH-1:0] != 0 && brResult[i].valid) begin
                     alWriteData[i].state = EXEC_STATE_FAULT_INSN_MISALIGNED;
+                    // Save the source PC for fault recovery and the target for mtval.
+                    alWriteData[i].pc = iqData[i].pc;
                     alWriteData[i].dataAddr = brResult[i].nextAddr;
                 end
             end

@@ -705,7 +705,7 @@ function automatic void RISCV_EmitMemOp(
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     opInfo.operand.memOp.csrCtrl = '0; // unused
     opInfo.operand.memOp.isZalrsc = FALSE;
-    opInfo.operand.memOp.amoCode = '0;
+    opInfo.operand.memOp.amoCode = MEM_ZAAMO_SWAP;
     opInfo.operand.memOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
@@ -1147,7 +1147,7 @@ function automatic void RISCV_EmitCSR_Op(
     memOp.srcRegNumA.regNum = isfSystem.rs1;
     memOp.srcRegNumB.regNum = '0;
     memOp.isZalrsc = FALSE;
-    memOp.amoCode = '0;
+    memOp.amoCode = MEM_ZAAMO_SWAP;
     memOp.padding = '0;
 
     // Don't care
@@ -1360,7 +1360,7 @@ function automatic void RISCV_EmitFPMemOp(
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     
     opInfo.operand.memOp.isZalrsc = FALSE;
-    opInfo.operand.memOp.amoCode = '0;
+    opInfo.operand.memOp.amoCode = MEM_ZAAMO_SWAP;
     opInfo.operand.memOp.csrCtrl = '0; // unused
     opInfo.operand.memOp.padding = '0;
 

@@ -18,6 +18,7 @@ import DebugTypes::*;
 import MicroOpTypes::*;
 import CacheSystemTypes::*;
 import MemoryMapTypes::*;
+import LoadStoreUnitTypes::*;
 
 // When this switch is enabled, instructions are re-issued from the issue queue.
 // Otherwise, instructions are refetched.
@@ -109,27 +110,38 @@ module MemoryTagAccessStage(
 
     // load store unit
     logic               replaceStoreByLoad;
-    logic               executeStore [STORE_ISSUE_WIDTH + 1];
-    DataPath            executedStoreData [STORE_ISSUE_WIDTH + 1];
-    VectorPath          executedStoreVectorData [STORE_ISSUE_WIDTH + 1];
-    PhyAddrPath         executedStoreAddr [STORE_ISSUE_WIDTH + 1];
-    logic               executedStoreCondEnabled [STORE_ISSUE_WIDTH + 1];
-    logic               executedStoreRegValid [STORE_ISSUE_WIDTH + 1];
-    MemAccessMode       executedStoreMemAccessMode [STORE_ISSUE_WIDTH + 1];
-    LoadQueueIndexPath  executedLoadQueuePtrByStore [STORE_ISSUE_WIDTH + 1];
-    StoreQueueIndexPath executedStoreQueuePtrByStore [STORE_ISSUE_WIDTH + 1];
+    logic               executeStore [STORE_ISSUE_WIDTH];
+    DataPath            executedStoreData [STORE_ISSUE_WIDTH];
+    VectorPath          executedStoreVectorData [STORE_ISSUE_WIDTH];
+    PhyAddrPath         executedStoreAddr [STORE_ISSUE_WIDTH];
+    logic               executedStoreCondEnabled [STORE_ISSUE_WIDTH];
+    logic               executedStoreRegValid [STORE_ISSUE_WIDTH];
+    MemAccessMode       executedStoreMemAccessMode [STORE_ISSUE_WIDTH];
+    LoadQueueIndexPath  executedLoadQueuePtrByStore [STORE_ISSUE_WIDTH];
+    StoreQueueIndexPath executedStoreQueuePtrByStore [STORE_ISSUE_WIDTH];
+
+    // Keep AMO outputs separate so each signal has one always_comb driver.
+    logic               amoExecuteStore;
+    DataPath            amoExecutedStoreData;
+    VectorPath          amoExecutedStoreVectorData;
+    PhyAddrPath         amoExecutedStoreAddr;
+    logic               amoExecutedStoreCondEnabled;
+    logic               amoExecutedStoreRegValid;
+    MemAccessMode       amoExecutedStoreMemAccessMode;
+    LoadQueueIndexPath  amoExecutedLoadQueuePtrByStore;
+    StoreQueueIndexPath amoExecutedStoreQueuePtrByStore;
 
     always_comb begin
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
-            loadStoreUnit.executeStore[i]                   = (i == 0 && replaceStoreByLoad) ? executeStore[STORE_ISSUE_WIDTH] : executeStore[i];
-            loadStoreUnit.executedStoreData[i]              = (i == 0 && replaceStoreByLoad) ? executedStoreData[STORE_ISSUE_WIDTH] : executedStoreData[i];
-            loadStoreUnit.executedStoreVectorData[i]        = (i == 0 && replaceStoreByLoad) ? executedStoreVectorData[STORE_ISSUE_WIDTH] : executedStoreVectorData[i];
-            loadStoreUnit.executedStoreAddr[i]              = (i == 0 && replaceStoreByLoad) ? executedStoreAddr[STORE_ISSUE_WIDTH] : executedStoreAddr[i];
-            loadStoreUnit.executedStoreCondEnabled[i]       = (i == 0 && replaceStoreByLoad) ? executedStoreCondEnabled[STORE_ISSUE_WIDTH] : executedStoreCondEnabled[i];
-            loadStoreUnit.executedStoreRegValid[i]          = (i == 0 && replaceStoreByLoad) ? executedStoreRegValid[STORE_ISSUE_WIDTH] : executedStoreRegValid[i];
-            loadStoreUnit.executedStoreMemAccessMode[i]     = (i == 0 && replaceStoreByLoad) ? executedStoreMemAccessMode[STORE_ISSUE_WIDTH] : executedStoreMemAccessMode[i];
-            loadStoreUnit.executedLoadQueuePtrByStore[i]    = (i == 0 && replaceStoreByLoad) ? executedLoadQueuePtrByStore[STORE_ISSUE_WIDTH] : executedLoadQueuePtrByStore[i];
-            loadStoreUnit.executedStoreQueuePtrByStore[i]   = (i == 0 && replaceStoreByLoad) ? executedStoreQueuePtrByStore[STORE_ISSUE_WIDTH] : executedStoreQueuePtrByStore[i];
+            loadStoreUnit.executeStore[i]                   = (i == 0 && replaceStoreByLoad) ? amoExecuteStore : executeStore[i];
+            loadStoreUnit.executedStoreData[i]              = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreData : executedStoreData[i];
+            loadStoreUnit.executedStoreVectorData[i]        = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreVectorData : executedStoreVectorData[i];
+            loadStoreUnit.executedStoreAddr[i]              = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreAddr : executedStoreAddr[i];
+            loadStoreUnit.executedStoreCondEnabled[i]       = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreCondEnabled : executedStoreCondEnabled[i];
+            loadStoreUnit.executedStoreRegValid[i]          = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreRegValid : executedStoreRegValid[i];
+            loadStoreUnit.executedStoreMemAccessMode[i]     = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreMemAccessMode : executedStoreMemAccessMode[i];
+            loadStoreUnit.executedLoadQueuePtrByStore[i]    = (i == 0 && replaceStoreByLoad) ? amoExecutedLoadQueuePtrByStore : executedLoadQueuePtrByStore[i];
+            loadStoreUnit.executedStoreQueuePtrByStore[i]   = (i == 0 && replaceStoreByLoad) ? amoExecutedStoreQueuePtrByStore : executedStoreQueuePtrByStore[i];
         end
     end
 
@@ -410,11 +422,11 @@ module MemoryTagAccessStage(
             // 実行が正しく終了してる場合，フォールト判定を行う
             // ストアの依存予測ではこちらの方が優先される
             if (ldNextStage[i].execState inside {EXEC_STATE_SUCCESS, EXEC_STATE_REFETCH_NEXT}) begin
-                if (isLoad[i]) begin
+                if (isLoad[i] || isZaamo[i]) begin
                     if (ldPipeReg[i].memMapType == MMT_ILLEGAL)
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
+                        ldNextStage[i].execState = isZaamo[i] ? EXEC_STATE_FAULT_STORE_VIOLATION : EXEC_STATE_FAULT_LOAD_VIOLATION;
                     else if (IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size))
-                        ldNextStage[i].execState = (ldIqData[i].memOpInfo.isZalrsc || isZaamo[i]) ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
+                        ldNextStage[i].execState = isZaamo[i] ? EXEC_STATE_FAULT_STORE_MISALIGNED : EXEC_STATE_FAULT_LOAD_MISALIGNED;
                 end
             end
 
@@ -445,16 +457,17 @@ module MemoryTagAccessStage(
             
             // Zaamoのストア
             if (i == 0) begin
-                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i];
-                executeStore[STORE_ISSUE_WIDTH] = TRUE;
-                executedStoreData[STORE_ISSUE_WIDTH] = ldPipeReg[i].dataIn;
-                executedStoreVectorData[STORE_ISSUE_WIDTH] = '0;
-                executedStoreAddr[STORE_ISSUE_WIDTH] = ldPipeReg[i].phyAddrOut;
-                executedStoreCondEnabled[STORE_ISSUE_WIDTH] = TRUE;
-                executedStoreRegValid[STORE_ISSUE_WIDTH] = ldRegValid[i];
-                executedStoreMemAccessMode[STORE_ISSUE_WIDTH] = ldIqData[i].memOpInfo.memAccessMode;
-                executedLoadQueuePtrByStore[STORE_ISSUE_WIDTH] = ldIqData[i].loadQueuePtr;
-                executedStoreQueuePtrByStore[STORE_ISSUE_WIDTH] = ldIqData[i].storeQueuePtr;
+                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i] &&
+                    ldNextStage[i].execState == EXEC_STATE_SUCCESS;
+                amoExecuteStore = TRUE;
+                amoExecutedStoreData = ldPipeReg[i].dataIn;
+                amoExecutedStoreVectorData = '0;
+                amoExecutedStoreAddr = ldPipeReg[i].phyAddrOut;
+                amoExecutedStoreCondEnabled = TRUE;
+                amoExecutedStoreRegValid = ldRegValid[i];
+                amoExecutedStoreMemAccessMode = ldIqData[i].memOpInfo.memAccessMode;
+                amoExecutedLoadQueuePtrByStore = ldIqData[i].loadQueuePtr;
+                amoExecutedStoreQueuePtrByStore = ldIqData[i].storeQueuePtr;
             end
 
             // リセットorフラッシュ時はNOP

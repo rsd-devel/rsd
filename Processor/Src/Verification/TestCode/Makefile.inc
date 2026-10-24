@@ -5,19 +5,14 @@ HOST_TYPE = $(shell uname)
 # Platform: linux
 ifneq (,$(findstring Linux,$(HOST_TYPE)))
 RSD_GCC_NATIVE = $(RSD_GCC_PATH)
-RSD_ENV_NATIVE = $(RSD_ENV)
 RSD_ROOT_NATIVE = $(RSD_ROOT)
 endif
 
 # Platform: cygwin
 ifneq (,$(findstring CYGWIN,$(HOST_TYPE)))
 RSD_GCC_NATIVE = $(shell cygpath -u "$$RSD_GCC_PATH")
-RSD_ENV_NATIVE = $(shell cygpath -u "$$RSD_ENV")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
-
-RSD_GCC_VERSION = $(shell ls ${RSD_GCC_PATH} | grep -E "^${RSD_GCC_PREFIX}\gcc\-[0-9\.]+" | sed -r 's/([^ ]+)-gcc-([0-9\.]+)/\2/')
-RSD_GCC_NAME = $(shell echo ${RSD_GCC_PREFIX} | sed -e 's/-$$//')
 
 # Check required environment variables
 ifndef RSD_GCC_PATH
@@ -26,12 +21,13 @@ endif
 ifndef RSD_GCC_PREFIX
 $(error RSD_GCC_PREFIX is not set.)
 endif
+
+RSD_GCC_VERSION := $(shell "$(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc" -dumpversion 2>/dev/null)
 ifndef RSD_GCC_VERSION
-$(error RSD_GCC_PATH and/or RSD_GCC_PREFIX have a wront value.)
+$(error Cannot execute $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc.)
 endif
-ifndef RSD_GCC_NAME
-$(error RSD_GCC_PREFIX has a wront value.)
-endif
+
+include $(RSD_ROOT_NATIVE)/Processor/Src/Makefiles/CoreSources.inc.mk
 
 RSD_TEST_CODE_ROOT = $(RSD_ROOT_NATIVE)/Processor/Src/Verification/TestCode
 RSD_TOOL_ROOT      = $(RSD_ROOT_NATIVE)/Processor/Tools
@@ -52,9 +48,15 @@ STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
 #
 # コンパイルオプションとリンクオプション
 #
+# Newer toolchains require explicit Zicsr/Zifencei for CSR and fence.i
+# instructions, which were previously included in the base I extension.
 ARCHFLAGS = \
-	-march=rv32imaf \
+	-march=$(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima)_zicsr_zifencei \
 	-mabi=ilp32 \
+
+# Ubuntu's GCC packages have no rv32imaf/ilp32 multilib. Link against RV32IM
+# libraries, which use the same soft-float ABI and require no C/D extensions.
+LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
 
 CFLAGS = \
 	-g \
@@ -75,15 +77,17 @@ LDFLAGS= \
 	-nostdlib \
 	-nodefaultlibs \
 	-nostartfiles \
+	$(LIBRARY_ARCHFLAGS) \
 	--specs=picolibc.specs
 
+# -nostdlib/-nodefaultlibs disable automatic libc linkage. Leave LIBC empty
+# because this configuration does not explicitly link libc with -lc either.
+# picolibc.specs supplies the header and library search paths.
+# The required GCC runtime libraries and picolibc's math library are linked below.
 LIBC =
-LIBGCC = \
-	-L$(RSD_GCC_NATIVE)/../lib/gcc/${RSD_GCC_NAME}/$(RSD_GCC_VERSION) \
-	-lgcc \
-	-lgcov \
-	-L$(RSD_GCC_NATIVE)/../${RSD_GCC_NAME}/lib \
-	-lm
+
+# Let GCC and picolibc.specs select the libraries for LIBRARY_ARCHFLAGS.
+LIBGCC = -lgcc -lgcov -lm
 
 
 
@@ -101,14 +105,14 @@ LDSCRIPT = $(RSD_TEST_CODE_ROOT)/rsd-ld.script
 DUMMY_ROM = $(RSD_TEST_CODE_ROOT)/dummy_rom.bin
 
 # スタートアップルーチンのコンパイル
-$(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h
-	$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+$(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc
+	$(CC) $(CFLAGS) -MMD -MP -x assembler-with-cpp -o $@ -c $<
 
-$(LDOBJ): $(LDSRC)
-	$(CC) $(CFLAGS) -o $@ -c $<
+$(LDOBJ): $(LDSRC) $(RSD_TEST_CODE_ROOT)/Makefile.inc
+	$(CC) $(CFLAGS) -MMD -MP -o $@ -c $<
 
 
-$(DUMMY_ROM):
+$(DUMMY_ROM): $(RSD_TEST_CODE_ROOT)/Makefile.inc
 	head -c $(ROM_PADDING_SIZE) /dev/zero > $(DUMMY_ROM)
 
 # --------
@@ -153,6 +157,9 @@ BIN_TO_HEX = \
 HEX_TO_IHEX = \
 	python3 $(RSD_TOOL_ROOT)/Hex2IHex/hex2ihex.py
 
+
+# Track headers used by the shared startup objects.
+-include $(CRTOBJ:.o=.d) $(LDOBJ:.o=.d)
 
 # --------
 # このファイルをインクルードする Makefile 内でデフォルトターゲットを

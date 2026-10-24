@@ -17,6 +17,7 @@ import PipelineTypes::*;
 import RenameLogicTypes::*;
 import DebugTypes::*;
 import MemoryMapTypes::*;
+import CSR_UnitTypes::*;
 
 module AmoALU(
 output
@@ -200,7 +201,11 @@ module MemoryExecutionStage(
         isCSR = memOpInfo[0].opType == MEM_MOP_TYPE_CSR;
 
         // CSR request
-        csrUnit.csrWE = pipeReg[0].valid && isCSR;
+        csrUnit.csrRE = pipeReg[0].valid && isCSR &&
+            (memOpInfo[0].csrCtrl.code != CSR_WRITE || iqData[0].opDst.writeReg);
+        // csrCtrl.imm retains the encoded rs1/uimm field for both CSR forms.
+        csrUnit.csrWE = pipeReg[0].valid && isCSR &&
+            (memOpInfo[0].csrCtrl.code == CSR_WRITE || memOpInfo[0].csrCtrl.imm != '0);
         csrUnit.csrNumber = memOpInfo[0].addrIn;
         csrUnit.csrWriteIn = 
             memOpInfo[0].csrCtrl.isImm ? memOpInfo[0].csrCtrl.imm : pipeReg[0].operandA;

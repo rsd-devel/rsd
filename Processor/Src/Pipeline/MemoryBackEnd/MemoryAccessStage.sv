@@ -16,6 +16,7 @@ import DebugTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
 import ActiveListIndexTypes::*;
+import SchedulerTypes::*;
 
 module MemoryAccessStage(
     MemoryAccessStageIF.ThisStage port,

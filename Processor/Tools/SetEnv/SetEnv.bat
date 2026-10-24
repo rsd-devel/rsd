@@ -41,10 +41,6 @@ setx RSD_VIVADO E:/Xilinx/Vivado/2019.2/ids_lite/ISE/
 :: Specify the path where CORE Generator/ngc2edif/xtclsh exists
 setx RSD_VIVADO_BIN E:/Xilinx/Vivado/2019.2/bin
 
-:: Specify the path of modelsim.ini.
-:: This file is generated when libraries for Modelsim are compiled in Vivado.
-setx RSD_MODELSIM_INI　C:/Work/RSD/modelsim.ini
-
 :: Specify the path of a work directory where download or build ZYNQ PS Linux 
 setx RSD_ARM_LINUX C:/Work/rsd-arm-linux
 

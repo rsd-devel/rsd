@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+# Execute from RSD's 60 KiB ROM and initialize data in its 256 KiB RAM.
+CONFIG_XIP=y
+CONFIG_MINIMAL_LIBC=y
+CONFIG_BOOT_BANNER=n
+CONFIG_PRINTK=y
+# The first port uses M-mode integer threads and the machine timer only.
+CONFIG_FPU=n
+CONFIG_RISCV_PMP=n
+CONFIG_SYS_CLOCK_TICKS_PER_SEC=1000

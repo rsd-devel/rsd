@@ -447,13 +447,8 @@ typedef enum logic [2:0]    // enum Rounding_Mode
     RM_DYN = 3'b111     // Dynamic Rounding Mode held in frm
 } Rounding_Mode;
 
-typedef struct packed {
-    logic NV;
-    logic DZ;
-    logic OF;
-    logic UF;
-    logic NX;
-} FFlags_Path;
+// Keep the RSD name as an alias of the shared FPU exception flags.
+typedef FPUTypes::FFlags FFlags_Path;
 
 typedef enum logic [6:0] {
     ZBA_FUNCT7_SHADD = 7'b0010000
@@ -782,12 +777,12 @@ function automatic void RISCV_DecodeRVAFunct5(
     output logic            isLR,
     output logic            isSC,
     output MemZaamo_Code    amoCode,
-    input  RVAFunct5        funct5,
+    input  RVAFunct5        funct5
 );
     undefined   = FALSE;
     isLR        = FALSE;
     isSC        = FALSE;
-    amoCode     = '0;
+    amoCode     = MEM_ZAAMO_SWAP;
     case(funct5)
         RVA_FUNCT5_LR: isLR = TRUE;
         RVA_FUNCT5_SC: isSC = TRUE;

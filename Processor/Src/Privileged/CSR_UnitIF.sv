@@ -20,6 +20,7 @@ interface CSR_UnitIF(
     CustomInterruptCodePath customInterruptCode
 );
 
+    logic csrRE;  // CSR read enable
     logic csrWE;  // CSR write enable
     CSR_NumberPath csrNumber;   // CSR number
     CSR_Code csrCode;           // CSR operation code (ex. set, clear...)
@@ -65,6 +66,7 @@ interface CSR_UnitIF(
         csrUnitTriggerExcpt,
         privilegeLevel,
     output 
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,
@@ -118,6 +120,7 @@ interface CSR_UnitIF(
     modport CSR_Unit(
     input
         clk, rst, rstStart,
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,

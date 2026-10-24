@@ -9,7 +9,8 @@ input
     logic req,
 output
     logic finished,
-    logic [31:0] result
+    logic [31:0] result,
+    FFlags fflags
 );
 
     function automatic [2:0] srt_table;
@@ -42,6 +43,7 @@ output
     logic [4:0] regCounter, nextCounter;
     FDivSqrtRegPath regData, nextData;
     logic [31:0] regResult, nextResult;
+    FFlags regFFlags, nextFFlags;
 
     wire       lhs_sign = lhs[31];
     wire       rhs_sign = rhs[31];
@@ -58,6 +60,12 @@ output
     wire lhs_is_nan  = lhs_expo == 8'hff & lhs_mant != 0;
     wire rhs_is_nan  = rhs_expo == 8'hff & rhs_mant != 0;
     wire lhs_is_neg  = lhs_sign & lhs != 32'h80000000;
+    // Square root has only one operand; quiet NaNs and -0 are not invalid.
+    wire invalid = is_divide ? (lhs_is_nan & ~lhs_mant[22]) | (rhs_is_nan & ~rhs_mant[22]) |
+                               (lhs_is_zero & rhs_is_zero) | (lhs_is_inf & rhs_is_inf)
+                             : (lhs_is_nan & ~lhs_mant[22]) | (lhs_is_neg & ~lhs_is_nan);
+    // DZ applies only to a finite, nonzero numerator divided by zero.
+    wire divide_by_zero = is_divide & rhs_is_zero & ~lhs_is_zero & ~lhs_is_inf & ~lhs_is_nan;
     wire res_is_nan  = is_divide ? lhs_is_nan | rhs_is_nan | (lhs_is_zero & rhs_is_zero) | (lhs_is_inf & rhs_is_inf)
                                  : lhs_is_nan | lhs_is_neg;
     //wire[31:0]  nan  = is_divide ? lhs_is_nan ? lhs | 32'h00400000 : rhs_is_nan ? rhs | 32'h00400000 : 32'hffc00000
@@ -127,18 +135,21 @@ output
             regCounter <= '0;
             regData <= '0;
             regResult <= '0; 
+            regFFlags <= '0;
         end
         else begin
             regPhase <= nextPhase;
             regCounter <= nextCounter;
             regData <= nextData;
             regResult <= nextResult; 
+            regFFlags <= nextFFlags;
         end
     end
     always_comb begin
         nextCounter = regCounter;
         nextData = regData;
         nextResult = regResult;
+        nextFFlags = regFFlags;
         if (req && regPhase == PHASE_FINISHED) begin
             nextData.v_lhs_expo = v_lhs_expo;
             nextData.v_lhs_mant = v_lhs_mant;
@@ -150,6 +161,8 @@ output
             nextData.res_is_nan = res_is_nan;
             nextData.res_is_inf = is_divide ? (lhs_is_inf | rhs_is_zero) : (!lhs_sign & lhs_is_inf);
             nextData.res_is_zero = is_divide ? (lhs_is_zero | rhs_is_inf) : lhs_is_zero;
+            nextData.invalid = invalid;
+            nextData.divide_by_zero = divide_by_zero;
             nextData.nan = nan;
             nextPhase = PHASE_PREPARATION;
         end
@@ -171,6 +184,10 @@ output
         // Here, quo has a <1/3ULP error.
         else if (regPhase == PHASE_ROUNDING) begin
             nextResult = final_result;
+            // Keep flags with the completed result until the next completion.
+            nextFFlags = '0;
+            nextFFlags.NV = regData.invalid;
+            nextFFlags.DZ = regData.divide_by_zero;
             nextPhase = PHASE_FINISHED;
             nextCounter = '0;
             nextData = '0;
@@ -180,6 +197,7 @@ output
         end
         finished = regPhase == PHASE_FINISHED;
         result = regResult;
+        fflags = regFFlags;
     end
 
 endmodule

@@ -4,6 +4,8 @@
 # It runs test programs and verify results
 
 import os, sys, subprocess
+import re
+import shlex
 from optparse import OptionParser
 from xml.etree import ElementTree
 
@@ -29,6 +31,43 @@ VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
 class TestConfigError(Exception):
     """ Exception class """
     pass
+
+class SimulationError(Exception):
+    """The simulator could not start or exited unsuccessfully."""
+    pass
+
+
+def RunSimulationCommand(command, logPath, omitStdout, omitPrintCommand, cwd=None):
+    # Capture the simulator's status directly; a shell pipeline reports tee's status.
+    if not omitPrintCommand:
+        displayCommand = " ".join(shlex.quote(arg) for arg in command)
+        if cwd is not None:
+            displayCommand = "cd %s && %s" % (shlex.quote(cwd), displayCommand)
+        print(displayCommand, flush=True)
+
+    logFilePath = os.path.join(cwd, logPath) if cwd is not None else logPath
+    try:
+        with open(logFilePath, 'wb') as logFile:
+            with subprocess.Popen(command, cwd=cwd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.STDOUT) as process:
+                for chunk in iter(lambda: process.stdout.read1(65536), b''):
+                    logFile.write(chunk)
+                    if not omitStdout:
+                        sys.stdout.buffer.write(chunk)
+                        sys.stdout.buffer.flush()
+                returnCode = process.wait()
+    except OSError as error:
+        raise SimulationError("Cannot run %s: %s (log: %s)" %
+                              (command[0], error, logFilePath)) from error
+
+    if returnCode != 0:
+        try:
+            reason = ' (%s)' % ReadSimulationResult(logFilePath)
+        except SimulationError:
+            reason = ''
+        raise SimulationError("%s exited with status %d%s (log: %s)" %
+                              (command[0], returnCode, reason, logFilePath))
+
 
 class ConfigParser( object ):
     """ Parse a test configuration XML file. """
@@ -111,17 +150,26 @@ class ConfigParser( object ):
         self.xmlFileName = xmlFileName
         tree = ElementTree.parse( xmlFileName )
 
-        # Set max test cycle
-        self.maxTestCycles = int( tree.findtext('./MaxTestCycles') )
-        if ( self.maxTestCycles is None ):
-            raise TestConfigError( 'Element "./MaxTestCycles" is not found in %s' % xmlFileName )
+        def readInteger(name, default, minimum=0):
+            text = tree.findtext('./' + name)
+            try:
+                value = default if text is None else int(text)
+            except ValueError:
+                raise TestConfigError('%s must be an integer in %s' % (name, xmlFileName))
+            if not minimum <= value <= 2**63 - 1:
+                raise TestConfigError('%s is out of range in %s' % (name, xmlFileName))
+            return value
 
-        # PC_Goal configuration
-        self.enablePC_Goal = tree.findtext('./EnablePC_Goal')
-        if ( self.enablePC_Goal is None ):
-            self.enablePC_Goal = 1
-        else:
-            self.enablePC_Goal = int(self.enablePC_Goal)
+        # A zero total budget disables that limit. Retain cycle-only settings
+        # for external tests until their configurations are migrated.
+        self.maxTestInstructions = readInteger('MaxTestInstructions', 0)
+        self.maxTestCycles = readInteger('MaxTestCycles', 0)
+        self.maxNoCommitCycles = readInteger('MaxNoCommitCycles', 500, minimum=1)
+        if self.maxTestInstructions == 0 and self.maxTestCycles == 0:
+            raise TestConfigError('A positive MaxTestInstructions or MaxTestCycles is required in %s' % xmlFileName)
+        self.enablePC_Goal = readInteger('EnablePC_Goal', 1)
+        if self.enablePC_Goal not in (0, 1):
+            raise TestConfigError('EnablePC_Goal must be 0 or 1 in %s' % xmlFileName)
 
         # Set reference register values.
         elemRegisterValues = tree.find('./RegisterValues')
@@ -132,6 +180,43 @@ class ConfigParser( object ):
             regNum = self.REG_NUMS[ elem.tag ]
             regValue = int( elem.text.lstrip().rstrip(), 0 )
             self.registerValueDict[regNum] = regValue
+
+    def GetSimulationParameters(self):
+        return [
+            ('MAX_TEST_INSTRUCTIONS', self.maxTestInstructions),
+            ('MAX_NO_COMMIT_CYCLES', self.maxNoCommitCycles),
+            ('MAX_TEST_CYCLES', self.maxTestCycles),
+            ('ENABLE_PC_GOAL', self.enablePC_Goal),
+        ]
+
+
+def ReadSimulationResult(logPath):
+    try:
+        with open(logPath, errors='replace') as log:
+            contents = log.read()
+    except OSError as error:
+        raise SimulationError('Cannot read simulation result: %s (log: %s)' % (error, logPath)) from error
+    reasons = re.findall(r'^(?:#\s*)?Simulation result: (\w+)\s*$', contents, re.MULTILINE)
+    if len(reasons) != 1:
+        raise SimulationError('Missing or ambiguous simulation result; rebuild the simulator (log: %s)' % logPath)
+    return reasons[0]
+
+
+def CheckSimulationResult(config, logPath):
+    # Check the reason independently of the process status: simulator frontends
+    # do not all propagate $fatal in the same way. Also reject stale models
+    # which do not implement the requested progress limits.
+    reason = ReadSimulationResult(logPath)
+    if config.enablePC_Goal:
+        expected = 'pc_goal'
+    elif config.maxTestInstructions:
+        expected = 'instruction_limit'
+    else:
+        expected = 'cycle_limit'
+    if reason != expected:
+        raise SimulationError('Simulation stopped with %s; expected %s (log: %s)' %
+                              (reason, expected, logPath))
+    return reason
 
 
 class SimulationDriver( object ):
@@ -145,9 +230,7 @@ class SimulationDriver( object ):
 
         self.vsimLogPath = os.path.join(testCodeDirPath, self.VSIM_LOG_FILE_NAME)
 
-        self.additionalOptionList = []
-        self.additionalOptionList.append("+MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("+ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
+        self.additionalOptionList = ['+%s=%d' % parameter for parameter in config.GetSimulationParameters()]
         if options.rsdLogFileName is not None:
             self.additionalOptionList.append("+RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
@@ -156,27 +239,12 @@ class SimulationDriver( object ):
     # Perform simulation
     def RunSimulation(self):
         QUESTASIM_DIR_PATH = os.environ['RSD_QUESTASIM_PATH']
-        VSIM_PATH = QUESTASIM_DIR_PATH + '/vsim -c +SEED=0'
-
-        cmd = """
-            %s %s/%s.%s \
-            +TEST_CODE=%s \
-            %s -do "run -all" %s
-            """ % ( VSIM_PATH,
-            self.projectDirPath,
-            self.LIBRARY_NAME,
-            self.TOP_MODULE_NAME,
-            self.testCodeDirPath,
-            " ".join( self.additionalOptionList ),
-            "> " + self.vsimLogPath if self.omitStdout else "| tee " + self.vsimLogPath
-        )
-
-        # Module "subprocess doesn't work correctly.
-        #    - command : "subprocess.call( cmd, cwd=projectDir )"
-        # Use os.system.
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [
+            os.path.join(QUESTASIM_DIR_PATH, 'vsim'), '-c', '+SEED=0',
+            '%s/%s.%s' % (self.projectDirPath, self.LIBRARY_NAME, self.TOP_MODULE_NAME),
+            '+TEST_CODE=%s' % self.testCodeDirPath,
+        ] + self.additionalOptionList + ['-do', 'run -all']
+        RunSimulationCommand(cmd, self.vsimLogPath, self.omitStdout, self.omitPrintCommand)
 
     def GetLogPath(self):
         return self.vsimLogPath
@@ -192,8 +260,7 @@ class VerilatorSimulationDriver(object):
 
         self.additionalOptionList = []
         self.additionalOptionList.append("TEST_CODE=%s" % (testCodeDirPath))
-        self.additionalOptionList.append("MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("ENABLE_PC_GOAL=%d" % (config.enablePC_Goal))
+        self.additionalOptionList.extend('%s=%d' % parameter for parameter in config.GetSimulationParameters())
         if options.rsdLogFileName is not None:
             self.additionalOptionList.append("RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
@@ -201,16 +268,8 @@ class VerilatorSimulationDriver(object):
 
     # シミュレーションを実行
     def RunSimulation(self):
-
-        cmd = """%s %s %s""" % (
-            VERILATED_FILE_NAME, 
-            " ".join(self.additionalOptionList),
-            "> " + self.verilatorLogPath if self.omitStdout else "| tee " + self.verilatorLogPath
-        )
-
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.verilatedBinPath] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.verilatorLogPath, self.omitStdout, self.omitPrintCommand)
 
     def GetLogPath(self):
         return self.verilatorLogPath
@@ -232,40 +291,59 @@ class VivadoSimulationDriver(object):
         self.testID = testCodeDirPath.replace("/", "-") # Make test id from testCodeDirPath
 
         self.additionalOptionList = []
-        self.additionalOptionList.append("-testplusarg MAX_TEST_CYCLES=%d" % (config.maxTestCycles))
-        self.additionalOptionList.append("-testplusarg TEST_CODE=%s"       % self.SOURCE_ROOT + (testCodeDirPath))
-        self.additionalOptionList.append("-testplusarg DUMMY_DATA_FILE=%s" % self.SOURCE_ROOT + "Verification/DummyData.hex")
-        self.additionalOptionList.append("-testplusarg ENABLE_PC_GOAL=%d"  % (config.enablePC_Goal))
+        for parameter in config.GetSimulationParameters():
+            self.additionalOptionList.extend(['-testplusarg', '%s=%d' % parameter])
+        self.additionalOptionList.extend(['-testplusarg', 'TEST_CODE=%s' % (self.SOURCE_ROOT + testCodeDirPath)])
+        self.additionalOptionList.extend(['-testplusarg', 'DUMMY_DATA_FILE=%s' % (self.SOURCE_ROOT + 'Verification/DummyData.hex')])
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 
 
     # Run simulation
     def RunSimulation(self):
-        cmd = "cd %s && %s -relax -s %s %s %s" % (
-            self.projectDirPath,
-            self.xelabPath,
-            self.testID,
-            self.TOP_MODULE_NAME,
-            "> " + self.xelabLogPath if self.omitStdout else "| tee " + self.xelabLogPath
-        )
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.xelabPath, '-relax', '-s', self.testID, self.TOP_MODULE_NAME]
+        RunSimulationCommand(cmd, self.xelabLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
 
-        cmd = "cd %s && %s -runall %s %s %s" % (
-            self.projectDirPath,
-            self.xsimPath,
-            " ".join( self.additionalOptionList ),
-            self.testID,
-            "> " + self.xsimLogPath if self.omitStdout else "| tee " + self.xsimLogPath
-        )
-        if (not self.omitPrintCommand):
-            print(cmd)
-        os.system( cmd )
+        cmd = [self.xsimPath, '-runall'] + self.additionalOptionList + [self.testID]
+        RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
 
     def GetLogPath(self):
-        return self.xsimLogPath
+        return os.path.normpath(os.path.join(self.projectDirPath, self.xsimLogPath))
+
+
+class PostSynthesisSimulationDriver(VivadoSimulationDriver):
+    SOURCE_ROOT = ''
+
+    def __init__(self, projectDirPath, config, options):
+        super().__init__(projectDirPath, '.', config, options)
+
+    def RunSimulation(self):
+        # Make compiles the netlist and testbench into this XSim snapshot.
+        cmd = [self.xsimPath, 'post_synthesis', '-runall', '-nolog', '-onerror', 'quit',
+               '-testplusarg', 'SHOW_SERIAL_OUT=1'] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
+
+
+class VCSPostSynthesisSimulationDriver(SimulationDriver):
+    VSIM_LOG_FILE_NAME = 'vcs.log'
+
+    def __init__(self, projectDirPath, config, options):
+        super().__init__(projectDirPath, '.', config, options)
+
+    def RunSimulation(self):
+        cmd = ['./simv', '+TEST_CODE=.', '+SHOW_SERIAL_OUT=1'] + self.additionalOptionList
+        RunSimulationCommand(cmd, self.vsimLogPath, self.omitStdout,
+                             self.omitPrintCommand, cwd=self.projectDirPath)
+        # VCS can report timing violations without returning a failing status.
+        with open(self.GetLogPath(), errors='replace') as log:
+            if re.search(r'Timing violation', log.read(), re.IGNORECASE):
+                raise SimulationError('Timing violation (log: %s)' % self.GetLogPath())
+
+    def GetLogPath(self):
+        return os.path.join(self.projectDirPath, self.vsimLogPath)
 
 
 class RegisterValueComparator( object ):
@@ -325,17 +403,23 @@ class RegisterValueComparator( object ):
 # シリアル出力を検証するため、
 # あらかじめ用意したrefファイルと比較する。
 class SerialOutputComparator( object ):
-    def __init__( self, testCodeName ):
+    def __init__( self, testCodeName, matchPrefix=False ):
         self.testCodeName = testCodeName
+        self.matchPrefix = matchPrefix
 
     def Compare( self, refFileName, outFileName ):
-        # 比較するファイル読み込む。改行コードはLFに統一。
-        self.outStr = open( outFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
-        self.refStr = open( refFileName, "r", errors='ignore' ).read().replace( '\r' , '' )
+        # Preserve all output bytes; decoding errors must not hide mismatches.
+        # Normalize CRLF and CR to LF, as the previous text-mode reads did.
+        with open(outFileName, 'rb') as outFile:
+            self.outData = outFile.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
+        with open(refFileName, 'rb') as refFile:
+            self.refData = refFile.read().replace(b'\r\n', b'\n').replace(b'\r', b'\n')
 
-        # 比較
-        #self.isMatched = ( self.outStr == self.refStr )
-        self.isMatched = ( self.outStr == self.refStr[:len(self.outStr)] )
+        if self.matchPrefix:
+            # Continuous tests must produce the entire, nonempty reference.
+            self.isMatched = bool(self.refData) and self.outData.startswith(self.refData)
+        else:
+            self.isMatched = self.outData == self.refData
 
     # 比較結果を表示。Compareを呼んだ後に呼ぶ必要がある
     def PrintCompareResult( self ):
@@ -343,14 +427,44 @@ class SerialOutputComparator( object ):
             print("OK ( %s ) : Serial output text is correct." % ( self.testCodeName ))
         else:
             print("NG ( %s ) : Serial output text is incorrect." % ( self.testCodeName ))
+            print("Expected %d bytes, got %d (%s match)." %
+                  (len(self.refData), len(self.outData), 'prefix' if self.matchPrefix else 'exact'))
             print("--------\nREF\n--------")
-            print(self.refStr)
+            print(self.refData.decode('utf-8', errors='backslashreplace'))
             print("--------\nOUT\n--------")
-            print(self.outStr)
+            print(self.outData.decode('utf-8', errors='backslashreplace'))
 
     # refとoutが一致しているかどうかを返す。Compareを呼んだ後に呼ぶ必要がある
     def IsMatched( self ):
         return self.isMatched
+
+
+def PrintBenchmarkScore(benchmark, comparator, expectedIterations=None):
+    # The complete reference must precede exactly one measurement report.
+    record = comparator.outData[len(comparator.refData):]
+    match = re.fullmatch(rb'RSD benchmark: iterations=([0-9]+) cycles=0x([0-9a-fA-F]{8})\n', record)
+    if match is not None:
+        iterations, cycles = int(match[1]), int(match[2], 16)
+        if expectedIterations is not None and iterations != expectedIterations:
+            raise ValueError('Benchmark iteration count differs from the build setting')
+    elif benchmark == 'dhrystone' and expectedIterations is not None:
+        # Accept reports from the earlier mcycle/minstret measurement port.
+        # Its report omits the iteration count, so the caller must supply it.
+        match = re.fullmatch(rb'RSD measured cycles : ([0-9]+)\nRSD measured instructions : ([0-9]+)\n', record)
+        if match is None or not 0 < int(match[2]) <= 0xffffffff:
+            raise ValueError('Missing or malformed benchmark measurement')
+        iterations, cycles = expectedIterations, int(match[1])
+    else:
+        raise ValueError('Missing or malformed benchmark measurement')
+    if not 0 < iterations <= 0xffffffff or not 0 < cycles <= 0xffffffff:
+        raise ValueError('Benchmark iterations and cycles must be positive 32-bit values')
+    score = iterations * 1000000 / cycles
+    label = 'CoreMark/MHz'
+    if benchmark == 'dhrystone':
+        score /= 1757
+        label = 'Dhrystone DMIPS/MHz'
+    print('%s: %.6f (%d iterations, %d cycles; simulation estimate)' %
+          (label, score, iterations, cycles))
 
 
 # テストに失敗して結果が出なかった時に、
@@ -381,14 +495,28 @@ parser.add_option('-l', '--rsd-log',
                   help="Specify an RSD log file name.")
 parser.add_option('-s', '--simulator',
                   action='store', type='string', dest='simulatorName',
-                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim]. If this option is not specified, modelsim is used.")
+                  help="Specify the name of a simulator [questa/modelsim/verilator/vivadosim/post-synthesis/post-synthesis-vcs]. Post-synthesis modes check termination and UART without register dumps. Default: modelsim.")
 parser.add_option('-q', '--quiet',
                   action='store_true', dest='quietMode', default=False,
                   help="Omit any messages of this script")
 parser.add_option('-e', '--return-error-code',
                   action='store', type='int', dest='returnNonZeroOnError', default=True,
                   help="Return error code on results are not correct")
+parser.add_option('--serial-prefix',
+                  action='store_true', dest='serialPrefix', default=False,
+                  help="When serial.ref.txt exists, require its entire nonempty contents at the start of serial output, allowing additional output (default: exact match).")
+parser.add_option('--benchmark', type='choice', choices=['coremark', 'dhrystone'],
+                  help="Validate the serial reference and appended cycle measurement, then display a CoreMark/MHz or DMIPS/MHz estimate.")
+parser.add_option('--benchmark-iterations', type='int', dest='benchmarkIterations',
+                  help="Iteration count used to build a benchmark whose measurement report omits it.")
+parser.add_option('--max-test-instructions', type='int', dest='maxTestInstructions',
+                  help="Override the configuration's instruction budget for this run.")
 options, testCodePathList = parser.parse_args()
+if options.benchmarkIterations is not None:
+    if not options.benchmark or not 0 < options.benchmarkIterations <= 0xffffffff:
+        parser.error('--benchmark-iterations requires --benchmark and a positive 32-bit count')
+if options.maxTestInstructions is not None and not 0 < options.maxTestInstructions <= 2**63 - 1:
+    parser.error('--max-test-instructions must be a positive 64-bit count')
 
 if not testCodePathList:
     print ("Error : no TestCode specified.")
@@ -402,6 +530,8 @@ if options.simulatorName is not None:
         simName = "verilator"
     elif simName == "vivadosim":
         simName = "vivadosim"
+    elif simName in ("post-synthesis", "post-synthesis-vcs"):
+        pass
     elif simName == "" or simName == "modelsim" or simName == "qeusta":
         simName = "modelsim"
     else:
@@ -415,6 +545,14 @@ for testCodePath in testCodePathList:
     regOutPath = os.path.join( testCodePath, REG_OUT_FILE_NAME )
     serialOutPath = os.path.join( testCodePath, SERIAL_OUT_FILE_NAME )
     serialRefPath = os.path.join( testCodePath, SERIAL_REF_FILE_NAME )
+    if simName in ("post-synthesis", "post-synthesis-vcs") and (
+            not os.path.isfile(serialRefPath) or os.path.getsize(serialRefPath) == 0):
+        print('NG ( %s ) : Post-synthesis requires a nonempty serial.ref.txt.' % testCodePath,
+              file=sys.stderr)
+        sys.exit(3)
+    if options.benchmark and not os.path.isfile(serialRefPath):
+        print('NG ( %s ) : Benchmark requires serial.ref.txt.' % testCodePath, file=sys.stderr)
+        sys.exit(3)
 
     # 過去のテスト結果を消去
     RemoveTestResult( regOutPath, serialOutPath )
@@ -422,39 +560,71 @@ for testCodePath in testCodePathList:
     # cfg.xml読み込み
     cfgXmlPath = os.path.join( testCodePath, CFG_XML_FILE_NAME )
     config = ConfigParser()
-    config.Parse( cfgXmlPath )
+    try:
+        config.Parse( cfgXmlPath )
+        if options.maxTestInstructions is not None:
+            config.maxTestInstructions = options.maxTestInstructions
+    except (TestConfigError, ElementTree.ParseError, OSError, ValueError, KeyError) as error:
+        print('NG ( %s ) : Invalid configuration: %s' % (testCodePath, error), file=sys.stderr)
+        sys.exit(3)
 
     # シミュレーション実行
     simDriver = None
     if simName == "modelsim":
         simDriver = SimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
+    elif simName == "post-synthesis":
+        simDriver = PostSynthesisSimulationDriver(testCodePath, config, options)
+    elif simName == "post-synthesis-vcs":
+        simDriver = VCSPostSynthesisSimulationDriver(testCodePath, config, options)
     elif simName == "vivadosim":
         simDriver = VivadoSimulationDriver(VIVADOSIM_PROJECT_DIR_PATH, testCodePath, config, options)
     else:
-        simDriver = VerilatorSimulationDriver(QUESTASIM_PROJECT_DIR_PATH, testCodePath, config, options)
-    simDriver.RunSimulation()
+        simDriver = VerilatorSimulationDriver(VERILATED_FILE_NAME, testCodePath, config, options)
+    try:
+        simDriver.RunSimulation()
+        terminationReason = CheckSimulationResult(config, simDriver.GetLogPath())
+    except SimulationError as error:
+        print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
+        sys.exit(3)
 
     # シミュレーション時のレジスタの値を、リファレンスと比較
-    regValueComparator = RegisterValueComparator( testCodePath )
-    regValueComparator.Compare( config.registerValueDict, regOutPath )
-    regValueComparator.PrintCompareResult()
+    # Synthesized netlists do not expose the architectural register dump.
+    regValuesMatched = True
+    if simName in ("post-synthesis", "post-synthesis-vcs"):
+        print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
+    else:
+        regValueComparator = RegisterValueComparator( testCodePath )
+        regValueComparator.Compare( config.registerValueDict, regOutPath )
+        regValuesMatched = regValueComparator.IsMatched()
+        if config.registerValueDict:
+            regValueComparator.PrintCompareResult()
+        else:
+            print('OK ( %s ) : Execution completed (%s).' % (testCodePath, terminationReason))
 
     # シミュレーション時のシリアル出力を、リファレンスと比較
     if os.path.exists( serialRefPath ):
         # シリアル出力比較は、refファイルがある場合のみやる
-        serialOutComparator = SerialOutputComparator( testCodePath )
+        serialOutComparator = SerialOutputComparator(
+            testCodePath, matchPrefix=options.serialPrefix or bool(options.benchmark))
         serialOutComparator.Compare( serialRefPath, serialOutPath )
         serialOutComparator.PrintCompareResult()
+
+    if options.benchmark and regValuesMatched and serialOutComparator.IsMatched():
+        try:
+            PrintBenchmarkScore(options.benchmark, serialOutComparator, options.benchmarkIterations)
+        except ValueError as error:
+            print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
+            sys.exit(3)
 
     # テスト結果が違っていたら、エラーを返す
     if not options.returnNonZeroOnError:
         sys.exit(0)
     else:
         if os.path.exists( serialRefPath ):
-            if not regValueComparator.IsMatched():
+            if not regValuesMatched:
                 sys.exit(2)
             if not serialOutComparator.IsMatched():
                 sys.exit(1)
         else:
-            if not regValueComparator.IsMatched():
+            if not regValuesMatched:
                 sys.exit(2)

@@ -18,7 +18,10 @@
 //`define RSD_POST_SYNTHESIS
 //`define RSD_SYNTHESIS_ZEDBOARD
 
-`define RSD_SYNTHESIS_VIVADO
+// Synplify projects select their tool explicitly; keep Vivado as the default.
+`ifndef RSD_SYNTHESIS_SYNPLIFY
+    `define RSD_SYNTHESIS_VIVADO
+`endif
 
 
 /********************************************************************/

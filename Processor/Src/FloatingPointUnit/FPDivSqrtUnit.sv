@@ -33,7 +33,8 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
             .is_divide(port.is_divide[i]),
             .req(port.Req[i]),
             .finished(finished[i]),
-            .result(port.DataOut[i])
+            .result(port.DataOut[i]),
+            .fflags(port.FFlagsOut[i])
         );
     end
 
