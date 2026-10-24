@@ -1,9 +1,10 @@
-# Test programs
+# Tests
 
-Run the commands below from `Processor/Src`. Build the simulator before running tests.
+Run the commands below from `Processor/Src`. For program tests, first build the
+Verilator simulator, then run the basic tests:
 
 ```sh
-make -j"$(nproc)" -f Makefile.verilator.mk test-build-basic
+make -j"$(nproc)" -f Makefile.verilator.mk
 make -f Makefile.verilator.mk test-1
 ```
 
@@ -12,19 +13,48 @@ Use `test-clean-basic` to remove their generated files.
 For `cfg.xml`, execution limits, and result checking, see the
 [TestDriver documentation](../../../Tools/TestDriver/README.md).
 
-`test-all` runs the normal tests: `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone).
-Fetch the benchmark sources as described below before running it.
-`test-ex` runs the heavier ACT4 and Zephyr suites after their explicit fetch/setup.
-Both targets build HEX files as needed. `test-build` builds only the normal tests;
-`test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
-preserving downloaded sources and installed dependencies.
+## Choosing a test suite
+
+| Target | What it checks | Preparation |
+| --- | --- | --- |
+| `test-all` | `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone) | Build the Verilator model; fetch the benchmark sources below. |
+| `test-ex` | ACT4 and Zephyr | Build the Verilator model; run each suite's fetch/setup below. |
+| `test-unit` | Nine RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Install ModelSim/QuestaSim and set `RSD_QUESTASIM_PATH` to its executable directory. |
+| `test-tools` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
 
 ```sh
 make -j4 -f Makefile.verilator.mk test-all
 make -j4 -f Makefile.verilator.mk test-ex
+make -j4 test-unit
+make -j2 -f Makefile.verilator.mk test-tools
 ```
 
-Specify `test-all test-ex` together to run both groups.
+`test-all` covers the normal program tests; request the other groups explicitly.
+Specify `test-all test-ex` together to run both program-test groups.
+They build HEX files as needed. `test-build` builds the normal test programs;
+`test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
+preserving downloaded sources and installed dependencies.
+
+`test-unit` uses the ModelSim/QuestaSim Makefile and builds its own testbenches.
+Select one unit with, for example, `make test-unit-Divider`.
+`test-tools` uses stubs for the launcher and runner CLI. Its simulation-limit
+checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
+those checks are reported as skipped. It does not build models, download tools
+or start containers. The [TestDriver documentation](../../../Tools/TestDriver/README.md)
+lists the individual tool-test targets.
+
+For synthesized cores, build the test HEX first (for example, with
+`make -f Makefile.verilator.mk test-build-basic`). Then use
+`make -f Makefile.vivado.mk test-post-synthesis` for Vivado + XSim, or
+`make -f Makefile.synplify.mk test-post-synthesis` for Synplify + XSim.
+`make -f Makefile.vcs.mk test-post-implementation` uses Vivado placement/routing
+and VCS with SDF delays. These require separately installed CAD tools and
+`RSD_VIVADO_BIN`; they default to HelloWorld and accept `TEST_CODE` to select a
+UART-checked program. They are separate from the four groups above.
+
+TestDriver leaves each program's simulator log and UART output in its test
+directory. ACT4 also writes `riscv-arch-test/Build/summary.log` for the selected
+cases. For benchmark scores, use the `bench-*` targets described below.
 
 ## FP test selection
 
