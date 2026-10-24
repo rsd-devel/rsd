@@ -18,6 +18,7 @@ import DebugTypes::*;
 import MicroOpTypes::*;
 import CacheSystemTypes::*;
 import MemoryMapTypes::*;
+import LoadStoreUnitTypes::*;
 
 // When this switch is enabled, instructions are re-issued from the issue queue.
 // Otherwise, instructions are refetched.
