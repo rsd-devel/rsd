@@ -170,6 +170,16 @@ test:
 	$(RUN_TEST) $(TEST_CODE)
 	@echo "==== Test Successful ===="
 
+# Test the test infrastructure itself: TestDriver and the DevContainer launcher.
+# Each suite uses stubs; TestDriver also checks an existing Verilator model when available.
+PYTHON ?= python3
+.PHONY: test-tools test-tools-TestDriver test-tools-DevContainer
+test-tools: test-tools-TestDriver test-tools-DevContainer
+	@echo "==== Test Successful (test-tools) ===="
+
+test-tools-TestDriver test-tools-DevContainer: test-tools-%:
+	$(PYTHON) -B -m unittest discover -s ../Tools/$*/Tests -p 'Test*.py' -v
+
 .PHONY: test-all test-1 test-2 test-ex
 test-all: test-1 test-2
 	@echo "==== Test Successful (all) ===="
