@@ -4,7 +4,6 @@ SYNPLIFY_ROOT = ../Project/Synplify
 SYNPLIFY_PROJECT_ROOT = $(SYNPLIFY_ROOT)/$(TARGET_BOARD)
 
 MAKEFILE = Makefile.synplify.mk
-MAKE = make -f $(MAKEFILE)
 
 # -------------------------------
 # Synthesis
@@ -26,7 +25,7 @@ $(VIVADO_PROJECT_FILE): $(SYNPLIFY_NETLIST)
 	
 $(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
 	@ echo "(Re-)build board netlist using Synplify!"
-	$(MAKE) vivado-clean
+	$(MAKE) -f $(MAKEFILE) vivado-clean
 	@ exit 1
 
 include Makefiles/CoreSources.inc.mk

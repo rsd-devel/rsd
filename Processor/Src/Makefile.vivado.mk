@@ -32,7 +32,6 @@ RSD_LOG_FILE_RTL = RSD.log
 KANATA_LOG_FILE_RTL = Kanata.log
 
 MAKEFILE = Makefile.vivado.mk
-MAKE = make -f $(MAKEFILE)
 
 # Include core source code definition
 include Makefiles/CoreSources.inc.mk
@@ -216,7 +215,7 @@ $(POST_IMPLEMENTATION_MODULE): $(POST_SYNTHESIS_MODULE)
 	touch $(POST_IMPLEMENTATION_MODULE) # Update timestamp to avoid re-synthesis
 
 $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
-	$(MAKE) post-synthesis-create || { rm -rf $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT); exit 1; }
+	$(MAKE) -f $(MAKEFILE) post-synthesis-create || { rm -rf $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT); exit 1; }
 
 $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
