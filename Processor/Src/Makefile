@@ -65,6 +65,10 @@ VSIM_OPTIONS_DUMP = \
 # Commands
 #
 
+# Core tests use TestDriver instead of the shared unit-test recipe.
+RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
+RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
+
 # Include basic command definitions.
 include Makefile.inc
 
@@ -81,8 +85,6 @@ rtl-kanata: rtl-run
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
-RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
 include Makefiles/TestCommands.inc.mk
 
 # RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.

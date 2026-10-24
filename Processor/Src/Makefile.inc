@@ -166,12 +166,18 @@ run: rtl-run
 # Simulation on a GUI mode.
 run-gui: rtl-run-gui
 
-# Build and run a self-checking RTL testbench, returning failures to make.
-# Questa TESTSTATUS: 0 = passed, 1 = warning, 2 or higher = failed.
+# Both core and unit tests build RTL before running.
 .PHONY: test
 test: rtl
+
+# Core tests supply RUN_TEST and define their recipe in TestCommands.inc.mk.
+# Otherwise, run a self-checking RTL testbench, returning failures to make.
+# Questa TESTSTATUS: 0 = passed, 1 = warning, 2 or higher = failed.
+ifndef RUN_TEST
+test:
 	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) -onfinish stop \
 		-do 'set BreakOnAssertion 2; run -all; quit -code [expr {[coverage attribute -name TESTSTATUS -concise] >= 2}]'
+endif
 
 # -------------------------------
 # Functional simulation
