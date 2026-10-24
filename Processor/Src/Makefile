@@ -105,7 +105,8 @@ UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
 test-unit: $(UNIT_TEST_TARGETS)
 	@echo "==== Test Successful (test-unit) ===="
 
-$(UNIT_TEST_TARGETS): test-unit-%:
+# Generate shared RTL before starting unit submakes, including parallel runs.
+$(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
 	$(MAKE) -C Verification/UnitTest/$* test PROJECT_WORK="$(abspath $(PROJECT_WORK))"
 	@echo "==== Test Successful (test-unit-$*) ===="
 
