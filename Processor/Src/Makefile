@@ -85,6 +85,28 @@ RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
 RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
 include Makefiles/TestCommands.inc.mk
 
+# RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.
+# Run all with "make test-unit -jN", or one with "make test-unit-Divider".
+UNIT_TESTS = \
+	BlockDualPortRAM \
+	DistributedDualPortRAM \
+	DistributedMultiPortRAM \
+	MultiWidthQueuePointer \
+	MultiWidthFreeList \
+	Divider \
+	Memory \
+	ICache \
+	DCache
+UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
+
+.PHONY: test-unit $(UNIT_TEST_TARGETS)
+test-unit: $(UNIT_TEST_TARGETS)
+	@echo "==== Test Successful (test-unit) ===="
+
+$(UNIT_TEST_TARGETS): test-unit-%:
+	$(MAKE) -C Verification/UnitTest/$* test PROJECT_WORK="$(abspath $(PROJECT_WORK))"
+	@echo "==== Test Successful (test-unit-$*) ===="
+
 # -------------------------------
 # Dump : Run test and dump values of register files for each cycle.
 #        This is only for pre-translate simulation.
