@@ -106,6 +106,17 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
     string REG_CSV_FILE;
     string DUMMY_DATA_FILE;
 
+`ifdef VERILATOR
+    // Other simulators configure waveform recording through their run scripts.
+    initial begin
+        string waveLogFile;
+        if ($value$plusargs("WAVE_LOG_FILE=%s", waveLogFile)) begin
+            $dumpfile(waveLogFile);
+            $dumpvars;
+        end
+    end
+`endif
+
     string codeFileName;
     string regOutFileName;
     string serialDumpFileName;

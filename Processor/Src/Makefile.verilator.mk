@@ -20,7 +20,7 @@ TOOLS_ROOT   = ../Tools/
 PROJECT_WORK =  ../Project/Verilator
 LIBRARY_WORK_RTL = $(PROJECT_WORK)/obj_dir
 
-TOP_MODULE = Main_Zynq_Wrapper
+TOP_MODULE = TestMain
 VERILATED_TOP_MODULE_NAME = V$(TOP_MODULE)
 
 # Convert a RSD log to a Kanata log.
@@ -32,63 +32,56 @@ KANATA_LOG_FILE_RTL = Kanata.log
 include Makefiles/CoreSources.inc.mk
 
 
-DEBUG_HELPERS = \
-	SysDeps/Verilator/VerilatorHelper.sv
-
 DEPS_RTL = \
 	$(TYPES:%=$(SOURCE_ROOT)%) \
 	$(MODULES:%=$(SOURCE_ROOT)%) \
-	$(DEBUG_HELPERS:%=$(SOURCE_ROOT)%) \
-	# $(TEST_MODULES:%=$(SOURCE_ROOT)%) \
+	$(TEST_MODULES:%=$(SOURCE_ROOT)%) \
 
 # Temporally disabled warnings
+# MULTIDRIVEN: simulation-only initializers also write always_ff registers.
 VERILATOR_DISABLED_WARNING = \
      -Wno-WIDTH \
      -Wno-INITIALDLY \
      -Wno-UNOPTFLAT \
+     -Wno-MULTIDRIVEN \
 
 # RSD specific constants
 # RSD_SRC_CFG is defined in Makefiles/CoreSources.inc.mk
 RSD_VERILATOR_DEFINITION = \
 	+define+RSD_FUNCTIONAL_SIMULATION \
-	+define+RSD_FUNCTIONAL_SIMULATION_VERILATOR \
 	$(RSD_SRC_CFG) \
 
 
-# --assert: Enable all assertions. 
+# --main/--timing: Generate the execution loop for the shared SV testbench.
+# --assert: Enable all assertions.
 # --Mdir: Name of output object directory.
+# -fno-dfg: Avoid Verilator 5.052's internal error on function inout arguments.
 # We use "-Os" and "-output-split 15000" for faster compilation.
 # See https://www.veripool.org/papers/Verilator_Accelerated_OSDA2020.pdf
 VERILATOR_OPTION = \
 	--cc \
+	--main \
+	--timing \
+	--timescale 1ns/1ps \
+	-fno-dfg \
+	--exe \
 	--assert \
 	-sv \
-	--exe ./SysDeps/Verilator/TestMain.cpp \
 	--top-module $(TOP_MODULE) \
 	$(VERILATOR_DISABLED_WARNING) \
 	$(RSD_VERILATOR_DEFINITION) \
 	--Mdir $(LIBRARY_WORK_RTL) \
 	+incdir+. \
 	--trace \
-	-CFLAGS "-Os -include limits" \
+	-CFLAGS "-Os" \
 	-output-split 15000 \
 	#-CFLAGS "-O0 -g" \
 	#--MMD \
 	#-O3 \
 
-VERILATOR_TARGET_CXXFLAGS= \
-	-D RSD_FUNCTIONAL_SIMULATION_VERILATOR \
-	-D RSD_FUNCTIONAL_SIMULATION \
-	-D RSD_VERILATOR_TRACE \
-	$(if $(filter 1,$(RSD_HAS_FP)),-D RSD_MARCH_FP_PIPE) \
-	-Wno-attributes \
-
 all: $(CORE_TEMPLATE_FILES) $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSources.inc.mk
 	$(VERILATOR_BIN) $(VERILATOR_OPTION) $(DEPS_RTL)
-	cd $(LIBRARY_WORK_RTL); \
-		VPATH=../../../Src \
-		CXXFLAGS="$(VERILATOR_TARGET_CXXFLAGS)" \
-			$(MAKE) -f $(VERILATED_TOP_MODULE_NAME).mk
+	$(MAKE) -C $(LIBRARY_WORK_RTL) -f $(VERILATED_TOP_MODULE_NAME).mk
 	@echo "==== Build Successful ===="
 
 $(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
@@ -96,19 +89,19 @@ $(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_F
 
 run:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		TEST_CODE=$(TEST_CODE) ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT)
+		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
+		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
+		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT)
 
 kanata:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		TEST_CODE=$(TEST_CODE) ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
-		REG_CSV_FILE=Register.csv \
-		RSD_LOG_FILE=RSD.log 
+		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
+		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
+		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
+		+REG_CSV_FILE=Register.csv \
+		+RSD_LOG_FILE=RSD.log
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
 
@@ -118,13 +111,13 @@ kanata:
 #
 dump:	
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		TEST_CODE=$(TEST_CODE) ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
-		REG_CSV_FILE=Register.csv \
-		RSD_LOG_FILE=RSD.log \
-		WAVE_LOG_FILE=simx.vcd
+		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
+		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
+		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
+		+REG_CSV_FILE=Register.csv \
+		+RSD_LOG_FILE=RSD.log \
+		+WAVE_LOG_FILE=simx.vcd
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
 $(LIBRARY_WORK_RTL):

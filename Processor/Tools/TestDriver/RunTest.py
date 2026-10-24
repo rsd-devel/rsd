@@ -20,7 +20,7 @@ QUESTASIM_PROJECT_DIR_PATH = os.path.relpath(
 )
 
 VERILATED_FILE_NAME = os.path.relpath(
-    os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VMain_Zynq_Wrapper' )
+    os.path.join( os.path.dirname( __file__ ), '../../Project/Verilator/obj_dir/VTestMain' )
 )
 
 VIVADOSIM_PROJECT_DIR_PATH = os.path.relpath(
@@ -259,10 +259,10 @@ class VerilatorSimulationDriver(object):
         self.verilatorLogPath = os.path.join(testCodeDirPath, self.VERILATOR_LOG_FILE_NAME)
 
         self.additionalOptionList = []
-        self.additionalOptionList.append("TEST_CODE=%s" % (testCodeDirPath))
-        self.additionalOptionList.extend('%s=%d' % parameter for parameter in config.GetSimulationParameters())
+        self.additionalOptionList.append("+TEST_CODE=%s" % (testCodeDirPath))
+        self.additionalOptionList.extend('+%s=%d' % parameter for parameter in config.GetSimulationParameters())
         if options.rsdLogFileName is not None:
-            self.additionalOptionList.append("RSD_LOG_FILE=%s" % (options.rsdLogFileName))
+            self.additionalOptionList.append("+RSD_LOG_FILE=%s" % (options.rsdLogFileName))
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 

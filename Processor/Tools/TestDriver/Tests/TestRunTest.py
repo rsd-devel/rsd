@@ -66,7 +66,7 @@ class RunTestProcessTests(unittest.TestCase):
         shutil.copy2(RUNNER, self.runner)
         self.bin_dir = self.root / 'simulator-bin'
         self.bin_dir.mkdir()
-        model = self.root / 'Processor/Project/Verilator/obj_dir/VMain_Zynq_Wrapper'
+        model = self.root / 'Processor/Project/Verilator/obj_dir/VTestMain'
         model.parent.mkdir(parents=True)
         self.vivado_cwd = self.root / 'Processor/Project/VivadoSim/work'
         self.vivado_cwd.mkdir(parents=True)
@@ -329,7 +329,7 @@ class RunTestProcessTests(unittest.TestCase):
                     self.assertIn('TEST_CODE=../../../Src/Verification/TestCode/Case with spaces', args)
                 else:
                     self.assertEqual(calls[0]['cwd'], str(self.src))
-                    prefix = '+' if simulator == 'modelsim' else ''
+                    prefix = '+' if simulator in ('modelsim', 'verilator') else ''
                     self.assertIn(prefix + 'RSD_LOG_FILE=trace with spaces.log', calls[0]['args'])
                     if simulator == 'modelsim':
                         self.assertEqual(calls[0]['args'][-2:], ['-do', 'run -all'])
@@ -409,7 +409,7 @@ class RunTestProcessTests(unittest.TestCase):
         self.env['FAKE_SERIAL_HEX'] = b'don'.hex()
         result = self.run_runner('verilator')
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
-        self.assertIn('ENABLE_PC_GOAL=0', self.calls()[0]['args'])
+        self.assertIn('+ENABLE_PC_GOAL=0', self.calls()[0]['args'])
 
     def test_serial_mismatch_respects_result_exit_option(self):
         self.env['FAKE_SERIAL_HEX'] = b'don'.hex()
