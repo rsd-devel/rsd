@@ -20,6 +20,8 @@ module IO_Unit(
     CSR_UnitIF.IO_Unit csrUnit
 );
 
+    PhyRawAddrPath phyRawReadAddr, phyRawWriteAddr;
+
     // Timer register
     TimerRegsters tmReg;
     TimerRegsters tmNext;
@@ -44,8 +46,6 @@ module IO_Unit(
         end
     end
 
-
-    PhyRawAddrPath phyRawReadAddr, phyRawWriteAddr;
 
     always_comb begin
         phyRawReadAddr = port.ioReadAddrIn.addr;
