@@ -55,7 +55,6 @@ RSD_VERILATOR_DEFINITION = \
 # --main/--timing: Generate the execution loop for the shared SV testbench.
 # --assert: Enable all assertions.
 # --Mdir: Name of output object directory.
-# -fno-dfg: Avoid Verilator 5.052's internal error on function inout arguments.
 # We use "-Os" and "-output-split 15000" for faster compilation.
 # See https://www.veripool.org/papers/Verilator_Accelerated_OSDA2020.pdf
 VERILATOR_OPTION = \
@@ -63,7 +62,6 @@ VERILATOR_OPTION = \
 	--main \
 	--timing \
 	--timescale 1ns/1ps \
-	-fno-dfg \
 	--exe \
 	--assert \
 	-sv \
