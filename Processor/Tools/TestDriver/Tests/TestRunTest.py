@@ -325,7 +325,7 @@ class RunTestProcessTests(unittest.TestCase):
                     self.assertEqual([call['name'] for call in calls], ['xelab', 'xsim'])
                     self.assertTrue(all(call['cwd'] == str(self.vivado_cwd) for call in calls))
                     args = calls[-1]['args']
-                    self.assertEqual(args.count('-testplusarg'), 6)
+                    self.assertEqual(args.count('-testplusarg'), 5)
                     self.assertIn('TEST_CODE=../../../Src/Verification/TestCode/Case with spaces', args)
                 else:
                     self.assertEqual(calls[0]['cwd'], str(self.src))

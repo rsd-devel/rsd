@@ -294,7 +294,6 @@ class VivadoSimulationDriver(object):
         for parameter in config.GetSimulationParameters():
             self.additionalOptionList.extend(['-testplusarg', '%s=%d' % parameter])
         self.additionalOptionList.extend(['-testplusarg', 'TEST_CODE=%s' % (self.SOURCE_ROOT + testCodeDirPath)])
-        self.additionalOptionList.extend(['-testplusarg', 'DUMMY_DATA_FILE=%s' % (self.SOURCE_ROOT + 'Verification/DummyData.hex')])
         self.omitStdout = options.omitQuestasimMessage
         self.omitPrintCommand = options.quietMode
 

@@ -24,12 +24,6 @@ import MemoryMapTypes::*;
 
 localparam MEMORY_BYTE_SIZE = 1 << MEMORY_ADDR_BIT_SIZE;
 
-// Specify the number of rows of the dummy data (one row corresponds to one entry in the memory) 
-// for initializing the memory. 
-// If the memory entry is larger than this value, the dummy data is repeatedly read and initialized.
-localparam DUMMY_HEX_ENTRY_NUM = 256;
-
-
 // Memory Entry Size
 localparam MEMORY_ENTRY_BIT_NUM /*verilator public*/ = 64; // Bit width of each memory entry
 localparam MEMORY_ENTRY_BYTE_NUM = MEMORY_ENTRY_BIT_NUM / BYTE_WIDTH;

@@ -190,15 +190,11 @@ module InitializedBlockRAM #(
         $readmemh(INIT_HEX_FILE, body.ram.array);
     endfunction
 
-    function automatic void FillDummyData(string DUMMY_DATA_FILE, integer DUMMY_HEX_ENTRY_NUM);
+    function automatic void FillDummyData();
         integer entry;
-        for ( entry = 0; entry < body.ram.HEX_FILE_ARRAY_ENTRY_NUM; entry += DUMMY_HEX_ENTRY_NUM ) begin
-            $readmemh(
-                DUMMY_DATA_FILE,
-                body.ram.array,
-                entry, // Begin address
-                entry + DUMMY_HEX_ENTRY_NUM - 1 // End address
-            );
+        // Keep unwritten memory deterministic; existing tests expect 0xcd bytes.
+        for ( entry = 0; entry < $size(body.ram.array); entry++ ) begin
+            body.ram.array[entry] = {HEX_FILE_ENTRY_BIT_SIZE/8{8'hcd}};
         end
     endfunction
     `endif
