@@ -355,6 +355,18 @@ class RunTestProcessTests(unittest.TestCase):
                                   result.stdout)
                     self.assertNotIn('Traceback', result.stderr)
 
+    def test_serial_comparison_preserves_nul_bytes(self):
+        reference = b'\x00A\x00\xffB\x00'
+        (self.case / 'serial.ref.txt').write_bytes(reference)
+        for simulator in self.executables:
+            for output in (reference, reference.replace(b'\x00', b''),
+                           reference + b'\x00', b'A\x00\x00\xffB\x00'):
+                with self.subTest(simulator=simulator, output=output):
+                    self.env['FAKE_SERIAL_HEX'] = output.hex()
+                    result = self.run_runner(simulator)
+                    self.assertEqual(result.returncode, 0 if output == reference else 1,
+                                     result.stdout + result.stderr)
+
     def test_serial_prefix_requires_the_entire_reference(self):
         for simulator in self.executables:
             for output, matched in (
