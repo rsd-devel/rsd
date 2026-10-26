@@ -28,6 +28,9 @@
 
 Register and serial expectations are checked after successful execution. An empty
 `RegisterValues` element is allowed for execution-only or serial-only tests.
+Despite their `.txt` suffix, `serial.out.txt` and `serial.ref.txt` contain raw UART
+bytes, including NUL. Comparison preserves NUL bytes while normalizing CRLF and
+CR line endings to LF.
 Limits are checked once per cycle, so simultaneous commits can take the instruction
 count slightly past its budget. Logs record the termination reason, committed
 instruction and micro-op counts, elapsed cycles, longest no-commit interval, and

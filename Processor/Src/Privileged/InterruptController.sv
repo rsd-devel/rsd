@@ -18,6 +18,13 @@ module InterruptController(
     NextPCStageIF.InterruptController fetchStage,
     RecoveryManagerIF.InterruptController recoveryManager
 );
+    typedef struct packed {
+        logic valid;
+        logic toSmode;
+        CSR_CAUSE_InterruptCodePath code;
+    } InterruptRequestPath;
+    InterruptRequestPath interruptRequest;
+
     logic reqInterrupt, triggerInterrupt, interruptToSmode;
     CSR_CAUSE_InterruptCodePath interruptCode;
     CSR_XTVEC_Path interruptXtvec;
@@ -30,32 +37,35 @@ module InterruptController(
         "The width of an custom interrupt code and the code in the CSR do not match"
     );
 
-    function void checkInterrupt(
+    function automatic InterruptRequestPath checkInterrupt(
         input CSR_BodyPath csrReg,
         input CSR_CAUSE_InterruptCodePath code,
-        inout logic triggerInterrupt,
-        inout logic interruptToSmode,
-        inout CSR_CAUSE_InterruptCodePath interruptCode
+        input PrivilegeLevelType privilegeLevel,
+        input InterruptRequestPath previous
     );
+        InterruptRequestPath result;
+        // Preserve the previous selection unless this higher-priority source wins.
+        result = previous;
         if (csrReg.mie[code] && csrReg.mip[code]) begin
             if (csrReg.mideleg[code]) begin
                 // trap to S-mode
-                if (csrUnit.privilegeLevel <= PRIVILEGE_LEVEL_S && // trap to higher mode is not allowed
-                    (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_S || csrReg.mstatus.SIE)
+                if (privilegeLevel <= PRIVILEGE_LEVEL_S && // trap to higher mode is not allowed
+                    (privilegeLevel < PRIVILEGE_LEVEL_S || csrReg.mstatus.SIE)
                 ) begin
-                    triggerInterrupt = 1;
-                    interruptToSmode = 1;
-                    interruptCode = code;
+                    result.valid = 1;
+                    result.toSmode = 1;
+                    result.code = code;
                 end
             end else begin
                 // trap to M-mode
-                if (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE) begin
-                    triggerInterrupt = 1;
-                    interruptToSmode = 0;
-                    interruptCode = code;
+                if (privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE) begin
+                    result.valid = 1;
+                    result.toSmode = 0;
+                    result.code = code;
                 end
             end
         end
+        return result;
     endfunction
 
     always_comb begin
@@ -63,22 +73,24 @@ module InterruptController(
 
         // priority order is
         // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
-        reqInterrupt = 0;
-        interruptCode = CSR_CAUSE_InterruptCodePath'(0);
-        interruptToSmode = 0;
+        interruptRequest = '0;
 
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_TIMER   , reqInterrupt, interruptToSmode, interruptCode);
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_SOFTWARE, reqInterrupt, interruptToSmode, interruptCode);
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_EXTERNAL, reqInterrupt, interruptToSmode, interruptCode);
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_TIMER   , reqInterrupt, interruptToSmode, interruptCode);
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_SOFTWARE, reqInterrupt, interruptToSmode, interruptCode);
-        checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_EXTERNAL, reqInterrupt, interruptToSmode, interruptCode);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_TIMER   , csrUnit.privilegeLevel, interruptRequest);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_SOFTWARE, csrUnit.privilegeLevel, interruptRequest);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_EXTERNAL, csrUnit.privilegeLevel, interruptRequest);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_TIMER   , csrUnit.privilegeLevel, interruptRequest);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_SOFTWARE, csrUnit.privilegeLevel, interruptRequest);
+        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_EXTERNAL, csrUnit.privilegeLevel, interruptRequest);
 
         // Custom Interrupt
         // TODO replace custom interrupt with PLIC
         for (int i = 16; i < 32; i++) begin
-            checkInterrupt(csrReg, CSR_CAUSE_InterruptCodePath'(i), reqInterrupt, interruptToSmode, interruptCode);
+            interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_InterruptCodePath'(i), csrUnit.privilegeLevel, interruptRequest);
         end
+
+        reqInterrupt = interruptRequest.valid;
+        interruptToSmode = interruptRequest.toSmode;
+        interruptCode = interruptRequest.code;
 
         // check global mask
         reqInterrupt &= csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE;

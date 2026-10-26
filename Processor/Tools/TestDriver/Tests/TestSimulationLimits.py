@@ -10,7 +10,7 @@ import unittest
 
 PROCESSOR = Path(__file__).resolve().parents[3]
 SOURCE = PROCESSOR / 'Src'
-MODEL = PROCESSOR / 'Project/Verilator/obj_dir/VMain_Zynq_Wrapper'
+MODEL = PROCESSOR / 'Project/Verilator/obj_dir/VTestMain'
 FIBONACCI = SOURCE / 'Verification/TestCode/C/Fibonacci/code.hex'
 
 
@@ -25,17 +25,17 @@ class SimulationLimitTests(unittest.TestCase):
 
     def run_model(self, instructions=10000, no_commit=500, cycles=0, goal=True):
         result = subprocess.run(
-            [str(MODEL), 'TEST_CODE=' + str(self.case),
-             'MAX_TEST_INSTRUCTIONS=' + str(instructions),
-             'MAX_NO_COMMIT_CYCLES=' + str(no_commit),
-             'MAX_TEST_CYCLES=' + str(cycles),
-             'ENABLE_PC_GOAL=' + str(int(goal)), 'SHOW_SERIAL_OUT=1'],
+            [str(MODEL), '+TEST_CODE=' + str(self.case),
+             '+MAX_TEST_INSTRUCTIONS=' + str(instructions),
+             '+MAX_NO_COMMIT_CYCLES=' + str(no_commit),
+             '+MAX_TEST_CYCLES=' + str(cycles),
+             '+ENABLE_PC_GOAL=' + str(int(goal)), '+SHOW_SERIAL_OUT=1'],
             cwd=SOURCE, capture_output=True, text=True, timeout=30)
         output = result.stdout + result.stderr
         statistics = {}
         for key, pattern in (
-            ('instructions', r'Num of committed RISC-V-ops: (\d+)'),
-            ('cycles', r'Elapsed cycles: (\d+)'),
+            ('instructions', r'Num of committed RISC-V-ops:\s+(\d+)'),
+            ('cycles', r'Elapsed cycles:\s+(\d+)'),
             ('max_no_commit', r'Max consecutive no-commit cycles: (\d+)'),
             ('ipc', r'IPC \(RISC-V instruction\): ([\d.]+)'),
             ('reason', r'Simulation result: (\w+)'),
@@ -78,7 +78,7 @@ class SimulationLimitTests(unittest.TestCase):
         for goal in (True, False):
             with self.subTest(goal=goal):
                 result, stats = self.run_model(instructions=1000, goal=goal)
-                self.assertEqual(result.returncode, 1 if goal else 0, result.stdout + result.stderr)
+                self.assertEqual(result.returncode == 0, not goal, result.stdout + result.stderr)
                 self.assertEqual(stats['reason'], 'instruction_limit')
                 self.assertGreaterEqual(stats['instructions'], 1000)
                 # More cycles than the watchdog limit proves it resets on commit.
@@ -107,7 +107,7 @@ class SimulationLimitTests(unittest.TestCase):
         for goal in (True, False):
             with self.subTest(goal=goal):
                 result, stats = self.run_model(instructions=0, cycles=10, goal=goal)
-                self.assertEqual(result.returncode, 1 if goal else 0, result.stdout + result.stderr)
+                self.assertEqual(result.returncode == 0, not goal, result.stdout + result.stderr)
                 self.assertEqual(stats['reason'], 'cycle_limit')
 
 

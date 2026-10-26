@@ -104,7 +104,17 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
     string TEST_CODE;
     string RSD_LOG_FILE;
     string REG_CSV_FILE;
-    string DUMMY_DATA_FILE;
+
+`ifdef VERILATOR
+    // Other simulators configure waveform recording through their run scripts.
+    initial begin
+        string waveLogFile;
+        if ($value$plusargs("WAVE_LOG_FILE=%s", waveLogFile)) begin
+            $dumpfile(waveLogFile);
+            $dumpvars;
+        end
+    end
+`endif
 
     string codeFileName;
     string regOutFileName;
@@ -207,10 +217,7 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
             $fatal(1, "Invalid simulation limits.");
         end
         if( !$value$plusargs( "TEST_CODE=%s", TEST_CODE ) ) begin
-            TEST_CODE = "Verification/TestCode/Fibonacci";
-        end
-        if( !$value$plusargs( "DUMMY_DATA_FILE=%s", DUMMY_DATA_FILE ) ) begin
-            DUMMY_DATA_FILE = "Verification/DummyData.hex";
+            TEST_CODE = "Verification/TestCode/C/Fibonacci";
         end
         if( !$value$plusargs( "SHOW_SERIAL_OUT=%d", SHOW_SERIAL_OUT ) ) begin
             SHOW_SERIAL_OUT = 0;
@@ -246,7 +253,7 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
             `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Fill memory with dummy data 
                 // see InitializedBlockRAM module in Primitives/RAM.sv in details
-                main.main.memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
+                main.main.memory.body.FillDummyData();
 
 
                 // ファイル内容は物理メモリ空間の先頭から連続して展開される

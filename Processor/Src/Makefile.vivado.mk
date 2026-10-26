@@ -8,7 +8,6 @@ MAX_TEST_CYCLES = 0
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL  = 1
 TEST_CODE       = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
-DUMMY_DATA_FILE = $(SOURCE_ROOT)Verification/DummyData.hex
 
 
 SOURCE_ROOT  = $(RSD_ROOT)/Processor/Src/
@@ -56,7 +55,6 @@ XSIM_OPTIONS = \
 	-testplusarg MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
 	-testplusarg MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
 	-testplusarg TEST_CODE=$(TEST_CODE) \
-	-testplusarg DUMMY_DATA_FILE=$(DUMMY_DATA_FILE) \
 	-testplusarg ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) \
 	-testplusarg SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
 	-testplusarg RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \

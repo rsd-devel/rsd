@@ -23,6 +23,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     autotools-dev \
     bison \
     flex \
+    # FlexLexer.h is required when compiling Verilator's lexer.
+    libfl-dev \
     libtool \
     gawk \
     help2man \
@@ -44,13 +46,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     llvm-22 \
     && rm -rf /var/lib/apt/lists/*
 
-# Build the pinned Verilator version used by the existing simulator.
-# FlexLexer.h is taken from the matching Flex release for this Verilator version.
-RUN git clone --depth=1 --branch v4.228 https://github.com/verilator/verilator \
-    && cd verilator \
-    && git clone --depth=1 --branch v2.6.4 https://github.com/westes/flex .flex \
-    && cp .flex/src/FlexLexer.h include/FlexLexer.h \
-    && cp .flex/src/FlexLexer.h FlexLexer.h
+# Build the pinned Verilator release with SystemVerilog timing support.
+RUN git clone --depth=1 --branch v5.052 https://github.com/verilator/verilator
 RUN cd verilator \
     && autoconf \
     && ./configure \

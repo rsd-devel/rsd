@@ -237,12 +237,12 @@ module CommitStage(
 
     logic toRecoveryPhase;
 
-    logic commit [ COMMIT_WIDTH ] /*verilator public*/;
+    logic commit [ COMMIT_WIDTH ];
     logic last [ COMMIT_WIDTH ];
     logic isBranch [ COMMIT_WIDTH ];
     logic isStore [ COMMIT_WIDTH ];
 
-    ActiveListEntry alReadData [ COMMIT_WIDTH ] /*verilator public*/;
+    ActiveListEntry alReadData [ COMMIT_WIDTH ];
     ExecutionState execState [ COMMIT_WIDTH ];
 
     CommitLaneIndexPath recoveryOpIndex;
