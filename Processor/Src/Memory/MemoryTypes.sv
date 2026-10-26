@@ -25,12 +25,12 @@ import MemoryMapTypes::*;
 localparam MEMORY_BYTE_SIZE = 1 << MEMORY_ADDR_BIT_SIZE;
 
 // Memory Entry Size
-localparam MEMORY_ENTRY_BIT_NUM /*verilator public*/ = 64; // Bit width of each memory entry
+localparam MEMORY_ENTRY_BIT_NUM = 64; // Bit width of each memory entry
 localparam MEMORY_ENTRY_BYTE_NUM = MEMORY_ENTRY_BIT_NUM / BYTE_WIDTH;
 localparam MEMORY_ADDR_MSB = MEMORY_ADDR_BIT_SIZE - 1;
 localparam MEMORY_ADDR_LSB = $clog2( MEMORY_ENTRY_BYTE_NUM );
 localparam MEMORY_INDEX_BIT_WIDTH = MEMORY_ADDR_MSB - MEMORY_ADDR_LSB + 1;
-localparam MEMORY_ENTRY_NUM /*verilator public*/ = (1 << MEMORY_INDEX_BIT_WIDTH);
+localparam MEMORY_ENTRY_NUM = (1 << MEMORY_INDEX_BIT_WIDTH);
 typedef logic [ MEMORY_ENTRY_BIT_NUM-1:0 ] MemoryEntryDataPath;
 
 // Latency

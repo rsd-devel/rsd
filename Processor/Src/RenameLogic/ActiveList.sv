@@ -36,7 +36,7 @@ module ActiveList(
     //
     // --- Pointers
     //
-    ActiveListIndexPath headPtr/*verilator public*/;   // Set it public from a test bench for verilator.
+    ActiveListIndexPath headPtr;
     ActiveListIndexPath headPtrList[COMMIT_WIDTH];
     ActiveListIndexPath tailPtr; // 次に割り当てを行うエントリを指す
     ActiveListIndexPath tailPtrList[COMMIT_WIDTH];

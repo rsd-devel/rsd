@@ -267,12 +267,7 @@ module InitializedBlockRAM_ForNarrowRequest #(
     endfunction
 
     localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
-`ifdef RSD_SYNTHESIS
     HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
-`else
-    // This signal will be written in a test bench, so set public for verilator.
-    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM] /*verilator public*/;
-`endif
 
     Address raReg;
     HexArrayIndex hexFileRA;
@@ -409,12 +404,7 @@ module InitializedBlockRAM_ForWideRequest #(
     endfunction
 
     localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
-`ifdef RSD_SYNTHESIS
     HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
-`else
-    // This signal will be written in a test bench, so set public for verilator.
-    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM] /*verilator public*/;
-`endif
 
     Address raReg;
     HexArrayIndex hexFileRA[HEX_BLOCK_FILL_NUM];
@@ -746,8 +736,7 @@ module LVT_DistributedMultiPortRAM #(
     
     // For Debug
 `ifndef RSD_SYNTHESIS
-    // This signal will be written in a test bench, so set public for verilator.
-    Value debugValue[ ENTRY_NUM ] /*verilator public*/;  
+    Value debugValue[ ENTRY_NUM ];
     always_ff @ ( posedge clk ) begin
         for(int i = 0; i < WRITE_NUM; i++) begin
             if( we[i] )
@@ -946,7 +935,7 @@ module DistributedMultiPortRAM #(
 
     // For Debug
 `ifndef RSD_SYNTHESIS
-    Value debugValue[ENTRY_NUM] /*verilator public*/;
+    Value debugValue[ENTRY_NUM];
     always_ff @(posedge clk) begin
         for (int i = 0; i < WRITE_NUM; i++) begin
             if (we[i])
@@ -1012,7 +1001,7 @@ module RegisterMultiPortRAM #(
 
     // For Debug
 `ifndef RSD_SYNTHESIS
-    Value debugValue[ENTRY_NUM] /*verilator public*/;
+    Value debugValue[ENTRY_NUM];
     always_ff @(posedge clk) begin
         for (int i = 0; i < WRITE_NUM; i++) begin
             if (we[i])
@@ -1073,8 +1062,7 @@ module DistributedMultiBankRAM #(
 
 `ifndef RSD_SYNTHESIS
     // For Debug
-    // This signal will be written in a test bench, so set public for verilator.
-    Value debugValue[ ENTRY_NUM ] /*verilator public*/;
+    Value debugValue[ ENTRY_NUM ];
     initial begin
         for (int i = 0; i < ENTRY_NUM; i++) begin
             for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
@@ -1270,8 +1258,7 @@ module BlockMultiBankRAM #(
 
 `ifndef RSD_SYNTHESIS
     // For Debug
-    // This signal will be written in a test bench, so set public for verilator.
-    Value debugValue[ ENTRY_NUM ] /*verilator public*/;
+    Value debugValue[ ENTRY_NUM ];
     initial begin
         for (int i = 0; i < ENTRY_NUM; i++) begin
             for (int j = 0; j < ENTRY_BIT_SIZE; j++) begin
