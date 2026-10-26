@@ -217,7 +217,7 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
             $fatal(1, "Invalid simulation limits.");
         end
         if( !$value$plusargs( "TEST_CODE=%s", TEST_CODE ) ) begin
-            TEST_CODE = "Verification/TestCode/Fibonacci";
+            TEST_CODE = "Verification/TestCode/C/Fibonacci";
         end
         if( !$value$plusargs( "SHOW_SERIAL_OUT=%d", SHOW_SERIAL_OUT ) ) begin
             SHOW_SERIAL_OUT = 0;
