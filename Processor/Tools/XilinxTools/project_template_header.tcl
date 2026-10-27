@@ -128,7 +128,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStageIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Scheduler/ProducerMatrix.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/Queue.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/RAM_Vivado.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/RenameLogic/RMT.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Scheduler/ReadyBitTable.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Recovery/RecoveryManager.sv"
