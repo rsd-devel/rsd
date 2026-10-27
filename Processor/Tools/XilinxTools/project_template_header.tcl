@@ -162,8 +162,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryReadReqQueue.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryWriteDataQueue.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4Memory.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4LiteControlMemoryIF.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Memory/Axi4LiteMemory.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/FetchUnit/Bimodal.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/BitCounter.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Cache/CachePrimitives.sv"
