@@ -78,7 +78,7 @@ Use the dev container configuration as the reference for manual setup:
 Then, from the repository root, use the same `cd` and `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;
 see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
-For ModelSim/QuestaSim, build with `make rtl`; for Vivado, use `make -f Makefile.vivado.mk`.
+For ModelSim/QuestaSim, build with `make rtl`; for XSim (Vivado Simulator), use `make -f Makefile.xsim.mk`.
 
 ### Run on a Xilinx Zynq board
 
