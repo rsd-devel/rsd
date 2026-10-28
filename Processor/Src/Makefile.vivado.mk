@@ -40,10 +40,6 @@ DEPS_RTL = \
 	$(MODULES:%=$(SOURCE_ROOT)%) \
 	$(TEST_MODULES:%=$(SOURCE_ROOT)%) \
 
-# Additional files
-TYPES += Verification/Dumper.sv
-
-
 # Simulation options
 XVLOG_OPTIONS = \
 	-d RSD_FUNCTIONAL_SIMULATION \
