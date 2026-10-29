@@ -15,7 +15,8 @@ include ../../../Makefiles/CoreSources.inc.mk
 comma := ,
 empty :=
 space := $(empty) $(empty)
-ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr ExceptionsSm \
+ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc
+ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr $(ACT_PRIV_EXTENSIONS) \
 	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
 	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
 	$(if $(filter 1,$(RSD_HAS_FP)),F)
@@ -29,11 +30,11 @@ ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)
 include Build/Generated/F.mk
 endif
 endif
-# Only the M-mode exception case is used; delegation cases need an S-mode port.
-ACT_GENERATED_SOURCES := Build/Generated/priv/ExceptionsSm/ExceptionsSm-00.S
+# Only M-mode exception cases are used; delegation cases need an S-mode port.
+ACT_GENERATED_SOURCES := $(foreach extension,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST)),Build/Generated/priv/$(extension)/$(extension)-00.S)
 ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
 	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \
-	$(if $(filter ExceptionsSm,$(ACT_EXTENSION_LIST)),$(ACT_GENERATED_SOURCES)))
+	$(ACT_GENERATED_SOURCES))
 ACT_TESTS ?= $(basename $(notdir $(ACT_SOURCES)))
 ACT_SELECTED_SOURCES := $(foreach test,$(ACT_TESTS),$(filter %/$(test).S,$(ACT_SOURCES)))
 ACT_CASES := $(patsubst External/tests/%.S,%,$(patsubst Build/Generated/%.S,%,$(ACT_SELECTED_SOURCES)))
@@ -134,7 +135,7 @@ check-selection:
 		{ echo "Unknown ACT_TESTS: $(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))." >&2; exit 1; }
 
 $(ACT_GENERATED_SOURCES): Makefile | check-source
-	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions ExceptionsSm --jobs $(JOBS)
+	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions $(notdir $(@D)) --jobs $(JOBS)
 	@test -s "$@"
 	touch "$@"
 
@@ -204,7 +205,7 @@ $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 # FP and SC have many operand/result checks; exception tests invoke handlers.
 	@case "$*" in \
 		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
-		priv/ExceptionsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		priv/Exceptions*/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
 

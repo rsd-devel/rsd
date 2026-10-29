@@ -35,7 +35,7 @@
       "samo_page_fault": true,
       "samo_guest_page_fault": true,
       "fetch_address_misaligned": true,
-      "fetch_access_fault": true,
+      "fetch_access_fault": false,
       "fetch_page_fault": true,
       "fetch_guest_page_fault": true,
       "software_check": true,
@@ -65,12 +65,13 @@
       "na4_supported": true,
       "napot_supported": true
     },
+    // Defer alignment checks to PMA so unmapped addresses fault first.
     "misaligned": {
       "exceptions": {
-        "load_store": {"Some": "AlignmentException"},
+        "load_store": {"None": null},
         "vector": {"None": null},
-        "amo": {"Some": "AlignmentException"},
-        "lrsc": {"Some": "AlignmentException"}
+        "amo": {"None": null},
+        "lrsc": {"None": null}
       },
       "order_decreasing": false,
       "default_allowed_within_exp": 0,
@@ -91,7 +92,7 @@
           "read_idempotent": true,
           "write_idempotent": true,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
             "amo": "AccessFault",
             "lrsc": "AccessFault"
@@ -119,7 +120,7 @@
           "read_idempotent": false,
           "write_idempotent": false,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
             "amo": "AccessFault",
             "lrsc": "AccessFault"
@@ -147,7 +148,7 @@
           "read_idempotent": true,
           "write_idempotent": true,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
             "amo": "AlignmentException",
             "lrsc": "AlignmentException"

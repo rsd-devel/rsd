@@ -49,12 +49,14 @@ params:
   REPORT_VA_IN_MTVAL_ON_INSTRUCTION_MISALIGNED: true
   REPORT_VA_IN_MTVAL_ON_LOAD_ACCESS_FAULT: true
   REPORT_VA_IN_MTVAL_ON_STORE_AMO_ACCESS_FAULT: true
-  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_ACCESS_FAULT: true
+  # Fetch access faults carry no data address through the memory pipeline.
+  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_ACCESS_FAULT: false
   # Report zero instead of retaining instruction encodings in the pipeline.
   REPORT_ENCODING_IN_MTVAL_ON_ILLEGAL_INSTRUCTION: false
   MTVAL_WIDTH: 32
   MISALIGNED_LDST: false
-  MISALIGNED_LDST_EXCEPTION_PRIORITY: high
+  # MemoryTagAccessStage checks the memory map before address alignment.
+  MISALIGNED_LDST_EXCEPTION_PRIORITY: low
   MARCHID_IMPLEMENTED: false
   MIMPID_IMPLEMENTED: false
   VENDOR_ID_BANK: 0

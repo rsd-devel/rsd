@@ -14,6 +14,9 @@ _rsd_goal:
 
 #define RVMODEL_DATA_SECTION
 
+// Unmapped in both RSD and Sail, including adjacent misaligned addresses.
+#define RVMODEL_ACCESS_FAULT_ADDRESS 0x20000000
+
 // Exception tests explicitly allocate a trap signature before including this file.
 #if defined(TRAP_SIGUPD_COUNT) && TRAP_SIGUPD_COUNT > 0
 #define STANDARD_SM_SUPPORTED
