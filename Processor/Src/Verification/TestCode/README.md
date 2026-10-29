@@ -221,8 +221,11 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The default integer/privileged subset runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
-files, six `rv32i/Zicsr/*.S` files and the generated M-mode `ExceptionsSm-00.S`.
+The default integer/privileged subset runs 70 cases: I (39), M (8), Zaamo (9),
+Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), and the generated M-mode
+`ExceptionsSm-00.S`. A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
+Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
+defines are enabled in `RSD_SRC_CFG`; disabled extensions reject explicit selection.
 F is temporarily opt-in while the remaining RTL fixes are deferred. With
 `RSD_HAS_FP=1`, select it using `ACT_EXTENSIONS=F`: the pinned generator divides
 the upstream testplan into 281 files, targeting 250 testcases per ELF to fit
@@ -248,6 +251,7 @@ Narrow the selection for debugging:
 ```sh
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
 make -j16 -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=F
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
@@ -258,14 +262,14 @@ exposes only the low 16 bits. Each case runs to its instruction budget, then
 TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filename.
 The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
-Integer/CSR cases have a 20,000-instruction budget, FP cases have 50,000,
+Integer/CSR cases have a 20,000-instruction budget, SC and FP cases have 50,000,
 and the exception case has 100,000 for trap-handler work;
 all use a 500-cycle no-commit limit.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. The exception case checks ECALL,
 EBREAK, illegal instructions, and misaligned branch/jump/load/store traps in M-mode.
-The current RTL passes all 46 integer/privileged cases, including `mepc` bit 1 readback and
+The current RTL passes all 70 integer/privileged cases, including `mepc` bit 1 readback and
 `mtval = 0` for illegal instructions. RSD does not retain instruction encodings
 for trap values; the ACT4 and Sail configurations match this choice.
 Any case failure makes the command fail after collecting all results.

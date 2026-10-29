@@ -1,5 +1,5 @@
 // Sail 0.15 requires a complete configuration, including unused extensions.
-// This models RV32I/CSR/M-mode exceptions; CLINT/SIG are reference-only devices.
+// This models integer/CSR/M-mode tests; CLINT/SIG are reference-only devices.
 {
   "base": {
     "xlen": 32,
@@ -69,8 +69,8 @@
       "exceptions": {
         "load_store": {"Some": "AlignmentException"},
         "vector": {"None": null},
-        "amo": {"None": null},
-        "lrsc": {"Some": "AccessFault"}
+        "amo": {"Some": "AlignmentException"},
+        "lrsc": {"Some": "AlignmentException"}
       },
       "order_decreasing": false,
       "default_allowed_within_exp": 0,
@@ -149,13 +149,13 @@
           "misaligned_exceptions": {
             "load_store": {"None": null},
             "vector": {"None": null},
-            "amo": "AccessFault",
-            "lrsc": "AccessFault"
+            "amo": "AlignmentException",
+            "lrsc": "AlignmentException"
           },
-          "atomic_support": "AMONone",
+          "atomic_support": "AMOArithmetic",
           "misaligned_atomicity_granule_size_exp": 0,
           "vector_misaligned_atomicity_granule_size_exp": 0,
-          "reservability": "RsrvNone",
+          "reservability": "RsrvEventual",
           "supports_cbo_zero": false,
           "supports_pte_read": false,
           "supports_pte_write": false
@@ -171,8 +171,8 @@
     "hartid": 0,
     "cache_block_size_exp": 6,
     "reservation": {
-      "reservation_set_size_exp": 3,
-      "require_exact_reservation_addr": false,
+      "reservation_set_size_exp": 2,
+      "require_exact_reservation_addr": true,
       "invalidate_on_same_hart_store": false
     },
     "interrupts": {
@@ -192,8 +192,8 @@
     "event_selectors": []
   },
   "extensions": {
-    "M": {"supported": false, "mutable_misa": true},
-    "A": {"supported": false, "mutable_misa": true},
+    "M": {"supported": true, "mutable_misa": false},
+    "A": {"supported": true, "mutable_misa": false},
     "F": {"supported": false, "mutable_misa": true, "fflags_dirty_policy": "Fflags_Dirty_Precise"},
     "D": {"supported": false, "mutable_misa": true},
     "C": {"mutable_misa": true},
@@ -257,11 +257,11 @@
     "Zihpm": {"supported": false},
     "Zilx": {"supported": false},
     "Zimop": {"supported": false},
-    "Zmmul": {"supported": false},
-    "Zaamo": {"supported": false},
+    "Zmmul": {"supported": true},
+    "Zaamo": {"supported": true},
     "Zabha": {"supported": false},
     "Zacas": {"supported": false},
-    "Zalrsc": {"supported": false},
+    "Zalrsc": {"supported": true},
     "Zama16b": {"supported": false},
     "Zawrs": {"supported": false, "nto": {"is_nop": false}, "sto": {"is_nop": false}},
     "Zfa": {"supported": false},

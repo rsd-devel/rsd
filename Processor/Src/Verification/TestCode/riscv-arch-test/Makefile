@@ -13,9 +13,14 @@ JOBS ?= $(shell nproc)
 include ../../../Makefiles/CoreSources.inc.mk
 # Add extensions here as their RSD configuration and adapters are validated.
 comma := ,
-ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm $(if $(filter 1,$(RSD_HAS_FP)),F)
+empty :=
+space := $(empty) $(empty)
+ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr ExceptionsSm \
+	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
+	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
+	$(if $(filter 1,$(RSD_HAS_FP)),F)
 # Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
-ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm
+ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F,$(ACT_AVAILABLE_EXTENSIONS))))
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.
@@ -140,7 +145,7 @@ Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
 	@printf 'ACT_FP_SOURCES := %s\n' "$$(echo Build/Generated/rv32i/F/*.S)" > "$@.tmp"
 	mv "$@.tmp" "$@"
 
-# Generate the selected FP reference profile without duplicating configuration.
+# Generate the selected optional extensions without duplicating configuration.
 # Preserve unchanged timestamps so ACT4 can reuse its build and Sail results.
 config:
 	mkdir -p "$(BUILD_ROOT)/Config"
@@ -154,6 +159,12 @@ config:
 					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
 			esac; \
 		fi; \
+		for extension in $(filter Zba Zicond,$(ACT_EXTENSION_LIST)); do \
+			case "$$file" in \
+				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= 1.0.0\" }" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+				sail.json) sed -i "s/\"$$extension\": {\"supported\": false}/\"$$extension\": {\"supported\": true}/" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+			esac || exit 1; \
+		done; \
 		if cmp -s "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; then \
 			rm "$(BUILD_ROOT)/Config/$$file.tmp"; \
 		else mv "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; fi || exit 1; \
@@ -190,9 +201,9 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
-# FP cases have thousands of operands and self-checks; exceptions invoke handlers.
+# FP and SC have many operand/result checks; exception tests invoke handlers.
 	@case "$*" in \
-		rv32i/F/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
+		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
 		priv/ExceptionsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac

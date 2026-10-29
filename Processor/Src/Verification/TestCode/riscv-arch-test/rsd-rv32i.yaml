@@ -1,11 +1,16 @@
-# This RV32I/CSR/M-mode exception subset does not describe every RSD feature.
+# This test profile does not describe every RSD feature.
 $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rsd-rv32i
-description: RSD RV32I and synchronous exception tests in machine mode
+description: RSD integer and synchronous exception tests in machine mode
 implemented_extensions:
   - { name: I, version: "= 2.1" }
+  - { name: M, version: "= 2.0" }
+  - { name: Zmmul, version: "= 1.0.0" }
+  - { name: A, version: "= 2.1.0" }
+  - { name: Zaamo, version: "= 1.0.0" }
+  - { name: Zalrsc, version: "= 1.0.0" }
   - { name: Zicsr, version: "= 2.0" }
   # FENCE.I remains outside this legacy-suite replacement. Trap code is preloaded
   # and mtvec is writable, so these tests need no instruction-stream sync.
@@ -15,6 +20,14 @@ params:
   PHYS_ADDR_WIDTH: 32
   M_MODE_ENDIANNESS: little
   MISA_CSR_IMPLEMENTED: true
+  MUTABLE_MISA_M: false
+  MUTABLE_MISA_A: false
+  MISALIGNED_AMO: false
+  # RSD reserves one word and checks the complete physical address on SC.
+  LRSC_RESERVATION_STRATEGY: "reserve exactly enough to cover the access"
+  LRSC_FAIL_ON_NON_EXACT_LRSC: true
+  LRSC_FAIL_ON_VA_SYNONYM: false
+  LRSC_MISALIGNED_BEHAVIOR: "always raise misaligned exception"
   NON_STANDARD_EXTENSION_IMPLEMENTED: false
   PRECISE_SYNCHRONOUS_EXCEPTIONS: true
   TRAP_ON_ECALL_FROM_M: true
