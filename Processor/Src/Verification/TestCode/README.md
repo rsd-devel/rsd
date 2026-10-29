@@ -254,6 +254,7 @@ make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zifencei
 make -j16 -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=F
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
@@ -265,8 +266,8 @@ TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filen
 The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
 Integer/CSR cases have a 20,000-instruction budget, SC and FP cases have 50,000,
-and exception cases have 100,000 for trap-handler work;
-all use a 500-cycle no-commit limit.
+and exception cases have 100,000 for trap-handler work.
+The no-commit limit is 500 cycles, or 2,500 for Zifencei's cache flush.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. Exception cases check ECALL, EBREAK,
@@ -274,7 +275,11 @@ illegal instructions, and misaligned/access-fault traps for instruction fetch,
 loads/stores and AMO/LR/SC. Atomic cases check destination-register preservation;
 LR/SC also checks scratch memory. The existing `test-RV32A-Aext` separately checks
 memory preservation on cached/uncached AMO faults.
-The current RTL passes all 72 integer/privileged cases, including `mepc` bit 1 readback.
+Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
+fields and preservation of rd. Its one file is opt-in: the first self-modifying
+case currently fails because DCache flush does not write back the modified line
+from the correct way. Select `ACT_EXTENSIONS=Zifencei` to reproduce the failure.
+The current RTL passes all 72 default integer/privileged cases, including `mepc` bit 1 readback.
 Reference settings match RSD's access-fault priority over misalignment on unmapped
 addresses and `mtval = 0` for illegal instructions and instruction access faults.
 Any case failure makes the command fail after collecting all results.
@@ -286,9 +291,7 @@ Other rounding modes and division/square-root rounding flags need RTL work.
 These failures remain visible when F is explicitly selected.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
-Interrupt, S/U-mode and FENCE.I tests are outside this subset; Zifencei is
-excluded. The preloaded exception handler uses
-writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
+Interrupt and S/U-mode tests are outside this subset.
 `test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
 removes its generated files. Run the fetch/setup steps above before `test-ex`
 or `test-build-ex`.

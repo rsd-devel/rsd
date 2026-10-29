@@ -16,12 +16,13 @@ comma := ,
 empty :=
 space := $(empty) $(empty)
 ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc
-ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr $(ACT_PRIV_EXTENSIONS) \
+ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSIONS) \
 	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
 	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
 	$(if $(filter 1,$(RSD_HAS_FP)),F)
 # Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
-ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F,$(ACT_AVAILABLE_EXTENSIONS))))
+# Keep Zifencei opt-in until DCache flush writes back every way correctly.
+ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F Zifencei,$(ACT_AVAILABLE_EXTENSIONS))))
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.
@@ -160,9 +161,10 @@ config:
 					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
 			esac; \
 		fi; \
-		for extension in $(filter Zba Zicond,$(ACT_EXTENSION_LIST)); do \
+		for extension in $(filter Zba Zicond Zifencei,$(ACT_EXTENSION_LIST)); do \
+			version=1.0.0; test "$$extension" != Zifencei || version=2.0.0; \
 			case "$$file" in \
-				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= 1.0.0\" }" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= $$version\" }" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
 				sail.json) sed -i "s/\"$$extension\": {\"supported\": false}/\"$$extension\": {\"supported\": true}/" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
 			esac || exit 1; \
 		done; \
@@ -203,9 +205,11 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
 # FP and SC have many operand/result checks; exception tests invoke handlers.
+# FENCE.I drains dirty cache lines before committing (as in Asm/Fence).
 	@case "$*" in \
 		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
 		priv/Exceptions*/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		rv32i/Zifencei/*) sed 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
 
