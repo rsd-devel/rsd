@@ -1604,13 +1604,14 @@ module DCacheMissHandler(
                 // FLUSH 6.
                 // Ckeck if all cache lines have been written back.
                 MSHR_PHASE_FLUSH_CHECK: begin
-                    if (&(mshr[i].flushIndex) && &(mshr[i].evictWay)) begin
+                    // A one-way cache still uses a one-bit way index; stop at the last valid way.
+                    if (&(mshr[i].flushIndex) && mshr[i].evictWay == DCACHE_WAY_NUM - 1) begin
                         nextMSHR[i].flushIndex = '0;
                         nextMSHR[i].evictWay = '0;
                         mshrFlushComplete[i] = TRUE;
                     end
                     else begin
-                        if (&(mshr[i].evictWay)) begin
+                        if (mshr[i].evictWay == DCACHE_WAY_NUM - 1) begin
                             nextMSHR[i].flushIndex = mshr[i].flushIndex + 1;
                             nextMSHR[i].evictWay = '0;
                         end
