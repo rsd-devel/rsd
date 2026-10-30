@@ -38,7 +38,7 @@ IPC. IPC uses cycles since reset release and is informational, not a pass criter
 
 The in-repository instruction budgets allow roughly twice the measured work,
 rounded up to 10,000-instruction increments. Normal tests allow 500 no-commit
-cycles; `CacheFlush` and `Fence` allow 5,000 and 2,500 respectively because their
+cycles; `DCacheFlush` allows 10,000 and `ICacheFlush`/`Fence` allow 5,000 because their
 measured cache-flush waits were 2,338 and 1,170 cycles. `IntDivZynq` allows 1,100
 cycles because division replay without the FP pipeline produced a 529-cycle wait.
 

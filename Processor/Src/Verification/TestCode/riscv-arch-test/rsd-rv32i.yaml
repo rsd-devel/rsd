@@ -12,7 +12,7 @@ implemented_extensions:
   - { name: Zaamo, version: "= 1.0.0" }
   - { name: Zalrsc, version: "= 1.0.0" }
   - { name: Zicsr, version: "= 2.0" }
-  # Zifencei is added by the Makefile only when explicitly selected.
+  # Zifencei is added by the Makefile when selected.
   - { name: Sm, version: "= 1.11.0" }
 params:
   MXLEN: 32
