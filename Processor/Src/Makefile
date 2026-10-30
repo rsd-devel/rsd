@@ -90,6 +90,7 @@ include Makefiles/TestCommands.inc.mk
 # RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.
 # Run all with "make test-unit -jN", or one with "make test-unit-Divider".
 UNIT_TESTS = \
+	InitializedBlockRAM \
 	BlockDualPortRAM \
 	DistributedDualPortRAM \
 	DistributedMultiPortRAM \
