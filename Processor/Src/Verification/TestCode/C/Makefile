@@ -8,6 +8,8 @@ TARGETS = all clean
 
 .DEFAULT_GOAL =	# デフォルトターゲットを無効化しておく
 
+include ../../../Makefiles/CoreSources.inc.mk
+
 # 子 make が行われるディレクトリ
 SRC_DIRS = \
 	Fibonacci \
@@ -15,7 +17,13 @@ SRC_DIRS = \
 	Exception \
 	DCache \
 	FP \
+	PerformanceCounter \
 
+
+# Keep FP artifacts in the clean target regardless of the configuration.
+ifeq ($(RSD_HAS_FP)$(filter clean,$(MAKECMDGOALS)),0)
+SRC_DIRS := $(filter-out FP,$(SRC_DIRS))
+endif
 
 # TARGETS の中のどれかに該当した場合，SRC_DIRS が依存元となる
 $(TARGETS): $(SRC_DIRS)

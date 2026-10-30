@@ -25,6 +25,7 @@ interface IO_UnitIF(
     PhyAddrPath ioWriteAddrIn;
 
     // Read request from a load pipeline
+    logic ioRE;
     DataPath ioReadDataOut;
     PhyAddrPath ioReadAddrIn;
 
@@ -34,6 +35,7 @@ interface IO_UnitIF(
         ioWE,
         ioWriteDataIn,
         ioWriteAddrIn,
+        ioRE,
         ioReadAddrIn,
     output
         ioReadDataOut,
@@ -45,6 +47,7 @@ interface IO_UnitIF(
     input 
         ioReadDataOut,
     output
+        ioRE,
         ioReadAddrIn
     );
 

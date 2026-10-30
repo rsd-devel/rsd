@@ -51,8 +51,8 @@ module BypassNetwork(
         BypassSelect sel,
         BypassOperand intEX [ INT_ISSUE_WIDTH ],
         BypassOperand intWB [ INT_ISSUE_WIDTH ],
-        BypassOperand memMA [ LOAD_ISSUE_WIDTH ],
-        BypassOperand memWB [ LOAD_ISSUE_WIDTH ]
+        BypassOperand memMA [ MEM_ISSUE_WIDTH ],
+        BypassOperand memWB [ MEM_ISSUE_WIDTH ]
     );
         if( sel.stg == BYPASS_STAGE_INT_EX )
             return intEX[sel.lane.intLane].value;
@@ -71,9 +71,9 @@ module BypassNetwork(
     BypassOperand intDst [ INT_ISSUE_WIDTH ];
     BypassOperand intEX  [ INT_ISSUE_WIDTH ];
     BypassOperand intWB  [ INT_ISSUE_WIDTH ];
-    BypassOperand memDst [ LOAD_ISSUE_WIDTH ];
-    BypassOperand memMA  [ LOAD_ISSUE_WIDTH ];
-    BypassOperand memWB  [ LOAD_ISSUE_WIDTH ];
+    BypassOperand memDst [ MEM_ISSUE_WIDTH ];
+    BypassOperand memMA  [ MEM_ISSUE_WIDTH ];
+    BypassOperand memWB  [ MEM_ISSUE_WIDTH ];
 
     generate 
         for ( genvar i = 0; i < INT_ISSUE_WIDTH; i++ ) begin : stgInt
@@ -81,7 +81,7 @@ module BypassNetwork(
             BypassStage stgIntWB( port.clk, port.rst, ctrl.backEnd, intEX[i],  intWB[i] );
         end
         
-        for ( genvar i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin : stgMem
+        for ( genvar i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin : stgMem
             BypassStage stgMemMA( port.clk, port.rst, ctrl.backEnd, memDst[i], memMA[i] );
             BypassStage stgMemWB( port.clk, port.rst, ctrl.backEnd, memMA[i],  memWB[i] );
         end
@@ -103,11 +103,9 @@ module BypassNetwork(
         end
 `endif
         
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
-            memDst[i].value = port.memDstRegDataOut[i];
-        end
-            
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
+            memDst[i].value = port.memDstRegDataOut[i];
+
             port.memSrcRegDataOutA[i] = SelectData( port.memCtrlIn[i].rA,   intEX, intWB, memMA, memWB );
             port.memSrcRegDataOutB[i] = SelectData( port.memCtrlIn[i].rB,   intEX, intWB, memMA, memWB );
         end

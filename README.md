@@ -27,47 +27,58 @@ The key features of RSD are as follows:
 ![rsd](Docs/Images/rsd.png)
 
 
-## Getting started 
+## Getting started
 
-### Simulation on Verilator/Modelsim/QuestaSim/Vitis
+### Simulation with the dev container
 
-1.  Install the following software for running simulation.    
-    * GNU Make, Python3, and GCC (x86-64) 6 or later
-    * GCC (RISC-V) 7 or later
-    * Verilator or Modelsim/QuestaSim or Xilinx Vitis 2019.2
+On a fresh Ubuntu 24.04 installation, install Docker and the [Dev Container CLI](https://github.com/devcontainers/cli#npm-install).
+If Docker is already installed, skip its installation and group setup:
 
-    Tested environment:
+```bash
+sudo apt update
+sudo apt install -y docker.io docker-buildx python3 build-essential nodejs npm
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+sudo npm install -g @devcontainers/cli@0.83.3  # Compatible with Ubuntu 24.04's Node.js 18
+```
 
-    * GNU Make 4.0 
-    * Python 3.4.2
-    * GCC 6.5.0 (x86-64)
-    * GCC 8.1.0 (RISC-V)
-    * Verilator 4.026 2020-01-11 rev v4.026-2-g0c6c83e
-    * QuestaSim 2019.4.2
-    * Vitis 2019.2
+Log out and log back in to apply Docker group membership, then run from the repository root:
 
-2. Refer to scripts in Processor/Tools/SetEnv.sh and set environment variables.
-    * RSD_ROOT must be set for running simulation.
-    * RSD_VERILATOR_BIN, RSD_QUESTASIM_PATH or RSD_VIVADO_BIN must be set.
-        * See [this page](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
+```bash
+./DevContainer.sh                     # Open a shell in the container
+cd Processor/Src
+make -j"$(nproc)" -f Makefile.verilator.mk  # Build the simulator
+make -f Makefile.verilator.mk test-1       # Build and run the basic tests
+```
 
-3. Go to Processor/Src and make as follows.
-    * For Modelsim/QuestaSim
-        ```
-        make            # compile
-        make run        # run simulation
-        make kanata     # run simulation & outputs a konata log file
-        ```
-    * For Verilator, add ```-f Makefile.verilator.mk``` like ```make -f Makefile.verilator.mk run```
-    * For Vivado, add ```-f Makefile.vivado.mk``` like ```make -f Makefile.vivado.mk run```
-        
-4. If the simulation ran successfully, you find "kanata.log" in Processor/Src. 
-    * Note that, the above sub-command is "kanata", not "konata".
+`test-1` builds the test HEX files automatically and prints `Test Successful (test-1)` on success.
+See the [test program instructions](Processor/Src/Verification/TestCode/README.md) for FP configurations and CoreMark.
+The first launch builds the environment; later launches reuse it and rebuild when its configuration changes.
+From the host repository root, use `./DevContainer.sh --help` for command execution and rebuild options.
+With VS Code's Dev Containers extension, you can instead use **Reopen in Container** and run the same `cd` and `make` commands.
 
-5. You can see the execution pipeline of your simulation above with Konata.
-    * Konata is a pipeline visualizer and can be downloaded from [here](https://github.com/shioyadan/Konata/releases) 
-	* An example is shown below.
-    * ![konata](Docs/Images/konata.gif)
+After the tests, visualize the Fibonacci pipeline from the same `Processor/Src` directory:
+
+```bash
+make -f Makefile.verilator.mk kanata TEST_CODE=Verification/TestCode/C/Fibonacci
+```
+
+Open the generated `Kanata.log` with [Konata](https://github.com/shioyadan/Konata/releases).
+
+![konata](Docs/Images/konata.gif)
+
+### Manual installation
+
+Use the dev container configuration as the reference for manual setup:
+
+1. Follow the base OS, package installation, and tool build steps in [.devcontainer/Dockerfile](.devcontainer/Dockerfile), including its specified tool versions.
+2. Install the Python dependencies from [.devcontainer/requirements.txt](.devcontainer/requirements.txt).
+3. Export the variables listed under `containerEnv` in [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json), setting `RSD_ROOT` to your checkout's absolute path and adjusting tool paths for your host.
+
+Then, from the repository root, use the same `cd` and `make` commands above.
+ModelSim/QuestaSim and Vivado are also supported with separate installations;
+see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
+For ModelSim/QuestaSim, build with `make rtl`; for XSim (Vivado Simulator), use `make -f Makefile.xsim.mk`.
 
 ### Run on a Xilinx Zynq board
 

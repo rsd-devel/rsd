@@ -29,6 +29,33 @@ typedef struct packed {
     TimerRegisterPath mtimecmp;
 } TimerRegsters;
 
+//
+// --- PLIC related definitions
+// Contextを追加するときは、メモリマップのPLICのサイズを広げること
+// Source 1:
+// Context 0+2k: hartid=k, M-mode
+// Context 1+2k: hartid=k, S-mode
+//
+// ロードストアの取り扱い
+// * IO_Unit -> PLIC_Unit -> IO_Unit -> CSR_Unit
+// 割り込みの発生順序
+// * Interrupt source -> PLIC_Unit -> CSR_Unit
+localparam PLIC_NUM_SOURCES = 1;
+localparam PLIC_NUM_CONTEXTS = 2;
+
+localparam PLIC_NUM_SOURCES_BEGIN = 1;
+localparam PLIC_NUM_SOURCES_END = PLIC_NUM_SOURCES + 1;
+
+localparam PLIC_NUM_SOURCES_LOG = $clog2(PLIC_NUM_SOURCES+1);
+localparam PLIC_NUM_ENABLE_REGS = (PLIC_NUM_SOURCES / 32) + 1;
+localparam PLIC_NUM_PENDING_REGS = PLIC_NUM_ENABLE_REGS;
+
+typedef struct packed { // struct PLIC_UnitRegisters
+    logic [PLIC_NUM_SOURCES:0][31:0] sourcePriority;
+    logic [PLIC_NUM_PENDING_REGS*32-1:0] pending;
+    logic [PLIC_NUM_CONTEXTS-1:0][31:0] priorityThreshold;
+    logic [PLIC_NUM_CONTEXTS-1:0][PLIC_NUM_SOURCES/32:0][31:0] enable;
+} PLIC_UnitRegisters;
 
 //
 // --- LED IO

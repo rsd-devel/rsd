@@ -1,6 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Config>
-  <MaxTestCycles>100000</MaxTestCycles>
+  <MaxTestInstructions>50000</MaxTestInstructions>
+  <!-- Allow the cache flush to finish writing back dirty lines. -->
+  <MaxNoCommitCycles>5000</MaxNoCommitCycles>
   <RegisterValues>
       <R0>0x00000000</R0>
       <R1>0x0000100C</R1>

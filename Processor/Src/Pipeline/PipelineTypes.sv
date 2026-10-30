@@ -61,7 +61,11 @@ typedef enum logic [2:0] { // RefetchType
     // Re-fetch from a PC specified by CSR.
     // This refetch occurs on a trap or an exception.
     REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET  = 3'b100,
-    REFETCH_TYPE_THIS_PC_TO_CSR_TARGET  = 3'b101
+    REFETCH_TYPE_THIS_PC_TO_CSR_TARGET  = 3'b101,
+
+    // Re-fetch starts from the PC of an instruction that causes an exception.
+    // This refetch requests serialized execution of the instruction.
+    REFETCH_TYPE_THIS_PC_SERIALIZED     = 3'b110
 } RefetchType;
 
 //
@@ -329,6 +333,8 @@ typedef struct packed // MemoryAccessStageRegPath
 
     logic isStore;
     logic isLoad;
+    logic isZalrsc;
+    logic isZaamo;
     logic isCSR;
     logic isDiv;
     logic isMul;
@@ -345,6 +351,10 @@ typedef struct packed // MemoryAccessStageRegPath
     AddrPath addrOut;    // The result of address calculation.
     MemoryMapType memMapType;  // Memory map type: mem/io
     PhyAddrPath phyAddrOut;    // The result of address calculation.
+
+    logic isScFail;
+    logic amoCacheHit;
+    logic writeAMOCache;
     
     // CSR data out. csrDataOut is from dataIn in MemoryTagAccessStageRegPath
     // TODO: addrOut and csrDataOut is exclusively used, these can be unified.
@@ -373,6 +383,8 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     ExecutionState execState; // Execution status. See RenameLogicTypes.sv
     logic isStore;
     logic isLoad;
+    
+    logic zaamoReleaseMSHR;
 
     PRegDataPath dataOut;    // Result of Load
 

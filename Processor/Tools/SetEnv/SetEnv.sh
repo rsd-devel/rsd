@@ -40,10 +40,6 @@ export RSD_VIVADO=~/opt/cad/xilinx/Vivado/2019.2/ids_lite/ISE
 # Specify the path where CORE Generator/ngc2edif/xtclsh exists
 export RSD_VIVADO_BIN=~/opt/cad/xilinx/Vivado/2019.2/bin
 
-# Specify the path of modelsim.ini.
-# This file is generated when libraries for modelsim are compiled in Vivado.
-export RSD_MODELSIM_INI=~/work/rsd-git/Processor/Project/ModelSim/modelsim.ini
-
 # Specify the path of a work directory where download or build ZYNQ PS Linux 
 export RSD_ARM_LINUX=~/work/rsd-arm-linux
 

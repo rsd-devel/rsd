@@ -37,7 +37,7 @@ localparam ISSUE_QUEUE_COMPLEX_LATENCY = COMPLEX_EXEC_STAGE_DEPTH + 2;
 localparam ISSUE_QUEUE_MEM_LATENCY     = 3;
 localparam ISSUE_QUEUE_FP_LATENCY      = FP_EXEC_STAGE_DEPTH + 2;
 
-localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + LOAD_ISSUE_WIDTH + FP_ISSUE_WIDTH;    // Stores do not wakeup consumers.
+localparam WAKEUP_WIDTH = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
 
 // --- Issue queue flush count
 // - 例外発生時に、発行キューは例外命令より後方の命令が選択的にフラッシュされる。
@@ -57,28 +57,31 @@ localparam ISSUE_QUEUE_RESET_CYCLE_BIT_SIZE
 
 
 // Information about the execution of an op.
-typedef enum logic [3:0] // ExecutionState
+typedef enum logic [4:0] // ExecutionState
 {
-    EXEC_STATE_NOT_FINISHED     = 4'b0000,
-    EXEC_STATE_SUCCESS          = 4'b0001, // Execution is successfully finished.
+    EXEC_STATE_NOT_FINISHED     = 5'b00000,
+    EXEC_STATE_SUCCESS          = 5'b00001, // Execution is successfully finished.
     
-    EXEC_STATE_REFETCH_THIS     = 4'b0010, // Execution is failed.
+    EXEC_STATE_REFETCH_THIS     = 5'b00010, // Execution is failed.
                                            // It must be refetch from this op. 
-    EXEC_STATE_REFETCH_NEXT     = 4'b0011, // Execution is successfully finished,
+    EXEC_STATE_REFETCH_NEXT     = 5'b00011, // Execution is successfully finished,
                                            // but it must be refetch from next op.
-    EXEC_STATE_TRAP_ECALL       = 4'b0100, // Execution causes a trap (ECALL)
-    EXEC_STATE_TRAP_EBREAK      = 4'b0101, // Execution causes a trap (EBREAK)
-    EXEC_STATE_TRAP_MRET        = 4'b0110,  // Execution causes a MRET
+    EXEC_STATE_TRAP_ECALL       = 5'b00100, // Execution causes a trap (ECALL)
+    EXEC_STATE_TRAP_EBREAK      = 5'b00101, // Execution causes a trap (EBREAK)
+    EXEC_STATE_TRAP_SRET        = 5'b00110,  // Execution causes a SRET
+    EXEC_STATE_TRAP_MRET        = 5'b00111,  // Execution causes a MRET
 
-    EXEC_STATE_FAULT_LOAD_MISALIGNED  = 4'b1000,  // Misaligned load is executed
-    EXEC_STATE_FAULT_LOAD_VIOLATION   = 4'b1001,  // Load access violation
-    EXEC_STATE_FAULT_STORE_MISALIGNED = 4'b1010,  // Misaligned store is executed
-    EXEC_STATE_FAULT_STORE_VIOLATION  = 4'b1011,  // Store access violation
-    EXEC_STATE_STORE_LOAD_FORWARDING_MISS  = 4'b1111,  // Store load forwarding miss
+    EXEC_STATE_FAULT_LOAD_MISALIGNED  = 5'b01000,  // Misaligned load is executed
+    EXEC_STATE_FAULT_LOAD_VIOLATION   = 5'b01001,  // Load access violation
+    EXEC_STATE_FAULT_STORE_MISALIGNED = 5'b01010,  // Misaligned store is executed
+    EXEC_STATE_FAULT_STORE_VIOLATION  = 5'b01011,  // Store access violation
+    EXEC_STATE_STORE_LOAD_FORWARDING_MISS  = 5'b01111,  // Store load forwarding miss
 
-    EXEC_STATE_FAULT_INSN_ILLEGAL     = 4'b1100,  // Illegal instruction
-    EXEC_STATE_FAULT_INSN_VIOLATION   = 4'b1101,  // Illegal instruction
-    EXEC_STATE_FAULT_INSN_MISALIGNED  = 4'b1110   // Misaligned instruction address
+    EXEC_STATE_FAULT_INSN_ILLEGAL     = 5'b01100,  // Illegal instruction
+    EXEC_STATE_FAULT_INSN_VIOLATION   = 5'b01101,  // Illegal instruction
+    EXEC_STATE_FAULT_INSN_MISALIGNED  = 5'b01110,  // Misaligned instruction address
+
+    EXEC_STATE_REFETCH_THIS_SERIALIZED = 5'b10000 // Refetch this instruction, serialized
 } ExecutionState;
 localparam EXEC_STATE_BIT_WIDTH = $bits(ExecutionState);
 
@@ -95,6 +98,7 @@ typedef struct packed // ActiveListEntry
     
     logic isLoad;
     logic isStore;
+    logic isZaamo;
     logic isBranch; // TRUE if the op is BR or RIJ
     logic isEnv;    // TRUE if the op is ECALL/EBREAK
     
@@ -269,6 +273,10 @@ typedef struct packed // MemOpInfo
     CSR_CtrlPath csrCtrl;
     ENV_Code envCode;
 
+    // Aext
+    logic isZalrsc;
+    MemZaamo_Code amoCode;
+
     // FENCE.I
     logic isFenceI;
 
@@ -297,12 +305,16 @@ typedef struct packed // MemIssueQueueEntry
     logic hasAllocatedMSHR;
     MSHR_IndexPath mshrID;
 
+    logic hasLoadedAMOCache;
+
     ActiveListIndexPath activeListPtr;
     LoadQueueIndexPath loadQueueRecoveryPtr;    //for recovery
     StoreQueueIndexPath storeQueueRecoveryPtr;    //for recovery
     OpSrc opSrc;
     OpDst opDst;
     PC_Path pc;
+
+    logic serialized;
 } MemIssueQueueEntry;
 
 typedef struct packed // FPOpInfo
@@ -360,12 +372,10 @@ typedef struct packed // SchedulerEntry
 
 
 //
-// A tag for a source CAM and a ready bit table.
-// These tags are used for a ready bit table, thus they are necessary in
-// matrix based implementation.
+// A register tag for the ready bit table.
 //
 
-// For a physic's register.
+// For a physical register.
 typedef struct packed // SchedulerRegTag
 {
     PRegNumPath num;

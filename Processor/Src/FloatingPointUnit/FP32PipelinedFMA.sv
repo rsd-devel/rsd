@@ -1,10 +1,82 @@
-import FPUTypes::*;
+// Pipeline types are local to this file so the FMA can be compiled independently of RSD.
+package FP32PipelinedFMATypes;
+    typedef struct packed {
+        logic [9:0] mulres_expo;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic invalid;
+        logic res_is_addend;
+        logic addend_inexact;
+        logic mul_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage1RegPath;
+
+    typedef struct packed {
+        logic [9:0] mulres_expo;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic invalid;
+        logic res_is_addend;
+        logic addend_inexact;
+        logic mul_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage2RegPath;
+
+    typedef struct packed {
+        logic [75:0] abs_fma_result;
+        logic [9:0] mulres_expo;
+        logic res_is_negative;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic invalid;
+        logic res_is_zero;
+        logic res_is_addend;
+        logic addend_inexact;
+        logic result_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage3RegPath;
+
+    typedef struct packed {
+        logic [75:0] abs_fma_result;
+        logic [7:0] fmares_shift;
+        logic [9:0] virtual_expo;
+        logic subnormal;
+        logic round_sticky;
+        logic result_is_inf;
+        logic result_is_nan;
+        logic invalid;
+        logic res_is_zero;
+        logic res_is_addend;
+        logic addend_inexact;
+        logic result_sign;
+        logic prop_inf_sign;
+        logic addend_sign;
+        logic is_subtract;
+        logic [31:0] nan;
+        logic [31:0] addend;
+    } FMAStage4RegPath;
+endpackage
+
+import FP32PipelinedFMATypes::*;
 module FP32PipelinedFMA(
     input  logic clk,
     input  logic [31:0] mullhs,
     input  logic [31:0] mulrhs,
     input  logic [31:0] addend,
-    output logic [31:0] result
+    output logic [31:0] result,
+    output FPUTypes::FFlags fflags
 );
 
     FMAStage1RegPath stg0Out;
@@ -31,7 +103,7 @@ module FP32PipelinedFMA(
     FMAStage1 stg1(clk, stg0Out, stg1Out);
     FMAStage2 stg2(clk, stg1Out, stg2Out, fma_result);
     FMAStage3 stg3(clk, stg2Out, stg3Out);
-    FMAStage4 stg4(clk, stg3Out, result);
+    FMAStage4 stg4(clk, stg3Out, result, fflags);
 endmodule
 
 module FMAStage0(
@@ -66,9 +138,13 @@ module FMAStage0(
     wire mullhs_is_nan  = mullhs_expo == 8'hff & mullhs_mant != 0;
     wire mulrhs_is_nan  = mulrhs_expo == 8'hff & mulrhs_mant != 0;
     wire addend_is_nan  = addend_expo == 8'hff & addend_mant != 0;
-    wire result_is_nan  = mullhs_is_nan | mulrhs_is_nan | addend_is_nan // One of the input is NaN
-                          | (mullhs_is_zero & mulrhs_is_inf) | (mullhs_is_inf & mulrhs_is_zero) // Inf * Zero
-                          | (is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf); // Inf - Inf
+    wire invalid_product = (mullhs_is_zero & mulrhs_is_inf) | (mullhs_is_inf & mulrhs_is_zero);
+    // A quiet NaN multiplicand does not make an infinite-sum operation invalid.
+    wire invalid_sum = is_subtract & (mullhs_is_inf | mulrhs_is_inf) & addend_is_inf
+                       & ~mullhs_is_nan & ~mulrhs_is_nan;
+    wire invalid = (mullhs_is_nan & ~mullhs_mant[22]) | (mulrhs_is_nan & ~mulrhs_mant[22])
+                   | (addend_is_nan & ~addend_mant[22]) | invalid_product | invalid_sum;
+    wire result_is_nan = mullhs_is_nan | mulrhs_is_nan | addend_is_nan | invalid;
     //wire[31:0]      nan = mullhs_is_nan ? mullhs | 32'h00400000 : mulrhs_is_nan ? mulrhs | 32'h00400000 : addend_is_nan ? addend | 32'h00400000 : 32'hffc00000; // qNan
     wire[31:0]      nan = 32'h7fc00000;
 
@@ -83,6 +159,8 @@ module FMAStage0(
     wire [9:0] mulres_expo   = v_mullhs_expo + v_mulrhs_expo - 127;
     wire [9:0] addend_shift  = v_addend_expo - mulres_expo + 23;
     wire       res_is_addend = ($signed(addend_shift) > 49 | mullhs_is_zero | mulrhs_is_zero) & !addend_is_zero; // |lhs*rhs| < 0.5ULP(|addend|-eps); assuming round to nearest, result is equal to the addend.
+    // A nonzero product below the addend's rounding threshold is still inexact.
+    wire       addend_inexact = !mullhs_is_zero & !mulrhs_is_zero;
     wire       addend_sticky = $signed(addend_shift) >=  0 ? 1'b0 :
                                $signed(addend_shift) < -26 ? { addend_expo != 8'h00, addend_mant } != 0
                                                            : { addend_expo != 8'h00, addend_mant } << (10'd26 + addend_shift) != 24'h000000; // shifted out part of { mantissa(24bit), guard(1bit), round(1bit) } >> -addend_shift
@@ -90,8 +168,8 @@ module FMAStage0(
     assign mlhs    = { 51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0 }; // lhs_expo != 8'h00 is the hidden bit of a normalized number
     assign mrhs    = { 52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0 }; // rhs_expo != 8'h00 is the hidden bit of a normalized number
 
-    assign stg0Out = {mulres_expo, result_is_inf, result_is_nan,
-                      res_is_addend, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
+    assign stg0Out = {mulres_expo, result_is_inf, result_is_nan, invalid,
+                      res_is_addend, addend_inexact, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
 endmodule
 
 module FMAStage1(
@@ -124,7 +202,7 @@ module FMAStage2(
     wire       result_sign     = mul_sign ^ res_is_negative;
     
     assign stg2Out = {abs_fma_result, pipeReg.mulres_expo, res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, res_is_zero, pipeReg.res_is_addend, result_sign,
+                      pipeReg.result_is_nan, pipeReg.invalid, res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
@@ -151,16 +229,23 @@ module FMAStage3(
     wire       subnormal       = $signed(virtual_expo) <= 0;
     wire [7:0] fmares_shift    = subnormal ? 26 - mulres_expo[7:0] // There are 3 bits below lhs*rhs<<3, and 23 bits will be lost due to rounding, assuming no carryover occurs in lhs*rhs.
                                            : 51 - leading_zeros;   // (75 - addend_sticky(1bit)) - shifter_result(24bit)
+    wire signed [9:0] rounding_shift = subnormal ? 10'sd26 - $signed(mulres_expo)
+                                                : 10'sd51 - $signed({2'b00, leading_zeros});
+    // Left shifts discard no bits; shifts beyond the accumulator discard all bits.
+    wire round_sticky = rounding_shift <= 0 ? 1'b0 :
+                        rounding_shift >= 76 ? abs_fma_result != 0 :
+                        abs_fma_result << (10'sd76 - rounding_shift) != 0;
     
-    assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, pipeReg.res_is_negative, pipeReg.result_is_inf,
-                      pipeReg.result_is_nan, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.result_sign,
+    assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, round_sticky, pipeReg.result_is_inf,
+                      pipeReg.result_is_nan, pipeReg.invalid, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, pipeReg.result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
 
 module FMAStage4(
     input logic clk,
     input FMAStage4RegPath stg4In,
-    output logic [31:0] result
+    output logic [31:0] result,
+    output FPUTypes::FFlags fflags
 );
     FMAStage4RegPath pipeReg;
     always_ff @(posedge clk) begin
@@ -171,7 +256,6 @@ module FMAStage4(
     wire [9:0] virtual_expo    = pipeReg.virtual_expo;
     wire[31:0] nan             = pipeReg.nan;
     wire[31:0] addend          = pipeReg.addend;
-    wire res_is_negative       = pipeReg.res_is_negative;
     wire result_is_inf         = pipeReg.result_is_inf;
     wire result_is_nan         = pipeReg.result_is_nan;
     wire res_is_zero           = pipeReg.res_is_zero;
@@ -185,7 +269,7 @@ module FMAStage4(
     /* verilator lint_off WIDTH */
     wire[23:0] shifter_result = { abs_fma_result, 23'b0 } >> (7'd23 + fmares_shift);
     /* verilator lint_on WIDTH */
-    wire       sticky         = abs_fma_result << (76 - fmares_shift) != 0; // the part shifted out above
+    wire       sticky         = pipeReg.round_sticky;
 
     wire       round_to_away  = shifter_result[0] & (shifter_result[1] | sticky); // round to nearest, ties to even
     wire       exp_plus_one   = shifter_result >= 24'hffffff; // carry is generated with rounding taken into account
@@ -200,4 +284,15 @@ module FMAStage4(
                               res_is_addend ? addend :
                               res_is_zero   ? zero   : { result_sign, result_expo, result_mant };
     assign result = result_is_nan ? nan : final_result;
+    // Detect tininess after rounding, including results rounded to zero.
+    wire finite_operation = !result_is_nan & !result_is_inf;
+    wire overflow = !subnormal & (($signed(virtual_expo) >= 255)
+                                 | (virtual_expo == 254 & exp_plus_one));
+    wire discarded_bits = shifter_result[0] | sticky;
+    wire inexact = res_is_addend ? pipeReg.addend_inexact : !res_is_zero & discarded_bits;
+    wire tiny = res_is_addend ? addend[30:23] == 0 : subnormal & result_expo == 0;
+    assign fflags = '{NV: pipeReg.invalid, DZ: 1'b0,
+                      OF: finite_operation & !res_is_addend & !res_is_zero & overflow,
+                      UF: finite_operation & tiny & inexact,
+                      NX: finite_operation & (inexact | (!res_is_addend & !res_is_zero & overflow))};
 endmodule

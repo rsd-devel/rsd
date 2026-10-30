@@ -18,7 +18,7 @@ module ProducerMatrix (
     input [ISSUE_QUEUE_ENTRY_NUM-1:0] dependStoreBitVector [DISPATCH_WIDTH], 
     input IssueQueueIndexPath dispatchPtr[ DISPATCH_WIDTH ],
 
-    input IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH + STORE_ISSUE_WIDTH ],
+    input IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH ],
 
     output logic opReady[ ISSUE_QUEUE_ENTRY_NUM ]
 );
@@ -48,7 +48,7 @@ module ProducerMatrix (
 
         // Wakeup
         wakeupVector = '0;
-        for (int w = 0; w < WAKEUP_WIDTH + STORE_ISSUE_WIDTH; w++) begin
+        for (int w = 0; w < WAKEUP_WIDTH; w++) begin
             // A producer column can be cleared without regarding to validness of wakeup.
             //if (wakeup[w]) begin
             //end

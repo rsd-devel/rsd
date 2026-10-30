@@ -16,10 +16,11 @@ import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(
-    input logic clk, rst, rstStart, reqExternalInterrupt, 
-    ExternalInterruptCodePath externalInterruptCode
+    input logic clk, rst, rstStart, reqCustomInterrupt, 
+    CustomInterruptCodePath customInterruptCode
 );
 
+    logic csrRE;  // CSR read enable
     logic csrWE;  // CSR write enable
     CSR_NumberPath csrNumber;   // CSR number
     CSR_Code csrCode;           // CSR operation code (ex. set, clear...)
@@ -32,22 +33,23 @@ interface CSR_UnitIF(
     logic   triggerExcpt;
     ExecutionState excptCause;
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
-    AddrPath excptTargetAddr;   // Trap vector or MRET return target
+    AddrPath excptTargetAddr;   // Trap vector or xRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
+    logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
 
     // Interrupt
     logic triggerInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
+    logic msip;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
 
-    // Latched code, see the cooments in the CSR.
-    ExternalInterruptCodePath externalInterruptCodeInCSR;
-
     // Used in updating minstret
     CommitLaneCountPath commitNum;
+
+    PrivilegeLevelType privilegeLevel;
 
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
@@ -59,8 +61,12 @@ interface CSR_UnitIF(
     modport MemoryExecutionStage(
     input
         clk, rst, rstStart,
+        csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
+        privilegeLevel,
     output 
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,
@@ -81,7 +87,8 @@ interface CSR_UnitIF(
     // FetchStage and CSR_Unit
     modport IO_Unit(
     output 
-        reqTimerInterrupt
+        reqTimerInterrupt,
+        msip
     );
 
     // For counter update
@@ -113,6 +120,7 @@ interface CSR_UnitIF(
     modport CSR_Unit(
     input
         clk, rst, rstStart,
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,
@@ -123,8 +131,9 @@ interface CSR_UnitIF(
         excptCauseDataAddr,
         commitNum,
         reqTimerInterrupt,
-        reqExternalInterrupt,
-        externalInterruptCode,
+        reqCustomInterrupt,
+        msip,
+        customInterruptCode,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
@@ -139,15 +148,16 @@ interface CSR_UnitIF(
 `endif
         csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
         excptTargetAddr,
-        externalInterruptCodeInCSR
+        privilegeLevel
     );
 
     modport InterruptController(
     input
         clk, rst, rstStart,
         csrWholeOut,
-        externalInterruptCodeInCSR,
+        privilegeLevel,
     output
         triggerInterrupt,
         interruptRetAddr,

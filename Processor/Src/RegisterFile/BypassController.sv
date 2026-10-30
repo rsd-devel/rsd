@@ -57,8 +57,8 @@ module BypassController(
         logic read,
         BypassCtrlOperand intEX [ INT_ISSUE_WIDTH ],
         BypassCtrlOperand intWB [ INT_ISSUE_WIDTH ],
-        BypassCtrlOperand memMA [ LOAD_ISSUE_WIDTH ],
-        BypassCtrlOperand memWB [ LOAD_ISSUE_WIDTH ]
+        BypassCtrlOperand memMA [ MEM_ISSUE_WIDTH ],
+        BypassCtrlOperand memWB [ MEM_ISSUE_WIDTH ]
     );
         BypassSelect ret;
         ret.valid = FALSE;
@@ -87,7 +87,7 @@ module BypassController(
             end
         end
         
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
+        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             if ( read && memMA[i].writeReg && regNum == memMA[i].dstRegNum ) begin
                 ret.valid = TRUE;
                 ret.stg = BYPASS_STAGE_MEM_MA;
@@ -119,18 +119,18 @@ module BypassController(
     BypassCtrlOperand intRR [ INT_ISSUE_WIDTH ];
     BypassCtrlOperand intEX [ INT_ISSUE_WIDTH ];
     BypassCtrlOperand intWB [ INT_ISSUE_WIDTH ];
-    BypassCtrlOperand memRR [ LOAD_ISSUE_WIDTH ];
-    BypassCtrlOperand memEX [ LOAD_ISSUE_WIDTH ];
-    BypassCtrlOperand memMT [ LOAD_ISSUE_WIDTH ];
-    BypassCtrlOperand memMA [ LOAD_ISSUE_WIDTH ];
-    BypassCtrlOperand memWB [ LOAD_ISSUE_WIDTH ];
+    BypassCtrlOperand memRR [ MEM_ISSUE_WIDTH ];
+    BypassCtrlOperand memEX [ MEM_ISSUE_WIDTH ];
+    BypassCtrlOperand memMT [ MEM_ISSUE_WIDTH ];
+    BypassCtrlOperand memMA [ MEM_ISSUE_WIDTH ];
+    BypassCtrlOperand memWB [ MEM_ISSUE_WIDTH ];
 
     for ( genvar i = 0; i < INT_ISSUE_WIDTH; i++ ) begin : stgInt
         BypassCtrlStage stgIntRR( clk, rst, ctrl.backEnd, intRR[i], intEX[i] );
         BypassCtrlStage stgIntEX( clk, rst, ctrl.backEnd, intEX[i], intWB[i] );
     end
 
-    for ( genvar i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin : stgMem
+    for ( genvar i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin : stgMem
         BypassCtrlStage stgMemRR( clk, rst, ctrl.backEnd, memRR[i], memEX[i] );
         BypassCtrlStage stgMemEX( clk, rst, ctrl.backEnd, memEX[i], memMT[i] );
         BypassCtrlStage stgMemMT( clk, rst, ctrl.backEnd, memMT[i], memMA[i] );
@@ -164,12 +164,10 @@ module BypassController(
         port.complexCtrlOut = complexBypassCtrl;
 `endif
 
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
+        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             memRR[i].dstRegNum = port.memPhyDstRegNum[i];
             memRR[i].writeReg  = port.memWriteReg[i];
-        end
 
-        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
             memBypassCtrl[i].rA   = SelectReg ( port.memPhySrcRegNumA[i], port.memReadRegA[i], intEX, intWB, memMA, memWB );
             memBypassCtrl[i].rB   = SelectReg ( port.memPhySrcRegNumB[i], port.memReadRegB[i], intEX, intWB, memMA, memWB );
         end

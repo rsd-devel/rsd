@@ -119,8 +119,8 @@ trap_vector:
 	csrr a0, mepc
 	RSD_IO_WRITE_GPR(a0)
 
-	RSD_IO_WRITE_STR(" mbadaddr:")
-	csrr a0, mbadaddr
+	RSD_IO_WRITE_STR(" mtval:")
+	csrr a0, mtval
 	RSD_IO_WRITE_GPR(a0)
 	RSD_IO_WRITE_STR("\n")
 

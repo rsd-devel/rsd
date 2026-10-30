@@ -20,7 +20,7 @@ def parse_makefile_for_core_sources():
                 is_header = True
                 continue
 
-            m = re.match("\t([^\s]+.(svh|sv|v|vh)) \\\\", line)
+            m = re.match("\t([^\\s]+.(svh|sv|v|vh)) \\\\", line)
             if m:
                 sources.append({"name": m.group(1), "is_header": is_header})
 
@@ -40,7 +40,7 @@ readbuf = ""
 # add RSD's source files to the custom IP description.
 with open(template_file) as fin:
     for line in fin:
-        m = re.match("^\s*(.+)$", line)
+        m = re.match("^\\s*(.+)$", line)
         readbuf += m.group(1)
 
 root = ElementTree.fromstring( readbuf )

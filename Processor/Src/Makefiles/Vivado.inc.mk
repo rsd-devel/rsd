@@ -101,19 +101,19 @@ $(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
 #
 
 xilinx-arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
-	$(MAKE) xilinx-arm-linux-u-boot
-	$(MAKE) xilinx-arm-linux-kernel
-	$(MAKE) xilinx-arm-linux-device-tree
-	$(MAKE) xilinx-arm-linux-bootbin
-	$(MAKE) xilinx-arm-linux-download-rootfs
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-u-boot
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-kernel
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-device-tree
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-bootbin
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-download-rootfs
 	@echo "==== Build Successful ===="
 
 xilinx-arm-linux-clean:
-	$(MAKE) xilinx-arm-linux-kernel-clean
-	$(MAKE) xilinx-arm-linux-u-boot-clean
-	$(MAKE) xilinx-arm-linux-initrd-clean
-	$(MAKE) xilinx-arm-linux-bootbin-clean
-	$(MAKE) xilinx-arm-linux-rootfs-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-kernel-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-u-boot-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-initrd-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-bootbin-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-rootfs-clean
 
 # Do NOT use this command.
 xilinx-arm-linux-clone-all: $(ARM_LINUX_ROOT) $(KERNEL_ROOT) $(UBOOT_ROOT) $(DTC_ROOT)/dtc $(INITRD) $(ARM_LINUX_BOOT)
@@ -123,7 +123,7 @@ $(ARM_LINUX_ROOT):
 	mkdir $(ARM_LINUX_ROOT)
 
 $(KERNEL_ROOT):
-	$(MAKE) xilinx-arm-linux-kernel-fetch; \
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-kernel-fetch; \
 	cd $(KERNEL_ROOT); \
 	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff
 
@@ -138,7 +138,7 @@ xilinx-arm-linux-kernel-clean:
 	rm -f -r $(KERNEL_ROOT)
 
 $(UBOOT_ROOT):
-	$(MAKE) xilinx-arm-linux-u-boot-fetch; \
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-u-boot-fetch; \
 	cd $(UBOOT_ROOT); \
 	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff
 
@@ -153,7 +153,7 @@ xilinx-arm-linux-u-boot-clean:
 	rm -f -r $(UBOOT_ROOT)
 
 $(DTC_ROOT)/dtc:
-	$(MAKE) xilinx-arm-linux-dtc || $(MAKE) xilinx-arm-linux-dtc-clean
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-dtc || $(MAKE) -f $(MAKEFILE) xilinx-arm-linux-dtc-clean
 
 # Do NOT use this command.
 xilinx-arm-linux-dtc:
@@ -173,13 +173,13 @@ $(ARM_LINUX_BOOT):
 
 # Do NOT use this command.
 xilinx-arm-linux-all:
-	$(MAKE) xilinx-arm-linux-fsbl
-	$(MAKE) xilinx-arm-linux-u-boot
-	$(MAKE) xilinx-arm-linux-initrd
-	$(MAKE) xilinx-arm-linux-kernel
-	$(MAKE) xilinx-arm-linux-bitstream
-	$(MAKE) xilinx-arm-linux-bootbin
-	$(MAKE) xilinx-arm-linux-download-rootfs
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-fsbl
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-u-boot
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-initrd
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-kernel
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-bitstream
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-bootbin
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-download-rootfs
 
 # First Stage Boot Loader
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
@@ -190,7 +190,7 @@ $(FSBL_FILE): $(VIVADO_FSBL_FILE)
 	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
 
 $(UBOOT_FILE): $(UBOOT_ROOT)
-	$(MAKE) xilinx-arm-linux-u-boot
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-u-boot
 
 # Do NOT use this command.
 xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
@@ -200,7 +200,7 @@ xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
 	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
 
 $(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
-	$(MAKE) xilinx-arm-linux-initrd
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-initrd
 
 # Do NOT use this command.
 xilinx-arm-linux-initrd: $(INITRD)
@@ -212,7 +212,7 @@ xilinx-arm-linux-initrd-clean:
 	rm -f $(INITRD)
 
 $(UKERNEL_FILE):
-	$(MAKE) xilinx-arm-linux-kernel
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-kernel
 
 # Do NOT use this command.
 xilinx-arm-linux-kernel: $(KERNEL_ROOT)
@@ -223,7 +223,7 @@ xilinx-arm-linux-kernel: $(KERNEL_ROOT)
 	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
 
 $(DEVICETREE_FILE): $(UKERNEL_FILE)
-	$(MAKE) xilinx-arm-linux-device-tree
+	$(MAKE) -f $(MAKEFILE) xilinx-arm-linux-device-tree
 
 # Do NOT use this command.
 xilinx-arm-linux-device-tree: $(UKERNEL_FILE)

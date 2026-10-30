@@ -7,7 +7,7 @@
 // シリアル出力の memory-mapped address
 #define SERIAL_ADDRESS 0x40002000
 
-#include <sys/types.h>
+#include <stddef.h>
 void* __attribute((weak)) memcpy(void* dest_, const void* src_, size_t n)
 {
   char* dest = dest_;
@@ -23,6 +23,13 @@ void serial_wait()
     int i;
     for(i=0; i<UART_WAIT; i++) sum += i;
 #endif
+}
+
+// Wait for prior serial MMIO stores to leave RSD's store queue.
+// Call before returning to the CRT's simulation exit point.
+static inline void serial_flush(void)
+{
+    __asm__ volatile ("fence iorw, iorw" ::: "memory");
 }
 
 void serial_out_dec(int val)

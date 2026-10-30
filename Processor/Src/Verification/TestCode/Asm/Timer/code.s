@@ -4,16 +4,16 @@
     .align    2
     .globl    main
     .type     main, @function
-    
+
 main:
-    # set mtimer/mtimecmp
-    li a6, 0x40000000
 
     li a1, 0
     li a2, 100
-    sw a1, 12(a6)   # MEM_MAP_ADDR_TIMER_CMP_HI
-    sw a2, 8(a6)    # MEM_MAP_ADDR_TIMER_CMP_LOW
+    li a6, 0x40014000
+    sw a1, 4(a6)    # MEM_MAP_ADDR_TIMER_CMP_HI
+    sw a2, 0(a6)    # MEM_MAP_ADDR_TIMER_CMP_LOW
 
+    li a6, 0x40017ff8
     sw a1, 0(a6)    # MEM_MAP_ADDR_TIMER_LOW
     sw a1, 4(a6)    # MEM_MAP_ADDR_TIMER_HI
     
@@ -39,6 +39,7 @@ wait_int:
 
 
     # タイマの時間を読む
+    li a6, 0x40017ff8
     lw a3, 0(a6)
     addi a3, a3, 100
 wait_read:

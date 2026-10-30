@@ -255,11 +255,11 @@ logic clk;
                             memAccessWE_FromProgramLoader,
                             programLoaded);
 `endif
-    logic reqExternalInterrupt;
-    ExternalInterruptCodePath externalInterruptCode; 
+    logic reqCustomInterrupt;
+    CustomInterruptCodePath customInterruptCode; 
     always_comb begin
-        reqExternalInterrupt = FALSE;
-        externalInterruptCode = 0;
+        reqCustomInterrupt = FALSE;
+        customInterruptCode = 0;
     end
 
     //
@@ -274,8 +274,8 @@ logic clk;
         .memAccessWE( memAccessWE_FromCore ),
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
-        .reqExternalInterrupt( reqExternalInterrupt ),
-        .externalInterruptCode( externalInterruptCode ),
+        .reqCustomInterrupt( reqCustomInterrupt ),
+        .customInterruptCode( customInterruptCode ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),
         .memReadDataReady( memReadDataReady ),

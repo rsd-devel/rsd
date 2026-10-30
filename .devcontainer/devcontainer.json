@@ -1,0 +1,19 @@
+{
+    "name": "rsd-devcontainer",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "."
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": []
+        }
+    },
+    "containerEnv": {
+        "RSD_ROOT": "${containerWorkspaceFolder}",
+        "RSD_GCC_PATH": "/usr/bin",
+        "RSD_GCC_PREFIX": "riscv64-unknown-elf-",
+        "RSD_VERILATOR_BIN": "/usr/local/bin/verilator"
+    },
+    "postCreateCommand": ""
+}

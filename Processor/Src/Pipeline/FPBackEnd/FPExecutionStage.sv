@@ -137,7 +137,7 @@ module FPExecutionStage(
 
     FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
-    FFlags_Path   fmaFFlagsOut [ FP_ISSUE_WIDTH ];
+    FPUTypes::FFlags fmaFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   otherFFlagsOut [ FP_ISSUE_WIDTH ];
 
 
@@ -154,8 +154,8 @@ module FPExecutionStage(
             .mulrhs (fmaMulRHS[i]),
             .addend (fmaAddend[i]),
             //.rm (rm[i]),
-            .result ( fmaDataOut[i] )
-            //.fflags ( fmaFFlagsOut[i])
+            .result ( fmaDataOut[i] ),
+            .fflags ( fmaFFlagsOut[i])
         );
         
         FP32PipelinedOther #(
@@ -177,7 +177,8 @@ module FPExecutionStage(
             fmaMulLHS[i] = fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data;
             fmaMulRHS[i] = fpuCode[i] inside {FC_ADD, FC_SUB} ? 32'h3f800000 : fuOpB[i].data;
             if(fpuCode[i] == FC_MUL) begin
-                fmaAddend[i] = 32'h00000000;
+                // A same-sign zero addend preserves the sign of an exact product.
+                fmaAddend[i] = {fuOpA[i].data[31] ^ fuOpB[i].data[31], 31'b0};
             end
             else if (fpuCode[i] == FC_ADD) begin
                 fmaAddend[i] = fuOpB[i].data;
@@ -294,13 +295,11 @@ module FPExecutionStage(
             unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
                 FP_MOP_TYPE_ADD, FP_MOP_TYPE_MUL, FP_MOP_TYPE_FMA: begin
                     dataOut[i].data = fmaDataOut[i];
-                    //fflagsData[i] = fmaFFlagsOut[i];
-                    fflagsOut[i] = '0;
+                    fflagsOut[i] = fmaFFlagsOut[i];
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
                     dataOut[i].data = fpDivSqrtUnit.DataOut[i];
-                    //fflagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
-                    fflagsOut[i] = '0;
+                    fflagsOut[i] = fpDivSqrtUnit.FFlagsOut[i];
                 end 
                 default: begin /* FP_MOP_TYPE_OTHER */
                     dataOut[i].data = otherDataOut[i];

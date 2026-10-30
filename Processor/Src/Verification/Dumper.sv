@@ -108,7 +108,10 @@ package DumperTypes;
                 );
             end
             for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-                str =debugRegister.ifReg[i].icMiss ? "i-cache-miss\\n" : "";
+                // Avoid a string ternary with an unknown condition in XSim.
+                str = "";
+                if (debugRegister.ifReg[i].icMiss)
+                    str = "i-cache-miss\\n";
                 this.DumpStage(
                     KS_IF, // stage id
                     debugRegister.ifReg[i].valid, // valid
@@ -464,7 +467,7 @@ package DumperTypes;
                     if (debugRegister.mtReg[i].executeLoad) begin
                         $sformat( str, "%s\\n = load([#0x%0x])",
                             str,
-                            debugRegister.mtReg[i].executedLoadAddr,
+                            debugRegister.mtReg[i].executedLoadAddr
                         );
                         if (debugRegister.mtReg[i].mshrAllocated) begin
                             $sformat( str, 
@@ -618,18 +621,19 @@ package DumperTypes;
     // シリアル出力をファイルに保存する
     class SerialDumper;
         integer m_file;
-        string m_str;
+        // A byte queue preserves NUL bytes across simulators.
+        byte unsigned m_bytes[$];
 
         // クラス作成直後に呼ぶ必要のある関数
         function automatic void Init();
-            m_str = "";
+            m_bytes.delete();
         endfunction
 
         // 毎サイクル呼ぶ必要のある関数
         function automatic void CheckSignal( logic we, SerialDataPath data, integer showOutput);
-            // 書込データがあったらm_strに追加する
+            // The UART emits the low byte even when SerialDataPath is wider.
             if (we) begin
-                $sformat( m_str, "%s%c", m_str, data );
+                m_bytes.push_back(data[7:0]);
                 if (showOutput) begin
                     $write("%c", data);
                 end
@@ -638,8 +642,10 @@ package DumperTypes;
 
         // 指定されたファイルに書込
         function automatic void DumpToFile( string fileName );
-            m_file = $fopen( fileName, "w" );
-            $fwrite( m_file, "%s", m_str );
+            m_file = $fopen( fileName, "wb" );
+            foreach (m_bytes[i]) begin
+                $fwrite(m_file, "%c", m_bytes[i]);
+            end
             $fclose( m_file );
         endfunction
 

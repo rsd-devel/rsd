@@ -1,5 +1,7 @@
-# Specify test code and simulation cycles
-MAX_TEST_CYCLES = 50000
+# Specify test code and progress limits (independent of cfg.xml)
+MAX_TEST_INSTRUCTIONS = 100000
+MAX_NO_COMMIT_CYCLES = 500
+MAX_TEST_CYCLES = 0
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
 #TEST_CODE = Verification/TestCode/Asm/CacheFlush
@@ -41,6 +43,8 @@ VLOG_OPTIONS = \
 
 # Simulation options
 VSIM_OPTIONS = \
+	+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+	+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
 	+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
 	+TEST_CODE=$(TEST_CODE) \
 	+ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) \
@@ -61,8 +65,15 @@ VSIM_OPTIONS_DUMP = \
 # Commands
 #
 
+# Core tests use TestDriver instead of the shared unit-test recipe.
+RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
+RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
+
 # Include basic command definitions.
 include Makefile.inc
+
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
 
 # Convert a RSD log to a Kanata log.
 KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
@@ -74,9 +85,30 @@ rtl-kanata: rtl-run
 
 # -------------------------------
 # Test related items are defined in this file
-RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
-RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
 include Makefiles/TestCommands.inc.mk
+
+# RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.
+# Run all with "make test-unit -jN", or one with "make test-unit-Divider".
+UNIT_TESTS = \
+	BlockDualPortRAM \
+	DistributedDualPortRAM \
+	DistributedMultiPortRAM \
+	MultiWidthQueuePointer \
+	MultiWidthFreeList \
+	Divider \
+	Memory \
+	ICache \
+	DCache
+UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
+
+.PHONY: test-unit $(UNIT_TEST_TARGETS)
+test-unit: $(UNIT_TEST_TARGETS)
+	@echo "==== Test Successful (test-unit) ===="
+
+# Generate shared RTL before starting unit submakes, including parallel runs.
+$(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
+	$(MAKE) -C Verification/UnitTest/$* test PROJECT_WORK="$(abspath $(PROJECT_WORK))"
+	@echo "==== Test Successful (test-unit-$*) ===="
 
 # -------------------------------
 # Dump : Run test and dump values of register files for each cycle.

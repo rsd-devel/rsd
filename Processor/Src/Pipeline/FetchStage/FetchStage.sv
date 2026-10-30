@@ -124,9 +124,13 @@ module FetchStage(
             brPred[i].phtPrevValue = port.phtPrevValue[i];
         end
 
-        // Check whether instructions are flushed by branch prediction
+        // Initialize every lane before the loop with break to avoid latch inference.
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             isFlushed[i] = FALSE;
+        end
+
+        // Check whether instructions are flushed by branch prediction
+        for (int i = 0; i < FETCH_WIDTH; i++) begin
             if (!regStall && pipeReg[i].valid && brPred[i].predTaken) begin
                 for (int j = i + 1; j < FETCH_WIDTH; j++) begin
                     isFlushed[j] = pipeReg[j].valid;

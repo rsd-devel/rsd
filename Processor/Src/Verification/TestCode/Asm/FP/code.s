@@ -4,7 +4,291 @@
     .align    2
     .globl    main
     .type     main, @function
+
+    # Checks use ft2 as the result and t1/t2 as scratch registers.
+    .macro CHECK_FFLAGS expected
+    csrr t2, fflags
+    li t1, \expected
+    bne t2, t1, fail
+    .endm
+
+    .macro CHECK_FP_RESULT expected
+    fmv.x.w t2, ft2
+    li t1, \expected
+    bne t2, t1, fail
+    .endm
+
 main:
+
+    # A full FCSR write updates both aliases and ignores reserved upper bits.
+    li t0, 0xffffff71
+    csrw fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x71
+    bne t2, t1, fail
+    csrr t2, frm
+    li t1, 3
+    bne t2, t1, fail
+    csrr t2, fflags
+    li t1, 0x11
+    bne t2, t1, fail
+
+    # Set/clear operations through FCSR also update the rounding-mode field.
+    li t0, 0x40
+    csrc fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x31
+    bne t2, t1, fail
+    csrs fcsr, t0
+    csrr t2, fcsr
+    li t1, 0x71
+    bne t2, t1, fail
+
+    # Writing either alias preserves the other field.
+    li t0, 2
+    csrw frm, t0
+    csrr t2, fcsr
+    li t1, 0x51
+    bne t2, t1, fail
+    li t0, 8
+    csrw fflags, t0
+    csrr t2, fcsr
+    li t1, 0x48
+    bne t2, t1, fail
+
+    # Restore RNE and clear flags before the existing arithmetic checks.
+    csrw fcsr, zero
+    csrr t2, fcsr
+    bnez t2, fail
+
+    # Multiplication preserves the XOR of operand signs even for exact zero.
+    fmv.w.x ft0, zero
+    li t0, 0xbf800000 # -1.0
+    fmv.w.x ft1, t0
+    li t1, 0x80000000 # -0.0
+    fmul.s ft2, ft0, ft1
+    fmv.x.w t2, ft2
+    bne t2, t1, fail
+    fmul.s ft2, ft1, ft0
+    fmv.x.w t2, ft2
+    bne t2, t1, fail
+    fmv.w.x ft0, t1
+    fmul.s ft2, ft0, ft1 # -0.0 * -1.0 = +0.0
+    fmv.x.w t2, ft2
+    bnez t2, fail
+
+    # Zero times infinity produces a canonical NaN and sets NV.
+    fmv.w.x ft0, zero
+    li t0, 0x7f800000 # +infinity
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    csrr t2, fflags
+    li t1, 0x10 # NV
+    bne t2, t1, fail
+    fmv.x.w t2, ft2
+    li t1, 0x7fc00000 # canonical quiet NaN
+    bne t2, t1, fail
+
+    # A subsequent valid operation must preserve the accrued NV flag.
+    fadd.s ft2, ft1, ft1
+    csrr t2, fflags
+    li t1, 0x10
+    bne t2, t1, fail
+
+    # Infinity minus infinity is invalid even without a NaN input.
+    csrw fflags, zero
+    fsub.s ft2, ft1, ft1
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    # Signaling NaNs raise NV in the multiplicand and addend paths.
+    li t0, 0x7f800001
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    csrr t2, fflags
+    bne t2, t1, fail
+    csrw fflags, zero
+    fmadd.s ft2, ft1, ft1, ft0
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    # Quiet NaNs do not raise NV, including when the other inputs are infinite.
+    li t0, 0xffc00000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    fmadd.s ft2, ft0, ft1, ft1
+    fmadd.s ft2, ft1, ft0, ft1
+    csrr t2, fflags
+    bnez t2, fail
+
+    # An invalid product still raises NV when the FMA addend is a quiet NaN.
+    fmv.w.x ft2, zero
+    csrw fflags, zero
+    fmadd.s ft2, ft2, ft1, ft0
+    csrr t2, fflags
+    bne t2, t1, fail
+
+    # Division distinguishes finite/zero (DZ) from zero/zero (NV).
+    li t0, 0x3f800000 # 1.0
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x08
+    CHECK_FP_RESULT 0x7f800000
+    li t0, 0x80000000 # -0.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x08
+    CHECK_FP_RESULT 0xff800000
+    csrw fflags, zero
+    fdiv.s ft2, ft1, ft1
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
+
+    # Infinity/infinity is invalid; infinity/zero does not raise DZ.
+    li t0, 0x7f800000
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7f800000
+
+    # Signaling NaNs raise NV in either operand; quiet NaNs raise neither flag.
+    li t0, 0x7f800001
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    fmv.w.x ft1, t0
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x10
+    li t0, 0xffc00000 # Negative quiet NaN
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7fc00000
+
+    # Square root rejects negative numbers, but accepts -0 and quiet NaNs.
+    li t0, 0xbf800000 # -1.0
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
+
+    # A finite subnormal/zero accrues DZ beside the existing NV flag.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    fdiv.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x18
+    CHECK_FP_RESULT 0x7f800000
+
+    li t0, 0x80000000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x80000000
+    li t0, 0xffc00000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7fc00000
+    li t0, 0xff800001 # Negative signaling NaN
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0
+    CHECK_FFLAGS 0x10
+    CHECK_FP_RESULT 0x7fc00000
+
+    # Exact multiplication and a zero-product bypass do not raise NX.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x3f800000
+    fmv.w.x ft0, zero
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x3f800000
+
+    # A nonzero product lost when bypassing to the addend still raises NX.
+    li t0, 0x30800000 # 2^-30
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fadd.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x3f800000
+
+    # Finite overflow raises OF and NX together.
+    li t0, 0x7f7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x40000000 # 2.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x05
+    CHECK_FP_RESULT 0x7f800000
+
+    # An exact subnormal result does not raise UF.
+    li t0, 0x00800000 # Minimum normal
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000 # 0.5
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x00400000
+
+    # Tiny, inexact results raise UF and NX, even when all bits are lost.
+    li t0, 0x00000001 # Minimum subnormal
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fmul.s ft2, ft0, ft1
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+
+    # Tininess is tested after rounding: rounding to normal raises only NX.
+    li t0, 0x3f000000
+    fmv.w.x ft1, t0
+    li t0, 0x007fffff # Maximum subnormal
+    fmv.w.x ft2, t0
+    csrw fflags, zero
+    fmadd.s ft2, ft0, ft1, ft2
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x00800000
+
+    csrw fflags, zero
+    fmv.w.x ft0, zero
+    fmv.w.x ft1, zero
+    fmv.w.x ft2, zero
+
+    li t1, 0
+    li t2, 0
 
     li  a0, -0x10000
     add a0, sp, a0
@@ -85,3 +369,6 @@ main:
 end:
     ret
     #j       end               # ここでループして終了
+
+fail:
+    j fail

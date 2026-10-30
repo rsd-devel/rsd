@@ -3,14 +3,11 @@
 
 
 //
-// CAM based wakeup logic
+// Matrix based wakeup logic
 //
 
 import BasicTypes::*;
 import SchedulerTypes::*;
-
-// Use a matrix scheduler.
-`define RSD_WAKEUP_MATRIX_SCHEDULER 1
 
 module WakeupLogic (
     WakeupSelectIF.WakeupLogic port
@@ -30,11 +27,11 @@ module WakeupLogic (
 
     PRegNumPath  wakeupDstRegNum  [ WAKEUP_WIDTH ];
 
-    // Connection between srcCAM and readyBitTbl
+    // Source readiness from the ready bit table.
     logic dispatchedSrcRegReady[ DISPATCH_WIDTH ][ ISSUE_QUEUE_SRC_REG_NUM ];
 
     // Dependency matrix.
-    IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH + STORE_ISSUE_WIDTH ];
+    IssueQueueOneHotPath wakeupDstVector[ WAKEUP_WIDTH ];
     IssueQueueIndexPath [ DISPATCH_WIDTH-1:0 ][ ISSUE_QUEUE_SRC_REG_NUM-1:0 ] dispatchedSrcRegPtr;
     logic opMatrixReady[ ISSUE_QUEUE_ENTRY_NUM ];
 
@@ -90,41 +87,6 @@ module WakeupLogic (
     end
 
 
-`ifndef RSD_WAKEUP_MATRIX_SCHEDULER
-
-    //
-    // Source CAMs.
-    //
-
-    // Ready of each instruction
-    IssueQueueOneHotPath opRegReady;
-
-    // Wakeup Logic for registers.
-    SourceCAM #(
-        .SRC_OP_NUM( ISSUE_QUEUE_SRC_REG_NUM ),
-        .REG_NUM_BIT_WIDTH( PREG_NUM_BIT_WIDTH )
-    ) regSrcCAM (
-        .clk( port.clk ),
-        .rst( port.rst ),
-        .dispatch( port.write ),
-        .dispatchPtr( port.writePtr ),
-        .dispatchedSrcRegNum( dispatchedSrcRegNum ),
-        .dispatchedSrcReady( dispatchedSrcRegReady ),
-        .wakeup( port.wakeup ),
-        .wakeupDstValid( wakeupDstRegValid ),
-        .wakeupDstRegNum( wakeupDstRegNum ),
-        .opReady( opRegReady )
-    );
-
-    always_comb begin
-        // Ready of each instruction
-        for( int i = 0; i < ISSUE_QUEUE_ENTRY_NUM; i++ ) begin
-            port.opReady[i] = opRegReady[i];
-        end
-    end
-
-`else
-
     //
     // Wakeup Matrix.
     //
@@ -159,7 +121,7 @@ module WakeupLogic (
         notIssued = port.notIssued;
 
         // Wakeup
-        for (int w = 0; w < WAKEUP_WIDTH + STORE_ISSUE_WIDTH; w++) begin
+        for (int w = 0; w < WAKEUP_WIDTH; w++) begin
             wakeupDstVector[w] = port.wakeupVector[w];
         end
 
@@ -203,7 +165,6 @@ module WakeupLogic (
             port.opReady[i] = opMatrixReady[i]; // Matrix
         end
     end
-`endif
 
 
 endmodule : WakeupLogic
