@@ -13,9 +13,16 @@ JOBS ?= $(shell nproc)
 include ../../../Makefiles/CoreSources.inc.mk
 # Add extensions here as their RSD configuration and adapters are validated.
 comma := ,
-ACT_AVAILABLE_EXTENSIONS := I Zicsr ExceptionsSm $(if $(filter 1,$(RSD_HAS_FP)),F)
+empty :=
+space := $(empty) $(empty)
+ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc InterruptsSm
+ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSIONS) \
+	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
+	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
+	$(if $(filter 1,$(RSD_HAS_FP)),F)
 # Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
-ACT_EXTENSIONS ?= I,Zicsr,ExceptionsSm
+# Keep Zifencei opt-in until DCache flush writes back every way correctly.
+ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F Zifencei,$(ACT_AVAILABLE_EXTENSIONS))))
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.
@@ -24,11 +31,13 @@ ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)
 include Build/Generated/F.mk
 endif
 endif
-# Only the M-mode exception case is used; delegation cases need an S-mode port.
-ACT_GENERATED_SOURCES := Build/Generated/priv/ExceptionsSm/ExceptionsSm-00.S
+# Only M-mode cases are used; lower privilege modes need their own adapters.
+ACT_INTERRUPT_SOURCES := $(if $(filter InterruptsSm,$(ACT_EXTENSION_LIST)),\
+	$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _M-00.S,trigger enable priority_mip priority_mie wfi)))
+ACT_GENERATED_SOURCES := $(foreach extension,$(filter-out InterruptsSm,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST))),Build/Generated/priv/$(extension)/$(extension)-00.S) $(ACT_INTERRUPT_SOURCES)
 ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
 	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \
-	$(if $(filter ExceptionsSm,$(ACT_EXTENSION_LIST)),$(ACT_GENERATED_SOURCES)))
+	$(ACT_GENERATED_SOURCES))
 ACT_TESTS ?= $(basename $(notdir $(ACT_SOURCES)))
 ACT_SELECTED_SOURCES := $(foreach test,$(ACT_TESTS),$(filter %/$(test).S,$(ACT_SOURCES)))
 ACT_CASES := $(patsubst External/tests/%.S,%,$(patsubst Build/Generated/%.S,%,$(ACT_SELECTED_SOURCES)))
@@ -128,10 +137,15 @@ check-selection:
 	@test -z "$(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))" || \
 		{ echo "Unknown ACT_TESTS: $(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))." >&2; exit 1; }
 
-$(ACT_GENERATED_SOURCES): Makefile | check-source
-	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions ExceptionsSm --jobs $(JOBS)
+$(filter-out $(ACT_INTERRUPT_SOURCES),$(ACT_GENERATED_SOURCES)): Makefile | check-source
+	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions $(notdir $(@D)) --jobs $(JOBS)
 	@test -s "$@"
 	touch "$@"
+
+# InterruptsSm emits separate coverpoint files; generate them once under make -j.
+$(ACT_INTERRUPT_SOURCES) &: Makefile | check-source
+	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions InterruptsSm --jobs $(JOBS)
+	@for source in $(ACT_INTERRUPT_SOURCES); do test -s "$$source" && touch "$$source" || exit 1; done
 
 # Keep all upstream coverpoints; change only the number of testcases per ELF.
 Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
@@ -140,7 +154,7 @@ Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
 	@printf 'ACT_FP_SOURCES := %s\n' "$$(echo Build/Generated/rv32i/F/*.S)" > "$@.tmp"
 	mv "$@.tmp" "$@"
 
-# Generate the selected FP reference profile without duplicating configuration.
+# Generate the selected optional extensions without duplicating configuration.
 # Preserve unchanged timestamps so ACT4 can reuse its build and Sail results.
 config:
 	mkdir -p "$(BUILD_ROOT)/Config"
@@ -154,6 +168,13 @@ config:
 					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
 			esac; \
 		fi; \
+		for extension in $(filter Zba Zicond Zifencei,$(ACT_EXTENSION_LIST)); do \
+			version=1.0.0; test "$$extension" != Zifencei || version=2.0.0; \
+			case "$$file" in \
+				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= $$version\" }" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+				sail.json) sed -i "s/\"$$extension\": {\"supported\": false}/\"$$extension\": {\"supported\": true}/" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+			esac || exit 1; \
+		done; \
 		if cmp -s "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; then \
 			rm "$(BUILD_ROOT)/Config/$$file.tmp"; \
 		else mv "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; fi || exit 1; \
@@ -177,10 +198,9 @@ build: check-source check-selection check config $(filter Build/Generated/%,$(AC
 $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 	mkdir -p "$(@D)"
 	llvm-objcopy -O binary --only-section=.text.reset --only-section=.text.init \
-		--only-section=.text.rvmodel \
 		--gap-fill=0 --pad-to=0x10000 "$<" "$(@D)/rom.bin"
 	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq 61440
-	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest \
+	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest --only-section=.text.rvmodel \
 		--gap-fill=0 --pad-to=0x80040000 "$<" "$(@D)/ram.bin"
 	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq 262144
 	dd if=/dev/zero of="$(@D)/code.bin" bs=4096 count=1 status=none
@@ -190,10 +210,12 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
-# FP cases have thousands of operands and self-checks; exceptions invoke handlers.
+# FP and SC have many checks; privileged tests invoke handlers and wait for timers.
+# FENCE.I drains dirty cache lines before committing (as in Asm/Fence).
 	@case "$*" in \
-		rv32i/F/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
-		priv/ExceptionsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
+		priv/Exceptions*/*|priv/InterruptsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		rv32i/Zifencei/*) sed 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
 

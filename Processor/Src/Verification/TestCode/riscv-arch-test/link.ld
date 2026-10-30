@@ -10,8 +10,6 @@ SECTIONS {
   /* Keep reset and the legacy termination loop at 0x1000/0x1004. */
   .text.reset 0x1000 : { KEEP(*(.text.reset)) } > rom
   .text.init : { *(.text.init) } > rom
-  /* Reserve the first 64 KiB of RAM for test data and the stack. */
-  .text.rvtest 0x80010000 : { *(.text.rvtest) *(.text.rvtest.*) } > ram
 
   .data 0x80000000 : {
     *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*)
@@ -28,10 +26,13 @@ SECTIONS {
     __stack_top = .;
     _end = .;
   } > ram
-  ASSERT(__stack_top <= 0x80010000, "ACT4 data/stack overlaps test code")
+  /* Keep the usual code address, but leave room for larger exception data. */
+  .text.rvtest MAX(0x80010000, ALIGN(__stack_top, 0x1000)) : {
+    *(.text.rvtest) *(.text.rvtest.*)
+  } > ram
 
-  /* DUT/Sail IO code differs in size: keep it after test data so that
-     signature addresses are identical in the reference and self-check ELFs. */
-  .text.rvmodel : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > rom
+  /* Keep interrupt helpers within JAL range of the test. DUT/Sail helpers
+     differ in size, so place them after both test data and test code. */
+  .text.rvmodel : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > ram
   .tohost : { *(.tohost) } > ram
 }

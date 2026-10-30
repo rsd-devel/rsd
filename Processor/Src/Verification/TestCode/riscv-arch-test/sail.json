@@ -1,5 +1,5 @@
 // Sail 0.15 requires a complete configuration, including unused extensions.
-// This models RV32I/CSR/M-mode exceptions; CLINT/SIG are reference-only devices.
+// This models integer/CSR/M-mode tests; CLINT/SIG are reference-only devices.
 {
   "base": {
     "xlen": 32,
@@ -17,7 +17,7 @@
       "direct": {"supported": true, "base_alignment": 2},
       "vectored": {"supported": true, "base_alignment": 2}
     },
-    "stvec": {"direct": {"supported": false}, "vectored": {"supported": false, "base_alignment": 2}},
+    "stvec": {"direct": {"supported": true, "base_alignment": 2}, "vectored": {"supported": true, "base_alignment": 2}},
     "vstvec": {"direct": {"supported": false}, "vectored": {"supported": false, "base_alignment": 2}},
     "medeleg": {"delegatable_bits": {"len": 64, "value": "0x0"}},
     "mideleg": {"delegatable_bits": {"len": "xlen", "value": "0x0"}},
@@ -35,7 +35,7 @@
       "samo_page_fault": true,
       "samo_guest_page_fault": true,
       "fetch_address_misaligned": true,
-      "fetch_access_fault": true,
+      "fetch_access_fault": false,
       "fetch_page_fault": true,
       "fetch_guest_page_fault": true,
       "software_check": true,
@@ -65,12 +65,13 @@
       "na4_supported": true,
       "napot_supported": true
     },
+    // Defer alignment checks to PMA so unmapped addresses fault first.
     "misaligned": {
       "exceptions": {
-        "load_store": {"Some": "AlignmentException"},
+        "load_store": {"None": null},
         "vector": {"None": null},
         "amo": {"None": null},
-        "lrsc": {"Some": "AccessFault"}
+        "lrsc": {"None": null}
       },
       "order_decreasing": false,
       "default_allowed_within_exp": 0,
@@ -91,7 +92,7 @@
           "read_idempotent": true,
           "write_idempotent": true,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
             "amo": "AccessFault",
             "lrsc": "AccessFault"
@@ -119,7 +120,7 @@
           "read_idempotent": false,
           "write_idempotent": false,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
             "amo": "AccessFault",
             "lrsc": "AccessFault"
@@ -147,15 +148,15 @@
           "read_idempotent": true,
           "write_idempotent": true,
           "misaligned_exceptions": {
-            "load_store": {"None": null},
+            "load_store": {"Some": "AlignmentException"},
             "vector": {"None": null},
-            "amo": "AccessFault",
-            "lrsc": "AccessFault"
+            "amo": "AlignmentException",
+            "lrsc": "AlignmentException"
           },
-          "atomic_support": "AMONone",
+          "atomic_support": "AMOArithmetic",
           "misaligned_atomicity_granule_size_exp": 0,
           "vector_misaligned_atomicity_granule_size_exp": 0,
-          "reservability": "RsrvNone",
+          "reservability": "RsrvEventual",
           "supports_cbo_zero": false,
           "supports_pte_read": false,
           "supports_pte_write": false
@@ -171,8 +172,8 @@
     "hartid": 0,
     "cache_block_size_exp": 6,
     "reservation": {
-      "reservation_set_size_exp": 3,
-      "require_exact_reservation_addr": false,
+      "reservation_set_size_exp": 2,
+      "require_exact_reservation_addr": true,
       "invalidate_on_same_hart_store": false
     },
     "interrupts": {
@@ -192,8 +193,8 @@
     "event_selectors": []
   },
   "extensions": {
-    "M": {"supported": false, "mutable_misa": true},
-    "A": {"supported": false, "mutable_misa": true},
+    "M": {"supported": true, "mutable_misa": false},
+    "A": {"supported": true, "mutable_misa": false},
     "F": {"supported": false, "mutable_misa": true, "fflags_dirty_policy": "Fflags_Dirty_Precise"},
     "D": {"supported": false, "mutable_misa": true},
     "C": {"mutable_misa": true},
@@ -208,8 +209,10 @@
       "vstart": {"zero_required": {"arith": true, "scalar_move": true}}
     },
     "B": {"supported": false, "mutable_misa": true},
+    // RSD boots with misa.S/U set, so M-mode tests can write SIE/SPIE.
+    // The UDB profile still selects only M-mode test paths and trap setup.
     "S": {
-      "supported": false,
+      "supported": true,
       "mutable_misa": true,
       "interrupts": {
         "software": {"supported": false},
@@ -217,7 +220,7 @@
         "timer": {"supported": false}
       }
     },
-    "U": {"supported": false, "mutable_misa": true},
+    "U": {"supported": true, "mutable_misa": true},
     "H": {
       "supported": false,
       "mutable_misa": true,
@@ -257,11 +260,11 @@
     "Zihpm": {"supported": false},
     "Zilx": {"supported": false},
     "Zimop": {"supported": false},
-    "Zmmul": {"supported": false},
-    "Zaamo": {"supported": false},
+    "Zmmul": {"supported": true},
+    "Zaamo": {"supported": true},
     "Zabha": {"supported": false},
     "Zacas": {"supported": false},
-    "Zalrsc": {"supported": false},
+    "Zalrsc": {"supported": true},
     "Zama16b": {"supported": false},
     "Zawrs": {"supported": false, "nto": {"is_nop": false}, "sto": {"is_nop": false}},
     "Zfa": {"supported": false},
@@ -349,7 +352,7 @@
     "Smcntrpmf": {"supported": false},
     "Smdbltrp": {"supported": false},
     "Ssdbltrp": {"supported": false},
-    "Svbare": {"supported": false, "sfence_vma_illegal_if_svbare_only": true},
+    "Svbare": {"supported": true, "sfence_vma_illegal_if_svbare_only": true},
     "Sv32": {"supported": false},
     "Sv39": {"supported": false},
     "Sv48": {"supported": false},

@@ -221,21 +221,25 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The default integer/privileged subset runs 46 cases: 39 unmodified upstream `rv32i/I/*.S`
-files, six `rv32i/Zicsr/*.S` files and the generated M-mode `ExceptionsSm-00.S`.
+The default integer/privileged subset runs 77 cases: I (39), M (8), Zaamo (9),
+Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), and the generated M-mode
+`ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (5).
+A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
+Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
+defines are enabled in `RSD_SRC_CFG`; disabled extensions reject explicit selection.
 F is temporarily opt-in while the remaining RTL fixes are deferred. With
 `RSD_HAS_FP=1`, select it using `ACT_EXTENSIONS=F`: the pinned generator divides
 the upstream testplan into 281 files, targeting 250 testcases per ELF to fit
 RSD's existing RAM layout. All coverpoints are retained, without upstream patches.
 FP-disabled configurations exclude F and reject explicit F selections.
-The pinned `testgen` generates exception sources under `Build/Generated/`;
-only the M-mode case is selected, without its S/U-mode delegation variants.
+The pinned `testgen` generates privileged sources under `Build/Generated/`;
+only the M-mode cases are selected, without S/U-mode delegation variants.
 `test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
 and termination; the HEX includes ROM and RAM contents. Generated tests and
 simulation output stay under `riscv-arch-test/Build/`.
-The larger cases execute from RAM.
+Test code and its platform helpers execute from RAM; reset code stays in ROM.
 
 `test-riscv-arch-test` runs all selected cases through the normal TestDriver,
 with a fresh simulator process for each. Make's `-j` controls Verilator test
@@ -248,6 +252,10 @@ Narrow the selection for debugging:
 ```sh
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=InterruptsSm
+make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zifencei
 make -j16 -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=F
 make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
@@ -258,16 +266,26 @@ exposes only the low 16 bits. Each case runs to its instruction budget, then
 TestDriver requires `a0 = 0` and the exact ACT4 UART pass message for that filename.
 The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
-Integer/CSR cases have a 20,000-instruction budget, FP cases have 50,000,
-and the exception case has 100,000 for trap-handler work;
-all use a 500-cycle no-commit limit.
+Integer/CSR cases have a 20,000-instruction budget, SC and FP cases have 50,000,
+and exception/interrupt cases have 100,000 for trap-handler work and timer waits.
+The no-commit limit is 500 cycles, or 2,500 for Zifencei's cache flush.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
-`Build/Cases/<suite>/<test>/serial.out.txt`. The exception case checks ECALL,
-EBREAK, illegal instructions, and misaligned branch/jump/load/store traps in M-mode.
-The current RTL passes all 46 integer/privileged cases, including `mepc` bit 1 readback and
-`mtval = 0` for illegal instructions. RSD does not retain instruction encodings
-for trap values; the ACT4 and Sail configurations match this choice.
+`Build/Cases/<suite>/<test>/serial.out.txt`. Exception cases check ECALL, EBREAK,
+illegal instructions, and misaligned/access-fault traps for instruction fetch,
+loads/stores and AMO/LR/SC. Atomic cases check destination-register preservation;
+LR/SC also checks scratch memory. The existing `test-RV32A-Aext` separately checks
+memory preservation on cached/uncached AMO faults.
+InterruptsSm checks MSI/MTI enable masks, Direct/Vectored entry, priority and
+WFI polling with a delayed timer. Trap signatures check cause, status, pending
+bits and the number of interrupts; they do not compare asynchronous trap PCs.
+Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
+fields and preservation of rd. Its one file is opt-in: the first self-modifying
+case currently fails because DCache flush does not write back the modified line
+from the correct way. Select `ACT_EXTENSIONS=Zifencei` to reproduce the failure.
+The current RTL passes all 77 default integer/privileged cases, including `mepc` bit 1 readback.
+Reference settings match RSD's access-fault priority over misalignment on unmapped
+addresses and `mtval = 0` for illegal instructions and instruction access faults.
 Any case failure makes the command fail after collecting all results.
 The F suite currently has 99 passes and 182 failures. The first mismatch is
 `fflags` in eight division/square-root files and the numerical result in 174
@@ -277,9 +295,8 @@ Other rounding modes and division/square-root rounding flags need RTL work.
 These failures remain visible when F is explicitly selected.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
-Interrupt, S/U-mode and FENCE.I tests are outside this subset; Zifencei is
-excluded. The preloaded exception handler uses
-writable `mtvec`, so its setup/cleanup does not need instruction-code writes.
+External interrupts and S/U-mode tests are outside this subset. Sail models RSD's
+initial S/U status fields, while the UDB profile selects only M-mode test paths.
 `test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
 removes its generated files. Run the fetch/setup steps above before `test-ex`
 or `test-build-ex`.
