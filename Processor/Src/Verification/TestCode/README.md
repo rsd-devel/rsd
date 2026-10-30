@@ -221,8 +221,8 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The default integer/privileged subset runs 77 cases: I (39), M (8), Zaamo (9),
-Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), and the generated M-mode
+The default integer/privileged subset runs 78 cases: I (39), M (8), Zaamo (9),
+Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), Zifencei (1), and the generated M-mode
 `ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (5).
 A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
 Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
@@ -268,7 +268,8 @@ The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
 Integer/CSR cases have a 20,000-instruction budget, SC and FP cases have 50,000,
 and exception/interrupt cases have 100,000 for trap-handler work and timer waits.
-The no-commit limit is 500 cycles, or 2,500 for Zifencei's cache flush.
+The no-commit limit is 500 cycles, or 2,500 for Zifencei and privileged tests
+whose trap-handler cleanup flushes dirty cache lines.
 ACT4 prints failures, including the test number, instruction, approximate PC,
 actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. Exception cases check ECALL, EBREAK,
@@ -280,10 +281,8 @@ InterruptsSm checks MSI/MTI enable masks, Direct/Vectored entry, priority and
 WFI polling with a delayed timer. Trap signatures check cause, status, pending
 bits and the number of interrupts; they do not compare asynchronous trap PCs.
 Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
-fields and preservation of rd. Its one file is opt-in: the first self-modifying
-case currently fails because DCache flush does not write back the modified line
-from the correct way. Select `ACT_EXTENSIONS=Zifencei` to reproduce the failure.
-The current RTL passes all 77 default integer/privileged cases, including `mepc` bit 1 readback.
+fields and preservation of rd. Select `ACT_EXTENSIONS=Zifencei` to run it alone.
+The current RTL passes all 78 default integer/privileged cases, including `mepc` bit 1 readback.
 Reference settings match RSD's access-fault priority over misalignment on unmapped
 addresses and `mtval = 0` for illegal instructions and instruction access faults.
 Any case failure makes the command fail after collecting all results.

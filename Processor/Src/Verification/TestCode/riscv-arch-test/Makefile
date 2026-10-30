@@ -21,8 +21,7 @@ ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSION
 	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
 	$(if $(filter 1,$(RSD_HAS_FP)),F)
 # Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
-# Keep Zifencei opt-in until DCache flush writes back every way correctly.
-ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F Zifencei,$(ACT_AVAILABLE_EXTENSIONS))))
+ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F,$(ACT_AVAILABLE_EXTENSIONS))))
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.
@@ -211,10 +210,10 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
 # FP and SC have many checks; privileged tests invoke handlers and wait for timers.
-# FENCE.I drains dirty cache lines before committing (as in Asm/Fence).
+# FENCE.I drains dirty cache lines, including at the end of privileged tests.
 	@case "$*" in \
 		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
-		priv/Exceptions*/*|priv/InterruptsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		priv/Exceptions*/*|priv/InterruptsSm/*) sed -e 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' -e 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		rv32i/Zifencei/*) sed 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
