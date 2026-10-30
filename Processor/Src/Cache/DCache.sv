@@ -1895,7 +1895,8 @@ module DCacheMissHandler(
     end
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
-    localparam MSHR_DEADLOCK_DETECT_CYCLES = 5000;
+    // A flush holds an MSHR while writing back every dirty cache line.
+    localparam MSHR_DEADLOCK_DETECT_CYCLES = 10000;
     integer cycles[MSHR_NUM];
     always_ff @(posedge port.clk) begin
         for (int i = 0; i < MSHR_NUM; i++) begin
