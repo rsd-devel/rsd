@@ -31,8 +31,8 @@ SECTIONS {
     *(.text.rvtest) *(.text.rvtest.*)
   } > ram
 
-  /* DUT/Sail IO code differs in size: keep it after test data so that
-     signature addresses are identical in the reference and self-check ELFs. */
-  .text.rvmodel : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > rom
+  /* Keep interrupt helpers within JAL range of the test. DUT/Sail helpers
+     differ in size, so place them after both test data and test code. */
+  .text.rvmodel : { *(.text.rvmodel) *(.text.rvmodel.*) *(.text) *(.text.*) } > ram
   .tohost : { *(.tohost) } > ram
 }

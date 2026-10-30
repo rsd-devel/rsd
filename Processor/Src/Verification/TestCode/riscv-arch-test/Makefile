@@ -15,7 +15,7 @@ include ../../../Makefiles/CoreSources.inc.mk
 comma := ,
 empty :=
 space := $(empty) $(empty)
-ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc
+ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc InterruptsSm
 ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSIONS) \
 	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
 	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
@@ -31,8 +31,10 @@ ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)
 include Build/Generated/F.mk
 endif
 endif
-# Only M-mode exception cases are used; delegation cases need an S-mode port.
-ACT_GENERATED_SOURCES := $(foreach extension,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST)),Build/Generated/priv/$(extension)/$(extension)-00.S)
+# Only M-mode cases are used; lower privilege modes need their own adapters.
+ACT_INTERRUPT_SOURCES := $(if $(filter InterruptsSm,$(ACT_EXTENSION_LIST)),\
+	$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _M-00.S,trigger enable priority_mip priority_mie wfi)))
+ACT_GENERATED_SOURCES := $(foreach extension,$(filter-out InterruptsSm,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST))),Build/Generated/priv/$(extension)/$(extension)-00.S) $(ACT_INTERRUPT_SOURCES)
 ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
 	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \
 	$(ACT_GENERATED_SOURCES))
@@ -135,10 +137,15 @@ check-selection:
 	@test -z "$(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))" || \
 		{ echo "Unknown ACT_TESTS: $(filter-out $(basename $(notdir $(ACT_SELECTED_SOURCES))),$(ACT_TESTS))." >&2; exit 1; }
 
-$(ACT_GENERATED_SOURCES): Makefile | check-source
+$(filter-out $(ACT_INTERRUPT_SOURCES),$(ACT_GENERATED_SOURCES)): Makefile | check-source
 	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions $(notdir $(@D)) --jobs $(JOBS)
 	@test -s "$@"
 	touch "$@"
+
+# InterruptsSm emits separate coverpoint files; generate them once under make -j.
+$(ACT_INTERRUPT_SOURCES) &: Makefile | check-source
+	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions InterruptsSm --jobs $(JOBS)
+	@for source in $(ACT_INTERRUPT_SOURCES); do test -s "$$source" && touch "$$source" || exit 1; done
 
 # Keep all upstream coverpoints; change only the number of testcases per ELF.
 Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
@@ -191,10 +198,9 @@ build: check-source check-selection check config $(filter Build/Generated/%,$(AC
 $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 	mkdir -p "$(@D)"
 	llvm-objcopy -O binary --only-section=.text.reset --only-section=.text.init \
-		--only-section=.text.rvmodel \
 		--gap-fill=0 --pad-to=0x10000 "$<" "$(@D)/rom.bin"
 	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq 61440
-	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest \
+	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest --only-section=.text.rvmodel \
 		--gap-fill=0 --pad-to=0x80040000 "$<" "$(@D)/ram.bin"
 	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq 262144
 	dd if=/dev/zero of="$(@D)/code.bin" bs=4096 count=1 status=none
@@ -204,11 +210,11 @@ $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
 
 $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 	mkdir -p "$(@D)"
-# FP and SC have many operand/result checks; exception tests invoke handlers.
+# FP and SC have many checks; privileged tests invoke handlers and wait for timers.
 # FENCE.I drains dirty cache lines before committing (as in Asm/Fence).
 	@case "$*" in \
 		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
-		priv/Exceptions*/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
+		priv/Exceptions*/*|priv/InterruptsSm/*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' "$<" > "$@" ;; \
 		rv32i/Zifencei/*) sed 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac

@@ -17,7 +17,7 @@
       "direct": {"supported": true, "base_alignment": 2},
       "vectored": {"supported": true, "base_alignment": 2}
     },
-    "stvec": {"direct": {"supported": false}, "vectored": {"supported": false, "base_alignment": 2}},
+    "stvec": {"direct": {"supported": true, "base_alignment": 2}, "vectored": {"supported": true, "base_alignment": 2}},
     "vstvec": {"direct": {"supported": false}, "vectored": {"supported": false, "base_alignment": 2}},
     "medeleg": {"delegatable_bits": {"len": 64, "value": "0x0"}},
     "mideleg": {"delegatable_bits": {"len": "xlen", "value": "0x0"}},
@@ -209,8 +209,10 @@
       "vstart": {"zero_required": {"arith": true, "scalar_move": true}}
     },
     "B": {"supported": false, "mutable_misa": true},
+    // RSD boots with misa.S/U set, so M-mode tests can write SIE/SPIE.
+    // The UDB profile still selects only M-mode test paths and trap setup.
     "S": {
-      "supported": false,
+      "supported": true,
       "mutable_misa": true,
       "interrupts": {
         "software": {"supported": false},
@@ -218,7 +220,7 @@
         "timer": {"supported": false}
       }
     },
-    "U": {"supported": false, "mutable_misa": true},
+    "U": {"supported": true, "mutable_misa": true},
     "H": {
       "supported": false,
       "mutable_misa": true,
@@ -350,7 +352,7 @@
     "Smcntrpmf": {"supported": false},
     "Smdbltrp": {"supported": false},
     "Ssdbltrp": {"supported": false},
-    "Svbare": {"supported": false, "sfence_vma_illegal_if_svbare_only": true},
+    "Svbare": {"supported": true, "sfence_vma_illegal_if_svbare_only": true},
     "Sv32": {"supported": false},
     "Sv39": {"supported": false},
     "Sv48": {"supported": false},

@@ -17,7 +17,7 @@ _rsd_goal:
 // Unmapped in both RSD and Sail, including adjacent misaligned addresses.
 #define RVMODEL_ACCESS_FAULT_ADDRESS 0x20000000
 
-// Exception tests explicitly allocate a trap signature before including this file.
+// Privileged tests allocate a trap signature before including this file.
 #if defined(TRAP_SIGUPD_COUNT) && TRAP_SIGUPD_COUNT > 0
 #define STANDARD_SM_SUPPORTED
 // Install ACT4's M-mode trap handler without initializing unsupported HPM CSRs.
@@ -42,7 +42,8 @@ _rsd_goal:
 #define RSD_ACT4_HALT(_STATUS) \
   li a0, _STATUS; \
   fence iorw, iorw; \
-  j _rsd_goal
+  la t0, _rsd_goal; \
+  jr t0
 #define RVMODEL_HALT_PASS RSD_ACT4_HALT(0)
 #define RVMODEL_HALT_FAIL RSD_ACT4_HALT(1)
 
@@ -60,7 +61,7 @@ _rsd_goal:
 #define RVMODEL_MTIMECMP_ADDRESS 0x40014000
 #define RVMODEL_MSIP_ADDRESS 0x40010000
 
-// Interrupt tests are outside this synchronous exception subset.
+// Allow interrupt propagation and keep delayed MTI pending after WFI setup.
 #define RVMODEL_INTERRUPT_LATENCY 10
 #define RVMODEL_TIMER_INT_SOON_DELAY 10000
 

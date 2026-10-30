@@ -3,7 +3,7 @@ $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rsd-rv32i
-description: RSD integer and synchronous exception tests in machine mode
+description: RSD integer, exception and interrupt tests in machine mode
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: M, version: "= 2.0" }
