@@ -985,7 +985,8 @@ module BlockMultiBankRAM_Body #(
     Value wvBank[BANK_NUM];
     logic weBank[BANK_NUM];
 
-    Address raReg[BANK_NUM];
+    // Delay each read port's address to select its bank on the next cycle.
+    Address raReg[READ_NUM];
 
     // Raise error if the number of entries is not a multiple of 
     // the number of banks
@@ -1009,7 +1010,7 @@ module BlockMultiBankRAM_Body #(
     endgenerate
     
     always_ff @(posedge clk) begin
-        for (int i = 0; i < BANK_NUM; i++) begin
+        for (int i = 0; i < READ_NUM; i++) begin
             raReg[i] <= ra[i];
         end
     end

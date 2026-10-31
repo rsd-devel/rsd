@@ -94,6 +94,7 @@ UNIT_TESTS = \
 	BlockDualPortRAM \
 	DistributedDualPortRAM \
 	DistributedMultiPortRAM \
+	MultiBankRAM \
 	MultiWidthQueuePointer \
 	MultiWidthFreeList \
 	Divider \
