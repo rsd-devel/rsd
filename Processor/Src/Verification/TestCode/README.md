@@ -221,16 +221,17 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The default integer/privileged subset runs 78 cases: I (39), M (8), Zaamo (9),
+The integer/privileged subset runs 78 cases: I (39), M (8), Zaamo (9),
 Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), Zifencei (1), and the generated M-mode
 `ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (5).
 A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
 Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
 defines are enabled in `RSD_SRC_CFG`; disabled extensions reject explicit selection.
-F is temporarily opt-in while the remaining RTL fixes are deferred. With
-`RSD_HAS_FP=1`, select it using `ACT_EXTENSIONS=F`: the pinned generator divides
-the upstream testplan into 281 files, targeting 250 testcases per ELF to fit
-RSD's existing RAM layout. All coverpoints are retained, without upstream patches.
+F is included by default when `RSD_MARCH_FP_PIPE` is enabled, for 359 cases in
+the default RTL configuration. Use `ACT_EXTENSIONS=F` to run only F: the pinned
+generator divides the upstream testplan into 281 files, targeting 250 testcases
+per ELF to fit RSD's existing RAM layout. All coverpoints are retained, without
+upstream patches.
 FP-disabled configurations exclude F and reject explicit F selections.
 The pinned `testgen` generates privileged sources under `Build/Generated/`;
 only the M-mode cases are selected, without S/U-mode delegation variants.
@@ -282,16 +283,12 @@ WFI polling with a delayed timer. Trap signatures check cause, status, pending
 bits and the number of interrupts; they do not compare asynchronous trap PCs.
 Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
 fields and preservation of rd. Select `ACT_EXTENSIONS=Zifencei` to run it alone.
-The current RTL passes all 78 default integer/privileged cases, including `mepc` bit 1 readback.
+The CSR cases also check `mepc` bit 1 readback.
 Reference settings match RSD's access-fault priority over misalignment on unmapped
 addresses and `mtval = 0` for illegal instructions and instruction access faults.
 Any case failure makes the command fail after collecting all results.
-The F suite currently has 99 passes and 182 failures. The first mismatch is
-`fflags` in eight division/square-root files and the numerical result in 174
-rounding-mode coverpoints. Addition/multiplication/FMA report NV, OF, UF and NX
-under RNE; division/square root report NV, and division also reports DZ.
-Other rounding modes and division/square-root rounding flags need RTL work.
-These failures remain visible when F is explicitly selected.
+The F suite checks numerical results and exception flags across all five
+rounding modes, including division and square root.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
 External interrupts and S/U-mode tests are outside this subset. Sail models RSD's
