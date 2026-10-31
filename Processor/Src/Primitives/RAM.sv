@@ -12,8 +12,7 @@
 // -- Block RAM configured for READ_FIRST mode.
 // 
 // You can get a read value 1-cycle after you set a read address.
-// When you write and read simultaneously, a read value becomes
-// the written value .
+// A simultaneous read and write to the same address returns the old value.
 //
 
 // Simple Dual Port RAM ( 1-read / 1-write )
@@ -28,8 +27,6 @@ module BlockDualPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra,
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -74,8 +71,6 @@ module BlockTrueDualPortRAM #(
     input logic [ENTRY_BIT_SIZE-1: 0] wv[PORT_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[PORT_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -135,11 +130,14 @@ endmodule : BlockTrueDualPortRAM
 //
 // BlockRAM initialized at power-on
 // Initialization is NOT performed at reset
+// Used by the internal main-memory model in RTL and post-synthesis tests.
+// Normal ZedBoard builds use external AXI memory (RSD_USE_EXTERNAL_MEMORY).
+// Post-synthesis tests synthesize this RAM too, including its HEX initialization.
 //
 module InitializedBlockRAM #( 
     parameter ENTRY_NUM = 128, 
     parameter ENTRY_BIT_SIZE = 64,
-    parameter INIT_HEX_FILE = "code.hex"
+    parameter INIT_HEX_FILE = ""
 )( 
     input logic clk,
     input logic we,
@@ -149,365 +147,97 @@ module InitializedBlockRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
+`ifdef RSD_SYNTHESIS
+    // Prevent verification memory from being included in a normal synthesis build.
+    `ifndef RSD_POST_SYNTHESIS
+        `RSD_STATIC_ASSERT(1'b0, "InitializedBlockRAM is only for RTL and post-synthesis tests.");
+    `endif
+`endif
+
+    // Match code.hex so simulation and synthesis can load the same image directly.
+    // Vivado 2019.2 did not preserve initialization when a temporary HEX array
+    // was copied into an access-width array during initialization.
     localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
-    generate
-        // Add label to if and for clause to access the module that
-        // generated dynamically
-        if (ENTRY_BIT_SIZE <= HEX_FILE_ENTRY_BIT_SIZE) begin : body
-            InitializedBlockRAM_ForNarrowRequest #(
-                .ENTRY_NUM (ENTRY_NUM),
-                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
-                .INIT_HEX_FILE (INIT_HEX_FILE)
-            ) ram (
-                .clk (clk),
-                .we (we),
-                .wa (wa),
-                .wv (wv),
-                .ra (ra),
-                .rv (rv)
-            );
+    localparam HEX_FILE_ENTRY_NUM = ENTRY_NUM * ENTRY_BIT_SIZE / HEX_FILE_ENTRY_BIT_SIZE;
+    localparam WRITE_SLICE_BIT_SIZE = (ENTRY_BIT_SIZE < HEX_FILE_ENTRY_BIT_SIZE) ?
+        ENTRY_BIT_SIZE : HEX_FILE_ENTRY_BIT_SIZE;
+    localparam READ_BIT_SIZE = (ENTRY_BIT_SIZE > HEX_FILE_ENTRY_BIT_SIZE) ?
+        ENTRY_BIT_SIZE : HEX_FILE_ENTRY_BIT_SIZE;
+
+    typedef logic [ENTRY_BIT_SIZE-1:0] Value;
+    typedef logic [HEX_FILE_ENTRY_BIT_SIZE-1:0] HexValue;
+    HexValue array[HEX_FILE_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
+
+    `RSD_STATIC_ASSERT(
+        ENTRY_BIT_SIZE >= 8 && (ENTRY_BIT_SIZE & (ENTRY_BIT_SIZE-1)) == 0 &&
+        (ENTRY_NUM * ENTRY_BIT_SIZE) % HEX_FILE_ENTRY_BIT_SIZE == 0,
+        "Use a power-of-two byte width and a whole number of 128-bit HEX entries"
+    );
+
+    logic [READ_BIT_SIZE-1:0] readValue;
+    logic [$clog2(ENTRY_NUM)-1:0] readAddress;
+    Value writtenValue;
+    logic bypassWrite;
+
+    // Keep the RAM accesses in one process: Vivado 2019.2 loses initialization
+    // when partial writes are split into separate generated processes.
+    // Initialization routines also write array, so this is not an always_ff process.
+    // Register the complete HEX word for BRAM inference; select its slice afterward.
+    // Port addresses count ENTRY_BIT_SIZE-bit words, rather than HEX entries.
+    // Wider requests work in simulation, but 256-bit requests did not infer BRAM
+    // with Vivado 2019.2 or Synplify U-2023.03. Post-synthesis tests use 64 bits.
+    always @(posedge clk) begin
+        for (int word = 0; word < READ_BIT_SIZE / HEX_FILE_ENTRY_BIT_SIZE; word++) begin
+            readValue[word*HEX_FILE_ENTRY_BIT_SIZE+:HEX_FILE_ENTRY_BIT_SIZE] <=
+                array[ra*ENTRY_BIT_SIZE/HEX_FILE_ENTRY_BIT_SIZE + word];
+            // Fixed slices infer write enables. Reading and rewriting the full word
+            // would add a RAM read port and prevented BRAM-only inference in Synplify.
+            for (int lane = 0; lane < HEX_FILE_ENTRY_BIT_SIZE / WRITE_SLICE_BIT_SIZE; lane++) begin
+                if (we && (wa*ENTRY_BIT_SIZE % HEX_FILE_ENTRY_BIT_SIZE) == lane*WRITE_SLICE_BIT_SIZE)
+                    array[wa*ENTRY_BIT_SIZE/HEX_FILE_ENTRY_BIT_SIZE + word]
+                         [lane*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE] <=
+                        wv[word*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE];
+            end
         end
-        else begin : body
-            InitializedBlockRAM_ForWideRequest #(
-                .ENTRY_NUM (ENTRY_NUM),
-                .ENTRY_BIT_SIZE (ENTRY_BIT_SIZE),
-                .INIT_HEX_FILE (INIT_HEX_FILE)
-            ) ram (
-                .clk (clk),
-                .we (we),
-                .wa (wa),
-                .wv (wv),
-                .ra (ra),
-                .rv (rv)
-            );
-        end
-    endgenerate
+    end
+
+    always @(posedge clk) begin
+        readAddress <= ra;
+        writtenValue <= wv;
+        bypassWrite <= we && wa == ra;
+    end
+    // Preserve one-cycle write-first behavior independently of the inferred RAM mode.
+    // Compare port addresses: writing another slice of the same HEX word must not bypass.
+    assign rv = bypassWrite ? writtenValue :
+                (readValue >> (readAddress*ENTRY_BIT_SIZE % HEX_FILE_ENTRY_BIT_SIZE));
+
+    // Simulation and synthesis read the same 128-bit HEX image directly.
+    initial begin
+        if (INIT_HEX_FILE != "")
+            $readmemh(INIT_HEX_FILE, array);
+    end
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
     `ifndef RSD_POST_SYNTHESIS
-    // Initialize memory data with file read data
-    function automatic void InitializeMemory(string INIT_HEX_FILE);
-        $readmemh(INIT_HEX_FILE, body.ram.array);
+    function automatic void InitializeMemory(input string fileName);
+        // Sparse images leave unspecified words untouched, preserving dummy data or writes.
+        $readmemh(fileName, array);
     endfunction
 
     function automatic void FillDummyData();
-        integer entry;
         // Keep unwritten memory deterministic; existing tests expect 0xcd bytes.
-        for ( entry = 0; entry < $size(body.ram.array); entry++ ) begin
-            body.ram.array[entry] = {HEX_FILE_ENTRY_BIT_SIZE/8{8'hcd}};
-        end
+        for (int i = 0; i < HEX_FILE_ENTRY_NUM; i++)
+            array[i] = {HEX_FILE_ENTRY_BIT_SIZE/8{8'hcd}};
     endfunction
     `endif
 `endif
-    
+
+    `RSD_ASSERT_CLK_FMT(clk, !(we && wa >= ENTRY_NUM),
+                        ("Write to the outside of the RAM array."));
+    `RSD_ASSERT_CLK_FMT(clk, !(ra >= ENTRY_NUM),
+                        ("Read from the outside of the RAM array."));
 endmodule : InitializedBlockRAM
 
-
-//
-// InitializedBlockRAM that supports a bandwidth of 128 bits or less
-//
-module InitializedBlockRAM_ForNarrowRequest #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64,
-    parameter INIT_HEX_FILE = "code.hex"
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0] wa,
-    input logic [ENTRY_BIT_SIZE-1: 0] wv,
-    input logic [$clog2(ENTRY_NUM)-1: 0] ra,
-    output logic [ENTRY_BIT_SIZE-1: 0] rv
-);
-
-    // Request side
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    localparam ENTRY_BIT_WIDTH = $clog2(ENTRY_BIT_SIZE);
-
-    // Since the hex file is read in 128 bits units, the memory array is also 128 bits units.
-    localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
-    // Calculates the index width when the memory array is configured in 128 bits units from the bandwidth
-    // ********-------   : 128 bits memory array (Actual memory array)
-    // *********------  : 64 bits memory array (Externally visible memory array)
-    // (Index)   (Offset)
-    // The sum of the bit width of Index and Offset is always the same
-    localparam HEX_FILE_ENTRY_BIT_WIDTH = $clog2(HEX_FILE_ENTRY_BIT_SIZE);
-    localparam HEX_FILE_INDEX_BIT_SIZE = INDEX_BIT_SIZE + ENTRY_BIT_WIDTH - HEX_FILE_ENTRY_BIT_WIDTH;
-
-    // Hex file memory array
-    localparam HEX_BLOCK_OFFSET_INDEX = 
-        (INDEX_BIT_SIZE > HEX_FILE_INDEX_BIT_SIZE) ? INDEX_BIT_SIZE - HEX_FILE_INDEX_BIT_SIZE : 1;
-    typedef logic [HEX_FILE_INDEX_BIT_SIZE-1: 0] HexArrayIndex;
-    typedef logic [HEX_FILE_ENTRY_BIT_SIZE-1: 0] HexArrayValue;
-    typedef logic [HEX_BLOCK_OFFSET_INDEX-1:0] HexArrayEntryOffset;
-
-    // Raise an error if the bandwidth is greater than 128 bits
-    `RSD_STATIC_ASSERT(
-        HEX_FILE_ENTRY_BIT_WIDTH <= ENTRY_BIT_SIZE, 
-        "Set ENTRY_BIT_SIZE less than or equal to 128 bits"
-    );
-
-    function automatic HexArrayEntryOffset GetBlockOffsetFromAddress(Address addr);
-        if (INDEX_BIT_SIZE > HEX_FILE_INDEX_BIT_SIZE)  begin
-            return addr[HEX_BLOCK_OFFSET_INDEX-1:0];
-        end
-        else begin
-            return '0;
-        end
-    endfunction
-
-    function automatic HexArrayIndex GetHexArrayIndexFromAddress(Address addr);
-        if (INDEX_BIT_SIZE > HEX_FILE_INDEX_BIT_SIZE)  begin
-            return addr[INDEX_BIT_SIZE-1:HEX_BLOCK_OFFSET_INDEX];
-        end
-        else begin
-            return addr;
-        end
-    endfunction
-
-    localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
-    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
-
-    Address raReg;
-    HexArrayIndex hexFileRA;
-    HexArrayValue hexFileRV;
-    HexArrayEntryOffset hexFileRAOffset;
-
-    HexArrayIndex hexFileWA;
-    HexArrayValue hexFileWV;
-    HexArrayEntryOffset hexFileWAOffset;
-    HexArrayValue tmpWriteEntry;
-    // Hack for synplify: avoid being inferred as asymmetric RAM
-    HexArrayValue dummyRV/* synthesis syn_noprune=1 */;
-
-    always_ff @(posedge clk) begin
-        if (we) begin
-            array[hexFileWA] <= hexFileWV;
-        end
-            
-        raReg <= ra;
-        dummyRV <= hexFileRV;
-    end
-    
-    // Read request
-    always_comb begin
-        // Read from the hex file array
-        hexFileRA = GetHexArrayIndexFromAddress(raReg);
-        hexFileRAOffset =GetBlockOffsetFromAddress(raReg);
-        hexFileRV = array[hexFileRA];
-        // Reads the position specified by the offset in the 128 bits entry
-        rv = hexFileRV[hexFileRAOffset*ENTRY_BIT_SIZE+:ENTRY_BIT_SIZE];
-    end
-
-    // Write request
-    always_comb begin
-        // Write to the hex file array
-        hexFileWA = GetHexArrayIndexFromAddress(wa);
-        hexFileWAOffset = GetBlockOffsetFromAddress(wa);
-
-        // Since only the appropriate part of the 128-bit entry needs 
-        // to be rewritten, read the data once
-        tmpWriteEntry = array[hexFileWA];
-        // Update only the appropriate parts
-        tmpWriteEntry[hexFileWAOffset*ENTRY_BIT_SIZE+:ENTRY_BIT_SIZE] = wv;
-        hexFileWV = tmpWriteEntry;
-    end
-
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
-        end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && wa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(ra >= ENTRY_NUM),
-            ("Read from the outside of the RAM array.")
-        );
-    endgenerate
-
-endmodule : InitializedBlockRAM_ForNarrowRequest
-
-
-//
-// InitializedBlockRAM that supports a bandwidth of 256 bits or more
-//
-module InitializedBlockRAM_ForWideRequest #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64,
-    parameter INIT_HEX_FILE = "code.hex"
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0] wa,
-    input logic [ENTRY_BIT_SIZE-1: 0] wv,
-    input logic [$clog2(ENTRY_NUM)-1: 0] ra,
-    output logic [ENTRY_BIT_SIZE-1: 0] rv
-);
-
-    // Request side
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    localparam ENTRY_BIT_WIDTH = $clog2(ENTRY_BIT_SIZE);
-
-    // Since the hex file is read in 128 bits units, the memory array is also 128 bits units.
-    localparam HEX_FILE_ENTRY_BIT_SIZE = 128;
-    // Calculates the index width when the memory array is configured in 128 bits units from the bandwidth
-    // ********-------   : 128 bits memory array (Actual memory array)
-    // *******--------   : 256 bits memory array  (Externally visible memory array)
-    // (Index)   (Offset)
-    // The sum of the bit width of Index and Offset is always the same
-    localparam HEX_FILE_ENTRY_BIT_WIDTH = $clog2(HEX_FILE_ENTRY_BIT_SIZE);
-    localparam HEX_FILE_INDEX_BIT_SIZE = 
-        INDEX_BIT_SIZE + ENTRY_BIT_WIDTH - HEX_FILE_ENTRY_BIT_WIDTH;
-
-    // Since the bandwidth is wide, 
-    // read is realized by accessing hexArray multiple times.
-    // Therefore, calculate how many times hexArray needs to be accessed
-    localparam DIFF_BIT_WIDTH = (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) ? 
-        HEX_FILE_INDEX_BIT_SIZE - INDEX_BIT_SIZE : 1;
-    typedef logic [DIFF_BIT_WIDTH-1:0] CountPath;
-    localparam HEX_BLOCK_FILL_NUM = (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) ?
-        1 << DIFF_BIT_WIDTH : 1;
-
-    // Hex file memory array
-    typedef logic [HEX_FILE_INDEX_BIT_SIZE-1: 0] HexArrayIndex;
-    typedef logic [HEX_FILE_ENTRY_BIT_SIZE-1: 0] HexArrayValue;
-
-    // Raise an error if the bandwidth is smaller than or equal to 128 bits
-    `RSD_STATIC_ASSERT(
-        HEX_FILE_ENTRY_BIT_WIDTH <= ENTRY_BIT_WIDTH, 
-        "Set ENTRY_BIT_SIZE more than 128 bits"
-    );
-
-    function automatic HexArrayIndex GetHexArrayIndexFromAddress(Address addr, CountPath count);
-        if (HEX_FILE_INDEX_BIT_SIZE > INDEX_BIT_SIZE) begin
-            return {addr, count};
-        end
-        else begin
-            return addr;
-        end
-    endfunction
-
-    localparam HEX_FILE_ARRAY_ENTRY_NUM = 1 << HEX_FILE_INDEX_BIT_SIZE;
-    HexArrayValue array[HEX_FILE_ARRAY_ENTRY_NUM]; // synthesis syn_ramstyle = "block_ram"
-
-    Address raReg;
-    HexArrayIndex hexFileRA[HEX_BLOCK_FILL_NUM];
-    HexArrayValue hexFileRV[HEX_BLOCK_FILL_NUM];
-
-    HexArrayIndex hexFileWA[HEX_BLOCK_FILL_NUM];
-    HexArrayValue hexFileWV[HEX_BLOCK_FILL_NUM];
-
-    always_ff @(posedge clk) begin
-        if (we) begin
-            for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
-                array[hexFileWA[i]] <= hexFileWV[i];
-            end
-        end
-            
-        raReg <= ra;
-    end
-    
-    // Read request
-    always_comb begin
-        // Read from the hex file array
-        for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
-            hexFileRA[i] = GetHexArrayIndexFromAddress(raReg, i);
-            hexFileRV[i] = array[hexFileRA[i]];
-            rv[HEX_FILE_ENTRY_BIT_SIZE*i+:HEX_FILE_ENTRY_BIT_SIZE] = hexFileRV[i];
-        end
-    end
-
-    // Write request
-    always_comb begin
-        // Write to the hex file array
-        for (int i = 0; i < HEX_BLOCK_FILL_NUM; i++) begin
-            hexFileWA[i] = GetHexArrayIndexFromAddress(wa, i);
-            hexFileWV[i] = wv[HEX_FILE_ENTRY_BIT_SIZE*i+:HEX_FILE_ENTRY_BIT_SIZE];
-        end
-    end
-
-    initial begin
-        if (INIT_HEX_FILE != "") begin
-            $readmemh(INIT_HEX_FILE, array);
-        end
-        else begin
-            $display(
-                "INIT_HEX_FILE in InitializedBlockRAM is not specified, so no file is read."
-            );
-        end
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && wa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(ra >= ENTRY_NUM),
-            ("Read from the outside of the RAM array.")
-        );
-    endgenerate
-
-endmodule : InitializedBlockRAM_ForWideRequest
-
-
-//
-// Single Port RAM using Distributed RAM
-// multi read/write
-
-module DistributedSinglePortRAM #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0] rwa,
-    input logic [ENTRY_BIT_SIZE-1: 0] wv,
-    output logic [ENTRY_BIT_SIZE-1: 0] rv
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-
-    Value array[ENTRY_NUM]; // synthesis syn_ramstyle = "select_ram"
-    
-    always_ff @(posedge clk) begin
-        if(we)
-            array[rwa] <= wv;
-    end
-    
-    always_comb begin
-        rv = array[rwa];
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && rwa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-    endgenerate
-
-endmodule : DistributedSinglePortRAM
 
 //
 // Multi ports RAM using Distributed RAM
@@ -527,8 +257,6 @@ module DistributedDualPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];  // synthesis syn_ramstyle = "select_ram"
 
@@ -574,8 +302,6 @@ module RegisterDualPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "registers"
 
@@ -615,59 +341,6 @@ module RegisterDualPortRAM #(
 endmodule : RegisterDualPortRAM
 
 
-// 1-read-write / (N-1)-read ports
-module DistributedSharedMultiPortRAM #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64,
-    parameter READ_NUM  = 4
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0 ] rwa,
-    input logic [ENTRY_BIT_SIZE-1: 0 ] wv,
-    input logic [$clog2(ENTRY_NUM)-1: 0 ] ra[READ_NUM-1],
-    output logic [ENTRY_BIT_SIZE-1: 0 ] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    Value array[ ENTRY_NUM ];  // synthesis syn_ramstyle = "select_ram"
-
-    always_ff @(posedge clk) begin
-        if(we)
-            array[rwa] <= wv;
-    end
-    
-    always_comb begin
-        for (int i = 0; i < READ_NUM-1; i++) begin
-            rv[i] = array[ ra[i] ];
-        end
-        rv[READ_NUM-1] = array[rwa];
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(rwa >= ENTRY_NUM),
-            ("Port (%x) read from or write to the outside of the RAM array.", 0)
-        );
-
-`ifndef RSD_VIVADO_SIMULATION
-        for (genvar i = 0; i < READ_NUM-1; i++) begin
-            `RSD_ASSERT_CLK_FMT(
-                clk,
-                !(ra >= ENTRY_NUM),
-                ("Port (%x) read from the outside of the RAM array.", i+1)
-            );
-        end
-`endif
-    endgenerate
-        
-endmodule : DistributedSharedMultiPortRAM
-
-
-
 // N-read / M-write (Use Live Value Table)
 module LVT_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
@@ -682,8 +355,6 @@ module LVT_DistributedMultiPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     
     // avoid logic[-1:0] when WRITE_NUM == 1
@@ -780,8 +451,6 @@ module XOR_DistributedMultiPortRAM #(
     localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
     typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam WRITE_NUM_BIT_SIZE = $clog2(WRITE_NUM);
     
     Value rwbWriteValue[WRITE_NUM];
     Address wbReadAddr[WRITE_NUM];
@@ -912,7 +581,6 @@ module DistributedMultiPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
     localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     generate 
@@ -974,8 +642,6 @@ module RegisterMultiPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -1040,25 +706,118 @@ module DistributedMultiBankRAM #(
     input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
 
+    // Raise error if the number of entries is not a multiple of
+    // the number of banks
+    `RSD_STATIC_ASSERT(
+        ENTRY_NUM % BANK_NUM == 0,
+        "Set the number of entries a multiple of the number of banks."
+    );
 
     generate
-        if (BANK_NUM >= 2) begin
-            DistributedMultiBankRAM_ForGE2Banks#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
-                rBank(clk, we, wa, wv, ra, rv);
+        if (BANK_NUM >= 2) begin : banks
+            localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+            typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+
+            Address waBank[BANK_NUM];
+            Address raBank[BANK_NUM];
+            Value rvBank[BANK_NUM];
+            Value wvBank[BANK_NUM];
+            logic weBank[BANK_NUM];
+
+            for (genvar i = 0; i < BANK_NUM; i++) begin
+                if (ENTRY_BIT_SIZE < 8) begin
+                    RegisterDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                        rBank(
+                            clk,
+                            weBank[i],
+                            waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            wvBank[i],
+                            raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            rvBank[i]
+                        );
+                end
+                else begin
+                    DistributedDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                        rBank(
+                            clk,
+                            weBank[i],
+                            waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            wvBank[i],
+                            raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            rvBank[i]
+                        );
+                end
+            end
+
+            always_comb begin
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    weBank[b] = '0;     // It must be 0.
+                    waBank[b] = wa[0];  // Don't care
+                    wvBank[b] = wv[0];
+
+                    for (int i = 0; i < WRITE_NUM; i++) begin
+                        if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            weBank[b] = we[i];
+                            waBank[b] = wa[i];
+                            wvBank[b] = wv[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    raBank[b] = ra[0]; // Don't care
+                    for (int i = 0; i < READ_NUM; i++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            raBank[b] = ra[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int i = 0; i < READ_NUM; i++) begin
+                    rv[i] = rvBank[0];  // Don't care
+                    for (int b = 0; b < BANK_NUM; b++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            rv[i] = rvBank[b];
+                            break;
+                        end
+                    end
+                end
+
+            end
+
+            for (genvar j = 0; j < WRITE_NUM; j++) begin
+                for (genvar i = 0; i < WRITE_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) write to the same bank.", i, j)
+                    );
+                end
+            end
+            for (genvar j = 0; j < READ_NUM; j++) begin
+                for (genvar i = 0; i < READ_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) read from the same bank.", i, j)
+                    );
+                end
+            end
         end
-        else begin
+        else begin : singleBank
+            // A single bank has no bank-select bits.
             DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
     endgenerate
-
 
 `ifndef RSD_SYNTHESIS
     // For Debug
@@ -1091,134 +850,6 @@ module DistributedMultiBankRAM #(
 
 endmodule : DistributedMultiBankRAM
 
-//
-// --- Distributed RAM consisting of multiple banks
-// Generated in DistributedMultiBankRAM when the number of banks is 2 or more
-//
-module DistributedMultiBankRAM_ForGE2Banks #( 
-    parameter ENTRY_NUM = 64, 
-    parameter ENTRY_BIT_SIZE = 63, 
-    parameter READ_NUM  = 4,
-    parameter WRITE_NUM = 2
-)( 
-    input  logic clk,
-    input  logic we[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] wa[WRITE_NUM],
-    input  logic [ENTRY_BIT_SIZE-1: 0] wv[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
-    output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
-    localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-    localparam BANK_INDEX_BIT_SIZE = INDEX_BIT_SIZE - BANK_NUM_BIT_WIDTH;
-
-    
-    Address waBank[BANK_NUM];
-    Address raBank[BANK_NUM];
-    Value rvBank[BANK_NUM];
-    Value wvBank[BANK_NUM];
-    logic weBank[BANK_NUM];
-    
-    // Raise error if the number of entries is not a multiple of 
-    // the number of banks
-    `RSD_STATIC_ASSERT(
-        ENTRY_NUM % BANK_NUM == 0,
-        "Set the number of entries a multiple of the number of banks."
-    );
-
-    generate 
-        for (genvar i = 0; i < BANK_NUM; i++) begin
-            if (ENTRY_BIT_SIZE < 8) begin
-                RegisterDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
-                    rBank(
-                        clk, 
-                        weBank[i], 
-                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        wvBank[i], 
-                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        rvBank[i]
-                    );
-            end
-            else begin
-                DistributedDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
-                    rBank(
-                        clk, 
-                        weBank[i], 
-                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        wvBank[i], 
-                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        rvBank[i]
-                    );
-            end
-        end
-    endgenerate
-    
-    always_comb begin
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            weBank[b] = '0;     // It must be 0.
-            waBank[b] = wa[0];  // Don't care
-            wvBank[b] = wv[0];
-            
-            for (int i = 0; i < WRITE_NUM; i++) begin
-                if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    weBank[b] = we[i];
-                    waBank[b] = wa[i];
-                    wvBank[b] = wv[i];
-                    break;
-                end
-            end
-        end
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            raBank[b] = ra[0]; // Don't care
-            for (int i = 0; i < READ_NUM; i++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    raBank[b] = ra[i];
-                    break;
-                end
-            end
-        end
-
-        for (int i = 0; i < READ_NUM; i++) begin
-            rv[i] = rvBank[0];  // Don't care
-            for (int b = 0; b < BANK_NUM; b++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    rv[i] = rvBank[b];
-                    break;
-                end
-            end
-        end
-        
-    end
-
-    generate
-        for (genvar j = 0; j < WRITE_NUM; j++) begin
-            for (genvar i = 0; i < WRITE_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) write to the same bank.", i, j)
-                );
-            end
-        end
-        for (genvar j = 0; j < READ_NUM; j++) begin
-            for (genvar i = 0; i < READ_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) read from the same bank.", i, j)
-                );
-            end
-        end
-    endgenerate
-    
-endmodule : DistributedMultiBankRAM_ForGE2Banks
-
 
 //
 // --- Block RAM consisting of multiple banks
@@ -1238,19 +869,109 @@ module BlockMultiBankRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
     
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
 
+    // Raise error if the number of entries is not a multiple of
+    // the number of banks
+    `RSD_STATIC_ASSERT(
+        ENTRY_NUM % BANK_NUM == 0,
+        "Set the number of entries a multiple of the number of banks."
+    );
+
     generate 
-        if (BANK_NUM >= 2) begin
-            BlockMultiBankRAM_Body#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
-                rBank(clk, we, wa, wv, ra, rv);
+        if (BANK_NUM >= 2) begin : banks
+            localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+            typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+
+            Address waBank[BANK_NUM];
+            Address raBank[BANK_NUM];
+            Value rvBank[BANK_NUM];
+            Value wvBank[BANK_NUM];
+            logic weBank[BANK_NUM];
+
+            // Delay each read port's address to select its bank on the next cycle.
+            Address raReg[READ_NUM];
+
+            for (genvar i = 0; i < BANK_NUM; i++) begin
+                BlockDualPortRAM#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
+                    rBank(
+                        clk,
+                        weBank[i],
+                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                        wvBank[i],
+                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                        rvBank[i]
+                    );
+            end
+
+            always_ff @(posedge clk) begin
+                for (int i = 0; i < READ_NUM; i++) begin
+                    raReg[i] <= ra[i];
+                end
+            end
+
+            always_comb begin
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    weBank[b] = '0;     // It must be 0.
+                    waBank[b] = wa[0];  // Don't care
+                    wvBank[b] = wv[0];
+
+                    for (int i = 0; i < WRITE_NUM; i++) begin
+                        if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            weBank[b] = we[i];
+                            waBank[b] = wa[i];
+                            wvBank[b] = wv[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    raBank[b] = ra[0]; // Don't care
+                    for (int i = 0; i < READ_NUM; i++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            raBank[b] = ra[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int i = 0; i < READ_NUM; i++) begin
+                    rv[i] = rvBank[0];  // Don't care
+                    for (int b = 0; b < BANK_NUM; b++) begin
+                        if (raReg[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            rv[i] = rvBank[b];
+                            break;
+                        end
+                    end
+                end
+            end
+
+            for (genvar j = 0; j < WRITE_NUM; j++) begin
+                for (genvar i = 0; i < WRITE_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) write to the same bank.", i, j)
+                    );
+                end
+            end
+            for (genvar j = 0; j < READ_NUM; j++) begin
+                for (genvar i = 0; i < READ_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                       !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) read from the same bank.", i, j)
+                    );
+                end
+            end
         end
-        else begin
+        else begin : singleBank
+            // A single bank has no bank-select bits.
             BlockDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
@@ -1291,126 +1012,3 @@ module BlockMultiBankRAM #(
 `endif
 
 endmodule : BlockMultiBankRAM
-
-
-//
-// --- Block RAM consisting of multiple banks
-// Generated in BlockMultiBankRAM when the number of banks is 2 or more
-//
-module BlockMultiBankRAM_Body #(
-    parameter ENTRY_NUM = 64, 
-    parameter ENTRY_BIT_SIZE = 63, 
-    parameter READ_NUM  = 2,
-    parameter WRITE_NUM = 2
-)( 
-    input  logic clk,
-    input  logic we[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] wa[WRITE_NUM],
-    input  logic [ENTRY_BIT_SIZE-1: 0] wv[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
-    output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
-    localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-    localparam BANK_INDEX_BIT_SIZE = INDEX_BIT_SIZE - BANK_NUM_BIT_WIDTH;
-
-    
-    Address waBank[BANK_NUM];
-    Address raBank[BANK_NUM];
-    Value rvBank[BANK_NUM];
-    Value wvBank[BANK_NUM];
-    logic weBank[BANK_NUM];
-
-    Address raReg[BANK_NUM];
-
-    // Raise error if the number of entries is not a multiple of 
-    // the number of banks
-    `RSD_STATIC_ASSERT(
-        ENTRY_NUM % BANK_NUM == 0,
-        "Set the number of entries a multiple of the number of banks."
-    );
-    
-    generate 
-        for (genvar i = 0; i < BANK_NUM; i++) begin
-            BlockDualPortRAM#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
-                rBank(
-                    clk, 
-                    weBank[i], 
-                    waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                    wvBank[i], 
-                    raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                    rvBank[i]
-                );
-        end
-    endgenerate
-    
-    always_ff @(posedge clk) begin
-        for (int i = 0; i < BANK_NUM; i++) begin
-            raReg[i] <= ra[i];
-        end
-    end
-
-    always_comb begin
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            weBank[b] = '0;     // It must be 0.
-            waBank[b] = wa[0];  // Don't care
-            wvBank[b] = wv[0];
-            
-            for (int i = 0; i < WRITE_NUM; i++) begin
-                if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    weBank[b] = we[i];
-                    waBank[b] = wa[i];
-                    wvBank[b] = wv[i];
-                    break;
-                end
-            end
-        end
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            raBank[b] = ra[0]; // Don't care
-            for (int i = 0; i < READ_NUM; i++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    raBank[b] = ra[i];
-                    break;
-                end
-            end
-        end
-
-        for (int i = 0; i < READ_NUM; i++) begin
-            rv[i] = rvBank[0];  // Don't care
-            for (int b = 0; b < BANK_NUM; b++) begin
-                if (raReg[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    rv[i] = rvBank[b];
-                    break;
-                end
-            end
-        end
-    end
-
-    generate
-        for (genvar j = 0; j < WRITE_NUM; j++) begin
-            for (genvar i = 0; i < WRITE_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) write to the same bank.", i, j)
-                );
-            end
-        end
-        for (genvar j = 0; j < READ_NUM; j++) begin
-            for (genvar i = 0; i < READ_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                   !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) read from the same bank.", i, j)
-                );
-            end
-        end
-    endgenerate
-
-endmodule : BlockMultiBankRAM_Body
