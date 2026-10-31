@@ -535,6 +535,49 @@ main:
     CHECK_FMA_MODE rup, 3, 0x00800000, 0x03
     CHECK_FMA_MODE rmm, 4, 0x00800000, 0x03
 
+    # A negative accumulator needs the complement increment even when exact.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    fmv.w.x ft1, t0
+    li t0, 0xc0000000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0xbf800000, 0x00
+    CHECK_FMA_MODE rtz, 1, 0xbf800000, 0x00
+    CHECK_FMA_MODE rdn, 2, 0xbf800000, 0x00
+    CHECK_FMA_MODE rup, 3, 0xbf800000, 0x00
+    CHECK_FMA_MODE rmm, 4, 0xbf800000, 0x00
+
+    # Cancellation into a low bit must stay exact after late negation.
+    li t0, 0xbf800001
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0xb4000000, 0x00
+    CHECK_FMA_MODE rtz, 1, 0xb4000000, 0x00
+    CHECK_FMA_MODE rdn, 2, 0xb4000000, 0x00
+    CHECK_FMA_MODE rup, 3, 0xb4000000, 0x00
+    CHECK_FMA_MODE rmm, 4, 0xb4000000, 0x00
+
+    # A negative halfway result rounds to minimum normal but remains tiny.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000
+    fmv.w.x ft1, t0
+    li t0, 0x80800000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x80800000, 0x03
+    CHECK_FMA_MODE rtz, 1, 0x807fffff, 0x03
+    CHECK_FMA_MODE rdn, 2, 0x80800000, 0x03
+    CHECK_FMA_MODE rup, 3, 0x807fffff, 0x03
+    CHECK_FMA_MODE rmm, 4, 0x80800000, 0x03
+
+    # Half the negative minimum subnormal tests the late carry and zero sign.
+    li t0, 0x80000001
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x80000000, 0x03
+    CHECK_FMA_MODE rtz, 1, 0x80000000, 0x03
+    CHECK_FMA_MODE rdn, 2, 0x80000001, 0x03
+    CHECK_FMA_MODE rup, 3, 0x80000000, 0x03
+    CHECK_FMA_MODE rmm, 4, 0x80000001, 0x03
+
     csrw frm, zero
     fmv.w.x ft3, zero
 
