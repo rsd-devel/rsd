@@ -20,8 +20,8 @@ ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSION
 	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
 	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
 	$(if $(filter 1,$(RSD_HAS_FP)),F)
-# Keep F opt-in until rounding modes and div/sqrt rounding flags are implemented.
-ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(filter-out F,$(ACT_AVAILABLE_EXTENSIONS))))
+# Select all validated extensions enabled in the current RTL configuration.
+ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(ACT_AVAILABLE_EXTENSIONS)))
 ACT_EXTENSION_LIST := $(subst $(comma), ,$(ACT_EXTENSIONS))
 # Upstream's 1,000-testcase FP files exceed RSD's fixed ROM/RAM layout.
 # Include the generated list so make also selects new chunks on the first build.

@@ -5,6 +5,7 @@ input
     logic clk, rst,
     logic [31:0] lhs,
     logic [31:0] rhs,
+    logic [2:0] rm,
     logic is_divide,
     logic req,
 output
@@ -30,6 +31,26 @@ output
         input[22:0] x;
         for(leading_zeros_count = 0; leading_zeros_count <= 22; leading_zeros_count = leading_zeros_count + 1)
             if(x >> (22-leading_zeros_count) != 0) break;
+    endfunction
+
+    // The SRT quotient can lie on either side of the exact value. A negative
+    // remainder just below a grid point needs a decrement when truncating.
+    function automatic logic [1:0] RoundAdjustment(
+        input logic [2:0] mode,
+        input logic sign, lsb, guard_bit, sticky_bit, rem_negative, rem_positive
+    );
+        RoundAdjustment = '0; // {decrement, increment}
+        case (mode)
+            3'b001, 3'b010, 3'b011: begin // RTZ, RDN, RUP
+                if ((mode == 3'b010 && sign) || (mode == 3'b011 && !sign))
+                    RoundAdjustment[0] = guard_bit || sticky_bit || rem_positive;
+                else
+                    RoundAdjustment[1] = !guard_bit && !sticky_bit && rem_negative;
+            end
+            3'b100: RoundAdjustment[0] = guard_bit && (sticky_bit || !rem_negative); // RMM
+            default: RoundAdjustment[0] = guard_bit &&
+                         (sticky_bit || rem_positive || (!rem_negative && lsb)); // RNE
+        endcase
     endfunction
     typedef enum logic[1:0]
     {
@@ -82,8 +103,6 @@ output
     wire dividend_normalize = regData.v_lhs_mant < regData.v_rhs_mant;
     wire [9:0] virtual_expo = regData.v_lhs_expo - regData.v_rhs_expo + 127 - { 8'h0, dividend_normalize }; // new biased virtual exponent (ignores subnormals)
     wire       subnormal    = regData.is_divide & $signed(virtual_expo) <= 0;
-    wire       res_is_zero  = regData.is_divide ? $signed(virtual_expo) <= -24 | regData.res_is_zero
-                                        : regData.res_is_zero;
 
     // The SRT loop. rem needs 27 bits. 24(mantissa)+2(x8/3,SRT)+1(sign)
     wire[26:0] rem_0 = regData.is_divide ? dividend_normalize ? { 2'b00, regData.v_lhs_mant, 1'b0 } : { 3'b000, regData.v_lhs_mant }
@@ -114,20 +133,61 @@ output
         quo = quo + ({ {23{q[2]}}, q } << (regCounter));
     end
     
-    wire[47:0] before_round = regData.subnormal ? { 1'b1, regData.quo[23:0], 23'h0 } >> -regData.virtual_expo : { regData.quo[23:0], 24'h0 };
-    wire       round_away   = before_round[24] & ( (before_round[23:0] == 0 & regData.rem == 0 & before_round[25]) | before_round[23:0] != 0 | $signed(regData.rem) > 0 ); // round nearest, ties to even
-    wire       exp_plus_one = before_round[47:25] == 23'h7fffff & round_away;
-    wire[22:0] result_mant  = before_round[47:25] + { 22'h0, round_away }; // No special treatment is required even if a overflow occurs since the answer will be 0 and it will be correct.
-    wire [7:0] result_expo  = regData.is_divide ? (subnormal ? 8'h00 : regData.virtual_expo[7:0]) + { 7'h0, exp_plus_one }
-                                                : regData.v_lhs_expo[8:1] + { 7'b0, regData.v_lhs_expo[0] } + 63;
-    wire       res_is_inf   = regData.is_divide ? $signed(regData.virtual_expo) >= 255 | regData.res_is_inf | result_expo == 8'hff
-                                                : regData.res_is_inf;
+    // Values below half the minimum subnormal still round up in an outward
+    // directed mode. Preserve a sticky bit instead of forcing them to zero.
+    wire very_tiny = regData.is_divide && $signed(regData.virtual_expo) <= -24;
+    wire [47:0] before_round = very_tiny ? 48'd1 : regData.subnormal ?
+        {1'b1, regData.quo[23:0], 23'b0} >> -regData.virtual_expo : {regData.quo[23:0], 24'b0};
+    wire rem_negative = regData.rem[26];
+    wire rem_positive = !rem_negative && regData.rem != 0;
+    wire [1:0] round_adjustment = RoundAdjustment(regData.rm, regData.result_sign,
+        before_round[25], before_round[24], |before_round[23:0], rem_negative, rem_positive);
+    // Compute exponent carry independently of the significand adder.
+    wire exp_plus_one = (round_adjustment[0] && (&before_round[47:25])) ||
+        (regData.subnormal && round_adjustment[1] && !(|before_round[47:25]));
+    // Form each carry/borrow prefix before the rounding decision arrives.
+    wire [22:0] result_mant;
+    for (genvar i = 0; i < 23; i++) begin : g_round
+        if (i == 0) begin
+            assign result_mant[i] = before_round[25] ^ (|round_adjustment);
+        end
+        else begin
+            assign result_mant[i] = before_round[i+25] ^
+                ((round_adjustment[0] && (&before_round[i+24:25])) ||
+                 (round_adjustment[1] && !(|before_round[i+24:25])));
+        end
+    end
+    wire [7:0] result_expo = (regData.is_divide ?
+        (regData.subnormal ? 8'b0 : regData.virtual_expo[7:0]) :
+        regData.v_lhs_expo[8:1] + {7'b0, regData.v_lhs_expo[0]} + 8'd63) + {7'b0, exp_plus_one};
     wire[31:0] inf          = { regData.result_sign, 8'hff, 23'h0 };
     wire[31:0] zero         = {{ regData.is_divide ? regData.result_sign : regData.lhs_sign }, 8'h00, 23'h0 };
 
-    wire[31:0] final_result = regData.res_is_nan  ? regData.nan :
-                              regData.res_is_zero ? zero :
-                              res_is_inf  ? inf  : { regData.result_sign, result_expo, result_mant };
+    // Only finite, nonzero arithmetic can raise rounding exceptions.
+    wire finite_nonzero = !regData.res_is_nan && !regData.res_is_inf &&
+                          regData.v_lhs_mant != 0 &&
+                          (!regData.is_divide || regData.v_rhs_expo != 255);
+    wire overflow = finite_nonzero && regData.is_divide &&
+        ($signed(regData.virtual_expo) >= 255 ||
+         (regData.virtual_expo == 254 && exp_plus_one));
+    wire overflow_to_inf = regData.rm == 3'b000 || regData.rm == 3'b100 ||
+        (regData.rm == 3'b010 && regData.result_sign) ||
+        (regData.rm == 3'b011 && !regData.result_sign);
+    wire [31:0] overflow_result = overflow_to_inf ? inf : {regData.result_sign, 31'h7f7fffff};
+    wire [31:0] final_result = regData.res_is_nan ? regData.nan :
+        regData.res_is_zero ? zero : regData.res_is_inf ? inf :
+        overflow ? overflow_result : {regData.result_sign, result_expo, result_mant};
+
+    // The signed SRT remainder contributes to NX even when the quotient's
+    // discarded bits are zero. Very small quotients may lose every bit.
+    wire inexact = finite_nonzero && (overflow || before_round[24:0] != 0 || regData.rem != 0);
+    // Detect tininess after rounding to 24-bit precision with an unbounded
+    // exponent, before the separate rounding onto the subnormal grid.
+    wire [1:0] normal_round_adjustment = RoundAdjustment(regData.rm, regData.result_sign,
+        regData.quo[1], regData.quo[0], 1'b0, rem_negative, rem_positive);
+    wire normal_exp_plus_one = regData.quo[23:1] == 23'h7fffff && normal_round_adjustment[0];
+    wire tiny = regData.is_divide && ($signed(regData.virtual_expo) < 0 ||
+                                   (regData.virtual_expo == 0 && !normal_exp_plus_one));
     
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -155,6 +215,8 @@ output
             nextData.v_lhs_mant = v_lhs_mant;
             nextData.v_rhs_expo = v_rhs_expo;
             nextData.v_rhs_mant = v_rhs_mant;
+            // Capture the resolved mode once; later requests must not change it.
+            nextData.rm = rm;
             nextData.result_sign = result_sign;
             nextData.lhs_sign = lhs_sign;
             nextData.is_divide = is_divide;
@@ -169,7 +231,6 @@ output
         else if (regPhase == PHASE_PREPARATION) begin
             nextData.virtual_expo = virtual_expo; 
             nextData.subnormal = subnormal;
-            nextData.res_is_zero = res_is_zero;
             nextData.rem = rem_0;
             nextData.quo = quo_0;
             nextPhase = PHASE_PROCESSING;
@@ -188,6 +249,9 @@ output
             nextFFlags = '0;
             nextFFlags.NV = regData.invalid;
             nextFFlags.DZ = regData.divide_by_zero;
+            nextFFlags.OF = overflow;
+            nextFFlags.UF = tiny && inexact;
+            nextFFlags.NX = inexact;
             nextPhase = PHASE_FINISHED;
             nextCounter = '0;
             nextData = '0;

@@ -30,6 +30,7 @@ module FPDivSqrtUnit(FPDivSqrtUnitIF.FPDivSqrtUnit port, RecoveryManagerIF.FPDiv
             .rst(rst_divider[i]),
             .lhs(port.dataInA[i]),
             .rhs(port.dataInB[i]),
+            .rm(port.rm[i]),
             .is_divide(port.is_divide[i]),
             .req(port.Req[i]),
             .finished(finished[i]),

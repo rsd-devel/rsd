@@ -108,6 +108,7 @@ typedef struct packed {
     logic [23:0] v_lhs_mant;
     logic [23:0] v_rhs_mant;
     logic [9:0] virtual_expo;
+    logic [2:0] rm;
     logic is_divide;
     logic result_sign;
     logic lhs_sign;
