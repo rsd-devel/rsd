@@ -142,12 +142,21 @@ output
     wire rem_positive = !rem_negative && regData.rem != 0;
     wire [1:0] round_adjustment = RoundAdjustment(regData.rm, regData.result_sign,
         before_round[25], before_round[24], |before_round[23:0], rem_negative, rem_positive);
-    // Include the hidden bit so the same adjustment handles both normal and
-    // subnormal results. Only one significand adder is needed for +1 or -1.
-    wire [24:0] rounded_mant = {1'b0, !regData.subnormal, before_round[47:25]} +
-        (round_adjustment[1] ? 25'h1ffffff : {24'b0, round_adjustment[0]});
-    wire exp_plus_one = regData.subnormal ? rounded_mant[23] : rounded_mant[24];
-    wire [22:0] result_mant = rounded_mant[22:0];
+    // Compute exponent carry independently of the significand adder.
+    wire exp_plus_one = (round_adjustment[0] && (&before_round[47:25])) ||
+        (regData.subnormal && round_adjustment[1] && !(|before_round[47:25]));
+    // Form each carry/borrow prefix before the rounding decision arrives.
+    wire [22:0] result_mant;
+    for (genvar i = 0; i < 23; i++) begin : g_round
+        if (i == 0) begin
+            assign result_mant[i] = before_round[25] ^ (|round_adjustment);
+        end
+        else begin
+            assign result_mant[i] = before_round[i+25] ^
+                ((round_adjustment[0] && (&before_round[i+24:25])) ||
+                 (round_adjustment[1] && !(|before_round[i+24:25])));
+        end
+    end
     wire [7:0] result_expo = (regData.is_divide ?
         (regData.subnormal ? 8'b0 : regData.virtual_expo[7:0]) :
         regData.v_lhs_expo[8:1] + {7'b0, regData.v_lhs_expo[0]} + 8'd63) + {7'b0, exp_plus_one};
