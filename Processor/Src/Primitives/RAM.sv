@@ -12,8 +12,7 @@
 // -- Block RAM configured for READ_FIRST mode.
 // 
 // You can get a read value 1-cycle after you set a read address.
-// When you write and read simultaneously, a read value becomes
-// the written value .
+// A simultaneous read and write to the same address returns the old value.
 //
 
 // Simple Dual Port RAM ( 1-read / 1-write )
@@ -28,8 +27,6 @@ module BlockDualPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra,
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -74,8 +71,6 @@ module BlockTrueDualPortRAM #(
     input logic [ENTRY_BIT_SIZE-1: 0] wv[PORT_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[PORT_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -245,45 +240,6 @@ endmodule : InitializedBlockRAM
 
 
 //
-// Single Port RAM using Distributed RAM
-// multi read/write
-
-module DistributedSinglePortRAM #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0] rwa,
-    input logic [ENTRY_BIT_SIZE-1: 0] wv,
-    output logic [ENTRY_BIT_SIZE-1: 0] rv
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-
-    Value array[ENTRY_NUM]; // synthesis syn_ramstyle = "select_ram"
-    
-    always_ff @(posedge clk) begin
-        if(we)
-            array[rwa] <= wv;
-    end
-    
-    always_comb begin
-        rv = array[rwa];
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(we && rwa >= ENTRY_NUM),
-            ("Write to the outside of the RAM array.")
-        );
-    endgenerate
-
-endmodule : DistributedSinglePortRAM
-
-//
 // Multi ports RAM using Distributed RAM
 // multi read/write
 //
@@ -301,8 +257,6 @@ module DistributedDualPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];  // synthesis syn_ramstyle = "select_ram"
 
@@ -348,8 +302,6 @@ module RegisterDualPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv
 );
 
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "registers"
 
@@ -389,59 +341,6 @@ module RegisterDualPortRAM #(
 endmodule : RegisterDualPortRAM
 
 
-// 1-read-write / (N-1)-read ports
-module DistributedSharedMultiPortRAM #( 
-    parameter ENTRY_NUM = 128, 
-    parameter ENTRY_BIT_SIZE = 64,
-    parameter READ_NUM  = 4
-)( 
-    input logic clk,
-    input logic we,
-    input logic [$clog2(ENTRY_NUM)-1: 0 ] rwa,
-    input logic [ENTRY_BIT_SIZE-1: 0 ] wv,
-    input logic [$clog2(ENTRY_NUM)-1: 0 ] ra[READ_NUM-1],
-    output logic [ENTRY_BIT_SIZE-1: 0 ] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    Value array[ ENTRY_NUM ];  // synthesis syn_ramstyle = "select_ram"
-
-    always_ff @(posedge clk) begin
-        if(we)
-            array[rwa] <= wv;
-    end
-    
-    always_comb begin
-        for (int i = 0; i < READ_NUM-1; i++) begin
-            rv[i] = array[ ra[i] ];
-        end
-        rv[READ_NUM-1] = array[rwa];
-    end
-
-    generate
-        `RSD_ASSERT_CLK_FMT(
-            clk,
-            !(rwa >= ENTRY_NUM),
-            ("Port (%x) read from or write to the outside of the RAM array.", 0)
-        );
-
-`ifndef RSD_VIVADO_SIMULATION
-        for (genvar i = 0; i < READ_NUM-1; i++) begin
-            `RSD_ASSERT_CLK_FMT(
-                clk,
-                !(ra >= ENTRY_NUM),
-                ("Port (%x) read from the outside of the RAM array.", i+1)
-            );
-        end
-`endif
-    endgenerate
-        
-endmodule : DistributedSharedMultiPortRAM
-
-
-
 // N-read / M-write (Use Live Value Table)
 module LVT_DistributedMultiPortRAM #( 
     parameter ENTRY_NUM = 64, 
@@ -456,8 +355,6 @@ module LVT_DistributedMultiPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
     
     // avoid logic[-1:0] when WRITE_NUM == 1
@@ -554,8 +451,6 @@ module XOR_DistributedMultiPortRAM #(
     localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
     typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam WRITE_NUM_BIT_SIZE = $clog2(WRITE_NUM);
     
     Value rwbWriteValue[WRITE_NUM];
     Address wbReadAddr[WRITE_NUM];
@@ -686,7 +581,6 @@ module DistributedMultiPortRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
     localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     generate 
@@ -748,8 +642,6 @@ module RegisterMultiPortRAM #(
     input logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
@@ -814,8 +706,6 @@ module DistributedMultiBankRAM #(
     input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
@@ -888,7 +778,6 @@ module DistributedMultiBankRAM_ForGE2Banks #(
     
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-    localparam BANK_INDEX_BIT_SIZE = INDEX_BIT_SIZE - BANK_NUM_BIT_WIDTH;
 
     
     Address waBank[BANK_NUM];
@@ -1012,8 +901,6 @@ module BlockMultiBankRAM #(
     output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
 );
     
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
     typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
 
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
@@ -1090,7 +977,6 @@ module BlockMultiBankRAM_Body #(
     
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-    localparam BANK_INDEX_BIT_SIZE = INDEX_BIT_SIZE - BANK_NUM_BIT_WIDTH;
 
     
     Address waBank[BANK_NUM];
