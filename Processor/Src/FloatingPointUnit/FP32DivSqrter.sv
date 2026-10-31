@@ -128,6 +128,24 @@ output
     wire[31:0] final_result = regData.res_is_nan  ? regData.nan :
                               regData.res_is_zero ? zero :
                               res_is_inf  ? inf  : { regData.result_sign, result_expo, result_mant };
+
+    // Only finite, nonzero arithmetic can raise rounding exceptions. res_is_zero
+    // also includes tiny quotients, so distinguish zero inputs using the mantissa.
+    wire finite_nonzero = !regData.res_is_nan && !regData.res_is_inf &&
+                          regData.v_lhs_mant != 0 &&
+                          (!regData.is_divide || regData.v_rhs_expo != 255);
+    wire overflow = finite_nonzero && res_is_inf;
+    // The signed SRT remainder contributes to NX even when the quotient's
+    // discarded bits are zero. Very small quotients may lose every bit.
+    wire inexact = finite_nonzero && (overflow || regData.res_is_zero ||
+                                    before_round[24:0] != 0 || regData.rem != 0);
+    // Detect tininess after rounding to 24-bit precision with an unbounded
+    // exponent, before the separate rounding onto the subnormal grid.
+    wire normal_round_away = regData.quo[0] &&
+                             ((regData.rem == 0 && regData.quo[1]) || $signed(regData.rem) > 0);
+    wire normal_exp_plus_one = regData.quo[23:1] == 23'h7fffff && normal_round_away;
+    wire tiny = regData.is_divide && ($signed(regData.virtual_expo) < 0 ||
+                                   (regData.virtual_expo == 0 && !normal_exp_plus_one));
     
     always_ff @(posedge clk) begin
         if (rst) begin
@@ -188,6 +206,9 @@ output
             nextFFlags = '0;
             nextFFlags.NV = regData.invalid;
             nextFFlags.DZ = regData.divide_by_zero;
+            nextFFlags.OF = overflow;
+            nextFFlags.UF = tiny && inexact;
+            nextFFlags.NX = inexact;
             nextPhase = PHASE_FINISHED;
             nextCounter = '0;
             nextData = '0;

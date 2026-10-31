@@ -217,6 +217,125 @@ main:
     CHECK_FFLAGS 0x10
     CHECK_FP_RESULT 0x7fc00000
 
+    # RNE division reports lost precision, but exact quotients leave flags clear.
+    li t0, 0x3f800000 # 1.0
+    fmv.w.x ft0, t0
+    li t0, 0x40400000 # 3.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x3eaaaaab
+    li t0, 0x40c00000 # 6.0
+    fmv.w.x ft0, t0
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x01 # The exact operation preserves accrued NX.
+    CHECK_FP_RESULT 0x40000000
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x40000000
+
+    # Finite overflow is OF+NX, unlike infinity inputs or division by zero.
+    li t0, 0x7f7fffff # Maximum finite
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000 # 0.5
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x05
+    CHECK_FP_RESULT 0x7f800000
+
+    # Exact subnormal results do not underflow; tiny inexact results do.
+    li t0, 0x00800000 # Minimum normal
+    fmv.w.x ft0, t0
+    li t0, 0x40000000 # 2.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x00400000
+    li t0, 3 # Three times the minimum subnormal: halfway rounds to even.
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0x00000002
+    li t0, 1 # Half the minimum subnormal rounds to zero.
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+    li t0, 0x7f7fffff # A quotient too small to retain any mantissa bits.
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0
+
+    # An inexact result just below the normal boundary still raises UF.
+    li t0, 0x00800000
+    fmv.w.x ft0, t0
+    li t0, 0x3f800001 # The next float above 1.0
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0x007fffff
+
+    # Tininess uses 24-bit precision with an unbounded exponent. This exact
+    # quotient is tiny even though subnormal rounding produces minimum normal.
+    li t0, 0x00ffffff
+    fmv.w.x ft0, t0
+    li t0, 0x40000000
+    fmv.w.x ft1, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0x03
+    CHECK_FP_RESULT 0x00800000
+
+    # Zero and infinity results from special inputs do not raise OF/UF/NX.
+    fmv.w.x ft0, zero
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0
+    li t0, 0x7f800000
+    fmv.w.x ft1, t0
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fdiv.s ft2, ft0, ft1, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0
+
+    # Square root sets NX for irrational results, including subnormal inputs.
+    li t0, 0x40800000 # sqrt(4) = 2 exactly
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x40000000
+    li t0, 0x40000000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0, rne
+    CHECK_FFLAGS 0x01
+    CHECK_FP_RESULT 0x3fb504f3
+    li t0, 1
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0, rne
+    CHECK_FFLAGS 0x01 # The square root is normal, so UF remains clear.
+    CHECK_FP_RESULT 0x1a3504f3
+    li t0, 0x7f800000
+    fmv.w.x ft0, t0
+    csrw fflags, zero
+    fsqrt.s ft2, ft0, rne
+    CHECK_FFLAGS 0
+    CHECK_FP_RESULT 0x7f800000
+
     # Exact multiplication and a zero-product bypass do not raise NX.
     li t0, 0x3f800000
     fmv.w.x ft0, t0
