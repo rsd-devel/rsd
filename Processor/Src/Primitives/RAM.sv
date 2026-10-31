@@ -711,18 +711,113 @@ module DistributedMultiBankRAM #(
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
 
+    // Raise error if the number of entries is not a multiple of
+    // the number of banks
+    `RSD_STATIC_ASSERT(
+        ENTRY_NUM % BANK_NUM == 0,
+        "Set the number of entries a multiple of the number of banks."
+    );
 
     generate
-        if (BANK_NUM >= 2) begin
-            DistributedMultiBankRAM_ForGE2Banks#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
-                rBank(clk, we, wa, wv, ra, rv);
+        if (BANK_NUM >= 2) begin : banks
+            localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+            typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+
+            Address waBank[BANK_NUM];
+            Address raBank[BANK_NUM];
+            Value rvBank[BANK_NUM];
+            Value wvBank[BANK_NUM];
+            logic weBank[BANK_NUM];
+
+            for (genvar i = 0; i < BANK_NUM; i++) begin
+                if (ENTRY_BIT_SIZE < 8) begin
+                    RegisterDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                        rBank(
+                            clk,
+                            weBank[i],
+                            waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            wvBank[i],
+                            raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            rvBank[i]
+                        );
+                end
+                else begin
+                    DistributedDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
+                        rBank(
+                            clk,
+                            weBank[i],
+                            waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            wvBank[i],
+                            raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                            rvBank[i]
+                        );
+                end
+            end
+
+            always_comb begin
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    weBank[b] = '0;     // It must be 0.
+                    waBank[b] = wa[0];  // Don't care
+                    wvBank[b] = wv[0];
+
+                    for (int i = 0; i < WRITE_NUM; i++) begin
+                        if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            weBank[b] = we[i];
+                            waBank[b] = wa[i];
+                            wvBank[b] = wv[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    raBank[b] = ra[0]; // Don't care
+                    for (int i = 0; i < READ_NUM; i++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            raBank[b] = ra[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int i = 0; i < READ_NUM; i++) begin
+                    rv[i] = rvBank[0];  // Don't care
+                    for (int b = 0; b < BANK_NUM; b++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            rv[i] = rvBank[b];
+                            break;
+                        end
+                    end
+                end
+
+            end
+
+            for (genvar j = 0; j < WRITE_NUM; j++) begin
+                for (genvar i = 0; i < WRITE_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) write to the same bank.", i, j)
+                    );
+                end
+            end
+            for (genvar j = 0; j < READ_NUM; j++) begin
+                for (genvar i = 0; i < READ_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) read from the same bank.", i, j)
+                    );
+                end
+            end
         end
-        else begin
+        else begin : singleBank
+            // A single bank has no bank-select bits.
             DistributedDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
     endgenerate
-
 
 `ifndef RSD_SYNTHESIS
     // For Debug
@@ -755,133 +850,6 @@ module DistributedMultiBankRAM #(
 
 endmodule : DistributedMultiBankRAM
 
-//
-// --- Distributed RAM consisting of multiple banks
-// Generated in DistributedMultiBankRAM when the number of banks is 2 or more
-//
-module DistributedMultiBankRAM_ForGE2Banks #( 
-    parameter ENTRY_NUM = 64, 
-    parameter ENTRY_BIT_SIZE = 63, 
-    parameter READ_NUM  = 4,
-    parameter WRITE_NUM = 2
-)( 
-    input  logic clk,
-    input  logic we[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] wa[WRITE_NUM],
-    input  logic [ENTRY_BIT_SIZE-1: 0] wv[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
-    output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
-    localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-
-    
-    Address waBank[BANK_NUM];
-    Address raBank[BANK_NUM];
-    Value rvBank[BANK_NUM];
-    Value wvBank[BANK_NUM];
-    logic weBank[BANK_NUM];
-    
-    // Raise error if the number of entries is not a multiple of 
-    // the number of banks
-    `RSD_STATIC_ASSERT(
-        ENTRY_NUM % BANK_NUM == 0,
-        "Set the number of entries a multiple of the number of banks."
-    );
-
-    generate 
-        for (genvar i = 0; i < BANK_NUM; i++) begin
-            if (ENTRY_BIT_SIZE < 8) begin
-                RegisterDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
-                    rBank(
-                        clk, 
-                        weBank[i], 
-                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        wvBank[i], 
-                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        rvBank[i]
-                    );
-            end
-            else begin
-                DistributedDualPortRAM#(ENTRY_NUM / BANK_NUM, ENTRY_BIT_SIZE)
-                    rBank(
-                        clk, 
-                        weBank[i], 
-                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        wvBank[i], 
-                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                        rvBank[i]
-                    );
-            end
-        end
-    endgenerate
-    
-    always_comb begin
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            weBank[b] = '0;     // It must be 0.
-            waBank[b] = wa[0];  // Don't care
-            wvBank[b] = wv[0];
-            
-            for (int i = 0; i < WRITE_NUM; i++) begin
-                if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    weBank[b] = we[i];
-                    waBank[b] = wa[i];
-                    wvBank[b] = wv[i];
-                    break;
-                end
-            end
-        end
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            raBank[b] = ra[0]; // Don't care
-            for (int i = 0; i < READ_NUM; i++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    raBank[b] = ra[i];
-                    break;
-                end
-            end
-        end
-
-        for (int i = 0; i < READ_NUM; i++) begin
-            rv[i] = rvBank[0];  // Don't care
-            for (int b = 0; b < BANK_NUM; b++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    rv[i] = rvBank[b];
-                    break;
-                end
-            end
-        end
-        
-    end
-
-    generate
-        for (genvar j = 0; j < WRITE_NUM; j++) begin
-            for (genvar i = 0; i < WRITE_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) write to the same bank.", i, j)
-                );
-            end
-        end
-        for (genvar j = 0; j < READ_NUM; j++) begin
-            for (genvar i = 0; i < READ_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) read from the same bank.", i, j)
-                );
-            end
-        end
-    endgenerate
-    
-endmodule : DistributedMultiBankRAM_ForGE2Banks
-
 
 //
 // --- Block RAM consisting of multiple banks
@@ -906,12 +874,104 @@ module BlockMultiBankRAM #(
     localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
     localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
 
+    // Raise error if the number of entries is not a multiple of
+    // the number of banks
+    `RSD_STATIC_ASSERT(
+        ENTRY_NUM % BANK_NUM == 0,
+        "Set the number of entries a multiple of the number of banks."
+    );
+
     generate 
-        if (BANK_NUM >= 2) begin
-            BlockMultiBankRAM_Body#(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
-                rBank(clk, we, wa, wv, ra, rv);
+        if (BANK_NUM >= 2) begin : banks
+            localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
+            typedef logic [INDEX_BIT_SIZE-1: 0] Address;
+
+            Address waBank[BANK_NUM];
+            Address raBank[BANK_NUM];
+            Value rvBank[BANK_NUM];
+            Value wvBank[BANK_NUM];
+            logic weBank[BANK_NUM];
+
+            // Delay each read port's address to select its bank on the next cycle.
+            Address raReg[READ_NUM];
+
+            for (genvar i = 0; i < BANK_NUM; i++) begin
+                BlockDualPortRAM#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
+                    rBank(
+                        clk,
+                        weBank[i],
+                        waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                        wvBank[i],
+                        raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH],
+                        rvBank[i]
+                    );
+            end
+
+            always_ff @(posedge clk) begin
+                for (int i = 0; i < READ_NUM; i++) begin
+                    raReg[i] <= ra[i];
+                end
+            end
+
+            always_comb begin
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    weBank[b] = '0;     // It must be 0.
+                    waBank[b] = wa[0];  // Don't care
+                    wvBank[b] = wv[0];
+
+                    for (int i = 0; i < WRITE_NUM; i++) begin
+                        if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            weBank[b] = we[i];
+                            waBank[b] = wa[i];
+                            wvBank[b] = wv[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int b = 0; b < BANK_NUM; b++) begin
+                    raBank[b] = ra[0]; // Don't care
+                    for (int i = 0; i < READ_NUM; i++) begin
+                        if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            raBank[b] = ra[i];
+                            break;
+                        end
+                    end
+                end
+
+                for (int i = 0; i < READ_NUM; i++) begin
+                    rv[i] = rvBank[0];  // Don't care
+                    for (int b = 0; b < BANK_NUM; b++) begin
+                        if (raReg[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
+                            rv[i] = rvBank[b];
+                            break;
+                        end
+                    end
+                end
+            end
+
+            for (genvar j = 0; j < WRITE_NUM; j++) begin
+                for (genvar i = 0; i < WRITE_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                        !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) write to the same bank.", i, j)
+                    );
+                end
+            end
+            for (genvar j = 0; j < READ_NUM; j++) begin
+                for (genvar i = 0; i < READ_NUM; i++) begin
+                    `RSD_ASSERT_CLK_FMT(
+                        clk,
+                       !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
+                        ("Multiple ports(%x,%x) read from the same bank.", i, j)
+                    );
+                end
+            end
         end
-        else begin
+        else begin : singleBank
+            // A single bank has no bank-select bits.
             BlockDualPortRAM#(ENTRY_NUM, ENTRY_BIT_SIZE)
                 rBank(clk, we[0], wa[0], wv[0], ra[0], rv[0]);
         end
@@ -952,126 +1012,3 @@ module BlockMultiBankRAM #(
 `endif
 
 endmodule : BlockMultiBankRAM
-
-
-//
-// --- Block RAM consisting of multiple banks
-// Generated in BlockMultiBankRAM when the number of banks is 2 or more
-//
-module BlockMultiBankRAM_Body #(
-    parameter ENTRY_NUM = 64, 
-    parameter ENTRY_BIT_SIZE = 63, 
-    parameter READ_NUM  = 2,
-    parameter WRITE_NUM = 2
-)( 
-    input  logic clk,
-    input  logic we[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] wa[WRITE_NUM],
-    input  logic [ENTRY_BIT_SIZE-1: 0] wv[WRITE_NUM],
-    input  logic [$clog2(ENTRY_NUM)-1: 0] ra[READ_NUM],
-    output logic [ENTRY_BIT_SIZE-1: 0] rv[READ_NUM]
-);
-    localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    typedef logic [INDEX_BIT_SIZE-1: 0] Address;
-    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
-    
-    localparam BANK_NUM_BIT_WIDTH = $clog2(READ_NUM > WRITE_NUM ? READ_NUM : WRITE_NUM);
-    localparam BANK_NUM = 1 << BANK_NUM_BIT_WIDTH;
-
-    
-    Address waBank[BANK_NUM];
-    Address raBank[BANK_NUM];
-    Value rvBank[BANK_NUM];
-    Value wvBank[BANK_NUM];
-    logic weBank[BANK_NUM];
-
-    // Delay each read port's address to select its bank on the next cycle.
-    Address raReg[READ_NUM];
-
-    // Raise error if the number of entries is not a multiple of 
-    // the number of banks
-    `RSD_STATIC_ASSERT(
-        ENTRY_NUM % BANK_NUM == 0,
-        "Set the number of entries a multiple of the number of banks."
-    );
-    
-    generate 
-        for (genvar i = 0; i < BANK_NUM; i++) begin
-            BlockDualPortRAM#(ENTRY_NUM/BANK_NUM, ENTRY_BIT_SIZE)
-                rBank(
-                    clk, 
-                    weBank[i], 
-                    waBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                    wvBank[i], 
-                    raBank[i][INDEX_BIT_SIZE-1 : BANK_NUM_BIT_WIDTH], 
-                    rvBank[i]
-                );
-        end
-    endgenerate
-    
-    always_ff @(posedge clk) begin
-        for (int i = 0; i < READ_NUM; i++) begin
-            raReg[i] <= ra[i];
-        end
-    end
-
-    always_comb begin
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            weBank[b] = '0;     // It must be 0.
-            waBank[b] = wa[0];  // Don't care
-            wvBank[b] = wv[0];
-            
-            for (int i = 0; i < WRITE_NUM; i++) begin
-                if (we[i] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    weBank[b] = we[i];
-                    waBank[b] = wa[i];
-                    wvBank[b] = wv[i];
-                    break;
-                end
-            end
-        end
-
-        for (int b = 0; b < BANK_NUM; b++) begin
-            raBank[b] = ra[0]; // Don't care
-            for (int i = 0; i < READ_NUM; i++) begin
-                if (ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    raBank[b] = ra[i];
-                    break;
-                end
-            end
-        end
-
-        for (int i = 0; i < READ_NUM; i++) begin
-            rv[i] = rvBank[0];  // Don't care
-            for (int b = 0; b < BANK_NUM; b++) begin
-                if (raReg[i][BANK_NUM_BIT_WIDTH-1 : 0] == b) begin
-                    rv[i] = rvBank[b];
-                    break;
-                end
-            end
-        end
-    end
-
-    generate
-        for (genvar j = 0; j < WRITE_NUM; j++) begin
-            for (genvar i = 0; i < WRITE_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                    !(we[i] && we[j] && wa[i][BANK_NUM_BIT_WIDTH-1 : 0] == wa[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) write to the same bank.", i, j)
-                );
-            end
-        end
-        for (genvar j = 0; j < READ_NUM; j++) begin
-            for (genvar i = 0; i < READ_NUM; i++) begin
-                `RSD_ASSERT_CLK_FMT(
-                    clk,
-                   !(ra[i][BANK_NUM_BIT_WIDTH-1 : 0] == ra[j][BANK_NUM_BIT_WIDTH-1 : 0] && i != j),
-                    ("Multiple ports(%x,%x) read from the same bank.", i, j)
-                );
-            end
-        end
-    endgenerate
-
-endmodule : BlockMultiBankRAM_Body
