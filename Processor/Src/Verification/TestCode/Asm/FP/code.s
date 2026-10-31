@@ -34,6 +34,30 @@
     CHECK_FFLAGS \flags
     .endm
 
+    # Check the shared div/sqrt rounder with both static and dynamic modes.
+    .macro CHECK_DIVSQRT_MODE divide, mode, frm, expected, flags
+    li t0, ((\frm + 1) % 5)
+    csrw frm, t0
+    csrw fflags, zero
+    .if \divide
+    fdiv.s ft2, ft0, ft1, \mode
+    .else
+    fsqrt.s ft2, ft0, \mode
+    .endif
+    CHECK_FP_RESULT \expected
+    CHECK_FFLAGS \flags
+    li t0, \frm
+    csrw frm, t0
+    csrw fflags, zero
+    .if \divide
+    fdiv.s ft2, ft0, ft1, dyn
+    .else
+    fsqrt.s ft2, ft0, dyn
+    .endif
+    CHECK_FP_RESULT \expected
+    CHECK_FFLAGS \flags
+    .endm
+
 main:
 
     # A full FCSR write updates both aliases and ignores reserved upper bits.
@@ -577,6 +601,98 @@ main:
     CHECK_FMA_MODE rdn, 2, 0x80000001, 0x03
     CHECK_FMA_MODE rup, 3, 0x80000000, 0x03
     CHECK_FMA_MODE rmm, 4, 0x80000001, 0x03
+
+    # Directed rounding selects the adjacent quotient for either sign.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    li t0, 0x40200000
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0x3ecccccd, 0x01
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0x3ecccccc, 0x01
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0x3ecccccc, 0x01
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0x3ecccccd, 0x01
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0x3ecccccd, 0x01
+
+    li t0, 0xbf800000
+    fmv.w.x ft0, t0
+    li t0, 0x40200000
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0xbecccccd, 0x01
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0xbecccccc, 0x01
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0xbecccccd, 0x01
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0xbecccccc, 0x01
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0xbecccccd, 0x01
+
+    # Half a minimum subnormal distinguishes RNE from RMM.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x40000000
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0x00000001, 0x03
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0x00000001, 0x03
+
+    # Tiny quotients retain their sign and round outward to a minimum subnormal.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x40800000
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0x00000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0x00000001, 0x03
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0x00000000, 0x03
+
+    li t0, 0x80000001
+    fmv.w.x ft0, t0
+    li t0, 0x40800000
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0x80000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0x80000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0x80000001, 0x03
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0x80000000, 0x03
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0x80000000, 0x03
+
+    # Overflow selects infinity or maximum finite according to mode and sign.
+    li t0, 0x7f7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x00000001
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0x7f800000, 0x05
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0x7f7fffff, 0x05
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0x7f7fffff, 0x05
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0x7f800000, 0x05
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0x7f800000, 0x05
+
+    li t0, 0xff7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x00000001
+    fmv.w.x ft1, t0
+    CHECK_DIVSQRT_MODE 1, rne, 0, 0xff800000, 0x05
+    CHECK_DIVSQRT_MODE 1, rtz, 1, 0xff7fffff, 0x05
+    CHECK_DIVSQRT_MODE 1, rdn, 2, 0xff800000, 0x05
+    CHECK_DIVSQRT_MODE 1, rup, 3, 0xff7fffff, 0x05
+    CHECK_DIVSQRT_MODE 1, rmm, 4, 0xff800000, 0x05
+
+    # A negative SRT remainder can require decrementing the truncated root.
+    li t0, 0x40200000
+    fmv.w.x ft0, t0
+    CHECK_DIVSQRT_MODE 0, rne, 0, 0x3fca62c2, 0x01
+    CHECK_DIVSQRT_MODE 0, rtz, 1, 0x3fca62c1, 0x01
+    CHECK_DIVSQRT_MODE 0, rdn, 2, 0x3fca62c1, 0x01
+    CHECK_DIVSQRT_MODE 0, rup, 3, 0x3fca62c2, 0x01
+    CHECK_DIVSQRT_MODE 0, rmm, 4, 0x3fca62c2, 0x01
+
+    # RUP can carry the rounded square root into the next exponent.
+    li t0, 0x407fffff
+    fmv.w.x ft0, t0
+    CHECK_DIVSQRT_MODE 0, rne, 0, 0x3fffffff, 0x01
+    CHECK_DIVSQRT_MODE 0, rtz, 1, 0x3fffffff, 0x01
+    CHECK_DIVSQRT_MODE 0, rdn, 2, 0x3fffffff, 0x01
+    CHECK_DIVSQRT_MODE 0, rup, 3, 0x40000000, 0x01
+    CHECK_DIVSQRT_MODE 0, rmm, 4, 0x3fffffff, 0x01
 
     csrw frm, zero
     fmv.w.x ft3, zero
