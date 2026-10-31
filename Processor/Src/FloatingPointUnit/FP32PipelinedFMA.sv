@@ -1,6 +1,7 @@
 // Pipeline types are local to this file so the FMA can be compiled independently of RSD.
 package FP32PipelinedFMATypes;
     typedef struct packed {
+        logic [2:0] rm;
         logic [9:0] mulres_expo;
         logic result_is_inf;
         logic result_is_nan;
@@ -16,6 +17,7 @@ package FP32PipelinedFMATypes;
     } FMAStage1RegPath;
 
     typedef struct packed {
+        logic [2:0] rm;
         logic [9:0] mulres_expo;
         logic result_is_inf;
         logic result_is_nan;
@@ -31,6 +33,7 @@ package FP32PipelinedFMATypes;
     } FMAStage2RegPath;
 
     typedef struct packed {
+        logic [2:0] rm;
         logic [75:0] abs_fma_result;
         logic [9:0] mulres_expo;
         logic res_is_negative;
@@ -49,6 +52,7 @@ package FP32PipelinedFMATypes;
     } FMAStage3RegPath;
 
     typedef struct packed {
+        logic [2:0] rm;
         logic [75:0] abs_fma_result;
         logic [7:0] fmares_shift;
         logic [9:0] virtual_expo;
@@ -75,6 +79,7 @@ module FP32PipelinedFMA(
     input  logic [31:0] mullhs,
     input  logic [31:0] mulrhs,
     input  logic [31:0] addend,
+    input  logic [2:0] rm,
     output logic [31:0] result,
     output FPUTypes::FFlags fflags
 );
@@ -99,7 +104,7 @@ module FP32PipelinedFMA(
                                   : multiplier_lhs * multiplier_rhs + multiplier_addend;
     end
 
-    FMAStage0 stg0(clk, stg0Out, mullhs, mulrhs, addend, is_sub, mlhs, mrhs, maddend);
+    FMAStage0 stg0(clk, stg0Out, mullhs, mulrhs, addend, rm, is_sub, mlhs, mrhs, maddend);
     FMAStage1 stg1(clk, stg0Out, stg1Out);
     FMAStage2 stg2(clk, stg1Out, stg2Out, fma_result);
     FMAStage3 stg3(clk, stg2Out, stg3Out);
@@ -112,6 +117,7 @@ module FMAStage0(
     input logic [31:0] mullhs,
     input logic [31:0] mulrhs,
     input logic [31:0] addend,
+    input logic [2:0] rm,
     output logic is_subtract,
     output logic [76:0] mlhs,
     output logic [76:0] mrhs,
@@ -168,7 +174,8 @@ module FMAStage0(
     assign mlhs    = { 51'b0, mullhs_expo != 8'h00, mullhs_mant, 2'b0 }; // lhs_expo != 8'h00 is the hidden bit of a normalized number
     assign mrhs    = { 52'b0, mulrhs_expo != 8'h00, mulrhs_mant, 1'b0 }; // rhs_expo != 8'h00 is the hidden bit of a normalized number
 
-    assign stg0Out = {mulres_expo, result_is_inf, result_is_nan, invalid,
+    // The caller resolves dynamic rounding; carry that mode with these operands.
+    assign stg0Out = {rm, mulres_expo, result_is_inf, result_is_nan, invalid,
                       res_is_addend, addend_inexact, mul_sign, prop_inf_sign, addend_sign, is_subtract, nan, addend};
 endmodule
 
@@ -201,7 +208,7 @@ module FMAStage2(
     wire[75:0] abs_fma_result  = res_is_negative ? -fma_result[75:0] : fma_result[75:0];
     wire       result_sign     = mul_sign ^ res_is_negative;
     
-    assign stg2Out = {abs_fma_result, pipeReg.mulres_expo, res_is_negative, pipeReg.result_is_inf,
+    assign stg2Out = {pipeReg.rm, abs_fma_result, pipeReg.mulres_expo, res_is_negative, pipeReg.result_is_inf,
                       pipeReg.result_is_nan, pipeReg.invalid, res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule
@@ -236,7 +243,7 @@ module FMAStage3(
                         rounding_shift >= 76 ? abs_fma_result != 0 :
                         abs_fma_result << (10'sd76 - rounding_shift) != 0;
     
-    assign stg3Out = {abs_fma_result, fmares_shift, virtual_expo, subnormal, round_sticky, pipeReg.result_is_inf,
+    assign stg3Out = {pipeReg.rm, abs_fma_result, fmares_shift, virtual_expo, subnormal, round_sticky, pipeReg.result_is_inf,
                       pipeReg.result_is_nan, pipeReg.invalid, pipeReg.res_is_zero, pipeReg.res_is_addend, pipeReg.addend_inexact, pipeReg.result_sign,
                       pipeReg.prop_inf_sign, pipeReg.addend_sign, pipeReg.is_subtract, pipeReg.nan, pipeReg.addend};
 endmodule

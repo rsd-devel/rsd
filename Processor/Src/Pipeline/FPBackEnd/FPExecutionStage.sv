@@ -153,7 +153,7 @@ module FPExecutionStage(
             .mullhs (fmaMulLHS[i]),
             .mulrhs (fmaMulRHS[i]),
             .addend (fmaAddend[i]),
-            //.rm (rm[i]),
+            .rm (rm[i]),
             .result ( fmaDataOut[i] ),
             .fflags ( fmaFFlagsOut[i])
         );

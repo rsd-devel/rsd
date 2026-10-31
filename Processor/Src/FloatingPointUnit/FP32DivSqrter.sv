@@ -5,6 +5,7 @@ input
     logic clk, rst,
     logic [31:0] lhs,
     logic [31:0] rhs,
+    logic [2:0] rm,
     logic is_divide,
     logic req,
 output
@@ -173,6 +174,8 @@ output
             nextData.v_lhs_mant = v_lhs_mant;
             nextData.v_rhs_expo = v_rhs_expo;
             nextData.v_rhs_mant = v_rhs_mant;
+            // Capture the resolved mode once; later requests must not change it.
+            nextData.rm = rm;
             nextData.result_sign = result_sign;
             nextData.lhs_sign = lhs_sign;
             nextData.is_divide = is_divide;
