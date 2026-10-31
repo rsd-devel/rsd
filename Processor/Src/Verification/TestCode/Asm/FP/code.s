@@ -18,6 +18,22 @@
     bne t2, t1, fail
     .endm
 
+    # Verify the static encoding overrides frm, then check dynamic rounding.
+    .macro CHECK_FMA_MODE mode, frm, expected, flags
+    li t0, ((\frm + 1) % 5)
+    csrw frm, t0
+    csrw fflags, zero
+    fmadd.s ft2, ft0, ft1, ft3, \mode
+    CHECK_FP_RESULT \expected
+    CHECK_FFLAGS \flags
+    li t0, \frm
+    csrw frm, t0
+    csrw fflags, zero
+    fmadd.s ft2, ft0, ft1, ft3, dyn
+    CHECK_FP_RESULT \expected
+    CHECK_FFLAGS \flags
+    .endm
+
 main:
 
     # A full FCSR write updates both aliases and ignores reserved upper bits.
@@ -391,15 +407,136 @@ main:
     CHECK_FFLAGS 0x03
     CHECK_FP_RESULT 0
 
-    # Tininess is tested after rounding: rounding to normal raises only NX.
+    # The exact halfway value is tiny at full precision, even though
+    # subnormal rounding produces minimum normal. Both UF and NX are required.
     li t0, 0x3f000000
     fmv.w.x ft1, t0
     li t0, 0x007fffff # Maximum subnormal
     fmv.w.x ft2, t0
     csrw fflags, zero
     fmadd.s ft2, ft0, ft1, ft2
-    CHECK_FFLAGS 0x01
+    CHECK_FFLAGS 0x03
     CHECK_FP_RESULT 0x00800000
+
+    # Halfway at 1.0 distinguishes RNE from RMM.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    li t0, 0x3f800000
+    fmv.w.x ft1, t0
+    li t0, 0x33800000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x3f800000, 0x01
+    CHECK_FMA_MODE rtz, 1, 0x3f800000, 0x01
+    CHECK_FMA_MODE rdn, 2, 0x3f800000, 0x01
+    CHECK_FMA_MODE rup, 3, 0x3f800001, 0x01
+    CHECK_FMA_MODE rmm, 4, 0x3f800001, 0x01
+
+    # A tiny product must still affect a dominant addend under RUP.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x00000001
+    fmv.w.x ft1, t0
+    li t0, 0x3f800000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x3f800000, 0x01
+    CHECK_FMA_MODE rtz, 1, 0x3f800000, 0x01
+    CHECK_FMA_MODE rdn, 2, 0x3f800000, 0x01
+    CHECK_FMA_MODE rup, 3, 0x3f800001, 0x01
+    CHECK_FMA_MODE rmm, 4, 0x3f800000, 0x01
+
+    # Subtracting a tiny addend crosses the 1.0 binade boundary under RTZ/RDN.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    li t0, 0x3f800000
+    fmv.w.x ft1, t0
+    li t0, 0x80000001
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x3f800000, 0x01
+    CHECK_FMA_MODE rtz, 1, 0x3f7fffff, 0x01
+    CHECK_FMA_MODE rdn, 2, 0x3f7fffff, 0x01
+    CHECK_FMA_MODE rup, 3, 0x3f800000, 0x01
+    CHECK_FMA_MODE rmm, 4, 0x3f800000, 0x01
+
+    # Exact cancellation produces negative zero only under RDN.
+    li t0, 0x3f800000
+    fmv.w.x ft0, t0
+    li t0, 0x3f800000
+    fmv.w.x ft1, t0
+    li t0, 0xbf800000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x00000000, 0x00
+    CHECK_FMA_MODE rtz, 1, 0x00000000, 0x00
+    CHECK_FMA_MODE rdn, 2, 0x80000000, 0x00
+    CHECK_FMA_MODE rup, 3, 0x00000000, 0x00
+    CHECK_FMA_MODE rmm, 4, 0x00000000, 0x00
+
+    # Positive overflow selects infinity or maximum finite by mode.
+    li t0, 0x7f7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x40000000
+    fmv.w.x ft1, t0
+    li t0, 0x00000000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x7f800000, 0x05
+    CHECK_FMA_MODE rtz, 1, 0x7f7fffff, 0x05
+    CHECK_FMA_MODE rdn, 2, 0x7f7fffff, 0x05
+    CHECK_FMA_MODE rup, 3, 0x7f800000, 0x05
+    CHECK_FMA_MODE rmm, 4, 0x7f800000, 0x05
+
+    # Negative overflow reverses the directed rounding choice.
+    li t0, 0xff7fffff
+    fmv.w.x ft0, t0
+    li t0, 0x40000000
+    fmv.w.x ft1, t0
+    li t0, 0x80000000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0xff800000, 0x05
+    CHECK_FMA_MODE rtz, 1, 0xff7fffff, 0x05
+    CHECK_FMA_MODE rdn, 2, 0xff800000, 0x05
+    CHECK_FMA_MODE rup, 3, 0xff7fffff, 0x05
+    CHECK_FMA_MODE rmm, 4, 0xff800000, 0x05
+
+    # Half the minimum subnormal rounds to zero or the minimum subnormal.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000
+    fmv.w.x ft1, t0
+    li t0, 0x00000000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x00000000, 0x03
+    CHECK_FMA_MODE rtz, 1, 0x00000000, 0x03
+    CHECK_FMA_MODE rdn, 2, 0x00000000, 0x03
+    CHECK_FMA_MODE rup, 3, 0x00000001, 0x03
+    CHECK_FMA_MODE rmm, 4, 0x00000001, 0x03
+
+    # A tiny positive product moves a negative minimum normal toward zero.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x00000001
+    fmv.w.x ft1, t0
+    li t0, 0x80800000
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x80800000, 0x01
+    CHECK_FMA_MODE rtz, 1, 0x807fffff, 0x03
+    CHECK_FMA_MODE rdn, 2, 0x80800000, 0x01
+    CHECK_FMA_MODE rup, 3, 0x807fffff, 0x03
+    CHECK_FMA_MODE rmm, 4, 0x80800000, 0x01
+
+    # Rounding a tiny halfway value to normal still raises UF.
+    li t0, 0x00000001
+    fmv.w.x ft0, t0
+    li t0, 0x3f000000
+    fmv.w.x ft1, t0
+    li t0, 0x007fffff
+    fmv.w.x ft3, t0
+    CHECK_FMA_MODE rne, 0, 0x00800000, 0x03
+    CHECK_FMA_MODE rtz, 1, 0x007fffff, 0x03
+    CHECK_FMA_MODE rdn, 2, 0x007fffff, 0x03
+    CHECK_FMA_MODE rup, 3, 0x00800000, 0x03
+    CHECK_FMA_MODE rmm, 4, 0x00800000, 0x03
+
+    csrw frm, zero
+    fmv.w.x ft3, zero
 
     csrw fflags, zero
     fmv.w.x ft0, zero
