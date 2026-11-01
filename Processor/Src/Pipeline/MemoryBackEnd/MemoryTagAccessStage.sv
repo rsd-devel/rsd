@@ -158,6 +158,7 @@ module MemoryTagAccessStage(
     logic isZaamo   [LOAD_ISSUE_WIDTH];
     logic isSerialized[LOAD_ISSUE_WIDTH];
     logic amoCacheHit[LOAD_ISSUE_WIDTH];
+    logic amoLoadSuccess[LOAD_ISSUE_WIDTH];
     logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     logic isLoadIO  [LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
@@ -287,9 +288,10 @@ module MemoryTagAccessStage(
                 else if (loadStoreUnit.storeLoadForwarded[i]) begin
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 end
-                else if (ldRecordData[i].hasAllocatedMSHR) begin
+                else if (ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) begin
                     // When the load has allocated an MSHR entry,
                     // The data will come from MSHR.
+                    // Forwarding is handled above, independently of MSHR release.
                     ldRegValid[i] = loadStoreUnit.mshrReadHit[i] ? ldPipeReg[i].regValid : FALSE;
                 end
                 else if (loadStoreUnit.mshrReadHit[i]) begin
@@ -440,19 +442,27 @@ module MemoryTagAccessStage(
                 end
             end
 
-            // Zaamoのとき、AmoCacheにロードできるか確認する
-            if (isZaamo[i] && !amoCacheHit[i]) begin
-                if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
-                    // AMOCacheにロードして、ストアをやり直す
+            // Decide AMO fill/replay directly, without waiting for execState.
+            // Keep the loaded data valid above; only the AMO itself is replayed.
+            amoLoadSuccess[i] = ldUpdate[i] && isZaamo[i] && !amoCacheHit[i] &&
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
-                    ldRegValid[i] = FALSE;
-                    ldRecordData[i].hasLoadedAMOCache = TRUE;
-                    ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
-`else
-                    ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
+                ldPipeReg[i].regValid &&
 `endif
-                    ldNextStage[i].writeAMOCache = TRUE;
-                end
+                ldPipeReg[i].memMapType != MMT_ILLEGAL &&
+                !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size) &&
+                (loadStoreUnit.storeLoadForwarded[i] ? !loadStoreUnit.forwardMiss[i] :
+                    (loadStoreUnit.mshrReadHit[i] ||
+                        (!(ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) &&
+                            loadStoreUnit.dcReadHit[i])));
+            if (amoLoadSuccess[i]) begin
+`ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
+                ldRegValid[i] = FALSE;
+                ldRecordData[i].hasLoadedAMOCache = TRUE;
+                ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
+`else
+                ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS;
+`endif
+                ldNextStage[i].writeAMOCache = TRUE;
             end
             
             // Zaamoのストア
