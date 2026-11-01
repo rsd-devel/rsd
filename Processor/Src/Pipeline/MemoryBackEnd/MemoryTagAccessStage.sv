@@ -457,8 +457,15 @@ module MemoryTagAccessStage(
             
             // Zaamoのストア
             if (i == 0) begin
-                replaceStoreByLoad = ldUpdate[i] && ldRegValid[i] && isZaamo[i] && amoCacheHit[i] &&
-                    ldNextStage[i].execState == EXEC_STATE_SUCCESS;
+                // An AMO cache hit uses registered operands, not the ordinary
+                // load result. Keep cache/forwarding paths out of store arbitration
+                // while still suppressing stores on access or alignment faults.
+                replaceStoreByLoad = ldUpdate[i] && isZaamo[i] && amoCacheHit[i] &&
+`ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
+                    ldPipeReg[i].regValid &&
+`endif
+                    ldPipeReg[i].memMapType != MMT_ILLEGAL &&
+                    !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size);
                 amoExecuteStore = TRUE;
                 amoExecutedStoreData = ldPipeReg[i].dataIn;
                 amoExecutedStoreVectorData = '0;
