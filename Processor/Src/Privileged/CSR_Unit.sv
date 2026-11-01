@@ -34,6 +34,7 @@ module CSR_Unit(
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
 
     PrivilegeLevelType privilegeLevel, privilegeLevelNext;
+    PrivilegeLevelType excptPrivilegeLevel;
 
     function automatic CSR_BodyPath GetCSRResetValue();
         CSR_BodyPath value;
@@ -100,6 +101,16 @@ module CSR_Unit(
             '0 : port.excptCauseDataAddr;
 
         privilegeLevelNext = privilegeLevel;
+
+        // Select the exception destination independently of interrupt triggering.
+        // Sharing privilegeLevelNext would put the interrupt path on the recovery PC.
+        if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S ||
+            !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)]) begin
+            excptPrivilegeLevel = PRIVILEGE_LEVEL_M;
+        end
+        else begin
+            excptPrivilegeLevel = PRIVILEGE_LEVEL_S;
+        end
 
         // Read a CSR value
         csrImplemented = TRUE;
@@ -256,12 +267,7 @@ module CSR_Unit(
             end
             else begin
                 // Exception
-                if (privilegeLevel == PRIVILEGE_LEVEL_M || !csrReg.misa.EXTENSIONS.S || !csrReg.medeleg[ToTrapCodeFromExecState(port.excptCause, privilegeLevel)]) begin
-                    privilegeLevelNext = PRIVILEGE_LEVEL_M;
-                end
-                else begin
-                    privilegeLevelNext = PRIVILEGE_LEVEL_S;
-                end
+                privilegeLevelNext = excptPrivilegeLevel;
 
                 if (privilegeLevelNext == PRIVILEGE_LEVEL_M) begin
                     csrNext.mstatus.MPIE = csrNext.mstatus.MIE; // MIE の古い値
@@ -413,7 +419,9 @@ module CSR_Unit(
             //$display("sret: to %x", csrNext.sepc);
         end
         else begin
-            case (privilegeLevelNext)
+            // RecoveryManager consumes this target only when triggerExcpt is set;
+            // interrupt targets are selected separately by InterruptController.
+            case (excptPrivilegeLevel)
                 PRIVILEGE_LEVEL_M: port.excptTargetAddr = {csrReg.mtvec.base, CSR_XTVEC_BASE_PADDING};
                 PRIVILEGE_LEVEL_S: port.excptTargetAddr = {csrReg.stvec.base, CSR_XTVEC_BASE_PADDING};
                 default: begin end

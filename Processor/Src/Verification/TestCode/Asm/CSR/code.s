@@ -104,16 +104,31 @@
 1:
     .endm
 
-    .macro RETURN_TO_MACHINE cause
+    .macro RETURN_TO_MACHINE cause, instruction=ecall
     li a6, \cause
     la t0, 1f
     la t2, 2f
 1:
-    ecall
+    \instruction
     j fail
 2:
     li a6, 2
     li a7, 0x1800
+    .endm
+
+    .macro EXPECT_SUPERVISOR_TRAP cause, status, instruction:vararg
+    li a6, -1              # Reject an unexpected trip through the M-mode handler.
+    li s7, \cause
+    li s8, \status        # Expected SPP/SPIE/SIE on entry to the S-mode handler.
+    addi s10, s5, 1
+    la t0, 1f
+    la t2, 2f
+1:
+    \instruction
+    j fail
+2:
+    bne s5, s10, fail
+    li a6, 2
     .endm
 
 main:
@@ -266,6 +281,53 @@ main:
     bne a4, t3, fail
     csrr t3, sscratch
     bne t3, a3, fail
+
+    # Delegate illegal instructions and S/U ECALLs, but never M-mode traps.
+    csrr s1, stvec
+    la t3, supervisor_trap_vector
+    csrw stvec, t3
+    li t3, 0x304           # medeleg: illegal instruction, U ECALL, S ECALL.
+    csrw medeleg, t3
+    csrr t4, medeleg
+    bne t3, t4, fail
+    li s5, 0
+    EXPECT_ILLEGAL_CSR csrr a2, 0x7c0
+    RETURN_TO_MACHINE 11
+    bnez s5, fail
+
+    ENTER_PRIVILEGE 0x800
+    csrsi sstatus, 2       # Trap entry must copy SIE=1 to SPIE, then clear SIE.
+    EXPECT_SUPERVISOR_TRAP 9, 0x120, ecall
+    csrr t3, sstatus
+    andi t3, t3, 0x122
+    li t4, 0x22            # SRET restored SIE, set SPIE and cleared SPP.
+    bne t3, t4, fail
+    csrci sstatus, 2
+    EXPECT_SUPERVISOR_TRAP 2, 0x100, csrr a2, mscratch
+    EXPECT_SUPERVISOR_TRAP 2, 0x100, mret
+    csrr t3, sstatus
+    andi t3, t3, 0x122
+    li t4, 0x20            # SRET must also preserve a previously disabled SIE.
+    bne t3, t4, fail
+    RETURN_TO_MACHINE 3, ebreak  # Breakpoints are not delegated.
+    li t3, 3
+    bne s5, t3, fail
+
+    csrsi sstatus, 2
+    ENTER_PRIVILEGE 0
+    EXPECT_SUPERVISOR_TRAP 8, 0x20, ecall
+    # These must still fault after SRET: returning to S/M by mistake is invalid.
+    EXPECT_SUPERVISOR_TRAP 2, 0x20, sret
+    EXPECT_SUPERVISOR_TRAP 2, 0x20, csrr a2, sscratch
+    RETURN_TO_MACHINE 3, ebreak
+    li t3, 6
+    bne s5, t3, fail
+    csrr t3, sstatus
+    andi t3, t3, 0x122
+    li t4, 0x22
+    bne t3, t4, fail
+
+    csrw stvec, s1
     csrw sscratch, s0
     csrw medeleg, t6
     csrw mstatus, t5
@@ -296,7 +358,7 @@ trap_vector:
     csrr t3, mscratch
     bne t3, a5, fail
     addi a4, a4, 1
-    # CSR faults return to their original mode; ECALL ends each lower-mode test.
+    # CSR faults return to their original mode; ECALL/EBREAK end lower-mode tests.
     li t4, 2
     beq a6, t4, 1f
     li t4, 0x1800
@@ -304,3 +366,18 @@ trap_vector:
 1:
     csrw mepc, t2
     mret
+
+supervisor_trap_vector:
+    csrr t3, scause
+    bne t3, s7, fail
+    csrr t3, sepc
+    bne t3, t0, fail
+    csrr t3, stval
+    bnez t3, fail
+    csrr t3, sstatus
+    andi t3, t3, 0x122
+    bne t3, s8, fail
+    bne a2, a3, fail
+    addi s5, s5, 1
+    csrw sepc, t2
+    sret
