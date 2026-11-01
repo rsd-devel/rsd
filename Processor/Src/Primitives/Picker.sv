@@ -30,19 +30,48 @@ output
             granted[p] = '0;
             grantPtr[p] = '0;
             
-            for (int e = 0; e < ENTRY_NUM; e++) begin
+            // Scan backwards so the lowest index wins by overwriting.
+            for (int e = ENTRY_NUM - 1; e >= 0; e--) begin
                 if(reqTmp[e]) begin
-                    grant[e] = '1;
                     granted[p] = '1;
                     grantPtr[p] = e;
-                    reqTmp[e] = '0;
-                    break;
                 end
+            end
+            // Remove only the final choice before selecting the next grant.
+            if (granted[p]) begin
+                grant[grantPtr[p]] = '1;
+                reqTmp[grantPtr[p]] = '0;
             end
         end
     end
     
 endmodule : Picker
+
+
+// Pick one request, returning its encoded position and validity.
+// By default, prefer the lowest index, as Picker does.
+module EncodedPicker #(
+    parameter ENTRY_NUM = 4,
+    parameter bit HIGH_INDEX_FIRST = 1'b0
+)(
+    input logic [ENTRY_NUM-1:0] req,
+    output logic [$clog2(ENTRY_NUM)-1:0] grantPtr,
+    output logic granted
+);
+    always_comb begin
+        grantPtr = '0;
+        granted = 1'b0;
+        for (int e = 0; e < ENTRY_NUM; e++) begin
+            // Visit higher-priority entries last so they overwrite earlier choices.
+            int index;
+            index = HIGH_INDEX_FIRST ? e : ENTRY_NUM - 1 - e;
+            if (req[index]) begin
+                grantPtr = index;
+                granted = 1'b1;
+            end
+        end
+    end
+endmodule : EncodedPicker
 
 
 //
@@ -101,9 +130,9 @@ endmodule : InterleavedPicker
 //  if head=tail.
 //
 
-module CircularRangePicker #( 
+module CircularRangePicker #(
     parameter ENTRY_NUM = 16
-)( 
+)(
 input
     logic [$clog2(ENTRY_NUM)-1:0] headPtr,
     logic [$clog2(ENTRY_NUM)-1:0] tailPtr,
@@ -113,136 +142,52 @@ output
     logic picked
 );
     localparam INDEX_BIT_SIZE = $clog2(ENTRY_NUM);
-    //localparam ENTRY_NUM = 1 << INDEX_BIT_SIZE;
-    
-    logic [ENTRY_NUM*2-1:0] rightShifterIn;
-    logic [ENTRY_NUM-1:0] shiftedReq;
-    logic [INDEX_BIT_SIZE-1:0] shiftedGrant;
-    
-    // Generate a right shifter.
-    // When the width of a shifter is greater than 16, a hand-implemented shifter 
-    // is faster than a verilog shift operator.
-    generate 
-        // Generate special version.
-        if(ENTRY_NUM == 16) begin 
-            CircularRangePickerRightShifter16 rightShifter(rightShifterIn[30:0], tailPtr, shiftedReq);
-        end
-        else begin
-            CircularRangePickerRightShifter#(ENTRY_NUM*2, INDEX_BIT_SIZE, ENTRY_NUM) 
-                rightShifter(rightShifterIn, tailPtr, shiftedReq);
+    logic [ENTRY_NUM-1:0] headMask;
+    logic [ENTRY_NUM-1:0] tailMask;
+    logic [ENTRY_NUM-1:0] rangeMask;
+    logic [ENTRY_NUM-1:0] validRequest;
+    logic [ENTRY_NUM-1:0] maskedRequest;
+    logic [INDEX_BIT_SIZE-1:0] wholePtr;
+    logic [INDEX_BIT_SIZE-1:0] maskedPtr;
+    logic wholePicked;
+    logic maskedPicked;
+
+    generate
+        for (genvar i = 0; i < ENTRY_NUM; i++) begin
+            assign headMask[i] = i < headPtr;
+            assign tailMask[i] = i < tailPtr;
         end
     endgenerate
-    
+    // Filter both pickers to [headPtr, tailPtr); head == tail is empty.
+    assign rangeMask = (tailPtr >= headPtr) ?
+        (tailMask & ~headMask) : (tailMask | ~headMask);
+    assign validRequest = request & rangeMask;
+    assign maskedRequest = validRequest & tailMask;
+
+    EncodedPicker #(
+        .ENTRY_NUM(ENTRY_NUM), .HIGH_INDEX_FIRST(1'b1)
+    ) wholePicker (
+        .req(validRequest),
+        .grantPtr(wholePtr), .granted(wholePicked)
+    );
+    EncodedPicker #(
+        .ENTRY_NUM(ENTRY_NUM), .HIGH_INDEX_FIRST(1'b1)
+    ) maskedPicker (
+        .req(maskedRequest),
+        .grantPtr(maskedPtr), .granted(maskedPicked)
+    );
+
+    assign picked = maskedPicked | wholePicked;
+
     always_comb begin
-        
-        // Shift and move a tail to a higer position.
-        //  a9876543210  a9876543210
-        // <---t***h---><---t***h---> >> tp(7) => <----------t><***h------->
-        // <***h---t***><***h---t***> >> tp(3) => <---***h---t><******h---->
-        
-        // This is equivalent to "shiftedReq = {request, request} >> tailPtr;"
-        rightShifterIn = {request, request};
-
-        // Pick the highest request.
-        picked = 1'b0;
-        shiftedGrant = 0;
-        
-        for(int i = 0; i < ENTRY_NUM; i++) begin
-            if(shiftedReq[i]) begin
-                shiftedGrant = i;
-                picked = 1'b1;
-            end
+        // Prefer requests below tail, wrapping to the whole vector if empty.
+        // With no in-range requests, keep the unused pointer defined at tail.
+        grantPtr = tailPtr;
+        if (maskedPicked) begin
+            grantPtr = maskedPtr;
         end
-        
-        // Shift and restore original poistion.
-        //  a9876543210  a9876543210              a9876543210  a9876543210
-        // <-----------><***h-------> + tp(7) => <----***h---><----------->
-        // <-----------><******h----> + tp(3) => <--------***><***h------->
-        if (shiftedGrant + tailPtr < ENTRY_NUM) begin
-            grantPtr = shiftedGrant + tailPtr;
+        else if (wholePicked) begin
+            grantPtr = wholePtr;
         end
-        else begin
-            grantPtr = shiftedGrant + tailPtr - ENTRY_NUM;
-        end
-
-        //$display("t:%x, h:%x, sr:%b sg:%x, sp:%x", tailPtr, headPtr, shiftedReq, shiftedGrant, grantPtr);
-
-
-        // Invalidate invalid grant.
-        
-        // Implementation A: it is faster than B by 1 LUT, but its area is larger 
-        // than that of B by 22 LUTs.
-        if(tailPtr >= headPtr) begin
-            if(ENTRY_NUM + headPtr - tailPtr > shiftedGrant) begin
-                picked = 1'b0;
-            end
-        end 
-        else begin
-            if(headPtr - tailPtr > shiftedGrant) begin
-                picked = 1'b0;
-            end
-        end
-
-        /*
-        // Implementation B.
-        if(tailPtr >= headPtr) begin
-            if(headPtr > grantPtr || grantPtr >= tailPtr) begin
-                picked = 1'b0;
-            end
-        end begin
-            if(headPtr > grantPtr && grantPtr >= tailPtr) begin
-                picked = 1'b0;
-            end
-        end
-        */
-        
     end
 endmodule : CircularRangePicker
-
-
-//
-// --- Internal sub modules.
-//
-
-// A special version of a right shift operation for 16 entries.
-module CircularRangePickerRightShifter16(
-    input logic [30:0] shiftIn,
-    input logic [3:0] shiftAmount,
-    output logic [15:0] shiftOut
-);
-    logic [16*2-1:0] shiftTmp;
-    always_comb begin
-        shiftTmp = shiftIn;
-        // A 4:1 selecter will be  mapped to 6 input LUT.
-        case(shiftAmount[3:2])
-            2'h3: shiftTmp = shiftTmp[30:12];
-            2'h2: shiftTmp = shiftTmp[26:8];
-            2'h1: shiftTmp = shiftTmp[22:4];
-            //2'h0: 
-            default: shiftTmp = shiftTmp[18:0];
-        endcase
-        case(shiftAmount[1:0])
-            2'h3: shiftTmp = shiftTmp[18:3];
-            2'h2: shiftTmp = shiftTmp[17:2];
-            2'h1: shiftTmp = shiftTmp[16:1];
-            //2'h0: 
-            default: shiftTmp = shiftTmp[15:0];
-        endcase
-        shiftOut = shiftTmp;
-    end
-endmodule
-
-// A generic version of a right shift operation.
-module CircularRangePickerRightShifter #( 
-    parameter INPUT_WIDTH = 32,
-    parameter SHIFT_AMOUNT_WIDTH = 4,
-    parameter OUTPUT_WIDTH = 16
-)(
-    input logic [INPUT_WIDTH-1:0] shiftIn,
-    input logic [SHIFT_AMOUNT_WIDTH-1:0] shiftAmount,
-    output logic [OUTPUT_WIDTH-1:0] shiftOut
-);
-    always_comb begin
-        shiftOut = shiftIn >> shiftAmount;
-    end
-endmodule
