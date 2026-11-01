@@ -158,7 +158,7 @@ module MemoryTagAccessStage(
     logic isZaamo   [LOAD_ISSUE_WIDTH];
     logic isSerialized[LOAD_ISSUE_WIDTH];
     logic amoCacheHit[LOAD_ISSUE_WIDTH];
-    logic amoLoadSuccess[LOAD_ISSUE_WIDTH];
+    logic loadAccessSuccess[LOAD_ISSUE_WIDTH];
     logic storeForwardMiss[LOAD_ISSUE_WIDTH];
     logic isLoadIO  [LOAD_ISSUE_WIDTH];
     MemoryAccessStageRegPath ldNextStage[LOAD_ISSUE_WIDTH];
@@ -432,27 +432,9 @@ module MemoryTagAccessStage(
                 end
             end
 
-            // Check LR success directly, without waiting for execState encoding.
-            // Preserve IO serialization and access/alignment fault checks.
-            if (i == 0 && ldUpdate[i] && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc &&
-`ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
-                ldPipeReg[i].regValid &&
-`endif
-                (!isLoadIO[i] || isSerialized[i]) &&
-                ldPipeReg[i].memMapType != MMT_ILLEGAL &&
-                !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size) &&
-                (loadStoreUnit.storeLoadForwarded[i] ? !loadStoreUnit.forwardMiss[i] :
-                    (loadStoreUnit.mshrReadHit[i] ||
-                        (!(ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) &&
-                            loadStoreUnit.dcReadHit[i])))) begin
-                update_is_reserved_byLR = TRUE;
-                last_is_reserved = TRUE;
-                last_reserved_addr = ldPipeReg[i].phyAddrOut;
-            end
-
-            // Decide AMO fill/replay directly, without waiting for execState.
-            // Keep the loaded data valid above; only the AMO itself is replayed.
-            amoLoadSuccess[i] = ldUpdate[i] && isZaamo[i] && !amoCacheHit[i] &&
+            // Share LR/AMO load success without depending on execState encoding.
+            // Instruction-specific restrictions remain at each use below.
+            loadAccessSuccess[i] = ldUpdate[i] &&
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
                 ldPipeReg[i].regValid &&
 `endif
@@ -462,7 +444,17 @@ module MemoryTagAccessStage(
                     (loadStoreUnit.mshrReadHit[i] ||
                         (!(ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) &&
                             loadStoreUnit.dcReadHit[i])));
-            if (amoLoadSuccess[i]) begin
+
+            // LR reserves the loaded address only after any required IO serialization.
+            if (i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc &&
+                (!isLoadIO[i] || isSerialized[i]) && loadAccessSuccess[i]) begin
+                update_is_reserved_byLR = TRUE;
+                last_is_reserved = TRUE;
+                last_reserved_addr = ldPipeReg[i].phyAddrOut;
+            end
+
+            // Keep the loaded data valid above; only the AMO itself is replayed.
+            if (isZaamo[i] && !amoCacheHit[i] && loadAccessSuccess[i]) begin
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
                 ldRegValid[i] = FALSE;
                 ldRecordData[i].hasLoadedAMOCache = TRUE;
