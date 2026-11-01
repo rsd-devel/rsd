@@ -432,14 +432,22 @@ module MemoryTagAccessStage(
                 end
             end
 
-            // RVA LR
-            if (ldNextStage[i].execState inside { EXEC_STATE_SUCCESS }) begin
-                // LR
-                if (i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc) begin
-                    update_is_reserved_byLR = TRUE;
-                    last_is_reserved = TRUE;
-                    last_reserved_addr = ldPipeReg[i].phyAddrOut;
-                end
+            // Check LR success directly, without waiting for execState encoding.
+            // Preserve IO serialization and access/alignment fault checks.
+            if (i == 0 && ldUpdate[i] && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc &&
+`ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
+                ldPipeReg[i].regValid &&
+`endif
+                (!isLoadIO[i] || isSerialized[i]) &&
+                ldPipeReg[i].memMapType != MMT_ILLEGAL &&
+                !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size) &&
+                (loadStoreUnit.storeLoadForwarded[i] ? !loadStoreUnit.forwardMiss[i] :
+                    (loadStoreUnit.mshrReadHit[i] ||
+                        (!(ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) &&
+                            loadStoreUnit.dcReadHit[i])))) begin
+                update_is_reserved_byLR = TRUE;
+                last_is_reserved = TRUE;
+                last_reserved_addr = ldPipeReg[i].phyAddrOut;
             end
 
             // Decide AMO fill/replay directly, without waiting for execState.
