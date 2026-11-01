@@ -298,9 +298,11 @@ module StoreQueue(
             // ストアがwriteしてないバイトを、ロードがreadしようとした場合、
             // フォワーディングは失敗となる。
             if (pickedPtr[i] < STORE_QUEUE_ENTRY_NUM) begin
+                // Use the masks mirrored in the address entries so forwarding
+                // control does not have to wait for the data RAM read.
                 forwardMiss[i] = !storeQueue[pickedPtr[i]].regValid ||
-                    ((~forwardedDataEntry[i].wordWE & executedLoadWordRE[i]) != '0) ||
-                    ((~forwardedDataEntry[i].byteWE & executedLoadByteRE[i]) != '0);
+                    ((~storeQueue[pickedPtr[i]].wordWE & executedLoadWordRE[i]) != '0) ||
+                    ((~storeQueue[pickedPtr[i]].byteWE & executedLoadByteRE[i]) != '0);
                 forwardedLoadData[i] = forwardedDataEntry[i].data;
             end
             else begin
