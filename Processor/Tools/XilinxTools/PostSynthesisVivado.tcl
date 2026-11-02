@@ -11,12 +11,16 @@ set header [get_files *SynthesisMacros.svh]
 set_property file_type {Verilog Header} $header
 set_property is_global_include true $header
 read_verilog -sv $env(RSD_POST_SYNTHESIS_SOURCES)
-synth_design -top Main_Zynq_Wrapper -part xc7z020clg484-1 -mode out_of_context
 set period 10.000
 if {$timing} {
     set period [lindex $argv 1]
 }
-create_clock -name core_clk -period $period [get_ports clk_p]
+# Give synthesis a timing target before it optimizes and retimes the RTL.
+set constraints [open clock.xdc w]
+puts $constraints [format {create_clock -name core_clk -period %s [get_ports clk_p]} $period]
+close $constraints
+read_xdc clock.xdc
+synth_design -top Main_Zynq_Wrapper -part xc7z020clg484-1 -mode out_of_context -retiming
 if {$timing} {
     # Keep the hierarchical debug signals read by the common testbench.
     set_property DONT_TOUCH true [get_nets -segments -regexp {debugRegister\[[0-9]+\]}]

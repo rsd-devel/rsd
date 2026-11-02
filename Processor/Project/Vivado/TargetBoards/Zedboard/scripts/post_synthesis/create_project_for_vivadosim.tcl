@@ -1405,6 +1405,8 @@ if { $obj != "" } {
 }
 set obj [get_runs synth_1]
 set_property -name "strategy" -value "Vivado Synthesis Defaults" -objects $obj
+# Balance pipeline registers using the clock constraint loaded above.
+set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true $obj
 
 # set the current synth run
 current_run -synthesis [get_runs synth_1]
