@@ -1,5 +1,5 @@
 // Sail 0.15 requires a complete configuration, including unused extensions.
-// This models integer/CSR/M-mode tests; CLINT/SIG are reference-only devices.
+// This models instruction tests and M/U-mode traps; CLINT/SIG are reference-only devices.
 {
   "base": {
     "xlen": 32,
@@ -210,7 +210,7 @@
     },
     "B": {"supported": false, "mutable_misa": true},
     // RSD boots with misa.S/U set, so M-mode tests can write SIE/SPIE.
-    // The UDB profile still selects only M-mode test paths and trap setup.
+    // The UDB profile includes U-mode execution with M-mode trap handling.
     "S": {
       "supported": true,
       "mutable_misa": true,

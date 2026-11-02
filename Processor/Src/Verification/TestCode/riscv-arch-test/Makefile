@@ -30,9 +30,9 @@ ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)
 include Build/Generated/F.mk
 endif
 endif
-# Only M-mode cases are used; lower privilege modes need their own adapters.
+# Exercise machine interrupts while running in M-mode and U-mode.
 ACT_INTERRUPT_SOURCES := $(if $(filter InterruptsSm,$(ACT_EXTENSION_LIST)),\
-	$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _M-00.S,trigger enable priority_mip priority_mie wfi)))
+	$(foreach mode,M U,$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _$(mode)-00.S,trigger enable priority_mip priority_mie wfi))))
 ACT_GENERATED_SOURCES := $(foreach extension,$(filter-out InterruptsSm,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST))),Build/Generated/priv/$(extension)/$(extension)-00.S) $(ACT_INTERRUPT_SOURCES)
 ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
 	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \

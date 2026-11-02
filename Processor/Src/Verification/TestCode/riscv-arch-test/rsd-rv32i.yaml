@@ -3,7 +3,7 @@ $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rsd-rv32i
-description: RSD integer, exception and interrupt tests in machine mode
+description: RSD integer and exception tests, and machine interrupts from M/U modes
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: M, version: "= 2.0" }
@@ -14,10 +14,14 @@ implemented_extensions:
   - { name: Zicsr, version: "= 2.0" }
   # Zifencei is added by the Makefile when selected.
   - { name: Sm, version: "= 1.11.0" }
+  - { name: U, version: "= 1.0.0" }
 params:
   MXLEN: 32
   PHYS_ADDR_WIDTH: 32
   M_MODE_ENDIANNESS: little
+  U_MODE_ENDIANNESS: little
+  UXLEN: [32]
+  MUTABLE_MISA_U: true
   MISA_CSR_IMPLEMENTED: true
   MUTABLE_MISA_M: false
   MUTABLE_MISA_A: false
@@ -30,6 +34,7 @@ params:
   NON_STANDARD_EXTENSION_IMPLEMENTED: false
   PRECISE_SYNCHRONOUS_EXCEPTIONS: true
   TRAP_ON_ECALL_FROM_M: true
+  TRAP_ON_ECALL_FROM_U: true
   TRAP_ON_EBREAK: true
   TRAP_ON_UNIMPLEMENTED_INSTRUCTION: true
   TRAP_ON_RESERVED_INSTRUCTION: true
