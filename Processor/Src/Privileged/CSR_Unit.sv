@@ -344,9 +344,15 @@ module CSR_Unit(
                         mipRegNext.SSIP = wv.mip.SSIP;
                     end
                 end
-                CSR_NUM_MIE:begin
-                    csrNext.mie = wv;
-                    //$display("mie: %x", wv);
+                CSR_NUM_MIE: begin
+                    // Update implemented fields only; padding remains zero.
+                    csrNext.mie.CUSTOM = wv.mie.CUSTOM;
+                    csrNext.mie.MEIE = wv.mie.MEIE;
+                    csrNext.mie.SEIE = wv.mie.SEIE;
+                    csrNext.mie.MTIE = wv.mie.MTIE;
+                    csrNext.mie.STIE = wv.mie.STIE;
+                    csrNext.mie.MSIE = wv.mie.MSIE;
+                    csrNext.mie.SSIE = wv.mie.SSIE;
                 end
                 CSR_NUM_MCAUSE:     csrNext.mcause = wv;
                 CSR_NUM_MTVEC: begin

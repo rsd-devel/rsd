@@ -289,6 +289,72 @@ main:
     bne t3, a1, fail
     csrw mscratch, a5
 
+    # Keep interrupts disabled while testing every implemented enable bit.
+    csrr s1, mstatus
+    csrr s2, mie
+    csrci mstatus, 8
+    csrw mie, zero
+
+    # mstatus already ignores padding; preserve that behavior for WRITE/SET/CLEAR.
+    csrr t1, mstatus
+    li t0, 0xffa1e655
+    or t3, t1, t0
+    csrw mstatus, t3
+    csrr t4, mstatus
+    bne t4, t1, fail
+    csrs mstatus, t0
+    csrr t4, mstatus
+    bne t4, t1, fail
+    csrc mstatus, t0
+    csrr t4, mstatus
+    bne t4, t1, fail
+
+    # M/S interrupt enables and platform CUSTOM bits remain writable.
+    li t1, 0xffff0aaa
+    li t0, -1
+    csrrw t3, mie, t0
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+    csrrc t3, mie, t0
+    bne t3, t1, fail
+    EXPECT_ZERO_CSR mie
+    csrrs t3, mie, t0
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+    li t0, 0x0000f555
+    csrc mie, t0
+    csrr t4, mie
+    bne t4, t1, fail
+
+    # Immediate writes also discard reserved bits and report the old value.
+    csrrwi t3, mie, 31
+    bne t3, t1, fail
+    li t1, 0xa
+    csrr t4, mie
+    bne t4, t1, fail
+    csrrci t3, mie, 31
+    bne t3, t1, fail
+    EXPECT_ZERO_CSR mie
+    csrrsi t3, mie, 31
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+
+    # Disabling S must not remove machine or platform interrupt enables.
+    csrw mie, zero
+    csrr t5, misa
+    li t0, 0x40000
+    csrc misa, t0
+    li t0, 0xffff0888
+    csrw mie, t0
+    csrr t4, mie
+    bne t4, t0, fail
+    csrw misa, t5
+    csrw mie, s2
+    csrw mstatus, s1
+
     # Route lower-privilege traps to M-mode and preserve the original CSR state.
     csrr t5, mstatus
     csrr t6, medeleg
