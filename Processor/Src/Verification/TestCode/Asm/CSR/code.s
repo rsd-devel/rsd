@@ -228,7 +228,60 @@
     li a6, 2
     .endm
 
+    .macro CHECK_MINSTRET_TRAP cause, instruction:vararg
+    li t4, \cause
+    csrr t0, minstret
+    \instruction
+    csrr t1, minstret
+    sub t1, t1, t0
+    # The first CSR read and six handler instructions retire; the trap does not.
+    li t2, 7
+    bne t1, t2, fail
+    .endm
+
 main:
+
+    la t0, minstret_trap_vector
+    csrrw t6, mtvec, t0
+    CHECK_MINSTRET_TRAP 11, ecall
+    CHECK_MINSTRET_TRAP 3, ebreak
+    CHECK_MINSTRET_TRAP 2, .word 0xffffffff
+    csrw mtvec, t6
+
+    # Consecutive ordinary instructions are counted once each.
+    csrr t0, minstret
+    addi t2, zero, 1
+    addi t2, t2, 1
+    csrr t1, minstret
+    sub t1, t1, t0
+    li t2, 3
+    bne t1, t2, fail
+
+    # The taken JALR retires once; its skipped illegal instruction does not.
+    la t3, 1f
+    csrr t0, minstret
+    jalr zero, 0(t3)
+    .word 0xffffffff
+1:
+    csrr t1, minstret
+    sub t1, t1, t0
+    li t2, 2
+    bne t1, t2, fail
+
+    # AMO's internal load/store work still retires as one instruction.
+    addi sp, sp, -16
+    sw zero, 0(sp)
+    li t3, 1
+    csrr t0, minstret
+    amoadd.w t2, t3, (sp)
+    csrr t1, minstret
+    sub t1, t1, t0
+    bnez t2, fail
+    li t2, 2
+    bne t1, t2, fail
+    lw t2, 0(sp)
+    bne t2, t3, fail
+    addi sp, sp, 16
 
     li a1, 0x00
     li a2, 0x03
@@ -517,6 +570,14 @@ end:
 
 fail:
     j fail
+
+minstret_trap_vector:
+    csrr t3, mcause
+    bne t3, t4, fail
+    csrr t3, mepc
+    addi t3, t3, 4
+    csrw mepc, t3
+    mret
 
 trap_vector:
     csrr t3, mcause

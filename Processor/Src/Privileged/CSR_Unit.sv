@@ -29,7 +29,7 @@ module CSR_Unit(
     AddrPath jumpTarget;
     AddrPath mepc;
     AddrPath trapValue;
-    CommitLaneCountPath regCommitNum;
+    CommitLaneCountPath regRetireNum;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
 
@@ -65,14 +65,14 @@ module CSR_Unit(
         if (port.rst) begin
             csrReg <= GetCSRResetValue();
             mipReg <= '0;
-            regCommitNum <= '0;
+            regRetireNum <= '0;
             privilegeLevel <= PRIVILEGE_LEVEL_M;
         end
         else begin
             csrReg <= csrNext;
             mipReg <= mipRegNext;
             privilegeLevel <= privilegeLevelNext;
-            regCommitNum <= port.commitNum;
+            regRetireNum <= port.retireNum;
             // if (privilegeLevel != privilegeLevelNext) begin
             //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
             // end
@@ -210,7 +210,7 @@ module CSR_Unit(
 
         // Explicit writes below take precedence over the counter increments.
         csrNext.mcycle = csrNext.mcycle + 64'd1;
-        csrNext.minstret = csrNext.minstret + regCommitNum;
+        csrNext.minstret = csrNext.minstret + regRetireNum;
 
         wv = '0;
 
