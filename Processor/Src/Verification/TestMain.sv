@@ -361,8 +361,8 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
         $display("Num of I$ misses: %d", debugRegister.perfCounter.numIC_Miss);
         $display("Num of D$ load misses: %d", debugRegister.perfCounter.numLoadMiss);
         $display("Num of D$ store misses: %d", debugRegister.perfCounter.numStoreMiss);
-        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
-        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
         $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
         $display("Num of branch prediction misses detected on decode: %d", debugRegister.perfCounter.numBranchPredMissDetectedOnDecode);
 
