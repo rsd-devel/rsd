@@ -349,7 +349,12 @@ module CSR_Unit(
                     //$display("mie: %x", wv);
                 end
                 CSR_NUM_MCAUSE:     csrNext.mcause = wv;
-                CSR_NUM_MTVEC:      csrNext.mtvec = wv;
+                CSR_NUM_MTVEC: begin
+                    csrNext.mtvec.base = wv.mtvec.base;
+                    // Reserved MODE values select Direct without changing BASE.
+                    csrNext.mtvec.mode = wv.mtvec.mode == CSR_XTVEC_MODE_VECTORED ?
+                        CSR_XTVEC_MODE_VECTORED : CSR_XTVEC_MODE_BASE;
+                end
                 CSR_NUM_MTVAL:      csrNext.mtval = wv;
                 // The low bit of mepc is always zero,
                 // as described in Chapter 3.1.19 of RISC-V Privileged Architectures.
@@ -369,7 +374,11 @@ module CSR_Unit(
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
                         CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
-                        CSR_NUM_STVEC:      csrNext.stvec = wv;
+                        CSR_NUM_STVEC: begin
+                            csrNext.stvec.base = wv.stvec.base;
+                            csrNext.stvec.mode = wv.stvec.mode == CSR_XTVEC_MODE_VECTORED ?
+                                CSR_XTVEC_MODE_VECTORED : CSR_XTVEC_MODE_BASE;
+                        end
                         CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
                         CSR_NUM_SEPC:       csrNext.sepc = wv;
                         CSR_NUM_SCAUSE:     csrNext.scause = wv;

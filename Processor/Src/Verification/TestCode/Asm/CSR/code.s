@@ -19,6 +19,50 @@
     bnez t3, fail
     .endm
 
+    .macro CHECK_XTVEC_MODE csr
+    csrr t5, \csr
+    la t1, trap_vector
+    # Check every MODE encoding while preserving a nonzero BASE.
+    .irp mode, 0, 1, 2, 3
+    ori t3, t1, \mode
+    csrw \csr, t3
+    csrr t4, \csr
+    .if \mode < 2
+    bne t4, t3, fail
+    .else
+    bne t4, t1, fail
+    .endif
+    .endr
+
+    # SET must coerce the resulting MODE, not just the operand.
+    ori t3, t1, 1
+    csrw \csr, t3
+    li t4, 2
+    csrs \csr, t4
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t3
+    li t4, 1
+    csrc \csr, t4
+    csrr t4, \csr
+    bne t4, t1, fail
+
+    csrrwi t4, \csr, 2
+    EXPECT_ZERO_CSR \csr
+    csrrwi t4, \csr, 3
+    EXPECT_ZERO_CSR \csr
+    ori t3, t1, 1
+    csrw \csr, t3
+    csrsi \csr, 2
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t3
+    csrci \csr, 1
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t5
+    .endm
+
     .macro CHECK_READ_ONLY_CSR csr
     # Zero-source SET/CLEAR instructions only read the CSR, even with rd = x0.
     EXPECT_ZERO_CSR \csr
@@ -162,6 +206,13 @@ main:
     csrr t0, misa
     bne t0, t1, fail
 
+    # Changing trap vectors must not expose an interrupt to a temporary address.
+    csrr t6, mstatus
+    csrci mstatus, 8
+    CHECK_XTVEC_MODE mtvec
+    CHECK_XTVEC_MODE stvec
+    csrw mstatus, t6
+
     la t0, trap_vector
     csrrw a0, mtvec, t0
     li a3, 0x13579bdf
@@ -186,11 +237,16 @@ main:
     EXPECT_ILLEGAL_CSR csrrci a2, 0x7c0, 0
 
     # Supervisor CSRs are unavailable when misa.S is disabled.
+    csrr t5, stvec
     li t6, 0x40000
     csrc misa, t6
     EXPECT_ILLEGAL_CSR csrr a2, sscratch
     EXPECT_ILLEGAL_CSR csrr a2, medeleg
+    EXPECT_ILLEGAL_CSR csrr a2, stvec
+    EXPECT_ILLEGAL_CSR csrrw a2, stvec, a3
     csrs misa, t6
+    csrr t3, stvec
+    bne t3, t5, fail
     EXPECT_ZERO_CSR sscratch
 
 #ifndef __riscv_flen
@@ -206,9 +262,9 @@ main:
     CHECK_READ_ONLY_CSR mimpid
     CHECK_READ_ONLY_CSR mhartid
 #ifndef __riscv_flen
-    li t3, 80
+    li t3, 82
 #else
-    li t3, 77
+    li t3, 79
 #endif
     bne a4, t3, fail
 
