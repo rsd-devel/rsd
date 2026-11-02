@@ -490,4 +490,15 @@ add_files -norecurse $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboa
 set_property top design_1_wrapper [current_fileset]
 update_compile_order -fileset sources_1
 
+# Configure the processor's out-of-context run as well as the top-level run.
+create_ip_run [get_files $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/design_1.bd]
+set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true [get_runs {synth_1 design_1_RSD_0_0_synth_1}]
+# Optimize RSD at 100 MHz without changing the board's PS-generated clock.
+set timing_file "$proj_dir/rsd_ooc.xdc"
+set timing [open $timing_file w]
+puts $timing {create_clock -name core_clk -period 10.000 [get_ports clk]}
+close $timing
+add_files -fileset [get_property CONSTRSET [get_runs design_1_RSD_0_0_synth_1]] $timing_file
+set_property USED_IN {synthesis out_of_context} [get_files $timing_file]
+
 close_project
