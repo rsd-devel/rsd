@@ -221,20 +221,21 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The integer/privileged subset runs 78 cases: I (39), M (8), Zaamo (9),
+The integer/privileged subset runs 83 cases: I (39), M (8), Zaamo (9),
 Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), Zifencei (1), and the generated M-mode
-`ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (5).
+`ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (10).
 A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
 Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
 defines are enabled in `RSD_SRC_CFG`; disabled extensions reject explicit selection.
-F is included by default when `RSD_MARCH_FP_PIPE` is enabled, for 359 cases in
+F is included by default when `RSD_MARCH_FP_PIPE` is enabled, for 364 cases in
 the default RTL configuration. Use `ACT_EXTENSIONS=F` to run only F: the pinned
 generator divides the upstream testplan into 281 files, targeting 250 testcases
 per ELF to fit RSD's existing RAM layout. All coverpoints are retained, without
 upstream patches.
 FP-disabled configurations exclude F and reject explicit F selections.
 The pinned `testgen` generates privileged sources under `Build/Generated/`;
-only the M-mode cases are selected, without S/U-mode delegation variants.
+exception cases run in M-mode; machine interrupts are tested from M/U-mode,
+without S-mode delegation variants.
 `test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
@@ -281,6 +282,8 @@ memory preservation on cached/uncached AMO faults.
 InterruptsSm checks MSI/MTI enable masks, Direct/Vectored entry, priority and
 WFI polling with a delayed timer. Trap signatures check cause, status, pending
 bits and the number of interrupts; they do not compare asynchronous trap PCs.
+The U-mode cases also check that machine interrupts ignore `mstatus.MIE` while
+executing at a lower privilege level and return through `mret`.
 Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
 fields and preservation of rd. Select `ACT_EXTENSIONS=Zifencei` to run it alone.
 The CSR cases also check `mepc` bit 1 readback.
@@ -291,8 +294,8 @@ The F suite checks numerical results and exception flags across all five
 rounding modes, including division and square root.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
-External interrupts and S/U-mode tests are outside this subset. Sail models RSD's
-initial S/U status fields, while the UDB profile selects only M-mode test paths.
+External interrupts and S-mode tests are outside this subset. Sail models RSD's
+initial S/U status fields; the UDB profile enables U-mode with M-mode trap handling.
 `test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
 removes its generated files. Run the fetch/setup steps above before `test-ex`
 or `test-build-ex`.

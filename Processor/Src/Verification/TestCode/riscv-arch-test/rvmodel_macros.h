@@ -1,6 +1,12 @@
 #ifndef RSD_RVMODEL_MACROS_H
 #define RSD_RVMODEL_MACROS_H
 
+// Keep instruction tests in M-mode when U is enabled in the profile.
+// Privileged tests enter U-mode explicitly through the ACT4 trap handler.
+#ifndef BOOT_TO_MMODE
+#define BOOT_TO_MMODE
+#endif
+
 .pushsection .text.reset,"ax",@progbits
 .option push
 .option norvc
