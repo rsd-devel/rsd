@@ -228,6 +228,13 @@
     li a6, 2
     .endm
 
+    .macro CHECK_MINSTRET_WRITE instruction:vararg
+    csrw minstret, zero
+    \instruction
+    csrr t0, minstret
+    bnez t0, fail
+    .endm
+
     .macro CHECK_MINSTRET_TRAP cause, instruction:vararg
     li t4, \cause
     csrr t0, minstret
@@ -240,6 +247,26 @@
     .endm
 
 main:
+
+    # Writes replace the implicit update, even though they retire later.
+    li t1, 0
+    .irp csr, minstret, minstreth
+    CHECK_MINSTRET_WRITE csrrw zero, \csr, zero
+    CHECK_MINSTRET_WRITE csrrwi zero, \csr, 0
+    # A zero value in a nonzero source register still requests a write.
+    CHECK_MINSTRET_WRITE csrrs zero, \csr, t1
+    CHECK_MINSTRET_WRITE csrrc zero, \csr, t1
+
+    # Zero-source SET/CLEAR only read and must each increment minstret.
+    csrw minstret, zero
+    csrrs zero, \csr, zero
+    csrrc zero, \csr, zero
+    csrrsi zero, \csr, 0
+    csrrci zero, \csr, 0
+    csrr t0, minstret
+    li t2, 4
+    bne t0, t2, fail
+    .endr
 
     la t0, minstret_trap_vector
     csrrw t6, mtvec, t0

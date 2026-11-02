@@ -30,6 +30,8 @@ module CSR_Unit(
     AddrPath mepc;
     AddrPath trapValue;
     CommitLaneCountPath regRetireNum;
+    CommitLaneCountPath minstretIncrement;
+    logic minstretWritePending, minstretWritePendingNext;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
 
@@ -66,6 +68,7 @@ module CSR_Unit(
             csrReg <= GetCSRResetValue();
             mipReg <= '0;
             regRetireNum <= '0;
+            minstretWritePending <= FALSE;
             privilegeLevel <= PRIVILEGE_LEVEL_M;
         end
         else begin
@@ -73,6 +76,7 @@ module CSR_Unit(
             mipReg <= mipRegNext;
             privilegeLevel <= privilegeLevelNext;
             regRetireNum <= port.retireNum;
+            minstretWritePending <= minstretWritePendingNext;
             // if (privilegeLevel != privilegeLevelNext) begin
             //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
             // end
@@ -207,10 +211,19 @@ module CSR_Unit(
         // Writeback 
         csrNext = csrReg;
         mipRegNext = mipReg;
+        minstretWritePendingNext = minstretWritePending;
+
+        // CSR writes execute before retirement. Serialization makes the next
+        // retired instruction the writer itself; its implicit update is replaced.
+        minstretIncrement = regRetireNum;
+        if (minstretWritePending && regRetireNum != 0) begin
+            minstretIncrement = regRetireNum - 1'b1;
+            minstretWritePendingNext = FALSE;
+        end
 
         // Explicit writes below take precedence over the counter increments.
         csrNext.mcycle = csrNext.mcycle + 64'd1;
-        csrNext.minstret = csrNext.minstret + regRetireNum;
+        csrNext.minstret = csrNext.minstret + minstretIncrement;
 
         wv = '0;
 
@@ -371,8 +384,14 @@ module CSR_Unit(
                 // A write to either half suppresses the entire 64-bit increment.
                 CSR_NUM_MCYCLE:     csrNext.mcycle = {csrReg.mcycle[63:32], wv};
                 CSR_NUM_MCYCLEH:    csrNext.mcycle = {wv, csrReg.mcycle[31:0]};
-                CSR_NUM_MINSTRET:   csrNext.minstret = {csrReg.minstret[63:32], wv};
-                CSR_NUM_MINSTRETH:  csrNext.minstret = {wv, csrReg.minstret[31:0]};
+                CSR_NUM_MINSTRET: begin
+                    csrNext.minstret = {csrReg.minstret[63:32], wv};
+                    minstretWritePendingNext = TRUE;
+                end
+                CSR_NUM_MINSTRETH: begin
+                    csrNext.minstret = {wv, csrReg.minstret[31:0]};
+                    minstretWritePendingNext = TRUE;
+                end
 `ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
