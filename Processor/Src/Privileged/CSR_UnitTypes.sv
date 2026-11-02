@@ -330,8 +330,8 @@ typedef struct packed {
 
     CSR_MISA_Path misa;
 
-    DataPath mcycle;
-    DataPath minstret;
+    logic [63:0] mcycle;
+    logic [63:0] minstret;
 `ifdef RSD_MARCH_FP_PIPE
     CSR_FCSR_Path fcsr;
 `endif

@@ -89,7 +89,7 @@ module CSR_Unit(
     end
 
     always_comb begin
-        mcycle = csrReg.mcycle;
+        mcycle = csrReg.mcycle[31:0];
 
         // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
         // Revisit this mask if compressed instructions are supported.
@@ -145,11 +145,12 @@ module CSR_Unit(
 
             // Implemented fixed-zero CSRs must not be treated as missing.
             CSR_NUM_MVENDORID, CSR_NUM_MARCHID, CSR_NUM_MIMPID, CSR_NUM_MHARTID,
-            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN,
-            CSR_NUM_MCYCLEH, CSR_NUM_MINSTRETH: rv = '0;
+            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN: rv = '0;
 
-            CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
-            CSR_NUM_MINSTRET: rv = csrReg.minstret;
+            CSR_NUM_MCYCLE:    rv = csrReg.mcycle[31:0];
+            CSR_NUM_MCYCLEH:   rv = csrReg.mcycle[63:32];
+            CSR_NUM_MINSTRET:  rv = csrReg.minstret[31:0];
+            CSR_NUM_MINSTRETH: rv = csrReg.minstret[63:32];
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
             CSR_NUM_MHPMCOUNTER3: rv = perfCounter.perfCounter.numLoadMiss;
             CSR_NUM_MHPMCOUNTER4: rv = perfCounter.perfCounter.numStoreMiss;
@@ -207,8 +208,8 @@ module CSR_Unit(
         csrNext = csrReg;
         mipRegNext = mipReg;
 
-        // Update Cycles
-        csrNext.mcycle = csrNext.mcycle + 1;
+        // Explicit writes below take precedence over the counter increments.
+        csrNext.mcycle = csrNext.mcycle + 64'd1;
         csrNext.minstret = csrNext.minstret + regCommitNum;
 
         wv = '0;
@@ -367,8 +368,11 @@ module CSR_Unit(
                 CSR_NUM_MEPC:       csrNext.mepc = {wv[31:1], 1'b0};
                 CSR_NUM_MSCRATCH:   csrNext.mscratch = wv;
 
-                CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
-                CSR_NUM_MINSTRET:   csrNext.minstret = wv;
+                // A write to either half suppresses the entire 64-bit increment.
+                CSR_NUM_MCYCLE:     csrNext.mcycle = {csrReg.mcycle[63:32], wv};
+                CSR_NUM_MCYCLEH:    csrNext.mcycle = {wv, csrReg.mcycle[31:0]};
+                CSR_NUM_MINSTRET:   csrNext.minstret = {csrReg.minstret[63:32], wv};
+                CSR_NUM_MINSTRETH:  csrNext.minstret = {wv, csrReg.minstret[31:0]};
 `ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);

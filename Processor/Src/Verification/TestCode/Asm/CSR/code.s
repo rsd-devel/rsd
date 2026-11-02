@@ -131,6 +131,59 @@
     csrrwi zero, satp, 0
     .endm
 
+    .macro CHECK_COUNTER64 low, high
+    # Writing the high half must preserve the running low half.
+    li t0, 0x12340000
+    csrw \low, t0
+    li t1, 0x12345678
+    csrw \high, t1
+    csrr t2, \high
+    bne t2, t1, fail
+    csrr t2, \low
+    sub t2, t2, t0
+    li t3, 0x10000
+    bgeu t2, t3, fail
+
+    # Writing the low half must preserve the high half.
+    li t0, 0x87650000
+    csrw \low, t0
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # SET/CLEAR use the high half for both the returned and written values.
+    li t0, 0x80000000
+    csrrs t2, \high, t0
+    bne t2, t1, fail
+    or t3, t1, t0
+    csrr t2, \high
+    bne t2, t3, fail
+    csrrc t2, \high, t0
+    bne t2, t3, fail
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # Both counters must carry from bit 31 to bit 32.
+    li t0, -16
+    csrw \low, t0
+    .rept 64
+    nop
+    .endr
+    addi t1, t1, 1
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # The full counter wraps modulo 2^64.
+    li t0, -1
+    csrw \high, t0
+    li t0, -16
+    csrw \low, t0
+    .rept 64
+    nop
+    .endr
+    csrr t2, \high
+    bnez t2, fail
+    .endm
+
     .macro ENTER_PRIVILEGE mpp
     li t3, 0x1800
     csrc mstatus, t3
@@ -277,8 +330,10 @@ main:
     EXPECT_ZERO_CSR mcounteren
     EXPECT_ZERO_CSR scounteren
     EXPECT_ZERO_CSR satp
-    EXPECT_ZERO_CSR mcycleh
-    EXPECT_ZERO_CSR minstreth
+
+    # The machine counters expose writable low and high halves on RV32.
+    CHECK_COUNTER64 mcycle, mcycleh
+    CHECK_COUNTER64 minstret, minstreth
 
     # An implemented writable CSR must still work after the traps.
     csrr t3, mscratch
