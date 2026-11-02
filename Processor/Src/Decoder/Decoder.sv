@@ -637,7 +637,11 @@ function automatic void RISCV_EmitBranch(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(brFunct3 inside {
+        BRANCH_FUNCT3_BEQ, BRANCH_FUNCT3_BNE,
+        BRANCH_FUNCT3_BLT, BRANCH_FUNCT3_BGE,
+        BRANCH_FUNCT3_BLTU, BRANCH_FUNCT3_BGEU
+    });
 
     // Serialized
     opInfo.serialized = FALSE;

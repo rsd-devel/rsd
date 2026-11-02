@@ -112,6 +112,12 @@ not_taken_branch:
     EXPECT_ILLEGAL 0x80079f93   # SLLI funct7=0x40 is reserved.
     EXPECT_ILLEGAL 0x8007df93   # SRLI/SRAI funct7=0x40 is reserved.
 
+    # Reserved branch conditions must trap instead of redirecting the PC.
+    EXPECT_ILLEGAL 0x00002463   # BRANCH funct3=2, forward displacement.
+    EXPECT_ILLEGAL 0x00003463   # BRANCH funct3=3, forward displacement.
+    EXPECT_ILLEGAL 0xfe002ee3   # BRANCH funct3=2, backward displacement.
+    EXPECT_ILLEGAL 0xfe003ee3   # BRANCH funct3=3, backward displacement.
+
     # All memory operands use the aligned stack word at a6.
     EXPECT_ILLEGAL 0x00083f83   # LOAD funct3=3.
     EXPECT_ILLEGAL 0x00086f83   # LOAD funct3=6.
