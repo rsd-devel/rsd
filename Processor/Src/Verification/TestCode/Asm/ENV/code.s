@@ -4,6 +4,17 @@
     .align    2
     .globl    main
     .type     main, @function
+
+    .set illegal_trap_count, 0
+    .macro EXPECT_ILLEGAL encoding
+    .set illegal_trap_count, illegal_trap_count + 1
+    la t0, 1f
+    la t2, 2f
+1:
+    .word \encoding
+    j fail
+2:
+    .endm
     
 main:
     # Misaligned control transfers must trap at the source instruction.
@@ -73,6 +84,86 @@ not_taken_branch:
     bne a5, t3, fail
     li t3, 4
     bne a4, t3, fail
+
+    # Reserved encodings must trap before changing a destination or memory.
+    la t0, illegal_trap_vector
+    csrw mtvec, t0
+    li a4, 0
+    li a5, 0x11223344
+    li a7, 0x13579bdf
+    mv t6, a7
+    li t1, 0x2468ace0
+    sw t1, 0(a6)
+#ifdef __riscv_flen
+    fmv.w.x ft0, a7
+    li t3, 0x3f800000
+    fmv.w.x ft1, t3
+    li t3, 0x40000000
+    fmv.w.x ft2, t3
+    li t3, 0x40400000
+    fmv.w.x ft3, t3
+#endif
+
+    # All memory operands use the aligned stack word at a6.
+    EXPECT_ILLEGAL 0x00083f83   # LOAD funct3=3.
+    EXPECT_ILLEGAL 0x00086f83   # LOAD funct3=6.
+    EXPECT_ILLEGAL 0x00087f83   # LOAD funct3=7.
+    EXPECT_ILLEGAL 0x00f83023   # STORE funct3=3.
+    EXPECT_ILLEGAL 0x00f84023   # STORE funct3=4.
+    EXPECT_ILLEGAL 0x00f85023   # STORE funct3=5.
+    EXPECT_ILLEGAL 0x00f86023   # STORE funct3=6.
+    EXPECT_ILLEGAL 0x00f87023   # STORE funct3=7.
+
+    EXPECT_ILLEGAL 0x00000ff3   # ECALL rd != 0.
+    EXPECT_ILLEGAL 0x00078073   # ECALL rs1 != 0.
+    EXPECT_ILLEGAL 0x00100ff3   # EBREAK rd != 0.
+    EXPECT_ILLEGAL 0x00178073   # EBREAK rs1 != 0.
+    EXPECT_ILLEGAL 0x30200ff3   # MRET rd != 0.
+    EXPECT_ILLEGAL 0x30278073   # MRET rs1 != 0.
+    EXPECT_ILLEGAL 0x10200ff3   # SRET rd != 0.
+    EXPECT_ILLEGAL 0x10278073   # SRET rs1 != 0.
+    EXPECT_ILLEGAL 0x10500ff3   # WFI rd != 0.
+    EXPECT_ILLEGAL 0x10578073   # WFI rs1 != 0.
+
+#ifdef __riscv_flen
+    EXPECT_ILLEGAL 0x00080007   # FP LOAD funct3=0.
+    EXPECT_ILLEGAL 0x00081007   # FP LOAD funct3=1.
+    EXPECT_ILLEGAL 0x00083007   # FP LOAD funct3=3.
+    EXPECT_ILLEGAL 0x00084007   # FP LOAD funct3=4.
+    EXPECT_ILLEGAL 0x00085007   # FP LOAD funct3=5.
+    EXPECT_ILLEGAL 0x00086007   # FP LOAD funct3=6.
+    EXPECT_ILLEGAL 0x00087007   # FP LOAD funct3=7.
+    EXPECT_ILLEGAL 0x00180027   # FP STORE funct3=0.
+    EXPECT_ILLEGAL 0x00181027   # FP STORE funct3=1.
+    EXPECT_ILLEGAL 0x00183027   # FP STORE funct3=3.
+    EXPECT_ILLEGAL 0x00184027   # FP STORE funct3=4.
+    EXPECT_ILLEGAL 0x00185027   # FP STORE funct3=5.
+    EXPECT_ILLEGAL 0x00186027   # FP STORE funct3=6.
+    EXPECT_ILLEGAL 0x00187027   # FP STORE funct3=7.
+
+    EXPECT_ILLEGAL 0x0020d053   # FADD.S rm=5.
+    EXPECT_ILLEGAL 0x0820e053   # FSUB.S rm=6.
+    EXPECT_ILLEGAL 0x1020d053   # FMUL.S rm=5.
+    EXPECT_ILLEGAL 0x1820e053   # FDIV.S rm=6.
+    EXPECT_ILLEGAL 0x58108053   # FSQRT.S rs2 != 0.
+    EXPECT_ILLEGAL 0x5800d053   # FSQRT.S rm=5.
+    EXPECT_ILLEGAL 0x2020b053   # FSGNJ.S funct3=3.
+    EXPECT_ILLEGAL 0x2820a053   # FMIN/FMAX.S funct3=2.
+    EXPECT_ILLEGAL 0xc0208fd3   # FCVT.W.S rs2=2.
+    EXPECT_ILLEGAL 0xc000dfd3   # FCVT.W.S rm=5.
+    EXPECT_ILLEGAL 0xd0278053   # FCVT.S.W rs2=2.
+    EXPECT_ILLEGAL 0xd007e053   # FCVT.S.W rm=6.
+    EXPECT_ILLEGAL 0xe000afd3   # FCLASS/FMV.X.W funct3=2.
+    EXPECT_ILLEGAL 0xa020bfd3   # FCMP.S funct3=3.
+    EXPECT_ILLEGAL 0xf0079053   # FMV.W.X funct3=1.
+    EXPECT_ILLEGAL 0x02208053   # FADD.D, unsupported funct7.
+    EXPECT_ILLEGAL 0x1a208043   # FMADD fmt=1.
+    EXPECT_ILLEGAL 0x1c208047   # FMSUB fmt=2.
+    EXPECT_ILLEGAL 0x1e20804b   # FNMSUB fmt=3.
+    EXPECT_ILLEGAL 0x1a20804f   # FNMADD fmt=1.
+#endif
+    li t3, illegal_trap_count
+    bne a4, t3, fail
     addi sp, sp, 16
     
     la a0, trap_vector
@@ -112,6 +203,25 @@ misaligned_trap_vector:
     bnez a5, fail
     lw t3, 0(a6)
     bnez t3, fail
+    addi a4, a4, 1
+    csrw mepc, t2
+    mret
+
+illegal_trap_vector:
+    csrr t3, mcause
+    li t4, 2
+    bne t3, t4, fail
+    csrr t3, mepc
+    bne t3, t0, fail
+    csrr t3, mtval
+    bnez t3, fail
+    bne t6, a7, fail
+    lw t3, 0(a6)
+    bne t3, t1, fail
+#ifdef __riscv_flen
+    fmv.x.w t3, ft0
+    bne t3, a7, fail
+#endif
     addi a4, a4, 1
     csrw mepc, t2
     mret
