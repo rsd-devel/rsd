@@ -120,7 +120,11 @@ function automatic void RISCV_EmitOpImm(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    // RV32 shift immediates have a five-bit shamt and fixed upper bits.
+    opInfo.undefined =
+        (opFunct3 == OP_FUNCT3_SLL && isfR.funct7 != '0) ||
+        (opFunct3 == OP_FUNCT3_SRL_SRA &&
+         !(shiftFunct7 inside {SHIFT_FUNCT7_SRL, SHIFT_FUNCT7_SRA}));
 
     // Serialized
     opInfo.serialized = FALSE;
