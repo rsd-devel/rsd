@@ -15,6 +15,7 @@ module TestInterruptController;
     localparam AddrPath RETURN_PC = 32'h80001234;
     localparam DataPath MACHINE_INTERRUPTS = 32'h00000888;
     localparam DataPath SUPERVISOR_INTERRUPTS = 32'h00000222;
+    localparam DataPath ALL_INTERRUPTS = MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS | 32'hffff0000;
     logic clk = 0, rst = 1, rstStart = 1;
     logic reqCustomInterrupt = 0;
     CustomInterruptCodePath customInterruptCode = '0;
@@ -121,6 +122,8 @@ module TestInterruptController;
     endfunction
 
     function automatic int PriorityCode(input DataPath pending);
+        for (int code = 31; code >= 16; code--)
+            if (pending[code]) return code;
         return pending[11] ? 11 : pending[3] ? 3 : pending[7] ? 7 :
                pending[9] ? 9 : pending[1] ? 1 : 5;
     endfunction
@@ -248,7 +251,7 @@ module TestInterruptController;
         #1;
     endtask
 
-    // Explicit regressions for known CSR-alias failures; do not force state.
+    // Regressions for CSR-alias failures; do not force state.
     task automatic CheckSupervisorAlias(input int kind);
         caseName = kind == 0 ? "SIE reads MIE" : kind == 1 ? "SIE updates MIE" : "SIP clears SSIP";
         Reset();
@@ -308,8 +311,8 @@ module TestInterruptController;
         WriteCSR(CSR_NUM_SEPC, 32'h80004320);
         WriteCSR(CSR_NUM_MCAUSE, 1);
         WriteCSR(CSR_NUM_SCAUSE, 5);
-        // M-mode software supplies STIP/SSIP; SEIP comes from the PLIC above.
-        WriteCSR(CSR_NUM_MIP, pending & 32'h22);
+        // Software supplies custom/STIP/SSIP; external requests use the PLIC.
+        WriteCSR(CSR_NUM_MIP, pending & 32'hffff0022);
         statusValue = '0;
         statusValue.MPP = origin;
         statusValue.MIE = machineEnable;
@@ -334,7 +337,7 @@ module TestInterruptController;
         csr.msip = pending[3];
         csr.reqTimerInterrupt = pending[7];
         repeat (3) Tick();
-        assert ((csr.csrWholeOut.mip & (MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS)) === pending)
+        assert ((csr.csrWholeOut.mip & ALL_INTERRUPTS) === pending)
             else $fatal(1, "Pending input did not reach mip (%s)", caseName);
 
         // Choose the destination privilege first, then the source priority.
@@ -420,7 +423,7 @@ module TestInterruptController;
                     {beforeTrap.sepc, beforeTrap.scause, beforeTrap.stval})
                 else $fatal(1, "Unexpected supervisor trap bank update (%s)", caseName);
         // Taking one interrupt must not discard another pending source.
-        assert ((csr.csrWholeOut.mip & (MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS)) === pending)
+        assert ((csr.csrWholeOut.mip & ALL_INTERRUPTS) === pending)
             else $fatal(1, "Interrupt entry lost pending sources (%s)", caseName);
         if (expectedRequest) begin
             ctrl.wholePipelineEmpty = 0;
@@ -436,7 +439,7 @@ module TestInterruptController;
                     csr.csrWholeOut.mstatus.MIE === machineEnable &&
                     csr.csrWholeOut.mstatus.SIE === supervisorEnable &&
                     ctrl.npStageSendBubbleLowerForInterrupt === 1'b1 &&
-                    (csr.csrWholeOut.mip & (MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS)) === pending &&
+                    (csr.csrWholeOut.mip & ALL_INTERRUPTS) === pending &&
                     csr.interruptCode === CSR_CAUSE_InterruptCodePath'(expectedCode) &&
                     ToAddrFromPC(fetchStage.interruptAddrIn) === expectedTarget)
                 else $fatal(1, "xRET did not restore privilege/enables/pending request (%s)", caseName);
@@ -451,15 +454,15 @@ module TestInterruptController;
     endtask
 
     initial begin
+        static DataPath customPending[6] = '{32'h00010080, 32'h80000800,
+                                     32'h80010000, 32'h80010000, 32'h80010000, 32'h80010000};
+        static DataPath customDelegated[6] = '{32'h00010000, 32'h80000000,
+                                       32'h80000000, 32'h00010000, 32'h80010000, 32'h0};
         CheckSupervisorAlias(0);
         CheckSupervisorAlias(1);
         CheckSIE();
         CheckSupervisorAlias(2);
         CheckSIP();
-        // These checks must fail until their RTL issues are fixed; they are
-        // opt-in, and failures remain fatal rather than being reported as passes.
-        if ($test$plusargs("CHECK_MIXED_DELEGATION"))
-            CheckCase(32'h220, 32'h220, 32'h200, 1, 1, 1, PRIVILEGE_LEVEL_S);
         for (int mode = 0; mode < 3; mode++)
             for (int vectorMode = 0; vectorMode < 2; vectorMode++)
                 for (int mie = 0; mie < 2; mie++)
@@ -469,10 +472,9 @@ module TestInterruptController;
                                 CheckCase(InterruptBits(3'(pending)), InterruptBits(3'(enabled)), 0,
                                           1'(vectorMode), 1'(mie), 1'(sie),
                                           mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode));
-                                // Mixed delegation has a separate failing check above.
-                                for (int delegated = 0; delegated < 2; delegated++)
+                                for (int delegated = 0; delegated < 8; delegated++)
                                     CheckCase(InterruptBits(3'(pending), 1), InterruptBits(3'(enabled), 1),
-                                              delegated != 0 ? SUPERVISOR_INTERRUPTS : 0,
+                                              InterruptBits(3'(delegated), 1),
                                               1'(vectorMode), 1'(mie), 1'(sie),
                                               mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode));
                             end
@@ -485,6 +487,12 @@ module TestInterruptController;
                                               (enabled[1] ? InterruptBits(3'b1 << s, 1) : 0),
                                               SUPERVISOR_INTERRUPTS, 1'(vectorMode), 1'(mie), 1'(sie),
                                               mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode));
+                        // A delegated custom source must not override an M target.
+                        // Same-level custom sources still prefer the highest code.
+                        foreach (customPending[i])
+                            CheckCase(customPending[i], customPending[i], customDelegated[i],
+                                      1'(vectorMode), 1'(mie), 1'(sie),
+                                      mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode));
                     end
         $display("Interrupt priority/mask/entry: %0d cases passed", cases);
         $display("CSR alias: %0d cases passed", aliasCases);

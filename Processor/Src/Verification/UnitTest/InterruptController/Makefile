@@ -18,6 +18,5 @@ MODULES = \
 TEST_MODULES = Verification/UnitTest/InterruptController/TestInterruptController.sv
 VLOG_OPTIONS = $(RSD_SRC_CFG) +incdir+$(SOURCE_ROOT) -suppress 2605
 VSIM_OPTIONS = -suppress 2605 -suppress 8233
-# Known failure: make test VSIM_OPTIONS_RTL=+CHECK_MIXED_DELEGATION.
 
 include ../../../Makefile.inc
