@@ -152,7 +152,7 @@ module RecoveryManager(
             REFETCH_TYPE_THIS_PC_TO_CSR_TARGET
         };
         if (refetchFromCSR) begin
-            recoveredELP = csrUnit.recoverELPFromCSR;
+            recoveredELP = csrUnit.recoverELP_FromCSR;
         end
         else begin
             recoveredELP = refetchToThis ? regState.elp : regState.nextELP;

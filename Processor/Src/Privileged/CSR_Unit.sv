@@ -115,12 +115,12 @@ module CSR_Unit(
         port.xLPE = IsLandingPadEnabled(csrReg, privilegeLevel);
         // Recovery consumes this alongside the CSR target, before trap state is
         // clocked. The return destination controls LPE, independently of IRQs.
-        port.recoverELPFromCSR = LP_NOT_EXPECTED;
+        port.recoverELP_FromCSR = LP_NOT_EXPECTED;
         if (IsLandingPadEnabled(csrReg, returnPrivilegeLevel)) begin
             if (port.excptCause == EXEC_STATE_TRAP_MRET)
-                port.recoverELPFromCSR = csrReg.mstatush.MPELP;
+                port.recoverELP_FromCSR = csrReg.mstatush.MPELP;
             else if (port.excptCause == EXEC_STATE_TRAP_SRET)
-                port.recoverELPFromCSR = csrReg.mstatus.SPELP;
+                port.recoverELP_FromCSR = csrReg.mstatus.SPELP;
         end
 
         // Select the exception destination independently of interrupt triggering.

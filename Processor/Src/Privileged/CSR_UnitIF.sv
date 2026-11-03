@@ -37,7 +37,7 @@ interface CSR_UnitIF(
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
     logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
     ELP_State_Type excptELP; // ELP before the selected trapping instruction.
-    ELP_State_Type recoverELPFromCSR;
+    ELP_State_Type recoverELP_FromCSR;
 
     // Interrupt
     logic triggerInterrupt;
@@ -116,7 +116,7 @@ interface CSR_UnitIF(
     modport RecoveryManager(
     input
         excptTargetAddr,
-        recoverELPFromCSR,
+        recoverELP_FromCSR,
     output
         triggerExcpt,
         excptCauseAddr,
@@ -162,7 +162,7 @@ interface CSR_UnitIF(
         excptTargetAddr,
         privilegeLevel,
         xLPE,
-        recoverELPFromCSR
+        recoverELP_FromCSR
     );
 
     modport InterruptController(

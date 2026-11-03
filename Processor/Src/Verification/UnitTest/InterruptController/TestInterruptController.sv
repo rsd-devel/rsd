@@ -345,7 +345,7 @@ module TestInterruptController;
             WriteCSR(CSR_NUM_MSTATUSH, 32'h200);
             csr.excptCause = EXEC_STATE_TRAP_MRET;
             #1;
-            assert (csr.recoverELPFromCSR === ELP_State_Type'(enabled))
+            assert (csr.recoverELP_FromCSR === ELP_State_Type'(enabled))
                 else $fatal(1, "MRET used the wrong U-mode LPE (%s)", caseName);
             csr.triggerExcpt = 1;
             Tick();
@@ -432,7 +432,7 @@ module TestInterruptController;
         Tick();
         csr.excptCause = EXEC_STATE_TRAP_MRET;
         #1;
-        assert (csr.recoverELPFromCSR === LP_NOT_EXPECTED)
+        assert (csr.recoverELP_FromCSR === LP_NOT_EXPECTED)
             else $fatal(1, "MRET restored the wrong nested ELP");
         csr.triggerExcpt = 1;
         Tick();
@@ -442,7 +442,7 @@ module TestInterruptController;
             else $fatal(1, "MRET corrupted the S return bank");
         csr.excptCause = EXEC_STATE_TRAP_SRET;
         #1;
-        assert (csr.recoverELPFromCSR === LP_EXPECTED)
+        assert (csr.recoverELP_FromCSR === LP_EXPECTED)
             else $fatal(1, "SRET did not restore the interrupted U ELP");
         csr.triggerExcpt = 1;
         Tick();
@@ -481,7 +481,7 @@ module TestInterruptController;
         expectedELP = ELP_State_Type'(savedELP && ExpectedLPE(destination, enables));
         #1;
         // Recovery must see the return value before triggerExcpt is asserted.
-        assert (csr.recoverELPFromCSR === expectedELP && csr.excptTargetAddr === RETURN_PC)
+        assert (csr.recoverELP_FromCSR === expectedELP && csr.excptTargetAddr === RETURN_PC)
             else $fatal(1, "Wrong combinational CFI return state (%s)", caseName);
         csr.triggerExcpt = 1;
         Tick();
@@ -538,7 +538,7 @@ module TestInterruptController;
         csr.excptELP = elp;
         decodeStage.elpState = elp;
         #1;
-        assert (csr.recoverELPFromCSR === LP_NOT_EXPECTED)
+        assert (csr.recoverELP_FromCSR === LP_NOT_EXPECTED)
             else $fatal(1, "Trap handler inherited ELP (%s)", caseName);
         if (eventKind == 0) begin
             ctrl.wholePipelineEmpty = 1;
