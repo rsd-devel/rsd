@@ -32,6 +32,7 @@ module TestInterruptController;
     InterruptController interruptCtrl(csr, ctrl, fetchStage, recovery);
 
     int cases = 0;
+    int aliasCases = 0;
     string caseName;
 
     // Keep stimulus and checks away from the active edge in both simulators.
@@ -104,9 +105,11 @@ module TestInterruptController;
         #1;
     endtask
 
-    task automatic WriteCSR(input CSR_NumberPath number, input DataPath value);
+    task automatic WriteCSR(input CSR_NumberPath number, input DataPath value,
+                            input CSR_Code operation = CSR_WRITE);
         csr.csrNumber = number;
         csr.csrWriteIn = value;
+        csr.csrCode = operation;
         csr.csrWE = 1;
         #1;
         assert (csr.csrUnitTriggerExcpt === 1'b0)
@@ -114,6 +117,58 @@ module TestInterruptController;
         Tick();
         csr.csrWE = 0;
         #1;
+    endtask
+
+    task automatic ReadCSR(input CSR_NumberPath number, input DataPath expected);
+        csr.csrNumber = number;
+        csr.csrRE = 1;
+        #1;
+        assert (csr.csrUnitTriggerExcpt === 1'b0 && csr.csrReadOut === expected)
+            else $fatal(1, "CSR %03x: expected %08x, got %08x (%s)",
+                        number, expected, csr.csrReadOut, caseName);
+        csr.csrRE = 0;
+        #1;
+    endtask
+
+    task automatic CheckSIE;
+        DataPath delegated, initialEnable, operand, visible, expected;
+        DataPath values[4] = '{32'h0, 32'hffffffff, 32'h80000282, 32'h00010028};
+        for (int mask = 0; mask < 8; mask++)
+            for (int custom = 0; custom < 2; custom++)
+                for (int origin = 0; origin < 2; origin++)
+                    for (int pattern = 0; pattern < 4; pattern++)
+                        for (int op = 1; op <= 3; op++) begin
+                            caseName = $sformatf("SIE mask=%0d custom=%0d S=%0d pattern=%0d op=%0d",
+                                                mask, custom, origin, pattern, op);
+                            Reset();
+                            delegated = InterruptBits(3'(mask), 1) | (custom != 0 ? 32'h80010000 : 0);
+                            initialEnable = values[pattern] & 32'hffff0aaa;
+                            operand = values[(pattern + 1) % 4];
+                            visible = initialEnable & delegated;
+                            expected = op == 1 ? operand : op == 2 ? visible | operand : visible & ~operand;
+                            expected = (initialEnable & ~delegated) | (expected & delegated);
+                            WriteCSR(CSR_NUM_MIDELEG, delegated);
+                            WriteCSR(CSR_NUM_MIE, initialEnable);
+                            if (origin != 0) begin
+                                WriteCSR(CSR_NUM_MSTATUS, 32'h800); // MPP=S
+                                csr.triggerExcpt = 1;
+                                Tick();
+                                csr.triggerExcpt = 0;
+                            end
+                            ReadCSR(CSR_NUM_SIE, visible);
+                            WriteCSR(CSR_NUM_SIE, operand, CSR_Code'(op));
+                            assert (DataPath'(csr.csrWholeOut.mie) === expected)
+                                else $fatal(1, "SIE changed the wrong MIE bits (%s)", caseName);
+                            ReadCSR(CSR_NUM_SIE, expected & delegated);
+                            if (origin == 0) begin
+                                ReadCSR(CSR_NUM_MIE, expected);
+                                WriteCSR(CSR_NUM_MIDELEG, ~delegated);
+                                assert (DataPath'(csr.csrWholeOut.mie) === expected)
+                                    else $fatal(1, "Changing delegation cleared MIE (%s)", caseName);
+                                ReadCSR(CSR_NUM_SIE, expected & ~delegated & 32'hffff0222);
+                            end
+                            aliasCases++;
+                        end
     endtask
 
     task automatic WritePLIC(input PhyRawAddrPath address, input DataPath value);
@@ -327,10 +382,11 @@ module TestInterruptController;
     endtask
 
     initial begin
+        CheckSupervisorAlias(0);
+        CheckSupervisorAlias(1);
+        CheckSIE();
         // These checks must fail until their RTL issues are fixed; they are
         // opt-in, and failures remain fatal rather than being reported as passes.
-        if ($test$plusargs("CHECK_SIE_READ")) CheckSupervisorAlias(0);
-        if ($test$plusargs("CHECK_SIE_WRITE")) CheckSupervisorAlias(1);
         if ($test$plusargs("CHECK_SIP_WRITE")) CheckSupervisorAlias(2);
         if ($test$plusargs("CHECK_MIXED_DELEGATION"))
             CheckCase(32'h220, 32'h220, 32'h200, 1, 1, 1, PRIVILEGE_LEVEL_S);
@@ -361,6 +417,7 @@ module TestInterruptController;
                                               mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode));
                     end
         $display("Interrupt priority/mask/entry: %0d cases passed", cases);
+        $display("CSR alias: %0d cases passed", aliasCases);
         $display("========== Test Passed ==========");
         $finish;
     end

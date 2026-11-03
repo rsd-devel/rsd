@@ -309,7 +309,6 @@ typedef union packed {
 
 typedef struct packed {
     // Interrupt related registers
-    CSR_SIE_Path    sie;
     CSR_XTVEC_Path  stvec;
     DataPath        sscratch;
     DataPath        sepc;
