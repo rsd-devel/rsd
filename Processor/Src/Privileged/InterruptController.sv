@@ -48,9 +48,10 @@ module InterruptController(
         result = previous;
         if (csrReg.mie[code] && csrReg.mip[code]) begin
             if (csrReg.mideleg[code]) begin
-                // trap to S-mode
+                // M-mode destinations take priority over every S-mode source.
                 if (privilegeLevel <= PRIVILEGE_LEVEL_S && // trap to higher mode is not allowed
-                    (privilegeLevel < PRIVILEGE_LEVEL_S || csrReg.mstatus.SIE)
+                    (privilegeLevel < PRIVILEGE_LEVEL_S || csrReg.mstatus.SIE) &&
+                    (!previous.valid || previous.toSmode)
                 ) begin
                     result.valid = 1;
                     result.toSmode = 1;
@@ -71,7 +72,7 @@ module InterruptController(
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
-        // priority order is
+        // Within each destination privilege level, the source priority is
         // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
         interruptRequest = '0;
 

@@ -171,7 +171,7 @@ module CSR_Unit(
                     unique case (port.csrNumber)
                         CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
                         CSR_NUM_SIP:        rv = csrReg.mip & csrReg.mideleg;
-                        CSR_NUM_SIE:        rv = csrReg.sie & csrReg.mideleg;
+                        CSR_NUM_SIE:        rv = csrReg.mie & csrReg.mideleg;
                         CSR_NUM_STVEC:      rv = csrReg.stvec;
                         CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
                         CSR_NUM_SEPC:       rv = csrReg.sepc;
@@ -402,7 +402,18 @@ module CSR_Unit(
 `endif
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
-                        CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
+                        CSR_NUM_SIP: begin
+                            // Only delegated SSIP is writable through SIP;
+                            // external/timer pending bits remain read-only here.
+                            if (csrReg.mideleg.SSI)
+                                mipRegNext.SSIP = wv.sip.SSIP;
+                        end
+                        CSR_NUM_SIE: begin
+                            // SIE is the delegated view of MIE, not separate state.
+                            // Preserve interrupt enables hidden from S-mode.
+                            csrNext.mie = (csrReg.mie & ~csrReg.mideleg) |
+                                          (wv & csrReg.mideleg);
+                        end
                         CSR_NUM_STVEC: begin
                             csrNext.stvec.base = wv.stvec.base;
                             csrNext.stvec.mode = wv.stvec.mode == CSR_XTVEC_MODE_VECTORED ?
@@ -445,7 +456,9 @@ module CSR_Unit(
         end
         port.csrReadOut = rv;
 
-        csrNext.mip = mipWired | mipReg;
+        // Publish software-pending writes on the same edge as their storage.
+        // A following SIP read/modify/write must not use the old pending value.
+        csrNext.mip = mipWired | mipRegNext;
 
         port.excptTargetAddr = '0;
         if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
