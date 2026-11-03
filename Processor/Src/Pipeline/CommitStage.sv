@@ -250,6 +250,7 @@ module CommitStage(
     ExecutionState recoveryCause;
 
     CommitLaneCountPath commitNum;
+    CommitLaneCountPath retireNum;
     CommitLaneCountPath commitLoadNum;
     CommitLaneCountPath commitStoreNum;
 `ifdef RSD_MARCH_FP_PIPE
@@ -303,13 +304,20 @@ module CommitStage(
             .unableToStartRecovery(recovery.unableToStartRecovery)
        );
 
-        // Count num of commit instructions.
+        // Count released micro-ops separately from retired instructions.
         commitNum = 0;
+        retireNum = 0;
         commitLoadNum = 0;
         commitStoreNum = 0;
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 commitNum++;
+                // ECALL/EBREAK release resources but do not retire. xRET does.
+                if (last[i] && !(execState[i] inside {
+                    EXEC_STATE_TRAP_ECALL, EXEC_STATE_TRAP_EBREAK
+                })) begin
+                    retireNum++;
+                end
                 if (alReadData[i].isLoad || alReadData[i].isZaamo)
                     commitLoadNum++;
                 if (alReadData[i].isStore || alReadData[i].isZaamo)
@@ -354,7 +362,7 @@ module CommitStage(
         end
 
         // CSR Update
-        csrUnit.commitNum = commitNum;
+        csrUnit.retireNum = retireNum;
     
 `ifdef RSD_MARCH_FP_PIPE
         // CSR FFLAGS Update

@@ -29,7 +29,9 @@ module CSR_Unit(
     AddrPath jumpTarget;
     AddrPath mepc;
     AddrPath trapValue;
-    CommitLaneCountPath regCommitNum;
+    CommitLaneCountPath regRetireNum;
+    CommitLaneCountPath minstretIncrement;
+    logic minstretWritePending, minstretWritePendingNext;
 
     CSR_MIP_Path mipReg, mipRegNext, mipWired;
 
@@ -65,14 +67,16 @@ module CSR_Unit(
         if (port.rst) begin
             csrReg <= GetCSRResetValue();
             mipReg <= '0;
-            regCommitNum <= '0;
+            regRetireNum <= '0;
+            minstretWritePending <= FALSE;
             privilegeLevel <= PRIVILEGE_LEVEL_M;
         end
         else begin
             csrReg <= csrNext;
             mipReg <= mipRegNext;
             privilegeLevel <= privilegeLevelNext;
-            regCommitNum <= port.commitNum;
+            regRetireNum <= port.retireNum;
+            minstretWritePending <= minstretWritePendingNext;
             // if (privilegeLevel != privilegeLevelNext) begin
             //     $display("privilege level: %b -> %b", privilegeLevel, privilegeLevelNext);
             // end
@@ -89,7 +93,7 @@ module CSR_Unit(
     end
 
     always_comb begin
-        mcycle = csrReg.mcycle;
+        mcycle = csrReg.mcycle[31:0];
 
         // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
         // Revisit this mask if compressed instructions are supported.
@@ -145,11 +149,12 @@ module CSR_Unit(
 
             // Implemented fixed-zero CSRs must not be treated as missing.
             CSR_NUM_MVENDORID, CSR_NUM_MARCHID, CSR_NUM_MIMPID, CSR_NUM_MHARTID,
-            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN,
-            CSR_NUM_MCYCLEH, CSR_NUM_MINSTRETH: rv = '0;
+            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN: rv = '0;
 
-            CSR_NUM_MCYCLE:   rv = csrReg.mcycle;
-            CSR_NUM_MINSTRET: rv = csrReg.minstret;
+            CSR_NUM_MCYCLE:    rv = csrReg.mcycle[31:0];
+            CSR_NUM_MCYCLEH:   rv = csrReg.mcycle[63:32];
+            CSR_NUM_MINSTRET:  rv = csrReg.minstret[31:0];
+            CSR_NUM_MINSTRETH: rv = csrReg.minstret[63:32];
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
             CSR_NUM_MHPMCOUNTER3: rv = perfCounter.perfCounter.numLoadMiss;
             CSR_NUM_MHPMCOUNTER4: rv = perfCounter.perfCounter.numStoreMiss;
@@ -206,10 +211,19 @@ module CSR_Unit(
         // Writeback 
         csrNext = csrReg;
         mipRegNext = mipReg;
+        minstretWritePendingNext = minstretWritePending;
 
-        // Update Cycles
-        csrNext.mcycle = csrNext.mcycle + 1;
-        csrNext.minstret = csrNext.minstret + regCommitNum;
+        // CSR writes execute before retirement. Serialization makes the next
+        // retired instruction the writer itself; its implicit update is replaced.
+        minstretIncrement = regRetireNum;
+        if (minstretWritePending && regRetireNum != 0) begin
+            minstretIncrement = regRetireNum - 1'b1;
+            minstretWritePendingNext = FALSE;
+        end
+
+        // Explicit writes below take precedence over the counter increments.
+        csrNext.mcycle = csrNext.mcycle + 64'd1;
+        csrNext.minstret = csrNext.minstret + minstretIncrement;
 
         wv = '0;
 
@@ -344,20 +358,40 @@ module CSR_Unit(
                         mipRegNext.SSIP = wv.mip.SSIP;
                     end
                 end
-                CSR_NUM_MIE:begin
-                    csrNext.mie = wv;
-                    //$display("mie: %x", wv);
+                CSR_NUM_MIE: begin
+                    // Update implemented fields only; padding remains zero.
+                    csrNext.mie.CUSTOM = wv.mie.CUSTOM;
+                    csrNext.mie.MEIE = wv.mie.MEIE;
+                    csrNext.mie.SEIE = wv.mie.SEIE;
+                    csrNext.mie.MTIE = wv.mie.MTIE;
+                    csrNext.mie.STIE = wv.mie.STIE;
+                    csrNext.mie.MSIE = wv.mie.MSIE;
+                    csrNext.mie.SSIE = wv.mie.SSIE;
                 end
                 CSR_NUM_MCAUSE:     csrNext.mcause = wv;
-                CSR_NUM_MTVEC:      csrNext.mtvec = wv;
+                CSR_NUM_MTVEC: begin
+                    csrNext.mtvec.base = wv.mtvec.base;
+                    // Reserved MODE values select Direct without changing BASE.
+                    csrNext.mtvec.mode = wv.mtvec.mode == CSR_XTVEC_MODE_VECTORED ?
+                        CSR_XTVEC_MODE_VECTORED : CSR_XTVEC_MODE_BASE;
+                end
                 CSR_NUM_MTVAL:      csrNext.mtval = wv;
                 // The low bit of mepc is always zero,
                 // as described in Chapter 3.1.19 of RISC-V Privileged Architectures.
                 CSR_NUM_MEPC:       csrNext.mepc = {wv[31:1], 1'b0};
                 CSR_NUM_MSCRATCH:   csrNext.mscratch = wv;
 
-                CSR_NUM_MCYCLE:     csrNext.mcycle = wv;
-                CSR_NUM_MINSTRET:   csrNext.minstret = wv;
+                // A write to either half suppresses the entire 64-bit increment.
+                CSR_NUM_MCYCLE:     csrNext.mcycle = {csrReg.mcycle[63:32], wv};
+                CSR_NUM_MCYCLEH:    csrNext.mcycle = {wv, csrReg.mcycle[31:0]};
+                CSR_NUM_MINSTRET: begin
+                    csrNext.minstret = {csrReg.minstret[63:32], wv};
+                    minstretWritePendingNext = TRUE;
+                end
+                CSR_NUM_MINSTRETH: begin
+                    csrNext.minstret = {wv, csrReg.minstret[31:0]};
+                    minstretWritePendingNext = TRUE;
+                end
 `ifdef RSD_MARCH_FP_PIPE
                 CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
                 CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
@@ -369,7 +403,11 @@ module CSR_Unit(
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
                         CSR_NUM_SIE:        csrNext.sie = wv & csrNext.mideleg;
-                        CSR_NUM_STVEC:      csrNext.stvec = wv;
+                        CSR_NUM_STVEC: begin
+                            csrNext.stvec.base = wv.stvec.base;
+                            csrNext.stvec.mode = wv.stvec.mode == CSR_XTVEC_MODE_VECTORED ?
+                                CSR_XTVEC_MODE_VECTORED : CSR_XTVEC_MODE_BASE;
+                        end
                         CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
                         CSR_NUM_SEPC:       csrNext.sepc = wv;
                         CSR_NUM_SCAUSE:     csrNext.scause = wv;

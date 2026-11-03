@@ -46,8 +46,8 @@ interface CSR_UnitIF(
     // Timer interrupt request
     logic reqTimerInterrupt;
 
-    // Used in updating minstret
-    CommitLaneCountPath commitNum;
+    // Architectural instructions retired, excluding synchronous exceptions.
+    CommitLaneCountPath retireNum;
 
     PrivilegeLevelType privilegeLevel;
 
@@ -98,7 +98,7 @@ interface CSR_UnitIF(
         fflags,
 `endif
     output
-        commitNum
+        retireNum
 `ifdef RSD_MARCH_FP_PIPE
         ,
         fflagsWE,
@@ -129,7 +129,7 @@ interface CSR_UnitIF(
         excptCauseAddr,
         excptCause,
         excptCauseDataAddr,
-        commitNum,
+        retireNum,
         reqTimerInterrupt,
         reqCustomInterrupt,
         msip,

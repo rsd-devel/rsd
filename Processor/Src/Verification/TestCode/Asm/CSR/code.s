@@ -19,6 +19,50 @@
     bnez t3, fail
     .endm
 
+    .macro CHECK_XTVEC_MODE csr
+    csrr t5, \csr
+    la t1, trap_vector
+    # Check every MODE encoding while preserving a nonzero BASE.
+    .irp mode, 0, 1, 2, 3
+    ori t3, t1, \mode
+    csrw \csr, t3
+    csrr t4, \csr
+    .if \mode < 2
+    bne t4, t3, fail
+    .else
+    bne t4, t1, fail
+    .endif
+    .endr
+
+    # SET must coerce the resulting MODE, not just the operand.
+    ori t3, t1, 1
+    csrw \csr, t3
+    li t4, 2
+    csrs \csr, t4
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t3
+    li t4, 1
+    csrc \csr, t4
+    csrr t4, \csr
+    bne t4, t1, fail
+
+    csrrwi t4, \csr, 2
+    EXPECT_ZERO_CSR \csr
+    csrrwi t4, \csr, 3
+    EXPECT_ZERO_CSR \csr
+    ori t3, t1, 1
+    csrw \csr, t3
+    csrsi \csr, 2
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t3
+    csrci \csr, 1
+    csrr t4, \csr
+    bne t4, t1, fail
+    csrw \csr, t5
+    .endm
+
     .macro CHECK_READ_ONLY_CSR csr
     # Zero-source SET/CLEAR instructions only read the CSR, even with rd = x0.
     EXPECT_ZERO_CSR \csr
@@ -87,6 +131,59 @@
     csrrwi zero, satp, 0
     .endm
 
+    .macro CHECK_COUNTER64 low, high
+    # Writing the high half must preserve the running low half.
+    li t0, 0x12340000
+    csrw \low, t0
+    li t1, 0x12345678
+    csrw \high, t1
+    csrr t2, \high
+    bne t2, t1, fail
+    csrr t2, \low
+    sub t2, t2, t0
+    li t3, 0x10000
+    bgeu t2, t3, fail
+
+    # Writing the low half must preserve the high half.
+    li t0, 0x87650000
+    csrw \low, t0
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # SET/CLEAR use the high half for both the returned and written values.
+    li t0, 0x80000000
+    csrrs t2, \high, t0
+    bne t2, t1, fail
+    or t3, t1, t0
+    csrr t2, \high
+    bne t2, t3, fail
+    csrrc t2, \high, t0
+    bne t2, t3, fail
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # Both counters must carry from bit 31 to bit 32.
+    li t0, -16
+    csrw \low, t0
+    .rept 64
+    nop
+    .endr
+    addi t1, t1, 1
+    csrr t2, \high
+    bne t2, t1, fail
+
+    # The full counter wraps modulo 2^64.
+    li t0, -1
+    csrw \high, t0
+    li t0, -16
+    csrw \low, t0
+    .rept 64
+    nop
+    .endr
+    csrr t2, \high
+    bnez t2, fail
+    .endm
+
     .macro ENTER_PRIVILEGE mpp
     li t3, 0x1800
     csrc mstatus, t3
@@ -131,7 +228,87 @@
     li a6, 2
     .endm
 
+    .macro CHECK_MINSTRET_WRITE instruction:vararg
+    csrw minstret, zero
+    \instruction
+    csrr t0, minstret
+    bnez t0, fail
+    .endm
+
+    .macro CHECK_MINSTRET_TRAP cause, instruction:vararg
+    li t4, \cause
+    csrr t0, minstret
+    \instruction
+    csrr t1, minstret
+    sub t1, t1, t0
+    # The first CSR read and six handler instructions retire; the trap does not.
+    li t2, 7
+    bne t1, t2, fail
+    .endm
+
 main:
+
+    # Writes replace the implicit update, even though they retire later.
+    li t1, 0
+    .irp csr, minstret, minstreth
+    CHECK_MINSTRET_WRITE csrrw zero, \csr, zero
+    CHECK_MINSTRET_WRITE csrrwi zero, \csr, 0
+    # A zero value in a nonzero source register still requests a write.
+    CHECK_MINSTRET_WRITE csrrs zero, \csr, t1
+    CHECK_MINSTRET_WRITE csrrc zero, \csr, t1
+
+    # Zero-source SET/CLEAR only read and must each increment minstret.
+    csrw minstret, zero
+    csrrs zero, \csr, zero
+    csrrc zero, \csr, zero
+    csrrsi zero, \csr, 0
+    csrrci zero, \csr, 0
+    csrr t0, minstret
+    li t2, 4
+    bne t0, t2, fail
+    .endr
+
+    la t0, minstret_trap_vector
+    csrrw t6, mtvec, t0
+    CHECK_MINSTRET_TRAP 11, ecall
+    CHECK_MINSTRET_TRAP 3, ebreak
+    CHECK_MINSTRET_TRAP 2, .word 0xffffffff
+    csrw mtvec, t6
+
+    # Consecutive ordinary instructions are counted once each.
+    csrr t0, minstret
+    addi t2, zero, 1
+    addi t2, t2, 1
+    csrr t1, minstret
+    sub t1, t1, t0
+    li t2, 3
+    bne t1, t2, fail
+
+    # The taken JALR retires once; its skipped illegal instruction does not.
+    la t3, 1f
+    csrr t0, minstret
+    jalr zero, 0(t3)
+    .word 0xffffffff
+1:
+    csrr t1, minstret
+    sub t1, t1, t0
+    li t2, 2
+    bne t1, t2, fail
+
+    # AMO's internal load/store work still retires as one instruction.
+    addi sp, sp, -16
+    sw zero, 0(sp)
+    li t3, 1
+    csrr t0, minstret
+    amoadd.w t2, t3, (sp)
+    csrr t1, minstret
+    sub t1, t1, t0
+    bnez t2, fail
+    li t2, 2
+    bne t1, t2, fail
+    lw t2, 0(sp)
+    bne t2, t3, fail
+    addi sp, sp, 16
 
     li a1, 0x00
     li a2, 0x03
@@ -162,6 +339,13 @@ main:
     csrr t0, misa
     bne t0, t1, fail
 
+    # Changing trap vectors must not expose an interrupt to a temporary address.
+    csrr t6, mstatus
+    csrci mstatus, 8
+    CHECK_XTVEC_MODE mtvec
+    CHECK_XTVEC_MODE stvec
+    csrw mstatus, t6
+
     la t0, trap_vector
     csrrw a0, mtvec, t0
     li a3, 0x13579bdf
@@ -186,11 +370,16 @@ main:
     EXPECT_ILLEGAL_CSR csrrci a2, 0x7c0, 0
 
     # Supervisor CSRs are unavailable when misa.S is disabled.
+    csrr t5, stvec
     li t6, 0x40000
     csrc misa, t6
     EXPECT_ILLEGAL_CSR csrr a2, sscratch
     EXPECT_ILLEGAL_CSR csrr a2, medeleg
+    EXPECT_ILLEGAL_CSR csrr a2, stvec
+    EXPECT_ILLEGAL_CSR csrrw a2, stvec, a3
     csrs misa, t6
+    csrr t3, stvec
+    bne t3, t5, fail
     EXPECT_ZERO_CSR sscratch
 
 #ifndef __riscv_flen
@@ -206,9 +395,9 @@ main:
     CHECK_READ_ONLY_CSR mimpid
     CHECK_READ_ONLY_CSR mhartid
 #ifndef __riscv_flen
-    li t3, 80
+    li t3, 82
 #else
-    li t3, 77
+    li t3, 79
 #endif
     bne a4, t3, fail
 
@@ -221,8 +410,10 @@ main:
     EXPECT_ZERO_CSR mcounteren
     EXPECT_ZERO_CSR scounteren
     EXPECT_ZERO_CSR satp
-    EXPECT_ZERO_CSR mcycleh
-    EXPECT_ZERO_CSR minstreth
+
+    # The machine counters expose writable low and high halves on RV32.
+    CHECK_COUNTER64 mcycle, mcycleh
+    CHECK_COUNTER64 minstret, minstreth
 
     # An implemented writable CSR must still work after the traps.
     csrr t3, mscratch
@@ -232,6 +423,72 @@ main:
     csrr t3, mscratch
     bne t3, a1, fail
     csrw mscratch, a5
+
+    # Keep interrupts disabled while testing every implemented enable bit.
+    csrr s1, mstatus
+    csrr s2, mie
+    csrci mstatus, 8
+    csrw mie, zero
+
+    # mstatus already ignores padding; preserve that behavior for WRITE/SET/CLEAR.
+    csrr t1, mstatus
+    li t0, 0xffa1e655
+    or t3, t1, t0
+    csrw mstatus, t3
+    csrr t4, mstatus
+    bne t4, t1, fail
+    csrs mstatus, t0
+    csrr t4, mstatus
+    bne t4, t1, fail
+    csrc mstatus, t0
+    csrr t4, mstatus
+    bne t4, t1, fail
+
+    # M/S interrupt enables and platform CUSTOM bits remain writable.
+    li t1, 0xffff0aaa
+    li t0, -1
+    csrrw t3, mie, t0
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+    csrrc t3, mie, t0
+    bne t3, t1, fail
+    EXPECT_ZERO_CSR mie
+    csrrs t3, mie, t0
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+    li t0, 0x0000f555
+    csrc mie, t0
+    csrr t4, mie
+    bne t4, t1, fail
+
+    # Immediate writes also discard reserved bits and report the old value.
+    csrrwi t3, mie, 31
+    bne t3, t1, fail
+    li t1, 0xa
+    csrr t4, mie
+    bne t4, t1, fail
+    csrrci t3, mie, 31
+    bne t3, t1, fail
+    EXPECT_ZERO_CSR mie
+    csrrsi t3, mie, 31
+    bnez t3, fail
+    csrr t4, mie
+    bne t4, t1, fail
+
+    # Disabling S must not remove machine or platform interrupt enables.
+    csrw mie, zero
+    csrr t5, misa
+    li t0, 0x40000
+    csrc misa, t0
+    li t0, 0xffff0888
+    csrw mie, t0
+    csrr t4, mie
+    bne t4, t0, fail
+    csrw misa, t5
+    csrw mie, s2
+    csrw mstatus, s1
 
     # Route lower-privilege traps to M-mode and preserve the original CSR state.
     csrr t5, mstatus
@@ -340,6 +597,14 @@ end:
 
 fail:
     j fail
+
+minstret_trap_vector:
+    csrr t3, mcause
+    bne t3, t4, fail
+    csrr t3, mepc
+    addi t3, t3, 4
+    csrw mepc, t3
+    mret
 
 trap_vector:
     csrr t3, mcause
