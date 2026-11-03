@@ -138,6 +138,9 @@ module IntegerExecutionStage(
     logic predMiss [ INT_ISSUE_WIDTH ];
     logic regValid [ INT_ISSUE_WIDTH ];
 
+    // landing pad
+    logic lplCheckFail [ INT_ISSUE_WIDTH ];
+
     IntOpSubInfo intSubInfo[ INT_ISSUE_WIDTH ];
     BrOpSubInfo  brSubInfo[ INT_ISSUE_WIDTH ];
 
@@ -244,6 +247,16 @@ module IntegerExecutionStage(
                 );
 
             brResult[i].mispred = predMiss[i];
+
+            //
+            // --- Landing Pad (LPAD)
+            //
+            lplCheckFail[i] = FALSE;
+            if (pipeReg[i].valid && regValid[i] && iqData[i].elp && iqData[i].opType == INT_MOP_TYPE_LPL_CHECK) begin
+                if (fuOpB[i].data[31:12] != 20'h0 && fuOpB[i].data[31:12] != fuOpA[i].data[31:12]) begin
+                    lplCheckFail[i] = TRUE;
+                end
+            end
         end
     end
 
@@ -268,6 +281,8 @@ module IntegerExecutionStage(
 
             nextStage[i].brResult    = brResult[i];
             nextStage[i].brMissPred  = predMiss[i];
+
+            nextStage[i].lplCheckFail = lplCheckFail[i];
         end
 
         // Output

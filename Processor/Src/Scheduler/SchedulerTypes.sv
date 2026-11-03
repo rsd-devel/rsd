@@ -81,7 +81,8 @@ typedef enum logic [4:0] // ExecutionState
     EXEC_STATE_FAULT_INSN_VIOLATION   = 5'b01101,  // Illegal instruction
     EXEC_STATE_FAULT_INSN_MISALIGNED  = 5'b01110,  // Misaligned instruction address
 
-    EXEC_STATE_REFETCH_THIS_SERIALIZED = 5'b10000 // Refetch this instruction, serialized
+    EXEC_STATE_REFETCH_THIS_SERIALIZED = 5'b10000, // Refetch this instruction, serialized
+    EXEC_STATE_FAULT_LPAD = 5'b10001 // Landing pad software-check exception
 } ExecutionState;
 localparam EXEC_STATE_BIT_WIDTH = $bits(ExecutionState);
 
@@ -127,6 +128,8 @@ typedef struct packed // ActiveListWriteData
     AddrPath            dataAddr;
     logic               isBranch;
     logic               isStore;
+    ELP_State_Type       elp;       // State before this instruction.
+    ELP_State_Type       nextELP;   // State when refetching after this instruction.
 } ActiveListWriteData;
 
 
@@ -207,6 +210,8 @@ typedef struct packed // IntIssueQueueEntry
     OpSrc opSrc;
     OpDst opDst;
     PC_Path pc;
+    ELP_State_Type elp;
+    ELP_State_Type nextELP;
 } IntIssueQueueEntry;
 
 
@@ -315,6 +320,7 @@ typedef struct packed // MemIssueQueueEntry
     PC_Path pc;
 
     logic serialized;
+    ELP_State_Type elp;
 } MemIssueQueueEntry;
 
 typedef struct packed // FPOpInfo

@@ -36,12 +36,15 @@ interface CSR_UnitIF(
     AddrPath excptTargetAddr;   // Trap vector or xRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
     logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
+    ELP_State_Type excptELP; // ELP before the selected trapping instruction.
+    ELP_State_Type recoverELPFromCSR;
 
     // Interrupt
     logic triggerInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
     logic msip;
+    ELP_State_Type interruptELP;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
@@ -50,6 +53,9 @@ interface CSR_UnitIF(
     CommitLaneCountPath retireNum;
 
     PrivilegeLevelType privilegeLevel;
+    logic xLPE;
+
+    modport PreDecodeStage(input xLPE);
 
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
@@ -110,11 +116,13 @@ interface CSR_UnitIF(
     modport RecoveryManager(
     input
         excptTargetAddr,
+        recoverELPFromCSR,
     output
         triggerExcpt,
         excptCauseAddr,
         excptCause,
-        excptCauseDataAddr
+        excptCauseDataAddr,
+        excptELP
     );
 
     modport CSR_Unit(
@@ -129,6 +137,7 @@ interface CSR_UnitIF(
         excptCauseAddr,
         excptCause,
         excptCauseDataAddr,
+        excptELP,
         retireNum,
         reqTimerInterrupt,
         reqCustomInterrupt,
@@ -137,6 +146,7 @@ interface CSR_UnitIF(
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
+        interruptELP,
 `ifdef RSD_MARCH_FP_PIPE
         fflagsWE,
         fflagsData,
@@ -150,7 +160,9 @@ interface CSR_UnitIF(
         csrReadOut,
         csrUnitTriggerExcpt,
         excptTargetAddr,
-        privilegeLevel
+        privilegeLevel,
+        xLPE,
+        recoverELPFromCSR
     );
 
     modport InterruptController(
@@ -161,7 +173,8 @@ interface CSR_UnitIF(
     output
         triggerInterrupt,
         interruptRetAddr,
-        interruptCode
+        interruptCode,
+        interruptELP
     );
 
 endinterface

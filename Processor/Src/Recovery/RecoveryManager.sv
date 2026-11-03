@@ -15,6 +15,7 @@
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
+import MicroOpTypes::*;
 import MemoryMapTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
@@ -48,6 +49,10 @@ module RecoveryManager(
         ExecutionState excptCause;      // Trap vector or xRET return target
         AddrPath excptCauseDataAddr;    // fault 発生時のデータアドレス
 
+        // Match ELP to the selected recovery instruction, not the decode frontier.
+        ELP_State_Type elp;
+        ELP_State_Type nextELP;
+
         // ActiveList中のどのエントリがどのエントリまでをフラッシュするかを示すポインタ
         ActiveListIndexPath flushRangeHeadPtr;
         ActiveListIndexPath flushRangeTailPtr;
@@ -65,6 +70,9 @@ module RecoveryManager(
 
     // CSR からリフェッチするかどうか
     logic refetchFromCSR;
+    // Replaying the same instruction restores its incoming ELP.
+    logic refetchToThis;
+    ELP_State_Type recoveredELP;
 
     //リカバリによって回復されるPC
     PC_Path recoveredPC;
@@ -92,6 +100,8 @@ module RecoveryManager(
 
             regState.excptCause <= EXEC_STATE_NOT_FINISHED;
             regState.excptCauseDataAddr <= '0;
+            regState.elp <= LP_NOT_EXPECTED;
+            regState.nextELP <= LP_NOT_EXPECTED;
         end
     end
 
@@ -121,6 +131,8 @@ module RecoveryManager(
         // これらの要求は一旦レジスタに積む
         nextState.excptCause = port.recoveryCauseFromCommitStage;
         nextState.excptCauseDataAddr = port.faultingDataAddr;
+        nextState.elp = port.exceptionDetectedInCommitStage ? port.elp_FromCommitStage : port.elp_FromRwStage;
+        nextState.nextELP = port.exceptionDetectedInCommitStage ? port.nextELP_FromCommitStage : port.nextELP_FromRwStage;
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
@@ -133,6 +145,21 @@ module RecoveryManager(
         csrUnit.excptCauseAddr = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
         csrUnit.excptCause = regState.excptCause;
         csrUnit.excptCauseDataAddr = regState.excptCauseDataAddr;
+        csrUnit.excptELP = regState.elp;
+
+        refetchToThis = regState.refetchType inside {
+            REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_SERIALIZED,
+            REFETCH_TYPE_THIS_PC_TO_CSR_TARGET
+        };
+        if (refetchFromCSR) begin
+            recoveredELP = csrUnit.recoverELPFromCSR;
+        end
+        else begin
+            recoveredELP = refetchToThis ? regState.elp : regState.nextELP;
+        end
+
+        idStage.recoverELP = regState.phase == PHASE_RECOVER_0;
+        idStage.recoveredELP = recoveredELP;
 
         // Recovered PC
         if(regState.phase == PHASE_RECOVER_0) begin

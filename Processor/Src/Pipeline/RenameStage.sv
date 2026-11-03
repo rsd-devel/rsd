@@ -267,6 +267,11 @@ module RenameStage(
             renameLogic.watWriteIssueQueuePtrFromPipeReg[i] = scheduler.allocatedPtr[i];
         end
 
+        // elp
+        for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
+            nextStage[i].elp = pipeReg[i].elp;
+            nextStage[i].nextELP = pipeReg[i].nextELP;
+        end
 
         //
         // --- Renamed operands

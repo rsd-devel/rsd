@@ -101,6 +101,7 @@ UNIT_TESTS = \
 	Memory \
 	ICache \
 	DCache \
+	DecodeStage \
 	InterruptController
 UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
 

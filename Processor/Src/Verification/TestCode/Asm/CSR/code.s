@@ -406,7 +406,23 @@ main:
     EXPECT_ZERO_CSR marchid
     EXPECT_ZERO_CSR mimpid
     EXPECT_ZERO_CSR mhartid
-    EXPECT_ZERO_CSR 0x310       # mstatush (not named by older assemblers).
+    EXPECT_ZERO_CSR 0x310       # mstatush starts with MPELP clear.
+    # Zicfilp implements only MPELP (bit 9) in the RV32 high status word.
+    li t0, -1
+    csrw 0x310, t0
+    csrr t3, 0x310
+    li t4, 0x200
+    bne t3, t4, fail
+    li t0, -513                # Reserved bits must not change MPELP.
+    csrc 0x310, t0
+    csrr t3, 0x310
+    bne t3, t4, fail
+    csrc 0x310, t4
+    EXPECT_ZERO_CSR 0x310
+    csrs 0x310, t4
+    csrr t3, 0x310
+    bne t3, t4, fail
+    csrw 0x310, zero
     EXPECT_ZERO_CSR mcounteren
     EXPECT_ZERO_CSR scounteren
     EXPECT_ZERO_CSR satp
@@ -432,7 +448,7 @@ main:
 
     # mstatus already ignores padding; preserve that behavior for WRITE/SET/CLEAR.
     csrr t1, mstatus
-    li t0, 0xffa1e655
+    li t0, 0xff21e655
     or t3, t1, t0
     csrw mstatus, t3
     csrr t4, mstatus
@@ -443,6 +459,17 @@ main:
     csrc mstatus, t0
     csrr t4, mstatus
     bne t4, t1, fail
+
+    # SPELP is shared by the machine and supervisor status views.
+    li t0, 0x800000
+    csrs mstatus, t0
+    csrr t3, sstatus
+    and t3, t3, t0
+    bne t3, t0, fail
+    csrc sstatus, t0
+    csrr t3, mstatus
+    and t3, t3, t0
+    bnez t3, fail
 
     # M/S interrupt enables and platform CUSTOM bits remain writable.
     li t1, 0xffff0aaa

@@ -143,7 +143,7 @@ output
     FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF, perfCounterIF );
         ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
     
-    PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF );
+    PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF, csrUnitIF );
     DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF, perfCounterIF );
 
     RenameStage rnStage( rnStageIF, idStageIF, renameLogicIF, activeListIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, debugIF );
@@ -209,7 +209,7 @@ output
 
     CSR_Unit csrUnit(csrUnitIF, plicUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
-    InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
+    InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, idStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, plicUnitIF, csrUnitIF);
     PLIC_Unit plicUnit(plicUnitIF, csrUnitIF, ioUnitIF);
 

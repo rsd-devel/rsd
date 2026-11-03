@@ -98,6 +98,8 @@ module ComplexIntegerRegisterWriteStage(
             alWriteData[i].dataAddr = '0;
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = FALSE;
+            alWriteData[i].elp = LP_NOT_EXPECTED;
+            alWriteData[i].nextELP = LP_NOT_EXPECTED;
 
             // ExecState
             if ( update[i] && regValid[i] ) begin

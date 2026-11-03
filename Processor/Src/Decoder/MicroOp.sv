@@ -16,6 +16,14 @@ import OpFormatTypes::*;
 localparam LINK_REGISTER = 5'h 1;
 localparam MICRO_OP_TMP_REGISTER = 4'h f;
 localparam ZERO_REGISTER = 5'h 0;
+localparam TEMPORARY_REGISTER_0 = 5'h5;
+localparam TEMPORARY_REGISTER_2 = 5'h7;
+
+typedef enum logic
+{
+    LP_NOT_EXPECTED = 1'b0,
+    LP_EXPECTED     = 1'b1
+} ELP_State_Type;
 
 localparam MICRO_OP_MAX_NUM = 3;     // An instruction is decoded to up to 3 micro ops.
 localparam MICRO_OP_INDEX_BITS = 2;  
@@ -59,7 +67,9 @@ typedef enum logic [2:0]
     INT_MOP_TYPE_SHIFT     = 3'b001,
 
     INT_MOP_TYPE_BR        = 3'b010,
-    INT_MOP_TYPE_RIJ       = 3'b011
+    INT_MOP_TYPE_RIJ       = 3'b011,
+
+    INT_MOP_TYPE_LPL_CHECK = 3'b100
 } IntMicroOpSubType;
 
 typedef enum logic [2:0]
@@ -296,6 +306,9 @@ typedef struct packed // OpInfo
     // * Already fetched succeeding instructions are flushed when this 
     // instruction is decoded.
     logic serialized;    
+
+    // landing pad
+    ELP_State_Type nextELP;
 } OpInfo;
 
 typedef struct packed { // InsnInfo

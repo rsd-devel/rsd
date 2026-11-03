@@ -155,7 +155,8 @@ function automatic void DecideCommit(
             EXEC_STATE_FAULT_STORE_VIOLATION,
             EXEC_STATE_FAULT_INSN_ILLEGAL,
             EXEC_STATE_FAULT_INSN_VIOLATION,
-            EXEC_STATE_FAULT_INSN_MISALIGNED
+            EXEC_STATE_FAULT_INSN_MISALIGNED,
+            EXEC_STATE_FAULT_LPAD
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = headOfThisInsn[i];
@@ -206,7 +207,8 @@ function automatic void DecideCommit(
                             EXEC_STATE_FAULT_STORE_VIOLATION,
                             EXEC_STATE_FAULT_INSN_ILLEGAL,
                             EXEC_STATE_FAULT_INSN_VIOLATION,
-                            EXEC_STATE_FAULT_INSN_MISALIGNED
+                            EXEC_STATE_FAULT_INSN_MISALIGNED,
+                            EXEC_STATE_FAULT_LPAD
                         }) || unableToStartRecovery) ? FALSE : TRUE);
                 end
                 else begin

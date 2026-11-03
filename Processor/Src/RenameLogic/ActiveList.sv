@@ -183,6 +183,8 @@ module ActiveList(
         StoreQueueIndexPath storeQueuePtr;
         logic valid;
         ExecutionState state;
+        ELP_State_Type elp;
+        ELP_State_Type nextELP;
     } RecoveryRegPath;
 
     ActiveListCountPath recoveryAge;
@@ -259,6 +261,9 @@ module ActiveList(
                 nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
                 nextRecoveryReg.state = writeData[i].state;
 
+                nextRecoveryReg.elp = writeData[i].elp;
+                nextRecoveryReg.nextELP = writeData[i].nextELP;
+
                 // Rwステージで例外が検出された時点でリカバリを開始する(詳細はRecoveryManager)
                 // EXEC_STATE_TRAP や例外は必ずコミット時に処理する（CSR の操作が伴うため）
                 exceptionDetected = writeData[i].state inside {
@@ -300,6 +305,12 @@ module ActiveList(
 
         // Fault handling
         recovery.faultingDataAddr = recoveryReg.faultingDataAddr;
+
+        // Keep both sides of the recovery point with its PC and cause.
+        recovery.elp_FromCommitStage = recoveryReg.elp;
+        recovery.nextELP_FromCommitStage = recoveryReg.nextELP;
+        recovery.elp_FromRwStage = nextRecoveryReg.elp;
+        recovery.nextELP_FromRwStage = nextRecoveryReg.nextELP;
 
         //LSQのリカバリに用いる
         port.loadQueueRecoveryTailPtr = recoveryReg.loadQueuePtr;

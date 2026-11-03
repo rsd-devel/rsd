@@ -39,6 +39,7 @@ SRC_DIRS = \
 	DCacheFlush \
     FP \
     Aext \
+    LandingPad \
 
 # Keep FP artifacts in the clean target regardless of the configuration.
 ifeq ($(RSD_HAS_FP)$(filter clean,$(MAKECMDGOALS)),0)

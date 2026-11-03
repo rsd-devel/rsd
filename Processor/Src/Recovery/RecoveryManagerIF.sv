@@ -7,6 +7,7 @@
 //
 
 import BasicTypes::*;
+import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
@@ -41,6 +42,12 @@ interface RecoveryManagerIF( input logic clk, rst );
 
     // For fault handling
     AddrPath faultingDataAddr;
+
+    // elp
+    ELP_State_Type elp_FromCommitStage;
+    ELP_State_Type nextELP_FromCommitStage;
+    ELP_State_Type elp_FromRwStage;
+    ELP_State_Type nextELP_FromRwStage;
 
     //　Miss prediction detected in RenameStage
     logic    recoverFromRename;
@@ -113,6 +120,10 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        elp_FromCommitStage,
+        nextELP_FromCommitStage,
+        elp_FromRwStage,
+        nextELP_FromRwStage,
         notIssued,
         flushIQ_Entry,
         recoveryCauseFromCommitStage,
@@ -436,6 +447,10 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        elp_FromCommitStage,
+        nextELP_FromCommitStage,
+        elp_FromRwStage,
+        nextELP_FromRwStage,
         flushAllInsns
     );
 

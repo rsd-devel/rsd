@@ -352,6 +352,7 @@ module MemoryTagAccessStage(
             ldNextStage[i].isScFail = FALSE;
             ldNextStage[i].amoCacheHit = amoCacheHit[i];
             ldNextStage[i].writeAMOCache = FALSE;
+            ldNextStage[i].elp = ldIqData[i].elp;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
@@ -403,6 +404,7 @@ module MemoryTagAccessStage(
                 ENV_MRET:           ldNextStage[i].execState = EXEC_STATE_TRAP_MRET;
                 ENV_INSN_ILLEGAL:   ldNextStage[i].execState = EXEC_STATE_FAULT_INSN_ILLEGAL;
                 ENV_INSN_VIOLATION: ldNextStage[i].execState = EXEC_STATE_FAULT_INSN_VIOLATION;
+                ENV_LPAD_FAIL:      ldNextStage[i].execState = EXEC_STATE_FAULT_LPAD;
                 default:
                     ldNextStage[i].execState = EXEC_STATE_TRAP_EBREAK;
                 endcase
@@ -593,6 +595,7 @@ module MemoryTagAccessStage(
             stNextStage[i].isScFail = isScFail[i];
             stNextStage[i].amoCacheHit = FALSE;
             stNextStage[i].writeAMOCache = FALSE;
+            stNextStage[i].elp = LP_NOT_EXPECTED;
 
             // ExecState
             // 命令の実行結果によって、再フェッチが必要かどうかなどを判定する
