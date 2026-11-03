@@ -100,7 +100,8 @@ UNIT_TESTS = \
 	Divider \
 	Memory \
 	ICache \
-	DCache
+	DCache \
+	InterruptController
 UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
 
 .PHONY: test-unit $(UNIT_TEST_TARGETS)
