@@ -42,6 +42,74 @@ module TestInterruptController;
         #1;
     endtask
 
+    task automatic CheckSIP;
+        DataPath delegated, initialPending, operand, visible, expected;
+        DataPath values[4] = '{32'h0, 32'hffffffff, 32'h2, 32'h4};
+        for (int mask = 0; mask < 8; mask++)
+            for (int origin = 0; origin < 2; origin++)
+                for (int pending = 0; pending < 2; pending++)
+                    for (int pattern = 0; pattern < 4; pattern++)
+                        for (int op = 1; op <= 3; op++) begin
+                            caseName = $sformatf("SIP mask=%0d S=%0d SSIP=%0d pattern=%0d op=%0d",
+                                                mask, origin, pending, pattern, op);
+                            Reset();
+                            delegated = InterruptBits(3'(mask), 1) | 32'h80010000;
+                            initialPending = 32'h80010220 | (DataPath'(pending) << 1);
+                            operand = values[pattern];
+                            visible = initialPending & delegated;
+                            expected = op == 1 ? operand : op == 2 ? visible | operand : visible & ~operand;
+                            expected = (initialPending & ~(delegated & 32'h2)) |
+                                       (expected & delegated & 32'h2);
+                            WriteCSR(CSR_NUM_MIDELEG, delegated);
+                            WriteCSR(CSR_NUM_MIP, initialPending);
+                            if (origin != 0) begin
+                                WriteCSR(CSR_NUM_MSTATUS, 32'h800);
+                                csr.triggerExcpt = 1;
+                                Tick();
+                                csr.triggerExcpt = 0;
+                            end
+                            ReadCSR(CSR_NUM_SIP, visible);
+                            WriteCSR(CSR_NUM_SIP, operand, CSR_Code'(op));
+                            assert (DataPath'(csr.csrWholeOut.mip) === expected)
+                                else $fatal(1, "SIP changed the wrong pending bits (%s)", caseName);
+                            ReadCSR(CSR_NUM_SIP, expected & delegated);
+                            aliasCases++;
+                        end
+
+        // A following RMW must observe the immediately preceding software write.
+        caseName = "consecutive SIP writes";
+        Reset();
+        WriteCSR(CSR_NUM_MIDELEG, 2);
+        WriteCSR(CSR_NUM_SIP, 2);
+        WriteCSR(CSR_NUM_SIP, 4, CSR_SET);
+        ReadCSR(CSR_NUM_SIP, 2);
+        WriteCSR(CSR_NUM_SIP, 4, CSR_CLEAR);
+        ReadCSR(CSR_NUM_SIP, 2);
+        WriteCSR(CSR_NUM_SIP, 2, CSR_CLEAR);
+        ReadCSR(CSR_NUM_SIP, 0);
+
+        // Hardware SEIP is readable, but MIP RMW must not latch it in software.
+        caseName = "hardware SEIP and software RMW";
+        Reset();
+        WriteCSR(CSR_NUM_MIDELEG, SUPERVISOR_INTERRUPTS);
+        WritePLIC(PHY_ADDR_PLIC_SOURCE_PRIORITY_BASE + 4, 1);
+        WritePLIC(PHY_ADDR_PLIC_ENABLE_BASE + 'h80, 2);
+        plic.interruptReqFromInterruptSource[1] = 1;
+        repeat (3) Tick();
+        ReadCSR(CSR_NUM_MIP, 32'h200);
+        WriteCSR(CSR_NUM_MIP, 2, CSR_SET);
+        ReadCSR(CSR_NUM_MIP, 32'h202);
+        WriteCSR(CSR_NUM_MIP, 2, CSR_CLEAR);
+        ReadCSR(CSR_NUM_MIP, 32'h200);
+        WriteCSR(CSR_NUM_SIP, 0);
+        ReadCSR(CSR_NUM_SIP, 32'h200);
+        plic.interruptReqFromInterruptSource[1] = 0;
+        WritePLIC(PHY_ADDR_PLIC_ENABLE_BASE + 'h80, 0);
+        repeat (2) Tick();
+        ReadCSR(CSR_NUM_MIP, 0);
+        aliasCases += 2;
+    endtask
+
     // The test mask is {external, software, timer}, in descending priority.
     function automatic DataPath InterruptBits(input logic [2:0] mask, input bit supervisor = 0);
         if (supervisor)
@@ -204,7 +272,8 @@ module TestInterruptController;
                 assert (csr.csrWholeOut.mip.SSIP === 1'b1)
                     else $fatal(1, "SSIP was not pending before the clear");
                 WriteCSR(CSR_NUM_SIP, 0);
-                Tick(); // Allow the registered mip view to observe the write.
+                assert (ctrl.npStageSendBubbleLowerForInterrupt === 1'b0)
+                    else $fatal(1, "Clearing SSIP left the interrupt request active");
             end
             csr.csrNumber = kind == 0 ? CSR_NUM_SIE : CSR_NUM_SIP;
             csr.csrRE = 1;
@@ -385,9 +454,10 @@ module TestInterruptController;
         CheckSupervisorAlias(0);
         CheckSupervisorAlias(1);
         CheckSIE();
+        CheckSupervisorAlias(2);
+        CheckSIP();
         // These checks must fail until their RTL issues are fixed; they are
         // opt-in, and failures remain fatal rather than being reported as passes.
-        if ($test$plusargs("CHECK_SIP_WRITE")) CheckSupervisorAlias(2);
         if ($test$plusargs("CHECK_MIXED_DELEGATION"))
             CheckCase(32'h220, 32'h220, 32'h200, 1, 1, 1, PRIVILEGE_LEVEL_S);
         for (int mode = 0; mode < 3; mode++)
