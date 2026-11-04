@@ -38,57 +38,67 @@ module InterruptController(
         "The width of an custom interrupt code and the code in the CSR do not match"
     );
 
-    function automatic InterruptRequestPath checkInterrupt(
-        input CSR_BodyPath csrReg,
-        input CSR_CAUSE_InterruptCodePath code,
-        input PrivilegeLevelType privilegeLevel,
-        input InterruptRequestPath previous
+    // Each destination has its own priority encoder. Select the destination
+    // once, so an S-mode source never extends the M-mode selection chain.
+    function automatic CSR_CAUSE_InterruptCodePath SelectInterruptCode(
+        input DataPath pending
     );
-        InterruptRequestPath result;
-        // Preserve the previous selection unless this higher-priority source wins.
-        result = previous;
-        if (csrReg.mie[code] && csrReg.mip[code]) begin
-            if (csrReg.mideleg[code]) begin
-                // M-mode destinations take priority over every S-mode source.
-                if (privilegeLevel <= PRIVILEGE_LEVEL_S && // trap to higher mode is not allowed
-                    (privilegeLevel < PRIVILEGE_LEVEL_S || csrReg.mstatus.SIE) &&
-                    (!previous.valid || previous.toSmode)
-                ) begin
-                    result.valid = 1;
-                    result.toSmode = 1;
-                    result.code = code;
-                end
-            end else begin
-                // trap to M-mode
-                if (privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE) begin
-                    result.valid = 1;
-                    result.toSmode = 0;
-                    result.code = code;
-                end
-            end
-        end
-        return result;
+        logic [7:0] customHalf;
+        logic [3:0] customQuarter;
+        logic [1:0] customPair;
+        logic [3:0] customCode;
+        CSR_CAUSE_InterruptCodePath code;
+
+        // A balanced encoder selects the highest-numbered custom interrupt.
+        customCode[3] = |pending[31:24];
+        customHalf = customCode[3] ? pending[31:24] : pending[23:16];
+        customCode[2] = |customHalf[7:4];
+        customQuarter = customCode[2] ? customHalf[7:4] : customHalf[3:0];
+        customCode[1] = |customQuarter[3:2];
+        customPair = customCode[1] ? customQuarter[3:2] : customQuarter[1:0];
+        customCode[0] = customPair[1];
+
+        // Within a destination: custom > MEI > MSI > MTI > SEI > SSI > STI.
+        if (|pending[31:16])
+            code = CSR_CAUSE_InterruptCodePath'({1'b1, customCode});
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_M_EXTERNAL])
+            code = CSR_CAUSE_INTERRUPT_CODE_M_EXTERNAL;
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_M_SOFTWARE])
+            code = CSR_CAUSE_INTERRUPT_CODE_M_SOFTWARE;
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_M_TIMER])
+            code = CSR_CAUSE_INTERRUPT_CODE_M_TIMER;
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_S_EXTERNAL])
+            code = CSR_CAUSE_INTERRUPT_CODE_S_EXTERNAL;
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_S_SOFTWARE])
+            code = CSR_CAUSE_INTERRUPT_CODE_S_SOFTWARE;
+        else if (pending[CSR_CAUSE_INTERRUPT_CODE_S_TIMER])
+            code = CSR_CAUSE_INTERRUPT_CODE_S_TIMER;
+        else
+            code = CSR_CAUSE_InterruptCodePath'(0);
+        return code;
     endfunction
+
+    DataPath pending, machinePending, supervisorPending;
+    logic machineValid, supervisorValid;
 
     always_comb begin
         csrReg = csrUnit.csrWholeOut;
 
-        // Within each destination privilege level, the source priority is
-        // Custom Interrupt (msb > msb -1 > ... > 16) > MEI > MSI > MTI > SEI > SSI > STI > LCOFI
-        interruptRequest = '0;
+        // Ignore unimplemented interrupt bits before testing either destination.
+        pending = csrReg.mie & csrReg.mip & 32'hffff0aaa;
+        machinePending = pending & ~csrReg.mideleg;
+        supervisorPending = pending & csrReg.mideleg;
+        machineValid = (|machinePending) &&
+            (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE);
+        supervisorValid = (|supervisorPending) &&
+            (csrUnit.privilegeLevel < PRIVILEGE_LEVEL_S ||
+             (csrUnit.privilegeLevel == PRIVILEGE_LEVEL_S && csrReg.mstatus.SIE));
 
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_TIMER   , csrUnit.privilegeLevel, interruptRequest);
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_SOFTWARE, csrUnit.privilegeLevel, interruptRequest);
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_S_EXTERNAL, csrUnit.privilegeLevel, interruptRequest);
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_TIMER   , csrUnit.privilegeLevel, interruptRequest);
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_SOFTWARE, csrUnit.privilegeLevel, interruptRequest);
-        interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_INTERRUPT_CODE_M_EXTERNAL, csrUnit.privilegeLevel, interruptRequest);
-
-        // Custom Interrupt
-        // TODO replace custom interrupt with PLIC
-        for (int i = 16; i < 32; i++) begin
-            interruptRequest = checkInterrupt(csrReg, CSR_CAUSE_InterruptCodePath'(i), csrUnit.privilegeLevel, interruptRequest);
-        end
+        interruptRequest.valid = machineValid || supervisorValid;
+        interruptRequest.toSmode = !machineValid && supervisorValid;
+        interruptRequest.code = machineValid ? SelectInterruptCode(machinePending) :
+            supervisorValid ? SelectInterruptCode(supervisorPending) :
+            CSR_CAUSE_InterruptCodePath'(0);
 
         reqInterrupt = interruptRequest.valid;
         interruptToSmode = interruptRequest.toSmode;
