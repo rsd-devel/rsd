@@ -22,7 +22,8 @@ typedef enum logic [1:0] {
 // If you add additional status bits, check CSR_Unit.sv because 
 // only valid fields are updated.
 typedef struct packed {
-    logic [8:0] padding_7;  // 31:23
+    logic [7:0] padding_7;  // 31:24
+    ELP_State_Type SPELP;   // 23
     logic TSR;              // 22
     logic padding_6;        // 21
     logic TVM;              // 20
@@ -43,10 +44,18 @@ typedef struct packed {
     logic padding_0;        // 0
 } CSR_MSTATUS_Path;
 
+typedef struct packed {
+    logic [21:0] padding_1; // 31:10
+    ELP_State_Type MPELP;   // 9 (mstatus bit 41)
+    logic [8:0] padding_0;  // 8:0
+} CSR_MSTATUSH_Path;
+
 // If you add additional sstatus fields,
 // add fields that will be copied from/to mstatus in ToSstatusFromMstatus/ToMstatusFromSstatus
 typedef struct packed {
-    logic [11:0] padding_4; // 31:20
+    logic [7:0] padding_4;  // 31:24
+    ELP_State_Type SPELP;   // 23
+    logic [2:0] padding_5;  // 22:20
     logic MXR;              // 19
     logic SUM;              // 18
     logic [8:0] padding_3;  // 17:9
@@ -61,6 +70,7 @@ typedef struct packed {
 function automatic CSR_SSTATUS_Path ToSstatusFromMstatus(input CSR_MSTATUS_Path mstatus);
     CSR_SSTATUS_Path value;
     value      = '0;
+    value.SPELP = mstatus.SPELP;
     value.MXR  = mstatus.MXR ;
     value.SUM  = mstatus.SUM ;
     value.SPP  = mstatus.SPP ;
@@ -72,6 +82,7 @@ endfunction
 function automatic CSR_MSTATUS_Path ToMstatusFromSstatus(input CSR_SSTATUS_Path sstatus, input CSR_MSTATUS_Path currentMstatus);
     CSR_MSTATUS_Path value;
     value      = currentMstatus;
+    value.SPELP = sstatus.SPELP;
     value.MXR  = sstatus.MXR ;
     value.SUM  = sstatus.SUM ;
     value.SPP  = sstatus.SPP ;
@@ -207,6 +218,7 @@ typedef enum logic [4:0] {
     CSR_CAUSE_TRAP_CODE_SCALL = 9,
     CSR_CAUSE_TRAP_CODE_MCALL = 11,
     CSR_CAUSE_TRAP_CODE_DOUBLE_TRAP = 16,
+    CSR_CAUSE_TRAP_CODE_SOFTWARE_CHECK = 18,
 
     CSR_CAUSE_TRAP_CODE_UNKNOWN = 14
 } CSR_CAUSE_TrapCodePath;
@@ -231,10 +243,13 @@ function automatic CSR_CAUSE_TrapCodePath ToTrapCodeFromExecState(ExecutionState
     EXEC_STATE_FAULT_INSN_ILLEGAL:     return CSR_CAUSE_TRAP_CODE_INSN_ILLEGAL;
     EXEC_STATE_FAULT_INSN_VIOLATION:   return CSR_CAUSE_TRAP_CODE_INSN_VIOLATION;
     EXEC_STATE_FAULT_INSN_MISALIGNED:  return CSR_CAUSE_TRAP_CODE_INSN_MISALIGNED;
+    EXEC_STATE_FAULT_LPAD:            return CSR_CAUSE_TRAP_CODE_SOFTWARE_CHECK;
 
     default: return CSR_CAUSE_TRAP_CODE_UNKNOWN;
     endcase
 endfunction
+
+localparam DataPath CSR_TRAPVALUE_LANDING_PAD_FAIL = 32'd2;
 
 localparam CSR_CAUSE_INTERRUPT_CODE_WIDTH = 5;
 typedef enum logic [CSR_CAUSE_INTERRUPT_CODE_WIDTH-1:0] {
@@ -276,6 +291,18 @@ typedef struct packed {
     FFlags_Path fflags;
 } CSR_FCSR_Path;
 
+typedef struct packed {
+    logic [20:0] padding_1; // 31:11
+    logic MLPE;            // 10
+    logic [9:0] padding_0;  // 9:0
+} CSR_MSECCFG_Path;
+
+typedef struct packed {
+    logic [28:0] padding_1; // 31:3
+    logic LPE;             // 2
+    logic [1:0] padding_0;  // 1:0
+} CSR_ENVCFG_Path;
+
 localparam logic [1:0] CSR_XTVEC_BASE_PADDING = 2'b0;
 
 // All members have 32bit width
@@ -289,6 +316,10 @@ typedef union packed {
     DataPath        stval;
 
     CSR_MSTATUS_Path mstatus;
+    CSR_MSTATUSH_Path mstatush;
+    CSR_MSECCFG_Path mseccfg;
+    CSR_ENVCFG_Path menvcfg;
+    CSR_ENVCFG_Path senvcfg;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
@@ -316,6 +347,10 @@ typedef struct packed {
     DataPath        stval;
 
     CSR_MSTATUS_Path mstatus;
+    CSR_MSTATUSH_Path mstatush;
+    CSR_MSECCFG_Path mseccfg;
+    CSR_ENVCFG_Path menvcfg;
+    CSR_ENVCFG_Path senvcfg;
     CSR_MIP_Path mip;
     CSR_MIE_Path mie;
     CSR_CAUSE_Path mcause;
@@ -335,6 +370,22 @@ typedef struct packed {
     CSR_FCSR_Path fcsr;
 `endif
 } CSR_BodyPath;
+
+// Use the privilege of the instruction or return destination, not the handler.
+function automatic logic IsLandingPadEnabled(input CSR_BodyPath csr,
+                                             input PrivilegeLevelType level);
+`ifdef RSD_ENABLE_ZICFILP
+    case (level)
+        PRIVILEGE_LEVEL_M: return csr.mseccfg.MLPE;
+        PRIVILEGE_LEVEL_S: return csr.misa.EXTENSIONS.S && csr.menvcfg.LPE;
+        PRIVILEGE_LEVEL_U: return csr.misa.EXTENSIONS.U &&
+            (csr.misa.EXTENSIONS.S ? csr.senvcfg.LPE : csr.menvcfg.LPE);
+        default: return 1'b0;
+    endcase
+`else
+    return 1'b0;
+`endif
+endfunction
 
 //
 // Supervisor Trap Setup
@@ -399,6 +450,8 @@ localparam CSR_NUM_MIDELEG   = 12'h303; // Machine interrupt delegation register
 localparam CSR_NUM_MIE       = 12'h304; // Machine interrupt-enable register.
 localparam CSR_NUM_MTVEC     = 12'h305; // Machine trap-handler base address.
 localparam CSR_NUM_MCOUNTEREN = 12'h306; // Machine counter enable.
+localparam CSR_NUM_MENVCFG   = 12'h30A; // Machine environment configuration.
+localparam CSR_NUM_MENVCFGH  = 12'h31A; // Upper half, RV32 only.
 localparam CSR_NUM_MSTATUSH  = 12'h310; // Additional machine status register, RV32 only.
 localparam CSR_NUM_MEDELEGH  = 12'h312; // Upper 32 bits of medeleg, RV32 only.
 
@@ -410,6 +463,8 @@ localparam CSR_NUM_MEPC      = 12'h341; // Machine exception program counter.
 localparam CSR_NUM_MCAUSE    = 12'h342; // Machine trap cause.
 localparam CSR_NUM_MTVAL     = 12'h343; // Machine bad address or instruction.
 localparam CSR_NUM_MIP       = 12'h344; // Machine interrupt pending.
+localparam CSR_NUM_MSECCFG   = 12'h747; // Machine security configuration.
+localparam CSR_NUM_MSECCFGH  = 12'h757; // Upper half, RV32 only.
 
 //
 // Machine Protection and Translation

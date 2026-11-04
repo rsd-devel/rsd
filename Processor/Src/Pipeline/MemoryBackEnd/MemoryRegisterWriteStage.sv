@@ -108,6 +108,8 @@ module MemoryRegisterWriteStage(
 
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = pipeReg[i].isStore;
+            alWriteData[i].elp = pipeReg[i].elp;
+            alWriteData[i].nextELP = LP_NOT_EXPECTED;
 
             // ExecState
             if ( update[i] ) begin

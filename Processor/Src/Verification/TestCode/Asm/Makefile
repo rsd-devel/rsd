@@ -39,11 +39,20 @@ SRC_DIRS = \
 	DCacheFlush \
     FP \
     Aext \
+    LandingPad \
 
 # Keep FP artifacts in the clean target regardless of the configuration.
 ifeq ($(RSD_HAS_FP)$(filter clean,$(MAKECMDGOALS)),0)
 SRC_DIRS := $(filter-out FP,$(SRC_DIRS))
 endif
+
+ifeq ($(RSD_HAS_ZICFILP)$(filter clean,$(MAKECMDGOALS)),0)
+SRC_DIRS := $(filter-out LandingPad,$(SRC_DIRS))
+endif
+
+# CSR masks must follow the RTL configuration, including WARL-zero CFI bits.
+CSR/code.o: CFLAGS += $(if $(filter 1,$(RSD_HAS_ZICFILP)),-DRSD_ENABLE_ZICFILP)
+CSR/code.o: $(RSD_ROOT_NATIVE)/Processor/Src/Makefiles/CoreSources.inc.mk
 
 # 中間ファイルのリスト
 ASM_SRCS  = $(SRC_DIRS:%=%/code.s)

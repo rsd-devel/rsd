@@ -12,6 +12,7 @@ import BasicTypes::*;
 import MemoryMapTypes::*;
 import CSR_UnitTypes::*;
 import OpFormatTypes::*;
+import MicroOpTypes::*;
 import SchedulerTypes::*;
 import ActiveListIndexTypes::*;
 
@@ -37,6 +38,7 @@ module CSR_Unit(
 
     PrivilegeLevelType privilegeLevel, privilegeLevelNext;
     PrivilegeLevelType excptPrivilegeLevel;
+    PrivilegeLevelType returnPrivilegeLevel;
 
     function automatic CSR_BodyPath GetCSRResetValue();
         CSR_BodyPath value;
@@ -101,10 +103,25 @@ module CSR_Unit(
 
         // Instruction encodings are optional trap values. Report zero for illegal
         // instructions so the pipeline does not need to retain their bits.
-        trapValue = port.excptCause == EXEC_STATE_FAULT_INSN_ILLEGAL ?
-            '0 : port.excptCauseDataAddr;
+        trapValue = port.excptCause == EXEC_STATE_FAULT_LPAD ?
+            CSR_TRAPVALUE_LANDING_PAD_FAIL :
+            port.excptCause == EXEC_STATE_FAULT_INSN_ILLEGAL ? '0 : port.excptCauseDataAddr;
 
         privilegeLevelNext = privilegeLevel;
+        returnPrivilegeLevel = port.excptCause == EXEC_STATE_TRAP_MRET ?
+            (csrReg.misa.EXTENSIONS.U ? csrReg.mstatus.MPP : PRIVILEGE_LEVEL_M) :
+            ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
+
+        port.xLPE = IsLandingPadEnabled(csrReg, privilegeLevel);
+        // Recovery consumes this alongside the CSR target, before trap state is
+        // clocked. The return destination controls LPE, independently of IRQs.
+        port.recoverELP_FromCSR = LP_NOT_EXPECTED;
+        if (IsLandingPadEnabled(csrReg, returnPrivilegeLevel)) begin
+            if (port.excptCause == EXEC_STATE_TRAP_MRET)
+                port.recoverELP_FromCSR = csrReg.mstatush.MPELP;
+            else if (port.excptCause == EXEC_STATE_TRAP_SRET)
+                port.recoverELP_FromCSR = csrReg.mstatus.SPELP;
+        end
 
         // Select the exception destination independently of interrupt triggering.
         // Sharing privilegeLevelNext would put the interrupt path on the recovery PC.
@@ -130,6 +147,7 @@ module CSR_Unit(
                     value.SPP = '0;
                     value.SPIE= '0;
                     value.SIE = '0;
+                    value.SPELP = LP_NOT_EXPECTED;
                 end
                 if (!csrReg.misa.EXTENSIONS.U) begin
                     value.MPRV = '0;
@@ -138,6 +156,13 @@ module CSR_Unit(
                 rv = value;
             end
             CSR_NUM_MIP:        rv = mipReg;
+            CSR_NUM_MSTATUSH:   rv = csrReg.mstatush;
+            CSR_NUM_MSECCFG:    rv = csrReg.mseccfg;
+            CSR_NUM_MSECCFGH:   rv = '0;
+            CSR_NUM_MENVCFG, CSR_NUM_MENVCFGH: begin
+                rv = port.csrNumber == CSR_NUM_MENVCFG ? DataPath'(csrReg.menvcfg) : '0;
+                csrImplemented = csrReg.misa.EXTENSIONS.U;
+            end
             CSR_NUM_MIE:        rv = csrReg.mie;
             CSR_NUM_MCAUSE:     rv = csrReg.mcause;
             CSR_NUM_MTVEC:      rv = csrReg.mtvec;
@@ -149,7 +174,7 @@ module CSR_Unit(
 
             // Implemented fixed-zero CSRs must not be treated as missing.
             CSR_NUM_MVENDORID, CSR_NUM_MARCHID, CSR_NUM_MIMPID, CSR_NUM_MHARTID,
-            CSR_NUM_MSTATUSH, CSR_NUM_MCOUNTEREN: rv = '0;
+            CSR_NUM_MCOUNTEREN: rv = '0;
 
             CSR_NUM_MCYCLE:    rv = csrReg.mcycle[31:0];
             CSR_NUM_MCYCLEH:   rv = csrReg.mcycle[63:32];
@@ -170,6 +195,7 @@ module CSR_Unit(
                 if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
                         CSR_NUM_SSTATUS:    rv = ToSstatusFromMstatus(csrReg.mstatus);
+                        CSR_NUM_SENVCFG:    rv = csrReg.senvcfg;
                         CSR_NUM_SIP:        rv = csrReg.mip & csrReg.mideleg;
                         CSR_NUM_SIE:        rv = csrReg.mie & csrReg.mideleg;
                         CSR_NUM_STVEC:      rv = csrReg.stvec;
@@ -244,6 +270,7 @@ module CSR_Unit(
                 csrNext.mtval = 0;
                 csrNext.mcause.isInterrupt = TRUE;
                 csrNext.mcause.code.interruptCode = port.interruptCode;
+                csrNext.mstatush.MPELP = port.interruptELP;
             end
             else if (privilegeLevelNext == PRIVILEGE_LEVEL_S) begin
                 csrNext.mstatus.SPIE = csrNext.mstatus.SIE; // SIE の古い値
@@ -253,6 +280,7 @@ module CSR_Unit(
                 csrNext.stval = 0;
                 csrNext.scause.isInterrupt = TRUE;
                 csrNext.scause.code.interruptCode = port.interruptCode;
+                csrNext.mstatus.SPELP = port.interruptELP;
             end
             //$display("int: from %x", port.interruptRetAddr);
         end
@@ -260,6 +288,7 @@ module CSR_Unit(
             if (port.excptCause == EXEC_STATE_TRAP_MRET) begin
                 // MRET
                 privilegeLevelNext = csrReg.misa.EXTENSIONS.U ? csrReg.mstatus.MPP : PRIVILEGE_LEVEL_M;
+                csrNext.mstatush.MPELP = LP_NOT_EXPECTED;
                 csrNext.mstatus.MIE = csrNext.mstatus.MPIE; // MIE の古い値に戻す
                 csrNext.mstatus.MPIE = 1; // MPIE = 1
                 csrNext.mstatus.MPP = PRIVILEGE_LEVEL_U; // 最小の特権レベル
@@ -271,6 +300,7 @@ module CSR_Unit(
             else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
                 // SRET
                 privilegeLevelNext = ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
+                csrNext.mstatus.SPELP = LP_NOT_EXPECTED;
                 csrNext.mstatus.SIE = csrNext.mstatus.SPIE; // SIE の古い値に戻す
                 csrNext.mstatus.SPIE = 1; // SPIE = 1
                 csrNext.mstatus.SPP = ToSPP_FromPrivilegeLevel(PRIVILEGE_LEVEL_U); // 最小の特権レベル
@@ -291,6 +321,7 @@ module CSR_Unit(
                     csrNext.mtval = trapValue;
                     csrNext.mcause.isInterrupt = FALSE;
                     csrNext.mcause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                    csrNext.mstatush.MPELP = port.excptELP;
                 end
                 else if (privilegeLevelNext == PRIVILEGE_LEVEL_S) begin
                     csrNext.mstatus.SPIE = csrNext.mstatus.SIE; // MIE の古い値
@@ -300,6 +331,7 @@ module CSR_Unit(
                     csrNext.stval = trapValue;
                     csrNext.scause.isInterrupt = FALSE;
                     csrNext.scause.code.trapCode = ToTrapCodeFromExecState(port.excptCause, privilegeLevel);
+                    csrNext.mstatus.SPELP = port.excptELP;
                 end
                 //$display("trap: from %x", ToAddrFromPC(port.excptCauseAddr));
             end
@@ -331,6 +363,7 @@ module CSR_Unit(
                             csrNext.mstatus.SPP = wv.mstatus.SPP;
                             csrNext.mstatus.SPIE= wv.mstatus.SPIE;
                             csrNext.mstatus.SIE = wv.mstatus.SIE;
+                            csrNext.mstatus.SPELP = wv.mstatus.SPELP;
                         end
                         if (csrReg.misa.EXTENSIONS.U) begin
                             csrNext.mstatus.MPRV = wv.mstatus.MPRV;
@@ -349,6 +382,9 @@ module CSR_Unit(
                     end
                     //$display("mstatus: %x", wv);
                 end
+                CSR_NUM_MSTATUSH: csrNext.mstatush.MPELP = wv.mstatush.MPELP;
+                CSR_NUM_MSECCFG:  csrNext.mseccfg.MLPE = wv.mseccfg.MLPE;
+                CSR_NUM_MENVCFG:  csrNext.menvcfg.LPE = wv.menvcfg.LPE;
                 // MIP
                 CSR_NUM_MIP: begin
                     mipRegNext.CUSTOM = wv.mip.CUSTOM;
@@ -402,6 +438,7 @@ module CSR_Unit(
 `endif
                 default: if (csrReg.misa.EXTENSIONS.S) begin
                     unique case (port.csrNumber)
+                        CSR_NUM_SENVCFG: csrNext.senvcfg.LPE = wv.senvcfg.LPE;
                         CSR_NUM_SIP: begin
                             // Only delegated SSIP is writable through SIP;
                             // external/timer pending bits remain read-only here.
@@ -451,6 +488,16 @@ module CSR_Unit(
         port.frm = csrReg.fcsr.frm;
 `endif
 
+`ifndef RSD_ENABLE_ZICFILP
+        // Apply after every write/trap path so synthesis removes CFI-only state.
+        // The CSR addresses and their privilege checks remain available as WARL zero.
+        csrNext.mstatus.SPELP = LP_NOT_EXPECTED;
+        csrNext.mstatush.MPELP = LP_NOT_EXPECTED;
+        csrNext.mseccfg.MLPE = FALSE;
+        csrNext.menvcfg.LPE = FALSE;
+        csrNext.senvcfg.LPE = FALSE;
+`endif
+
         if (port.csrNumber == CSR_NUM_MIP) begin
             rv = csrReg.mip;
         end
@@ -497,7 +544,8 @@ module CSR_Unit(
             EXEC_STATE_FAULT_STORE_VIOLATION,
             EXEC_STATE_FAULT_INSN_ILLEGAL,
             EXEC_STATE_FAULT_INSN_VIOLATION,
-            EXEC_STATE_FAULT_INSN_MISALIGNED
+            EXEC_STATE_FAULT_INSN_MISALIGNED,
+            EXEC_STATE_FAULT_LPAD
         })),
         "Invalid exception cause is passed"
     );

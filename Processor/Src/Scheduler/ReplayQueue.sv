@@ -268,6 +268,11 @@ module ReplayQueue(
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             recordData.intValid[i] = port.intRecordEntry[i];
             recordData.intData[i] = port.intRecordData[i];
+`ifndef RSD_ENABLE_ZICFILP
+            // Do not retain pipeline ELP bits just to write an unused RAM payload.
+            recordData.intData[i].elp = LP_NOT_EXPECTED;
+            recordData.intData[i].nextELP = LP_NOT_EXPECTED;
+`endif
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
@@ -278,6 +283,9 @@ module ReplayQueue(
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
             recordData.memValid[i] = port.memRecordEntry[i];
             recordData.memData[i] = port.memRecordData[i];
+`ifndef RSD_ENABLE_ZICFILP
+            recordData.memData[i].elp = LP_NOT_EXPECTED;
+`endif
         end
 `ifdef RSD_MARCH_FP_PIPE
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
@@ -578,6 +586,11 @@ module ReplayQueue(
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             nextReplayEntry.intValid[i] = popEntry && replayEntryOut.intValid[i] && !flushInt[i];
             nextReplayEntry.intData[i] = replayEntryOut.intData[i];
+`ifndef RSD_ENABLE_ZICFILP
+            // Break the replay feedback path so unused ELP storage can be removed.
+            nextReplayEntry.intData[i].elp = LP_NOT_EXPECTED;
+            nextReplayEntry.intData[i].nextELP = LP_NOT_EXPECTED;
+`endif
         end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
@@ -588,6 +601,9 @@ module ReplayQueue(
         for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
             nextReplayEntry.memValid[i] = popEntry && replayEntryOut.memValid[i] && !flushMem[i];;
             nextReplayEntry.memData[i] = replayEntryOut.memData[i];
+`ifndef RSD_ENABLE_ZICFILP
+            nextReplayEntry.memData[i].elp = LP_NOT_EXPECTED;
+`endif
         end
 `ifdef RSD_MARCH_FP_PIPE
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin

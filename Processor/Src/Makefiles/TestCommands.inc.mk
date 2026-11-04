@@ -47,6 +47,10 @@ ifeq ($(RSD_HAS_FP),1)
 LEVEL1_TESTS += test-RV32F-Asm test-RV32F-C
 endif
 
+ifeq ($(RSD_HAS_ZICFILP),1)
+LEVEL1_TESTS += test-RV32I-LandingPad
+endif
+
 LEVEL2_TESTS = \
 	test-Coremark \
 	test-Coremark_for_RV32I \
@@ -238,6 +242,15 @@ test-RV32I-Fault:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fault
 test-RV32I-MisalignedMemAccess:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MisalignedMemAccess
+.PHONY: test-RV32I-LandingPad
+ifeq ($(RSD_HAS_ZICFILP),1)
+test-RV32I-LandingPad:
+	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LandingPad
+else
+test-RV32I-LandingPad:
+	@echo "LandingPad tests require RSD_ENABLE_ZICFILP in RSD_SRC_CFG" >&2
+	@exit 1
+endif
 
 test-RV32M-IntMulZynq:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntMulZynq

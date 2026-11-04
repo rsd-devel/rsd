@@ -97,6 +97,41 @@ module DecodeStage(
         end
     end
 
+    // Control
+    logic initiate;
+    logic complete;
+
+    // ELP
+    ELP_State_Type lastELP, prevELP;
+
+`ifdef RSD_ENABLE_ZICFILP
+    always_ff@ (posedge port.clk)
+    begin
+        if (port.rst) begin
+            prevELP <= LP_NOT_EXPECTED;
+        end
+        else begin
+            if (port.setELP_OnInterrupt || port.recoverELP) begin
+                prevELP <= port.setELP_OnInterrupt ? LP_NOT_EXPECTED : port.recoveredELP;
+            end
+            else begin
+                // Keep the bundle's incoming ELP while its decoded ops are stalled.
+                if (complete && !(ctrl.idStage.stall && !ctrl.stallByDecodeStage) &&
+                    !ctrl.idStage.clear) begin
+                    prevELP <= lastELP;
+                end
+            end
+        end
+    end
+`else
+    // Keep interfaces stable; synthesis removes the constant ELP state and payload bits.
+    assign prevELP = LP_NOT_EXPECTED;
+`endif
+
+    always_comb begin
+        port.elpState = prevELP;
+    end
+
     // Pipeline control
     logic stall, clear;
     logic empty;
@@ -105,9 +140,12 @@ module DecodeStage(
     // Micro-op decoder
     OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] originalMicroOps;
     InsnInfo [DECODE_WIDTH-1:0] originalInsnInfo;
+    OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] checkedMicroOps;
+    InsnInfo [DECODE_WIDTH-1:0] checkedInsnInfo;
     OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps;  // Decoded micro ops
     InsnInfo [DECODE_WIDTH-1:0] insnInfo;   // Whether a decoded instruction is branch or not.
-    
+    ELP_State_Type [ALL_DECODED_MICRO_OP_WIDTH-1:0] elps;
+
     always_comb begin
         empty = TRUE;
         for (int i = 0; i < DECODE_WIDTH; i++) begin
@@ -116,11 +154,7 @@ module DecodeStage(
         end
         ctrl.idStageEmpty = empty;
     end
-    
-    
-    // Control
-    logic initiate;
-    logic complete;
+
     
     // Early branch misprediction detection.
     RISCV_ISF_Common [DECODE_WIDTH-1:0] isfIn;
@@ -242,10 +276,29 @@ module DecodeStage(
             curValidMOps = remainingValidMOps;
         end
 
-        ProcessSerializeNextInsn(
+`ifdef RSD_ENABLE_ZICFILP
+        CheckLandingPad(
             .insnValidIn(insnValidIn),
             .microOps(originalMicroOps),
             .insnInfo(originalInsnInfo),
+            .prevELP(prevELP),
+            .modifiedMicroOps(checkedMicroOps),
+            .modifiedInsnInfo(checkedInsnInfo),
+            .elps(elps)
+        );
+`else
+        checkedMicroOps = originalMicroOps;
+        checkedInsnInfo = originalInsnInfo;
+        elps = '0;
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            checkedMicroOps[i].nextELP = LP_NOT_EXPECTED;
+        end
+`endif
+
+        ProcessSerializeNextInsn(
+            .insnValidIn(insnValidIn),
+            .microOps(checkedMicroOps),
+            .insnInfo(checkedInsnInfo),
             .currentSerializeNextInsn(currentSerializeNextInsn),
             .modifiedMicroOps(microOps),
             .modifiedInsnInfo(insnInfo),
@@ -284,6 +337,69 @@ module DecodeStage(
             end
         end
     endfunction
+
+    function automatic void CheckLandingPad(
+        input logic insnValidIn[DECODE_WIDTH],
+        input OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] microOps,
+        input InsnInfo [DECODE_WIDTH-1:0] insnInfo,
+        input ELP_State_Type prevELP,
+        output OpInfo [ALL_DECODED_MICRO_OP_WIDTH-1:0] modifiedMicroOps,
+        output InsnInfo [DECODE_WIDTH-1:0] modifiedInsnInfo,
+        output ELP_State_Type [ALL_DECODED_MICRO_OP_WIDTH-1:0] elps
+    );
+        ELP_State_Type currentELP;
+
+        modifiedInsnInfo = insnInfo;
+        modifiedMicroOps = microOps;
+        currentELP = prevELP;
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            elps[i] = currentELP;
+            if (insnValidIn[ToInsnLane(i)] && microOps[i].valid) begin
+                if (currentELP == LP_EXPECTED &&
+                    !(microOps[i].mopType == MOP_TYPE_INT && microOps[i].mopSubType.intType == INT_MOP_TYPE_LPL_CHECK) &&
+                    !(microOps[i].mopType == MOP_TYPE_MEM && microOps[i].mopSubType.memType == MEM_MOP_TYPE_ENV &&
+                      microOps[i].operand.systemOp.envCode == ENV_INSN_VIOLATION)
+                ) begin
+                    // Instruction access faults take priority over a landing pad fault.
+                    modifiedInsnInfo[ToInsnLane(i)].writePC = FALSE;
+                    modifiedInsnInfo[ToInsnLane(i)].isCall = FALSE;
+                    modifiedInsnInfo[ToInsnLane(i)].isReturn = FALSE;
+                    modifiedInsnInfo[ToInsnLane(i)].isRelBranch = FALSE;
+                    modifiedInsnInfo[ToInsnLane(i)].isSerialized = TRUE;
+
+                    modifiedMicroOps[i] = '0;
+                    modifiedMicroOps[i].mopType = MOP_TYPE_MEM;
+                    modifiedMicroOps[i].mopSubType.memType = MEM_MOP_TYPE_ENV;
+                    modifiedMicroOps[i].operand.systemOp.isEnv = TRUE;
+                    modifiedMicroOps[i].operand.systemOp.envCode = ENV_LPAD_FAIL;
+                    modifiedMicroOps[i].opTypeA = OOT_IMM;
+                    modifiedMicroOps[i].opTypeB = OOT_IMM;
+`ifdef RSD_MARCH_FP_PIPE
+                    modifiedMicroOps[i].opTypeC = OOT_IMM;
+`endif
+                    modifiedMicroOps[i].cond = COND_AL;
+                    modifiedMicroOps[i].valid = TRUE;
+                    modifiedMicroOps[i].serialized = TRUE;
+                    modifiedMicroOps[i].nextELP = LP_NOT_EXPECTED;
+                    modifiedMicroOps[i].mid = microOps[i].mid;
+                    modifiedMicroOps[i].split = microOps[i].split;
+                    modifiedMicroOps[i].last = microOps[i].last;
+                end
+                currentELP = modifiedMicroOps[i].nextELP;
+            end
+        end
+    endfunction
+
+    always_comb begin
+        // The resolver can discard a suffix after an earlier branch or serialized op.
+        // Keep this separate from checking, whose InsnInfo feeds the resolver.
+        lastELP = prevELP;
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            if (insnValidOut[ToInsnLane(i)] && microOps[i].valid) begin
+                lastELP = microOps[i].nextELP;
+            end
+        end
+    end
 
     MicroOpPicker picker(curValidMOps, serializedMOps, mopPicked, mopPickedIndex, pickedValidMOps);
 
@@ -325,6 +441,8 @@ module DecodeStage(
             nextStage[i].valid = insnValidOut[orgPickedInsnLane] && mopPicked[i] && !clear;
             nextStage[i].pc = pipeReg[orgPickedInsnLane].pc;
             nextStage[i].bPred = brPredOut[orgPickedInsnLane];  
+            nextStage[i].elp = elps[ mopPickedIndex[i] ];
+            nextStage[i].nextELP = microOps[ mopPickedIndex[i] ].nextELP;
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
             nextStage[i].opId.sid = pipeReg[orgPickedInsnLane].sid;

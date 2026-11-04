@@ -16,6 +16,7 @@ module InterruptController(
     CSR_UnitIF.InterruptController csrUnit,
     ControllerIF.InterruptController ctrl,
     NextPCStageIF.InterruptController fetchStage,
+    DecodeStageIF.InterruptController decodeStage,
     RecoveryManagerIF.InterruptController recoveryManager
 );
     typedef struct packed {
@@ -114,6 +115,7 @@ module InterruptController(
         csrUnit.triggerInterrupt = triggerInterrupt;
         csrUnit.interruptRetAddr = fetchStage.pcOut;
         csrUnit.interruptCode = interruptCode;
+        csrUnit.interruptELP = decodeStage.elpState;
 
         interruptXtvec = interruptToSmode ? csrReg.stvec : csrReg.mtvec;
         interruptTargetAddr = ToPC_FromAddr({
@@ -124,6 +126,7 @@ module InterruptController(
 
         fetchStage.interruptAddrWE = triggerInterrupt;
         fetchStage.interruptAddrIn = interruptTargetAddr;
+        decodeStage.setELP_OnInterrupt = triggerInterrupt;
     end
 
 endmodule

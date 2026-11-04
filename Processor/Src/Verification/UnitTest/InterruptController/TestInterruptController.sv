@@ -10,6 +10,12 @@ import SchedulerTypes::*;
 import CSR_UnitTypes::*;
 
 module TestInterruptController;
+`ifdef RSD_ENABLE_ZICFILP
+    localparam bit CFI_ENABLED = 1;
+`else
+    localparam bit CFI_ENABLED = 0;
+`endif
+    localparam ELP_State_Type EXPECTED_ELP = CFI_ENABLED ? LP_EXPECTED : LP_NOT_EXPECTED;
     localparam AddrPath VECTOR_BASE = 32'h80000100;
     localparam AddrPath SUPERVISOR_VECTOR_BASE = 32'h80000200;
     localparam AddrPath RETURN_PC = 32'h80001234;
@@ -27,13 +33,15 @@ module TestInterruptController;
     PerformanceCounterIF perf(.*);
     ControllerIF ctrl(.*);
     NextPCStageIF fetchStage(.*);
+    DecodeStageIF decodeStage(.*);
     RecoveryManagerIF recovery(.*);
     PLIC_Unit plicUnit(plic, csr, ioPort);
     CSR_Unit csrUnit(csr, plic, perf);
-    InterruptController interruptCtrl(csr, ctrl, fetchStage, recovery);
+    InterruptController interruptCtrl(csr, ctrl, fetchStage, decodeStage, recovery);
 
     int cases = 0;
     int aliasCases = 0;
+    int cfiCases = 0;
     string caseName;
 
     // Keep stimulus and checks away from the active edge in both simulators.
@@ -130,10 +138,10 @@ module TestInterruptController;
 
     // Counters may advance while waiting; only trap state must stay unchanged.
     task automatic CheckTrapState(input CSR_BodyPath previous);
-        assert ({csr.csrWholeOut.mstatus, csr.csrWholeOut.mepc,
+        assert ({csr.csrWholeOut.mstatus, csr.csrWholeOut.mstatush, csr.csrWholeOut.mepc,
                  csr.csrWholeOut.mcause, csr.csrWholeOut.mtval,
                  csr.csrWholeOut.sepc, csr.csrWholeOut.scause, csr.csrWholeOut.stval} ===
-                {previous.mstatus, previous.mepc, previous.mcause, previous.mtval,
+                {previous.mstatus, previous.mstatush, previous.mepc, previous.mcause, previous.mtval,
                  previous.sepc, previous.scause, previous.stval})
             else $fatal(1, "Unexpected trap state change (%s)", caseName);
     endtask
@@ -151,6 +159,8 @@ module TestInterruptController;
         csr.excptCause = EXEC_STATE_TRAP_MRET;
         csr.excptCauseAddr = '0;
         csr.excptCauseDataAddr = '0;
+        csr.excptELP = LP_NOT_EXPECTED;
+        decodeStage.elpState = LP_NOT_EXPECTED;
         csr.retireNum = '0;
         csr.reqTimerInterrupt = 0;
         csr.msip = 0;
@@ -286,6 +296,286 @@ module TestInterruptController;
                 else $fatal(1, "Wrong CSR alias value %08x (%s)", csr.csrReadOut, caseName);
             csr.csrRE = 0;
         end
+    endtask
+
+    function automatic bit ExpectedLPE(input PrivilegeLevelType mode, input logic [2:0] enables);
+        return CFI_ENABLED && (mode == PRIVILEGE_LEVEL_M ? enables[2] :
+                               mode == PRIVILEGE_LEVEL_S ? enables[1] : enables[0]);
+    endfunction
+
+    task automatic ConfigureLPE(input logic [2:0] enables);
+        WriteCSR(CSR_NUM_MSECCFG, DataPath'(enables[2]) << 10);
+        WriteCSR(CSR_NUM_MENVCFG, DataPath'(enables[1]) << 2);
+        WriteCSR(CSR_NUM_SENVCFG, DataPath'(enables[0]) << 2);
+    endtask
+
+    task automatic CheckCFICSR;
+        CSR_NumberPath numbers[4] = '{CSR_NUM_MSECCFG, CSR_NUM_MENVCFG,
+                                      CSR_NUM_SENVCFG, CSR_NUM_MSTATUSH};
+        DataPath masks[4] = '{32'h400, 32'h4, 32'h4, 32'h200};
+        CSR_MSTATUS_Path statusValue;
+        caseName = "CFI CSR masks and aliases";
+        Reset();
+        foreach (numbers[i]) begin
+            WriteCSR(numbers[i], '1);
+            ReadCSR(numbers[i], CFI_ENABLED ? masks[i] : 0);
+            WriteCSR(numbers[i], '1, CSR_CLEAR);
+            ReadCSR(numbers[i], 0);
+            WriteCSR(numbers[i], '1, CSR_SET);
+            ReadCSR(numbers[i], CFI_ENABLED ? masks[i] : 0);
+            cfiCases++;
+        end
+        WriteCSR(CSR_NUM_MSECCFGH, '1);
+        ReadCSR(CSR_NUM_MSECCFGH, 0);
+        WriteCSR(CSR_NUM_MENVCFGH, '1);
+        ReadCSR(CSR_NUM_MENVCFGH, 0);
+        WriteCSR(CSR_NUM_MSTATUS, 8);
+        WriteCSR(CSR_NUM_SSTATUS, 32'h800000, CSR_SET);
+        ReadCSR(CSR_NUM_MSTATUS, CFI_ENABLED ? 32'h800008 : 8);
+        ReadCSR(CSR_NUM_SSTATUS, CFI_ENABLED ? 32'h800000 : 0);
+        WriteCSR(CSR_NUM_MSTATUS, 32'h800000, CSR_CLEAR);
+        ReadCSR(CSR_NUM_SSTATUS, 0);
+        WriteCSR(CSR_NUM_MSTATUS, 32'h800008);
+        WriteCSR(CSR_NUM_SSTATUS, 32'h800000, CSR_CLEAR);
+        ReadCSR(CSR_NUM_MSTATUS, 8);
+
+        // With S disabled, MENVCFG.LPE controls U directly.
+        for (int enabled = 0; enabled < 2; enabled++) begin
+            caseName = $sformatf("CFI U without S, LPE=%0d", enabled);
+            Reset();
+            ConfigureLPE(enabled ? 3'b110 : 3'b101);
+            WriteCSR(CSR_NUM_MISA, 32'h40000, CSR_CLEAR);
+            statusValue = '0;
+            statusValue.MPP = PRIVILEGE_LEVEL_U;
+            WriteCSR(CSR_NUM_MSTATUS, statusValue);
+            WriteCSR(CSR_NUM_MSTATUSH, 32'h200);
+            csr.excptCause = EXEC_STATE_TRAP_MRET;
+            #1;
+            assert (csr.recoverELP_FromCSR === ELP_State_Type'(CFI_ENABLED && enabled))
+                else $fatal(1, "MRET used the wrong U-mode LPE (%s)", caseName);
+            csr.triggerExcpt = 1;
+            Tick();
+            csr.triggerExcpt = 0;
+            assert (csr.xLPE === (CFI_ENABLED && 1'(enabled)))
+                else $fatal(1, "Wrong U-mode LPE without S (%s)", caseName);
+            cfiCases++;
+        end
+    endtask
+
+    task automatic CheckCFIPermissions;
+        CSR_NumberPath numbers[6] = '{CSR_NUM_MSTATUSH, CSR_NUM_MSECCFG, CSR_NUM_MSECCFGH,
+                                      CSR_NUM_MENVCFG, CSR_NUM_MENVCFGH, CSR_NUM_SENVCFG};
+        CSR_BodyPath beforeAccess;
+        for (int supervisor = 0; supervisor < 2; supervisor++) begin
+            caseName = $sformatf("CFI CSR access from S=%0d", supervisor);
+            Reset();
+            ConfigureLPE(3'b111);
+            WriteCSR(CSR_NUM_MSTATUS, supervisor ? 32'h800 : 0);
+            csr.triggerExcpt = 1;
+            Tick();
+            csr.triggerExcpt = 0;
+            beforeAccess = csr.csrWholeOut;
+            foreach (numbers[i]) begin
+                if (supervisor != 0 && numbers[i] == CSR_NUM_SENVCFG) begin
+                    WriteCSR(CSR_NUM_SENVCFG, 0);
+                    ReadCSR(CSR_NUM_SENVCFG, 0);
+                    WriteCSR(CSR_NUM_SENVCFG, '1);
+                    ReadCSR(CSR_NUM_SENVCFG, CFI_ENABLED ? 4 : 0);
+                end
+                else begin
+                    csr.csrNumber = numbers[i];
+                    csr.csrCode = CSR_CLEAR;
+                    csr.csrWriteIn = '1;
+                    csr.csrRE = 1;
+                    csr.csrWE = 1;
+                    #1;
+                    assert (csr.csrUnitTriggerExcpt === 1'b1)
+                        else $fatal(1, "Forbidden CFI CSR %03x did not trap (%s)", numbers[i], caseName);
+                    Tick();
+                    csr.csrRE = 0;
+                    csr.csrWE = 0;
+                    assert ({csr.csrWholeOut.mseccfg, csr.csrWholeOut.menvcfg,
+                             csr.csrWholeOut.senvcfg, csr.csrWholeOut.mstatush} ===
+                            {beforeAccess.mseccfg, beforeAccess.menvcfg,
+                             beforeAccess.senvcfg, beforeAccess.mstatush})
+                        else $fatal(1, "Forbidden access changed CFI state (%s)", caseName);
+                end
+                cfiCases++;
+            end
+        end
+    endtask
+
+    task automatic CheckCFINestedInterrupts;
+        caseName = "CFI U to S to M nested interrupts";
+        Reset();
+        ConfigureLPE(3'b001); // Only the interrupted U program enables LPADs.
+        WriteCSR(CSR_NUM_MIDELEG, 2);
+        WriteCSR(CSR_NUM_MIE, 32'ha);
+        WriteCSR(CSR_NUM_MIP, 2);
+        WriteCSR(CSR_NUM_MSTATUS, 32'h82); // MRET to U; MIE/SIE enabled.
+        csr.triggerExcpt = 1;
+        Tick();
+        csr.triggerExcpt = 0;
+        decodeStage.elpState = LP_EXPECTED;
+        ctrl.wholePipelineEmpty = 1;
+        Tick();
+        ctrl.wholePipelineEmpty = 0;
+        decodeStage.elpState = LP_NOT_EXPECTED;
+        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_S &&
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP && csr.xLPE === 1'b0)
+            else $fatal(1, "First nested trap lost U ELP");
+
+        csr.msip = 1;
+        Tick();
+        ctrl.wholePipelineEmpty = 1;
+        Tick();
+        ctrl.wholePipelineEmpty = 0;
+        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_M &&
+                csr.csrWholeOut.mstatush.MPELP === LP_NOT_EXPECTED &&
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP)
+            else $fatal(1, "Nested M trap changed S saved ELP");
+        csr.msip = 0;
+        Tick();
+        csr.excptCause = EXEC_STATE_TRAP_MRET;
+        #1;
+        assert (csr.recoverELP_FromCSR === LP_NOT_EXPECTED)
+            else $fatal(1, "MRET restored the wrong nested ELP");
+        csr.triggerExcpt = 1;
+        Tick();
+        csr.triggerExcpt = 0;
+        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_S &&
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP)
+            else $fatal(1, "MRET corrupted the S return bank");
+        csr.excptCause = EXEC_STATE_TRAP_SRET;
+        #1;
+        assert (csr.recoverELP_FromCSR === EXPECTED_ELP)
+            else $fatal(1, "SRET did not restore the interrupted U ELP");
+        csr.triggerExcpt = 1;
+        Tick();
+        csr.triggerExcpt = 0;
+        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_U && csr.xLPE === CFI_ENABLED &&
+                csr.csrWholeOut.mstatus.SPELP === LP_NOT_EXPECTED)
+            else $fatal(1, "Nested return did not clear SPELP");
+        cfiCases++;
+    endtask
+
+    task automatic CheckCFIReturn(input bit supervisorReturn, fromSupervisor,
+                                  input PrivilegeLevelType destination,
+                                  input logic [2:0] enables, input bit savedELP);
+        CSR_MSTATUS_Path statusValue;
+        CSR_BodyPath beforeReturn;
+        ELP_State_Type expectedELP;
+        caseName = $sformatf("CFI return SRET=%0b fromS=%0b dest=%0d enables=%03b saved=%0b",
+                            supervisorReturn, fromSupervisor, destination, enables, savedELP);
+        Reset();
+        ConfigureLPE(enables);
+        WriteCSR(CSR_NUM_MEPC, RETURN_PC);
+        WriteCSR(CSR_NUM_SEPC, RETURN_PC);
+        statusValue = '0;
+        statusValue.MPP = fromSupervisor ? PRIVILEGE_LEVEL_S : destination;
+        statusValue.SPP = destination == PRIVILEGE_LEVEL_S;
+        statusValue.SPELP = supervisorReturn ? ELP_State_Type'(savedELP) : LP_EXPECTED;
+        WriteCSR(CSR_NUM_MSTATUS, statusValue);
+        WriteCSR(CSR_NUM_MSTATUSH, supervisorReturn ? 32'h200 : DataPath'(savedELP) << 9);
+        if (fromSupervisor) begin
+            csr.triggerExcpt = 1; // MRET enters S, preserving the S return bank.
+            Tick();
+            csr.triggerExcpt = 0;
+        end
+        beforeReturn = csr.csrWholeOut;
+        csr.excptCause = supervisorReturn ? EXEC_STATE_TRAP_SRET : EXEC_STATE_TRAP_MRET;
+        expectedELP = ELP_State_Type'(savedELP && ExpectedLPE(destination, enables));
+        #1;
+        // Recovery must see the return value before triggerExcpt is asserted.
+        assert (csr.recoverELP_FromCSR === expectedELP && csr.excptTargetAddr === RETURN_PC)
+            else $fatal(1, "Wrong combinational CFI return state (%s)", caseName);
+        csr.triggerExcpt = 1;
+        Tick();
+        csr.triggerExcpt = 0;
+        assert (csr.privilegeLevel === destination &&
+                csr.xLPE === ExpectedLPE(destination, enables))
+            else $fatal(1, "Wrong return privilege/LPE (%s)", caseName);
+        if (supervisorReturn)
+            assert (csr.csrWholeOut.mstatus.SPELP === LP_NOT_EXPECTED &&
+                    csr.csrWholeOut.mstatush.MPELP === beforeReturn.mstatush.MPELP)
+                else $fatal(1, "SRET changed the wrong saved ELP bank (%s)", caseName);
+        else
+            assert (csr.csrWholeOut.mstatush.MPELP === LP_NOT_EXPECTED &&
+                    csr.csrWholeOut.mstatus.SPELP === beforeReturn.mstatus.SPELP)
+                else $fatal(1, "MRET changed the wrong saved ELP bank (%s)", caseName);
+        cfiCases++;
+    endtask
+
+    task automatic CheckCFITrap(input PrivilegeLevelType origin, input bit toSupervisor,
+                                input int eventKind, input logic [2:0] enables,
+                                input ELP_State_Type elp);
+        CSR_MSTATUS_Path statusValue;
+        CSR_BodyPath beforeTrap;
+        PrivilegeLevelType destination;
+        DataPath expectedValue, expectedCause;
+        destination = toSupervisor ? PRIVILEGE_LEVEL_S : PRIVILEGE_LEVEL_M;
+        caseName = $sformatf("CFI trap origin=%0d dest=%0d event=%0d enables=%03b ELP=%0b",
+                            origin, destination, eventKind, enables, elp);
+        Reset();
+        ConfigureLPE(enables);
+        WriteCSR(CSR_NUM_MIDELEG, toSupervisor ? 2 : 0);
+        WriteCSR(CSR_NUM_MEDELEG, toSupervisor ? 32'h40002 : 0);
+        WriteCSR(CSR_NUM_MIE, 2);
+        WriteCSR(CSR_NUM_MIP, eventKind == 0 ? 2 : 0);
+        statusValue = '0;
+        statusValue.MPP = origin;
+        statusValue.MIE = 1;
+        statusValue.MPIE = 1;
+        statusValue.SIE = 1;
+        statusValue.SPELP = LP_EXPECTED;
+        WriteCSR(CSR_NUM_MSTATUS, statusValue);
+        WriteCSR(CSR_NUM_MSTATUSH, 32'h200);
+        if (origin != PRIVILEGE_LEVEL_M) begin
+            csr.triggerExcpt = 1;
+            Tick();
+            csr.triggerExcpt = 0;
+        end
+        assert (csr.xLPE === ExpectedLPE(origin, enables))
+            else $fatal(1, "Wrong source privilege LPE (%s)", caseName);
+        beforeTrap = csr.csrWholeOut;
+        csr.excptCause = eventKind == 2 ? EXEC_STATE_FAULT_LPAD : EXEC_STATE_FAULT_INSN_VIOLATION;
+        csr.excptCauseAddr = ToPC_FromAddr(RETURN_PC);
+        csr.excptCauseDataAddr = 32'hbad0;
+        csr.excptELP = elp;
+        decodeStage.elpState = elp;
+        #1;
+        assert (csr.recoverELP_FromCSR === LP_NOT_EXPECTED)
+            else $fatal(1, "Trap handler inherited ELP (%s)", caseName);
+        if (eventKind == 0) begin
+            ctrl.wholePipelineEmpty = 1;
+            #1;
+            assert (csr.triggerInterrupt === 1'b1 && decodeStage.setELP_OnInterrupt === 1'b1 &&
+                    csr.interruptELP === elp)
+                else $fatal(1, "Interrupt lost the precise ELP (%s)", caseName);
+        end
+        else
+            csr.triggerExcpt = 1;
+        Tick();
+        ctrl.wholePipelineEmpty = 0;
+        csr.triggerExcpt = 0;
+        decodeStage.elpState = LP_NOT_EXPECTED;
+        expectedCause = eventKind == 0 ? 32'h80000001 : eventKind == 2 ? 18 : 1;
+        expectedValue = eventKind == 0 ? 0 : eventKind == 2 ? 2 : 32'hbad0;
+        assert (csr.privilegeLevel === destination && csr.xLPE === ExpectedLPE(destination, enables))
+            else $fatal(1, "Wrong CFI handler privilege/LPE (%s)", caseName);
+        if (toSupervisor)
+            assert (csr.csrWholeOut.mstatus.SPELP === (CFI_ENABLED ? elp : LP_NOT_EXPECTED) &&
+                    csr.csrWholeOut.mstatush.MPELP === beforeTrap.mstatush.MPELP &&
+                    DataPath'(csr.csrWholeOut.scause) === expectedCause &&
+                    csr.csrWholeOut.stval === expectedValue && csr.csrWholeOut.sepc === RETURN_PC)
+                else $fatal(1, "Wrong supervisor CFI trap state (%s)", caseName);
+        else
+            assert (csr.csrWholeOut.mstatush.MPELP === (CFI_ENABLED ? elp : LP_NOT_EXPECTED) &&
+                    csr.csrWholeOut.mstatus.SPELP === beforeTrap.mstatus.SPELP &&
+                    DataPath'(csr.csrWholeOut.mcause) === expectedCause &&
+                    csr.csrWholeOut.mtval === expectedValue && csr.csrWholeOut.mepc === RETURN_PC)
+                else $fatal(1, "Wrong machine CFI trap state (%s)", caseName);
+        cfiCases++;
     endtask
 
     task automatic CheckCase(input DataPath pending, enabled, delegated,
@@ -463,6 +753,24 @@ module TestInterruptController;
         CheckSIE();
         CheckSupervisorAlias(2);
         CheckSIP();
+        CheckCFICSR();
+        CheckCFIPermissions();
+        CheckCFINestedInterrupts();
+        for (int mode = 0; mode < 3; mode++)
+            for (int enables = 0; enables < 8; enables++)
+                for (int elp = 0; elp < 2; elp++) begin
+                    CheckCFIReturn(0, 0, mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode),
+                                   3'(enables), 1'(elp));
+                    if (mode != 2) begin
+                        CheckCFIReturn(1, 0, PrivilegeLevelType'(mode), 3'(enables), 1'(elp));
+                        CheckCFIReturn(1, 1, PrivilegeLevelType'(mode), 3'(enables), 1'(elp));
+                    end
+                    if (!CFI_ENABLED || elp == 0 || ExpectedLPE(mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode), 3'(enables)))
+                        for (int destination = 0; destination < (mode == 2 ? 1 : 2); destination++)
+                            for (int eventKind = 0; eventKind < (CFI_ENABLED ? 3 : 2); eventKind++)
+                                CheckCFITrap(mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode),
+                                             1'(destination), eventKind, 3'(enables), ELP_State_Type'(elp));
+                end
         for (int mode = 0; mode < 3; mode++)
             for (int vectorMode = 0; vectorMode < 2; vectorMode++)
                 for (int mie = 0; mie < 2; mie++)
@@ -496,6 +804,7 @@ module TestInterruptController;
                     end
         $display("Interrupt priority/mask/entry: %0d cases passed", cases);
         $display("CSR alias: %0d cases passed", aliasCases);
+        $display("CFI CSR/trap/return: %0d cases passed (Zicfilp=%0b)", cfiCases, CFI_ENABLED);
         $display("========== Test Passed ==========");
         $finish;
     end

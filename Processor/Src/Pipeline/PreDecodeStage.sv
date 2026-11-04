@@ -20,7 +20,8 @@ module PreDecodeStage(
     PreDecodeStageIF.ThisStage port, 
     FetchStageIF.NextStage prev,
     ControllerIF.PreDecodeStage ctrl,
-    DebugIF.PreDecodeStage debug
+    DebugIF.PreDecodeStage debug,
+    CSR_UnitIF.PreDecodeStage csrUnit
 );
     // --- Pipeline registers
     PreDecodeStageRegPath pipeReg[DECODE_WIDTH];
@@ -64,7 +65,8 @@ module PreDecodeStage(
             .insn(pipeReg[i].insn),
             .insnInfo(insnInfo[i]),
             .microOps(microOps[i]),
-            .illegalPC(illegalPC[i])
+            .illegalPC(illegalPC[i]),
+            .landingPadEnabled(csrUnit.xLPE)
         );
     end
 

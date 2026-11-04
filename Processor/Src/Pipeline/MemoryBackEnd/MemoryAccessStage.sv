@@ -220,6 +220,7 @@ module MemoryAccessStage(
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
             nextStage[i].zaamoReleaseMSHR = update[i] && isZaamo[i] && pipeReg[i].writeAMOCache;
+            nextStage[i].elp = pipeReg[i].elp;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =
