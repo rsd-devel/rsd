@@ -488,6 +488,16 @@ module CSR_Unit(
         port.frm = csrReg.fcsr.frm;
 `endif
 
+`ifndef RSD_ENABLE_ZICFILP
+        // Apply after every write/trap path so synthesis removes CFI-only state.
+        // The CSR addresses and their privilege checks remain available as WARL zero.
+        csrNext.mstatus.SPELP = LP_NOT_EXPECTED;
+        csrNext.mstatush.MPELP = LP_NOT_EXPECTED;
+        csrNext.mseccfg.MLPE = FALSE;
+        csrNext.menvcfg.LPE = FALSE;
+        csrNext.senvcfg.LPE = FALSE;
+`endif
+
         if (port.csrNumber == CSR_NUM_MIP) begin
             rv = csrReg.mip;
         end

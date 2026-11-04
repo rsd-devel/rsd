@@ -104,6 +104,7 @@ module DecodeStage(
     // ELP
     ELP_State_Type lastELP, prevELP;
 
+`ifdef RSD_ENABLE_ZICFILP
     always_ff@ (posedge port.clk)
     begin
         if (port.rst) begin
@@ -122,6 +123,10 @@ module DecodeStage(
             end
         end
     end
+`else
+    // Keep interfaces stable; synthesis removes the constant ELP state and payload bits.
+    assign prevELP = LP_NOT_EXPECTED;
+`endif
 
     always_comb begin
         port.elpState = prevELP;
@@ -271,6 +276,7 @@ module DecodeStage(
             curValidMOps = remainingValidMOps;
         end
 
+`ifdef RSD_ENABLE_ZICFILP
         CheckLandingPad(
             .insnValidIn(insnValidIn),
             .microOps(originalMicroOps),
@@ -280,6 +286,14 @@ module DecodeStage(
             .modifiedInsnInfo(checkedInsnInfo),
             .elps(elps)
         );
+`else
+        checkedMicroOps = originalMicroOps;
+        checkedInsnInfo = originalInsnInfo;
+        elps = '0;
+        for (int i = 0; i < ALL_DECODED_MICRO_OP_WIDTH; i++) begin
+            checkedMicroOps[i].nextELP = LP_NOT_EXPECTED;
+        end
+`endif
 
         ProcessSerializeNextInsn(
             .insnValidIn(insnValidIn),

@@ -374,6 +374,7 @@ typedef struct packed {
 // Use the privilege of the instruction or return destination, not the handler.
 function automatic logic IsLandingPadEnabled(input CSR_BodyPath csr,
                                              input PrivilegeLevelType level);
+`ifdef RSD_ENABLE_ZICFILP
     case (level)
         PRIVILEGE_LEVEL_M: return csr.mseccfg.MLPE;
         PRIVILEGE_LEVEL_S: return csr.misa.EXTENSIONS.S && csr.menvcfg.LPE;
@@ -381,6 +382,9 @@ function automatic logic IsLandingPadEnabled(input CSR_BodyPath csr,
             (csr.misa.EXTENSIONS.S ? csr.senvcfg.LPE : csr.menvcfg.LPE);
         default: return 1'b0;
     endcase
+`else
+    return 1'b0;
+`endif
 endfunction
 
 //

@@ -65,6 +65,16 @@ test fails. When changing the configuration, clean and rebuild both the
 simulator and test programs (`make -f Makefile.verilator.mk clean test-clean-basic`,
 then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
+## CFI test selection
+
+`RSD_ENABLE_ZICFILP` in [CoreSources.inc.mk](../../Makefiles/CoreSources.inc.mk)
+enables landing-pad protection and its `test-1` test. Remove it from `RSD_SRC_CFG`
+to build without CFI; an explicit `test-RV32I-LandingPad` request then fails.
+Clean and rebuild the simulator and basic test programs when changing this
+configuration, as for FP above. For synthesis, select the same macro in
+[SynthesisMacros.sv](../../SynthesisMacros.sv). Defining it as `0` still enables
+it; leave it undefined to disable CFI.
+
 ## CoreMark
 
 ```sh

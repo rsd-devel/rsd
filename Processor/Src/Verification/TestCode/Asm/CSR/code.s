@@ -407,11 +407,15 @@ main:
     EXPECT_ZERO_CSR mimpid
     EXPECT_ZERO_CSR mhartid
     EXPECT_ZERO_CSR 0x310       # mstatush starts with MPELP clear.
-    # Zicfilp implements only MPELP (bit 9) in the RV32 high status word.
+    # Zicfilp implements MPELP (bit 9); without it, mstatush is WARL zero.
     li t0, -1
     csrw 0x310, t0
     csrr t3, 0x310
+#ifdef RSD_ENABLE_ZICFILP
     li t4, 0x200
+#else
+    li t4, 0
+#endif
     bne t3, t4, fail
     li t0, -513                # Reserved bits must not change MPELP.
     csrc 0x310, t0
@@ -419,7 +423,8 @@ main:
     bne t3, t4, fail
     csrc 0x310, t4
     EXPECT_ZERO_CSR 0x310
-    csrs 0x310, t4
+    li t0, 0x200
+    csrs 0x310, t0
     csrr t3, 0x310
     bne t3, t4, fail
     csrw 0x310, zero
@@ -448,7 +453,11 @@ main:
 
     # mstatus already ignores padding; preserve that behavior for WRITE/SET/CLEAR.
     csrr t1, mstatus
+#ifdef RSD_ENABLE_ZICFILP
     li t0, 0xff21e655
+#else
+    li t0, 0xffa1e655
+#endif
     or t3, t1, t0
     csrw mstatus, t3
     csrr t4, mstatus
@@ -460,12 +469,16 @@ main:
     csrr t4, mstatus
     bne t4, t1, fail
 
-    # SPELP is shared by the machine and supervisor status views.
+    # SPELP is shared by both status views, or WARL zero without Zicfilp.
     li t0, 0x800000
     csrs mstatus, t0
     csrr t3, sstatus
     and t3, t3, t0
+#ifdef RSD_ENABLE_ZICFILP
     bne t3, t0, fail
+#else
+    bnez t3, fail
+#endif
     csrc sstatus, t0
     csrr t3, mstatus
     and t3, t3, t0

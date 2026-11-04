@@ -252,11 +252,13 @@ module IntegerExecutionStage(
             // --- Landing Pad (LPAD)
             //
             lplCheckFail[i] = FALSE;
+`ifdef RSD_ENABLE_ZICFILP
             if (pipeReg[i].valid && regValid[i] && iqData[i].elp && iqData[i].opType == INT_MOP_TYPE_LPL_CHECK) begin
                 if (fuOpB[i].data[31:12] != 20'h0 && fuOpB[i].data[31:12] != fuOpA[i].data[31:12]) begin
                     lplCheckFail[i] = TRUE;
                 end
             end
+`endif
         end
     end
 

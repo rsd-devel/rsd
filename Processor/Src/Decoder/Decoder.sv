@@ -457,7 +457,11 @@ function automatic void RISCV_DecodeUTypeInst(
     MicroOpIndex mid;
     logic isLandingPad;
 
+`ifdef RSD_ENABLE_ZICFILP
     isLandingPad = landingPadEnabled && isf.opCode == RISCV_AUIPC && isf.rd == ZERO_REGISTER;
+`else
+    isLandingPad = FALSE;
+`endif
 
     if (isLandingPad) begin
         // LandingPad
@@ -640,7 +644,11 @@ function automatic void RISCV_EmitJALR(
     opInfo.serialized = FALSE;
 
     // Landing Pad
+`ifdef RSD_ENABLE_ZICFILP
     opInfo.nextELP = landingPadEnabled && !(isfI.rs1 inside {LINK_REGISTER, TEMPORARY_REGISTER_0, TEMPORARY_REGISTER_2}) ? LP_EXPECTED : LP_NOT_EXPECTED;
+`else
+    opInfo.nextELP = LP_NOT_EXPECTED;
+`endif
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs

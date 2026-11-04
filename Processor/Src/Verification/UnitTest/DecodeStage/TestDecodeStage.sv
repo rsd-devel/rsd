@@ -10,6 +10,13 @@ import PipelineTypes::*;
 import FetchUnitTypes::*;
 
 module TestDecodeStage;
+`ifdef RSD_ENABLE_ZICFILP
+    localparam bit CFI_ENABLED = 1;
+`else
+    localparam bit CFI_ENABLED = 0;
+`endif
+    localparam ELP_State_Type EXPECTED_ELP = CFI_ENABLED ? LP_EXPECTED : LP_NOT_EXPECTED;
+    localparam IntMicroOpSubType LPAD_OP_TYPE = CFI_ENABLED ? INT_MOP_TYPE_LPL_CHECK : INT_MOP_TYPE_ALU;
     localparam InsnPath NOP = 32'h00000013;
     localparam InsnPath LPAD = 32'h00000017;
     localparam InsnPath JALR = 32'h00050067; // jalr x0, x10, 0
@@ -109,7 +116,8 @@ module TestDecodeStage;
         port.recoverELP = FALSE;
         port.serializeNextInsn = FALSE;
         #1;
-        Check(port.elpState === value, "recovery overrides frontend clear");
+        Check(port.elpState === (CFI_ENABLED ? value : LP_NOT_EXPECTED),
+              "recovery respects the configured extension");
     endtask
 
     task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid);
@@ -129,7 +137,7 @@ module TestDecodeStage;
               port.nextStage[0].opInfo.mopSubType.memType == MEM_MOP_TYPE_ENV &&
               port.nextStage[0].opInfo.operand.systemOp.envCode == expected &&
               port.nextStage[0].opInfo.serialized &&
-              port.nextStage[0].elp == LP_EXPECTED, description);
+              port.nextStage[0].elp == EXPECTED_ELP, description);
     endtask
 
     initial begin
@@ -144,11 +152,15 @@ module TestDecodeStage;
         Reset();
         LoadBundle(JALR, LPAD, TRUE);
         Check(port.nextStage[0].valid && port.nextStage[0].elp == LP_NOT_EXPECTED &&
-              port.nextStage[0].nextELP == LP_EXPECTED, "JALR starts a landing pad expectation");
-        Check(port.nextStage[1].valid && port.nextStage[1].elp == LP_EXPECTED &&
+              port.nextStage[0].nextELP == EXPECTED_ELP, "JALR expectation matches the configured extension");
+        Check(port.nextStage[1].valid && port.nextStage[1].elp == EXPECTED_ELP &&
               port.nextStage[1].nextELP == LP_NOT_EXPECTED &&
-              port.nextStage[1].opInfo.mopSubType.intType == INT_MOP_TYPE_LPL_CHECK,
-              "the following LPAD receives and consumes ELP");
+              port.nextStage[1].opInfo.mopSubType.intType == LPAD_OP_TYPE,
+              "LPAD checking or AUIPC hint matches the configured extension");
+        if (!CFI_ENABLED)
+            Check(!port.nextStage[1].opInfo.writeReg &&
+                  port.nextStage[1].opInfo.opTypeA == OOT_PC,
+                  "disabled LPAD retains AUIPC-to-x0 hint semantics");
         // Every payload RAM receives each dispatched op, including unused union views.
         Check(!$isunknown(port.nextStage[1].opInfo), "LPAD initializes the entire payload");
         Tick();
@@ -165,9 +177,9 @@ module TestDecodeStage;
         end
         externalStall = FALSE;
         Tick();
-        Check(port.elpState === LP_EXPECTED, "accepting the JALR advances ELP");
+        Check(port.elpState === EXPECTED_ELP, "accepting the JALR advances ELP");
         Tick();
-        Check(port.elpState === LP_EXPECTED, "empty bundle retains ELP");
+        Check(port.elpState === EXPECTED_ELP, "empty bundle retains ELP");
 
         // An earlier corrected direct branch discards the later JALR.
         Reset();
@@ -191,7 +203,7 @@ module TestDecodeStage;
         #1;
         Check(!port.nextFlush && port.nextStage[1].valid, "correct prediction keeps the suffix");
         Tick();
-        Check(port.elpState === LP_EXPECTED, "live suffix JALR advances ELP");
+        Check(port.elpState === EXPECTED_ELP, "live suffix JALR advances ELP");
 
         Reset();
         Recover(LP_EXPECTED, FALSE);
@@ -200,7 +212,7 @@ module TestDecodeStage;
         #1;
         Check(!port.nextStage[0].valid, "frontend clear suppresses decoded output");
         Tick();
-        Check(port.elpState === LP_EXPECTED, "cleared LPAD must not consume ELP");
+        Check(port.elpState === EXPECTED_ELP, "cleared LPAD must not consume ELP");
         clear = FALSE;
         externalStall = TRUE;
         port.recoverELP = TRUE;
@@ -227,20 +239,28 @@ module TestDecodeStage;
         Reset();
         Recover(LP_EXPECTED, FALSE);
         LoadBundle(32'hffffffff, NOP, FALSE);
-        CheckEnv(ENV_LPAD_FAIL, "landing pad fault outranks illegal instruction");
+        CheckEnv(CFI_ENABLED ? ENV_LPAD_FAIL : ENV_INSN_ILLEGAL,
+                 "landing pad checking preserves the configured exception priority");
 
         Reset();
         Recover(LP_EXPECTED, FALSE);
         LoadBundle(NOP, NOP, FALSE);
-        CheckEnv(ENV_LPAD_FAIL, "missing LPAD becomes a serialized fault");
+        if (CFI_ENABLED)
+            CheckEnv(ENV_LPAD_FAIL, "missing LPAD becomes a serialized fault");
+        else
+            Check(port.nextStage[0].valid && !port.nextStage[0].opInfo.serialized &&
+                  port.nextStage[0].opInfo.mopType == MOP_TYPE_INT &&
+                  port.nextStage[0].opInfo.mopSubType.intType == INT_MOP_TYPE_ALU &&
+                  port.nextStage[0].elp == LP_NOT_EXPECTED,
+                  "disabled CFI does not fault on a missing landing pad");
 
         // A serialized replay must retain both the request and its incoming ELP.
         Reset();
         Recover(LP_EXPECTED, TRUE);
         LoadBundle(LPAD, NOP, FALSE);
         Check(port.nextStage[0].valid && port.nextStage[0].opInfo.serialized &&
-              port.nextStage[0].elp == LP_EXPECTED &&
-              port.nextStage[0].opInfo.mopSubType.intType == INT_MOP_TYPE_LPL_CHECK,
+              port.nextStage[0].elp == EXPECTED_ELP &&
+              port.nextStage[0].opInfo.mopSubType.intType == LPAD_OP_TYPE,
               "serialized replay checks the original LPAD with restored ELP");
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "serialized LPAD consumes ELP once");
@@ -254,8 +274,8 @@ module TestDecodeStage;
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "incomplete bundle retains its entry ELP");
         Check(!ctrl.idStageStallUpper && port.nextStage[0].valid &&
-              port.nextStage[0].elp == LP_EXPECTED &&
-              port.nextStage[0].opInfo.mopSubType.intType == INT_MOP_TYPE_LPL_CHECK,
+              port.nextStage[0].elp == EXPECTED_ELP &&
+              port.nextStage[0].opInfo.mopSubType.intType == LPAD_OP_TYPE,
               "remaining LPAD sees the JALR's ELP despite deferred bundle update");
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "completed split bundle records its final ELP");
@@ -265,7 +285,7 @@ module TestDecodeStage;
         Check(port.nextStage[0].valid && port.nextStage[0].nextELP === LP_NOT_EXPECTED,
               "A-extension emit helper initializes ELP");
 
-        $display("DecodeStage: %0d checks passed", checks);
+        $display("DecodeStage: %0d checks passed (Zicfilp=%0b)", checks, CFI_ENABLED);
         $display("========== Test Passed ==========");
         $finish;
     end

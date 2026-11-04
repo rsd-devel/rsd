@@ -10,6 +10,12 @@ import SchedulerTypes::*;
 import CSR_UnitTypes::*;
 
 module TestInterruptController;
+`ifdef RSD_ENABLE_ZICFILP
+    localparam bit CFI_ENABLED = 1;
+`else
+    localparam bit CFI_ENABLED = 0;
+`endif
+    localparam ELP_State_Type EXPECTED_ELP = CFI_ENABLED ? LP_EXPECTED : LP_NOT_EXPECTED;
     localparam AddrPath VECTOR_BASE = 32'h80000100;
     localparam AddrPath SUPERVISOR_VECTOR_BASE = 32'h80000200;
     localparam AddrPath RETURN_PC = 32'h80001234;
@@ -293,8 +299,8 @@ module TestInterruptController;
     endtask
 
     function automatic bit ExpectedLPE(input PrivilegeLevelType mode, input logic [2:0] enables);
-        return mode == PRIVILEGE_LEVEL_M ? enables[2] :
-               mode == PRIVILEGE_LEVEL_S ? enables[1] : enables[0];
+        return CFI_ENABLED && (mode == PRIVILEGE_LEVEL_M ? enables[2] :
+                               mode == PRIVILEGE_LEVEL_S ? enables[1] : enables[0]);
     endfunction
 
     task automatic ConfigureLPE(input logic [2:0] enables);
@@ -312,11 +318,11 @@ module TestInterruptController;
         Reset();
         foreach (numbers[i]) begin
             WriteCSR(numbers[i], '1);
-            ReadCSR(numbers[i], masks[i]);
+            ReadCSR(numbers[i], CFI_ENABLED ? masks[i] : 0);
             WriteCSR(numbers[i], '1, CSR_CLEAR);
             ReadCSR(numbers[i], 0);
             WriteCSR(numbers[i], '1, CSR_SET);
-            ReadCSR(numbers[i], masks[i]);
+            ReadCSR(numbers[i], CFI_ENABLED ? masks[i] : 0);
             cfiCases++;
         end
         WriteCSR(CSR_NUM_MSECCFGH, '1);
@@ -325,8 +331,8 @@ module TestInterruptController;
         ReadCSR(CSR_NUM_MENVCFGH, 0);
         WriteCSR(CSR_NUM_MSTATUS, 8);
         WriteCSR(CSR_NUM_SSTATUS, 32'h800000, CSR_SET);
-        ReadCSR(CSR_NUM_MSTATUS, 32'h800008);
-        ReadCSR(CSR_NUM_SSTATUS, 32'h800000);
+        ReadCSR(CSR_NUM_MSTATUS, CFI_ENABLED ? 32'h800008 : 8);
+        ReadCSR(CSR_NUM_SSTATUS, CFI_ENABLED ? 32'h800000 : 0);
         WriteCSR(CSR_NUM_MSTATUS, 32'h800000, CSR_CLEAR);
         ReadCSR(CSR_NUM_SSTATUS, 0);
         WriteCSR(CSR_NUM_MSTATUS, 32'h800008);
@@ -345,12 +351,12 @@ module TestInterruptController;
             WriteCSR(CSR_NUM_MSTATUSH, 32'h200);
             csr.excptCause = EXEC_STATE_TRAP_MRET;
             #1;
-            assert (csr.recoverELP_FromCSR === ELP_State_Type'(enabled))
+            assert (csr.recoverELP_FromCSR === ELP_State_Type'(CFI_ENABLED && enabled))
                 else $fatal(1, "MRET used the wrong U-mode LPE (%s)", caseName);
             csr.triggerExcpt = 1;
             Tick();
             csr.triggerExcpt = 0;
-            assert (csr.xLPE === 1'(enabled))
+            assert (csr.xLPE === (CFI_ENABLED && 1'(enabled)))
                 else $fatal(1, "Wrong U-mode LPE without S (%s)", caseName);
             cfiCases++;
         end
@@ -374,7 +380,7 @@ module TestInterruptController;
                     WriteCSR(CSR_NUM_SENVCFG, 0);
                     ReadCSR(CSR_NUM_SENVCFG, 0);
                     WriteCSR(CSR_NUM_SENVCFG, '1);
-                    ReadCSR(CSR_NUM_SENVCFG, 4);
+                    ReadCSR(CSR_NUM_SENVCFG, CFI_ENABLED ? 4 : 0);
                 end
                 else begin
                     csr.csrNumber = numbers[i];
@@ -416,7 +422,7 @@ module TestInterruptController;
         ctrl.wholePipelineEmpty = 0;
         decodeStage.elpState = LP_NOT_EXPECTED;
         assert (csr.privilegeLevel === PRIVILEGE_LEVEL_S &&
-                csr.csrWholeOut.mstatus.SPELP === LP_EXPECTED && csr.xLPE === 1'b0)
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP && csr.xLPE === 1'b0)
             else $fatal(1, "First nested trap lost U ELP");
 
         csr.msip = 1;
@@ -426,7 +432,7 @@ module TestInterruptController;
         ctrl.wholePipelineEmpty = 0;
         assert (csr.privilegeLevel === PRIVILEGE_LEVEL_M &&
                 csr.csrWholeOut.mstatush.MPELP === LP_NOT_EXPECTED &&
-                csr.csrWholeOut.mstatus.SPELP === LP_EXPECTED)
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP)
             else $fatal(1, "Nested M trap changed S saved ELP");
         csr.msip = 0;
         Tick();
@@ -438,16 +444,16 @@ module TestInterruptController;
         Tick();
         csr.triggerExcpt = 0;
         assert (csr.privilegeLevel === PRIVILEGE_LEVEL_S &&
-                csr.csrWholeOut.mstatus.SPELP === LP_EXPECTED)
+                csr.csrWholeOut.mstatus.SPELP === EXPECTED_ELP)
             else $fatal(1, "MRET corrupted the S return bank");
         csr.excptCause = EXEC_STATE_TRAP_SRET;
         #1;
-        assert (csr.recoverELP_FromCSR === LP_EXPECTED)
+        assert (csr.recoverELP_FromCSR === EXPECTED_ELP)
             else $fatal(1, "SRET did not restore the interrupted U ELP");
         csr.triggerExcpt = 1;
         Tick();
         csr.triggerExcpt = 0;
-        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_U && csr.xLPE === 1'b1 &&
+        assert (csr.privilegeLevel === PRIVILEGE_LEVEL_U && csr.xLPE === CFI_ENABLED &&
                 csr.csrWholeOut.mstatus.SPELP === LP_NOT_EXPECTED)
             else $fatal(1, "Nested return did not clear SPELP");
         cfiCases++;
@@ -558,13 +564,13 @@ module TestInterruptController;
         assert (csr.privilegeLevel === destination && csr.xLPE === ExpectedLPE(destination, enables))
             else $fatal(1, "Wrong CFI handler privilege/LPE (%s)", caseName);
         if (toSupervisor)
-            assert (csr.csrWholeOut.mstatus.SPELP === elp &&
+            assert (csr.csrWholeOut.mstatus.SPELP === (CFI_ENABLED ? elp : LP_NOT_EXPECTED) &&
                     csr.csrWholeOut.mstatush.MPELP === beforeTrap.mstatush.MPELP &&
                     DataPath'(csr.csrWholeOut.scause) === expectedCause &&
                     csr.csrWholeOut.stval === expectedValue && csr.csrWholeOut.sepc === RETURN_PC)
                 else $fatal(1, "Wrong supervisor CFI trap state (%s)", caseName);
         else
-            assert (csr.csrWholeOut.mstatush.MPELP === elp &&
+            assert (csr.csrWholeOut.mstatush.MPELP === (CFI_ENABLED ? elp : LP_NOT_EXPECTED) &&
                     csr.csrWholeOut.mstatus.SPELP === beforeTrap.mstatus.SPELP &&
                     DataPath'(csr.csrWholeOut.mcause) === expectedCause &&
                     csr.csrWholeOut.mtval === expectedValue && csr.csrWholeOut.mepc === RETURN_PC)
@@ -759,9 +765,9 @@ module TestInterruptController;
                         CheckCFIReturn(1, 0, PrivilegeLevelType'(mode), 3'(enables), 1'(elp));
                         CheckCFIReturn(1, 1, PrivilegeLevelType'(mode), 3'(enables), 1'(elp));
                     end
-                    if (elp == 0 || ExpectedLPE(mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode), 3'(enables)))
+                    if (!CFI_ENABLED || elp == 0 || ExpectedLPE(mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode), 3'(enables)))
                         for (int destination = 0; destination < (mode == 2 ? 1 : 2); destination++)
-                            for (int eventKind = 0; eventKind < 3; eventKind++)
+                            for (int eventKind = 0; eventKind < (CFI_ENABLED ? 3 : 2); eventKind++)
                                 CheckCFITrap(mode == 2 ? PRIVILEGE_LEVEL_M : PrivilegeLevelType'(mode),
                                              1'(destination), eventKind, 3'(enables), ELP_State_Type'(elp));
                 end
@@ -798,7 +804,7 @@ module TestInterruptController;
                     end
         $display("Interrupt priority/mask/entry: %0d cases passed", cases);
         $display("CSR alias: %0d cases passed", aliasCases);
-        $display("CFI CSR/trap/return: %0d cases passed", cfiCases);
+        $display("CFI CSR/trap/return: %0d cases passed (Zicfilp=%0b)", cfiCases, CFI_ENABLED);
         $display("========== Test Passed ==========");
         $finish;
     end
