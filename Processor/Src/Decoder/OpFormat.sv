@@ -1003,6 +1003,8 @@ function automatic void RISCV_DecodeFPOpFunct3(
             end
         end
         RV32F_FUNCT7_FCLASS_FMV_XW : begin
+            // This field is rs2, which must be zero for FCLASS.S and FMV.X.W.
+            undefined = fcvtfunct5 != FCVTFunct5'('0);
             if (rv32ffunct3.fclassfmvFunct3 == FCLASS_FMV_FUNCT3_FCLASS) begin
                 fpuCode = FC_FCLASS;
             end
@@ -1047,7 +1049,7 @@ function automatic void RISCV_DecodeFPOpFunct3(
         end
         RV32F_FUNCT7_FMV_WX : begin
             fpuCode = FC_FMV_WX;
-            undefined = rv32ffunct3 != '0;
+            undefined = rv32ffunct3 != '0 || fcvtfunct5 != FCVTFunct5'('0);
         end
         default: begin
             fpuCode = FC_FMV_WX;

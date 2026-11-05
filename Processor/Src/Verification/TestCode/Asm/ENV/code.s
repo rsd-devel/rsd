@@ -102,6 +102,7 @@ not_taken_branch:
     fmv.w.x ft2, t3
     li t3, 0x40400000
     fmv.w.x ft3, t3
+    csrwi fflags, 8
 #endif
 
     # RV32 shifts must reject reserved upper immediate bits before writing rd.
@@ -170,6 +171,21 @@ not_taken_branch:
     EXPECT_ILLEGAL 0xe000afd3   # FCLASS/FMV.X.W funct3=2.
     EXPECT_ILLEGAL 0xa020bfd3   # FCMP.S funct3=3.
     EXPECT_ILLEGAL 0xf0079053   # FMV.W.X funct3=1.
+    EXPECT_ILLEGAL 0xe0108fd3   # FMV.X.W rs2=1.
+    EXPECT_ILLEGAL 0xe1f08fd3   # FMV.X.W rs2=31.
+    EXPECT_ILLEGAL 0xe0109fd3   # FCLASS.S rs2=1.
+    EXPECT_ILLEGAL 0xe1f09fd3   # FCLASS.S rs2=31.
+    EXPECT_ILLEGAL 0xf0178053   # FMV.W.X rs2=1.
+    EXPECT_ILLEGAL 0xf1f78053   # FMV.W.X rs2=31.
+    # Match the other FP arithmetic instructions' reserved static-rm policy.
+    EXPECT_ILLEGAL 0x1820d043   # FMADD.S rm=5.
+    EXPECT_ILLEGAL 0x1820e043   # FMADD.S rm=6.
+    EXPECT_ILLEGAL 0x1820d047   # FMSUB.S rm=5.
+    EXPECT_ILLEGAL 0x1820e047   # FMSUB.S rm=6.
+    EXPECT_ILLEGAL 0x1820d04b   # FNMSUB.S rm=5.
+    EXPECT_ILLEGAL 0x1820e04b   # FNMSUB.S rm=6.
+    EXPECT_ILLEGAL 0x1820d04f   # FNMADD.S rm=5.
+    EXPECT_ILLEGAL 0x1820e04f   # FNMADD.S rm=6.
     EXPECT_ILLEGAL 0x02208053   # FADD.D, unsupported funct7.
     EXPECT_ILLEGAL 0x1a208043   # FMADD fmt=1.
     EXPECT_ILLEGAL 0x1c208047   # FMSUB fmt=2.
@@ -235,6 +251,9 @@ illegal_trap_vector:
 #ifdef __riscv_flen
     fmv.x.w t3, ft0
     bne t3, a7, fail
+    csrr t3, fflags
+    li t4, 8
+    bne t3, t4, fail
 #endif
     addi a4, a4, 1
     csrw mepc, t2

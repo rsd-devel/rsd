@@ -35,6 +35,7 @@ module TestDecodeStage;
     OpInfo [MICRO_OP_MAX_NUM-1:0] decodedOps[DECODE_WIDTH];
     InsnInfo decodedInfo[DECODE_WIDTH];
     int checks = 0;
+    int fpEncodingCases = 0;
 
     DecodeStageIF port(.*);
     PreDecodeStageIF prev(.*);
@@ -140,6 +141,41 @@ module TestDecodeStage;
               port.nextStage[0].elp == EXPECTED_ELP, description);
     endtask
 
+    task CheckFPEncoding(input InsnPath encoding, input logic illegal,
+                         input FPU_Code expectedCode);
+        int validOps;
+        string description;
+`ifndef RSD_MARCH_FP_PIPE
+        illegal = TRUE;
+`endif
+        insn[0] = encoding;
+        #1;
+        description = $sformatf("FP encoding %08x (illegal=%0b)", encoding, illegal);
+        validOps = 0;
+        for (int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+            if (!decodedOps[0][i].valid)
+                continue;
+            validOps++;
+            if (illegal) begin
+                Check(decodedOps[0][i].mopType == MOP_TYPE_MEM &&
+                      decodedOps[0][i].mopSubType.memType == MEM_MOP_TYPE_ENV &&
+                      decodedOps[0][i].operand.systemOp.envCode == ENV_INSN_ILLEGAL &&
+                      decodedOps[0][i].serialized && !decodedOps[0][i].writeReg,
+                      description);
+            end
+`ifdef RSD_MARCH_FP_PIPE
+            else begin
+                Check(decodedOps[0][i].mopType == MOP_TYPE_FP &&
+                      decodedOps[0][i].operand.fpOp.fpuCode == expectedCode &&
+                      !decodedOps[0][i].serialized && decodedOps[0][i].writeReg,
+                      description);
+            end
+`endif
+        end
+        Check(validOps == 1 && decodedInfo[0].isSerialized == illegal, description);
+        fpEncodingCases++;
+    endtask
+
     initial begin
         #100000;
         $fatal(1, "DecodeStage test timed out");
@@ -148,6 +184,30 @@ module TestDecodeStage;
     initial begin
         if (DECODE_WIDTH != 2)
             $fatal(1, "DecodeStage test requires two decode lanes");
+
+        Reset();
+        // Sweep fixed fields as well as reserved values; valid encodings must survive.
+        for (int rs2 = 0; rs2 < 32; rs2++) begin
+            for (int funct3 = 0; funct3 < 8; funct3++) begin
+                CheckFPEncoding({7'h70, 5'(rs2), 5'd1, 3'(funct3), 5'd31, 7'h53},
+                                rs2 != 0 || funct3 > 1,
+                                funct3 == 1 ? FC_FCLASS : FC_FMV_XW);
+                CheckFPEncoding({7'h78, 5'(rs2), 5'd1, 3'(funct3), 5'd31, 7'h53},
+                                rs2 != 0 || funct3 != 0, FC_FMV_WX);
+            end
+        end
+        for (int op = 0; op < 4; op++) begin
+            for (int fmt = 0; fmt < 4; fmt++) begin
+                for (int rm = 0; rm < 8; rm++) begin
+                    // RSD rejects reserved static modes 5/6; mode 7 remains dynamic.
+                    CheckFPEncoding({5'd3, 2'(fmt), 5'd2, 5'd1, 3'(rm), 5'd31, 7'('h43 + 4*op)},
+                                    fmt != 0 || rm == 5 || rm == 6,
+                                    op == 0 ? FC_FMADD : op == 1 ? FC_FMSUB :
+                                    op == 2 ? FC_FNMSUB : FC_FNMADD);
+                end
+            end
+        end
+        $display("FP decoder: %0d encodings checked", fpEncodingCases);
 
         Reset();
         LoadBundle(JALR, LPAD, TRUE);

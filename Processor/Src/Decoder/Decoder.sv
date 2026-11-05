@@ -1747,7 +1747,9 @@ function automatic void RISCV_EmitFPFMAOp(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = isfR4.funct2 != '0;
+    // Apply the same reserved static-rounding-mode policy as other FP arithmetic.
+    opInfo.undefined = isfR4.funct2 != '0 ||
+        !(rm inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
 
     // Serialized
     opInfo.serialized = FALSE;
