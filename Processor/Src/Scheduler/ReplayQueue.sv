@@ -541,25 +541,25 @@ module ReplayQueue(
                 if (mulDivUnit.divBusy[i] && mulDivUnit.divPendingDst[i].writeReg) begin
                     for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
                         if (replayEntryOut.intValid[j] && !flushInt[j] &&
-                            DependsOnDivider(replayEntryOut.intData[j].opSrc, mulDivUnit.divPendingDst[i]))
+                            DependsOnDivider(replayEntryOut.intData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
                             popEntry = FALSE;
                     end
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
                     for (int j = 0; j < COMPLEX_ISSUE_WIDTH; j++) begin
                         if (replayEntryOut.complexValid[j] && !flushComplex[j] &&
-                            DependsOnDivider(replayEntryOut.complexData[j].opSrc, mulDivUnit.divPendingDst[i]))
+                            DependsOnDivider(replayEntryOut.complexData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
                             popEntry = FALSE;
                     end
 `endif
                     for (int j = 0; j < MEM_ISSUE_WIDTH; j++) begin
                         if (replayEntryOut.memValid[j] && !flushMem[j] &&
-                            DependsOnDivider(replayEntryOut.memData[j].opSrc, mulDivUnit.divPendingDst[i]))
+                            DependsOnDivider(replayEntryOut.memData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
                             popEntry = FALSE;
                     end
 `ifdef RSD_MARCH_FP_PIPE
                     for (int j = 0; j < FP_ISSUE_WIDTH; j++) begin
                         if (replayEntryOut.fpValid[j] && !flushFP[j] &&
-                            DependsOnDivider(replayEntryOut.fpData[j].opSrc, mulDivUnit.divPendingDst[i]))
+                            DependsOnDivider(replayEntryOut.fpData[j].opSrc, mulDivUnit.divPendingDst[i], TRUE))
                             popEntry = FALSE;
                     end
 `endif
@@ -672,13 +672,15 @@ module ReplayQueue(
         recovery.replayQueueFlushedOpExist = (canBeFlushedEntryCount != 0);
     end
 
-    function automatic logic DependsOnDivider(input OpSrc src, input OpDst dst);
+    function automatic logic DependsOnDivider(input OpSrc src, input OpDst dst, input logic useSrcC);
         // Compare the register bank as well as its index. Unused source fields
         // may conservatively delay replay, but cannot wait past DIV completion.
+        // Only FP uses source C. Comparing it for other pipelines would retain
+        // unused register numbers throughout their issue/replay queues.
         return src.phySrcRegNumA == dst.phyDstRegNum ||
                src.phySrcRegNumB == dst.phyDstRegNum
 `ifdef RSD_MARCH_FP_PIPE
-               || src.phySrcRegNumC == dst.phyDstRegNum
+               || (useSrcC && src.phySrcRegNumC == dst.phyDstRegNum)
 `endif
                ;
     endfunction
