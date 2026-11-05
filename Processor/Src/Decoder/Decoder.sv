@@ -253,7 +253,10 @@ function automatic void RISCV_EmitOp(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    // Only SUB/SRA use funct7=0x20; extension encodings take separate decode paths.
+    opInfo.undefined = opFunct7 != OP_FUNCT7_ADD &&
+        !(opFunct7 == OP_FUNCT7_SUB &&
+          opFunct3 inside {OP_FUNCT3_ADD_SUB, OP_FUNCT3_SRL_SRA});
 
     // Serialized
     opInfo.serialized = FALSE;
@@ -638,7 +641,7 @@ function automatic void RISCV_EmitJALR(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = isfI.funct3 != '0;
 
     // Serialized
     opInfo.serialized = FALSE;
@@ -1860,7 +1863,8 @@ function automatic void RISCV_EmitZba(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(zbaFunct3 inside {
+        ZBA_FUCNT3_SH1ADD, ZBA_FUCNT3_SH2ADD, ZBA_FUCNT3_SH3ADD});
 
     // Serialized
     opInfo.serialized = FALSE;
@@ -1971,7 +1975,7 @@ function automatic void RISCV_EmitZicond(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(czeroFunct3 inside {CZERO_FUCNT3_EQZ, CZERO_FUNCT3_NEZ});
 
     // Serialized
     opInfo.serialized = FALSE;

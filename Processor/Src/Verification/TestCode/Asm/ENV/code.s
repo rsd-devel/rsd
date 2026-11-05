@@ -119,6 +119,44 @@ not_taken_branch:
     EXPECT_ILLEGAL 0xfe002ee3   # BRANCH funct3=2, backward displacement.
     EXPECT_ILLEGAL 0xfe003ee3   # BRANCH funct3=3, backward displacement.
 
+    # An invalid JALR must neither redirect control nor write the link register.
+    la a3, fail
+    EXPECT_ILLEGAL 0x00069fe7   # JALR funct3=1.
+    EXPECT_ILLEGAL 0x0006afe7   # JALR funct3=2.
+    EXPECT_ILLEGAL 0x0006bfe7   # JALR funct3=3.
+    EXPECT_ILLEGAL 0x0006cfe7   # JALR funct3=4.
+    EXPECT_ILLEGAL 0x0006dfe7   # JALR funct3=5.
+    EXPECT_ILLEGAL 0x0006efe7   # JALR funct3=6.
+    EXPECT_ILLEGAL 0x0006ffe7   # JALR funct3=7.
+    EXPECT_ILLEGAL 0x00069067   # Invalid JALR with rd=x0 must still trap.
+    EXPECT_ILLEGAL 0x00269fe7   # Illegal encoding takes priority over target misalignment.
+
+    # Unknown OP funct7 values must not fall back to ordinary ALU operations.
+    EXPECT_ILLEGAL 0x98f78fb3   # funct7=0x4c, the issue #127 case with rd=t6.
+    EXPECT_ILLEGAL 0x04f78fb3   # funct7=0x02.
+    EXPECT_ILLEGAL 0xfef78fb3   # funct7=0x7f.
+    # funct7=0x20 defines only SUB and SRA in the implemented extensions.
+    EXPECT_ILLEGAL 0x40f79fb3   # SLL with funct7=0x20.
+    EXPECT_ILLEGAL 0x40f7afb3   # SLT with funct7=0x20.
+    EXPECT_ILLEGAL 0x40f7bfb3   # SLTU with funct7=0x20.
+    EXPECT_ILLEGAL 0x40f7cfb3   # XNOR (unsupported Zbb).
+    EXPECT_ILLEGAL 0x40f7efb3   # ORN (unsupported Zbb).
+    EXPECT_ILLEGAL 0x40f7ffb3   # ANDN (unsupported Zbb).
+    EXPECT_ILLEGAL 0x0af7cfb3   # MIN (unsupported Zbb).
+    EXPECT_ILLEGAL 0x0af7bfb3   # CLMULH (unsupported Zbc).
+    # Reject undefined funct3 values even when Zba or Zicond is enabled.
+    EXPECT_ILLEGAL 0x20f78fb3   # Zba funct3=0.
+    EXPECT_ILLEGAL 0x20f79fb3   # Zba funct3=1.
+    EXPECT_ILLEGAL 0x20f7bfb3   # Zba funct3=3.
+    EXPECT_ILLEGAL 0x20f7dfb3   # Zba funct3=5.
+    EXPECT_ILLEGAL 0x20f7ffb3   # Zba funct3=7.
+    EXPECT_ILLEGAL 0x0ef78fb3   # Zicond funct3=0.
+    EXPECT_ILLEGAL 0x0ef79fb3   # Zicond funct3=1.
+    EXPECT_ILLEGAL 0x0ef7afb3   # Zicond funct3=2.
+    EXPECT_ILLEGAL 0x0ef7bfb3   # Zicond funct3=3.
+    EXPECT_ILLEGAL 0x0ef7cfb3   # Zicond funct3=4.
+    EXPECT_ILLEGAL 0x0ef7efb3   # Zicond funct3=6.
+
     # All memory operands use the aligned stack word at a6.
     EXPECT_ILLEGAL 0x00083f83   # LOAD funct3=3.
     EXPECT_ILLEGAL 0x00086f83   # LOAD funct3=6.
