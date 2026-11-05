@@ -47,7 +47,7 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     && rm -rf /var/lib/apt/lists/*
 
 # Build the pinned Verilator release with SystemVerilog timing support.
-RUN git clone --depth=1 --branch v5.052 https://github.com/verilator/verilator
+RUN git clone --depth=1 --branch v5.054 https://github.com/verilator/verilator
 RUN cd verilator \
     && autoconf \
     && ./configure \
