@@ -63,6 +63,38 @@
     csrw \csr, t5
     .endm
 
+    .macro CHECK_SEPC_ALIGNMENT
+    csrr t5, sepc
+    la t1, supervisor_trap_vector
+    # IALIGN=32 applies to all CSR write forms, from M-mode and S-mode alike.
+    .irp low, 0, 1, 2, 3
+    ori t3, t1, \low
+    csrrw t4, sepc, t3
+    csrr t4, sepc
+    bne t4, t1, fail
+    csrrs t4, sepc, t3
+    bne t4, t1, fail
+    csrr t4, sepc
+    bne t4, t1, fail
+    li t3, \low
+    csrrc t4, sepc, t3
+    bne t4, t1, fail
+    csrr t4, sepc
+    bne t4, t1, fail
+
+    csrrwi t4, sepc, \low
+    bne t4, t1, fail
+    EXPECT_ZERO_CSR sepc
+    csrrsi t4, sepc, \low
+    bnez t4, fail
+    EXPECT_ZERO_CSR sepc
+    csrrci t4, sepc, \low
+    bnez t4, fail
+    EXPECT_ZERO_CSR sepc
+    .endr
+    csrw sepc, t5
+    .endm
+
     .macro CHECK_READ_ONLY_CSR csr
     # Zero-source SET/CLEAR instructions only read the CSR, even with rd = x0.
     EXPECT_ZERO_CSR \csr
@@ -530,6 +562,8 @@ main:
     csrw mie, s2
     csrw mstatus, s1
 
+    CHECK_SEPC_ALIGNMENT
+
     # Route lower-privilege traps to M-mode and preserve the original CSR state.
     csrr t5, mstatus
     csrr t6, medeleg
@@ -547,6 +581,10 @@ main:
     csrrw t3, sscratch, a3
     bne t3, a5, fail
     CHECK_BARE_SATP
+    # The helper clobbers t5, which holds the M-mode status for final restoration.
+    mv s6, t5
+    CHECK_SEPC_ALIGNMENT
+    mv t5, s6
     CHECK_FORBIDDEN_CSR mscratch
     EXPECT_ILLEGAL_CSR csrr a2, mhartid
     RETURN_TO_MACHINE 9
@@ -684,5 +722,8 @@ supervisor_trap_vector:
     bne t3, s8, fail
     bne a2, a3, fail
     addi s5, s5, 1
-    csrw sepc, t2
+    # Exercise all low-bit patterns across S-to-S and S-to-U returns.
+    andi t3, s5, 3
+    or t3, t2, t3
+    csrw sepc, t3
     sret

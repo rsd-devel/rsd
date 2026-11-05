@@ -29,6 +29,7 @@ module CSR_Unit(
     DataPath mcycle;    // for debug
     AddrPath jumpTarget;
     AddrPath mepc;
+    AddrPath sepc;
     AddrPath trapValue;
     CommitLaneCountPath regRetireNum;
     CommitLaneCountPath minstretIncrement;
@@ -97,9 +98,10 @@ module CSR_Unit(
     always_comb begin
         mcycle = csrReg.mcycle[31:0];
 
-        // RSD uses IALIGN=32. Mask both CSR reads and MRET's implicit read.
+        // RSD uses IALIGN=32. Mask CSR reads and the implicit reads by xRET.
         // Revisit this mask if compressed instructions are supported.
         mepc = {csrReg.mepc[ADDR_WIDTH-1:2], 2'b0};
+        sepc = {csrReg.sepc[ADDR_WIDTH-1:2], 2'b0};
 
         // Instruction encodings are optional trap values. Report zero for illegal
         // instructions so the pipeline does not need to retain their bits.
@@ -200,7 +202,7 @@ module CSR_Unit(
                         CSR_NUM_SIE:        rv = csrReg.mie & csrReg.mideleg;
                         CSR_NUM_STVEC:      rv = csrReg.stvec;
                         CSR_NUM_SSCRATCH:   rv = csrReg.sscratch;
-                        CSR_NUM_SEPC:       rv = csrReg.sepc;
+                        CSR_NUM_SEPC:       rv = sepc;
                         CSR_NUM_SCAUSE:     rv = csrReg.scause;
                         CSR_NUM_STVAL:      rv = csrReg.stval;
                         // satp is fixed to Bare (zero); writes are ignored because no
@@ -457,7 +459,8 @@ module CSR_Unit(
                                 CSR_XTVEC_MODE_VECTORED : CSR_XTVEC_MODE_BASE;
                         end
                         CSR_NUM_SSCRATCH:   csrNext.sscratch = wv;
-                        CSR_NUM_SEPC:       csrNext.sepc = wv;
+                        // Like MEPC, SEPC bit 0 is never writable.
+                        CSR_NUM_SEPC:       csrNext.sepc = {wv[31:1], 1'b0};
                         CSR_NUM_SCAUSE:     csrNext.scause = wv;
                         CSR_NUM_STVAL:      csrNext.stval = wv;
 
@@ -513,7 +516,7 @@ module CSR_Unit(
             //$display("mret: to %x", csrNext.mepc);
         end
         else if (port.excptCause == EXEC_STATE_TRAP_SRET) begin
-            port.excptTargetAddr = csrReg.sepc;
+            port.excptTargetAddr = sepc;
             //$display("sret: to %x", csrNext.sepc);
         end
         else begin
