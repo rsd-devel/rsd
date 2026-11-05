@@ -174,9 +174,9 @@ output
     ComplexIntegerIssueStage complexIsStage( complexIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     ComplexIntegerRegisterReadStage complexRrStage( complexRrStageIF, complexIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     ComplexIntegerExecutionStage complexExStage( complexExStageIF, complexRrStageIF, mulDivUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+    ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF );
 `endif
-        MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF, registerFileIF, activeListIF);
+        MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF);
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
@@ -189,7 +189,7 @@ output
         StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF, perfCounterIF);
         DCache dCache( loadStoreUnitIF, cacheSystemIF, ctrlIF, recoveryManagerIF);
         AMOCache amocache(amoCacheIF);
-    MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, loadStoreUnitIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+    MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, loadStoreUnitIF, registerFileIF, activeListIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF );
 
 `ifdef RSD_MARCH_FP_PIPE
     FPIssueStage fpIsStage( fpIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, fpDivSqrtUnitIF, ctrlIF, debugIF );

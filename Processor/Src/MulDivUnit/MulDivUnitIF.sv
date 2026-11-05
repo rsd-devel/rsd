@@ -40,6 +40,14 @@ interface MulDivUnitIF(input logic clk, rst);
 
     ActiveListIndexPath acquireActiveListPtr[MULDIV_ISSUE_WIDTH];
 
+    // Completion shares the ordinary RW ports. Wait for the accepted DIV's
+    // pipeline invalidation before offering its result to those ports.
+    logic divPassedRW[MULDIV_ISSUE_WIDTH];
+    logic divWriteReady[MULDIV_ISSUE_WIDTH];
+    logic divWriteValid[MULDIV_ISSUE_WIDTH];
+    ActiveListIndexPath divWritePtr[MULDIV_ISSUE_WIDTH];
+    DataPath divWriteData[MULDIV_ISSUE_WIDTH];
+
     modport MulDivUnit(
     input
         clk,
@@ -54,8 +62,13 @@ interface MulDivUnitIF(input logic clk, rst);
         divAcquire,
         acquireOpDst,
         acquireActiveListPtr,
+        divPassedRW,
+        divWriteReady,
     output
         mulDataOut,
+        divWriteValid,
+        divWritePtr,
+        divWriteData,
         divPendingDst,
         divBusy,
         divReserved,
@@ -124,6 +137,36 @@ interface MulDivUnitIF(input logic clk, rst);
     );
 
     modport MemoryAccessStage(input mulDataOut);
+
+    modport ComplexIntegerRegisterWriteStage(
+    input
+        dummy
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
+        divWriteValid,
+        divWritePtr,
+        divWriteData,
+        divPendingDst,
+    output
+        divPassedRW,
+        divWriteReady
+`endif
+    );
+
+    modport MemoryRegisterWriteStage(
+    input
+        dummy
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        ,
+        divWriteValid,
+        divWritePtr,
+        divWriteData,
+        divPendingDst,
+    output
+        divPassedRW,
+        divWriteReady
+`endif
+    );
 
     modport Scheduler(
     input

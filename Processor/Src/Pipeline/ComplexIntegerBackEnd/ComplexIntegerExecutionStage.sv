@@ -227,7 +227,7 @@ module ComplexIntegerExecutionStage(
 
             unique case ( localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].complexQueueData.opType )
             COMPLEX_MOP_TYPE_DIV: begin
-                // MulDivUnit writes the result through its own RF port.
+                // The result waits in MulDivUnit for an idle RW cycle; never bypass it here.
                 dataOut[i] = '0;
             end
             default: /* mul */    dataOut[i].data = mulDivUnit.mulDataOut[i];
@@ -303,6 +303,7 @@ module ComplexIntegerExecutionStage(
                 (stall || clear || port.rst || flush[i][COMPLEX_EXEC_STAGE_DEPTH-1]) ? FALSE : localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].valid;
 
             nextStage[i].dataOut = dataOut[i];
+            nextStage[i].divStarted = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].regValid;
         end
 
         port.nextStage = nextStage;

@@ -201,6 +201,9 @@ module MemoryAccessStage(
             nextStage[i].isStore = pipeReg[i].isStore;
             nextStage[i].isLoad = pipeReg[i].isLoad;
             nextStage[i].isDiv = pipeReg[i].isDiv;
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+            nextStage[i].divStarted = pipeReg[i].regValid;
+`endif
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;

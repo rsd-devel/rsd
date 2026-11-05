@@ -6,8 +6,6 @@ PROJECT_WORK = ../../../../Project/ModelSim
 include $(SOURCE_ROOT)Makefiles/CoreSources.inc.mk
 MODULES = \
 	MulDivUnit/MulDivUnitIF.sv \
-	RegisterFile/RegisterFileIF.sv \
-	RenameLogic/ActiveListIF.sv \
 	Recovery/RecoveryManagerIF.sv \
 	Primitives/Multiplier.sv \
 	Primitives/Divider.sv \

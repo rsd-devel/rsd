@@ -267,6 +267,7 @@ typedef struct packed // ComplexIntegerRegisterWriteStageRegPath
     ComplexIssueQueueEntry complexQueueData;
 
     PRegDataPath dataOut;   // Result of Execution
+    logic divStarted;      // The accepted DIV must invalidate its destination before completion.
 } ComplexIntegerRegisterWriteStageRegPath;
 
 
@@ -398,6 +399,9 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     logic zaamoReleaseMSHR;
 
     PRegDataPath dataOut;    // Result of Load
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+    logic divStarted;      // Keep this separate from the invalid DIV bypass value.
+`endif
 
     logic hasAllocatedMSHR; // This op allocated an MSHR entry or not
     MSHR_IndexPath mshrID;

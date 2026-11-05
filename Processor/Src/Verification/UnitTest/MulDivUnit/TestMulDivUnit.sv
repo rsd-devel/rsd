@@ -11,53 +11,48 @@ module TestMulDivUnit;
     logic clk = FALSE, rst = TRUE, rstStart = TRUE;
     MulDivUnitIF port(.*);
     RecoveryManagerIF recovery(.*);
-    RegisterFileIF registerFile(.*);
-    ActiveListIF activeList(.*);
-    MulDivUnit dut(port, recovery, registerFile, activeList);
+    MulDivUnit dut(port, recovery);
 
     OpDst expectedDst[MULDIV_ISSUE_WIDTH];
     ActiveListIndexPath expectedPtr[MULDIV_ISSUE_WIDTH];
     DataPath expectedResult[MULDIV_ISSUE_WIDTH];
     bit pending[MULDIV_ISSUE_WIDTH], started[MULDIV_ISSUE_WIDTH];
-    int invalidations[MULDIV_ISSUE_WIDTH], completions[MULDIV_ISSUE_WIDTH];
+    bit passedRW[MULDIV_ISSUE_WIDTH];
+    int completions[MULDIV_ISSUE_WIDTH];
     int cases = 0;
 
-    // Check the externally visible writes at the edge where RF/AL would accept
-    // them. No internal state is forced or used to decide when DIV has finished.
+    // Check only the externally visible request/accept interface. The ordinary
+    // RW stage owns invalidation and RF/AL writes; this unit retains a result
+    // until that stage accepts it. No internal state is inspected or forced.
     task automatic Tick;
         #4;
         for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-            assert (!$isunknown({registerFile.divDstRegWE[i], activeList.divWrite[i]}))
-                else $fatal(1, "Unknown write enable on divider lane %0d", i);
-            if (rst) begin
-                assert (!registerFile.divDstRegWE[i] && !activeList.divWrite[i])
-                    else $fatal(1, "Divider wrote during reset");
+            assert (!$isunknown(port.divWriteValid[i]))
+                else $fatal(1, "Unknown divider control on lane %0d", i);
+            if (!rst) begin
+                assert (!$isunknown({port.divBusy[i], port.divReserved[i], port.divFree[i]}))
+                    else $fatal(1, "Unknown divider state on lane %0d", i);
             end
-            else begin
-                if (registerFile.divDstRegWE[i]) begin
-                    assert (pending[i] && expectedDst[i].writeReg &&
-                            registerFile.divDstRegNum[i] === expectedDst[i].phyDstRegNum)
-                        else $fatal(1, "Unexpected RF destination on lane %0d", i);
-                    if (registerFile.divDstRegData[i].valid === FALSE) begin
-                        assert (!started[i] && invalidations[i] == 0 && !activeList.divWrite[i])
-                            else $fatal(1, "Late or repeated invalidation on lane %0d", i);
-                        invalidations[i]++;
-                    end
-                    else begin
-                        assert (registerFile.divDstRegData[i].valid === TRUE &&
-                                activeList.divWrite[i] &&
-                                registerFile.divDstRegData[i].data === expectedResult[i])
-                            else $fatal(1, "Bad DIV result on lane %0d: expected %h, got %h",
-                                        i, expectedResult[i], registerFile.divDstRegData[i]);
-                    end
-                end
-                if (activeList.divWrite[i]) begin
-                    assert (pending[i] && started[i] && !port.stall &&
-                            activeList.divWritePtr[i] === expectedPtr[i] &&
-                            registerFile.divDstRegWE[i] === expectedDst[i].writeReg)
-                        else $fatal(1, "Unexpected completion on lane %0d", i);
+            if (rst || port.stall) begin
+                assert (!port.divWriteValid[i])
+                    else $fatal(1, "Divider offered a result during reset/stall");
+            end
+            if (port.divWriteValid[i]) begin
+                assert (pending[i] && started[i] && passedRW[i] &&
+                        port.divWritePtr[i] === expectedPtr[i] &&
+                        port.divPendingDst[i] === expectedDst[i] &&
+                        port.divWriteData[i] === expectedResult[i])
+                    else $fatal(1, "Unexpected completion on lane %0d: expected %h, got %h",
+                                i, expectedResult[i], port.divWriteData[i]);
+                if (port.divWriteReady[i]) begin
+                    assert (!port.divBusy[i] && port.divFree[i])
+                        else $fatal(1, "Accepted completion did not release divider");
                     pending[i] = FALSE;
                     completions[i]++;
+                end
+                else begin
+                    assert (port.divBusy[i] && !port.divFree[i])
+                        else $fatal(1, "Unaccepted completion released divider");
                 end
             end
         end
@@ -75,24 +70,32 @@ module TestMulDivUnit;
         expectedDst[lane].writeReg = writeReg;
         pending[lane] = TRUE;
         started[lane] = FALSE;
-        invalidations[lane] = 0;
+        passedRW[lane] = FALSE;
         completions[lane] = 0;
         port.divAcquire[lane] = TRUE;
         port.acquireActiveListPtr[lane] = expectedPtr[lane];
         port.acquireOpDst[lane] = expectedDst[lane];
         Tick();
         assert (port.divReserved[lane] === TRUE && port.divFree[lane] === FALSE &&
-                invalidations[lane] == int'(writeReg) &&
                 port.divPendingDst[lane] === expectedDst[lane])
-            else $fatal(1, "DIV reservation/invalidation failed on lane %0d", lane);
+            else $fatal(1, "DIV reservation failed on lane %0d", lane);
         port.divAcquire[lane] = FALSE;
         // Later issues must not replace the retained destination/ActiveList tag.
         port.acquireActiveListPtr[lane] = '1;
         port.acquireOpDst[lane] = '0;
     endtask
 
+    task automatic PassRW(input int lane);
+        // The successful pipeline attempt reached normal RW. Its invalidation
+        // is sampled on this edge, so completion must wait until a later edge.
+        port.divPassedRW[lane] = TRUE;
+        Tick();
+        passedRW[lane] = TRUE;
+        port.divPassedRW[lane] = FALSE;
+    endtask
+
     task automatic Start(input int lane, input DataPath a, input DataPath b,
-                         input IntDIV_Code code, input DataPath result);
+                         input IntDIV_Code code, input DataPath result, input bit passRW = TRUE);
         expectedResult[lane] = result;
         started[lane] = TRUE;
         port.dataInA[lane] = a;
@@ -106,11 +109,12 @@ module TestMulDivUnit;
         port.dataInA[lane] = ~a;
         port.dataInB[lane] = ~b;
         port.divCode[lane] = AC_REMU;
+        if (passRW) PassRW(lane);
     endtask
 
     task automatic WaitForWrite(input int lane);
         for (int cycle = 0; cycle < MAX_CYCLES; cycle++) begin
-            if (activeList.divWrite[lane] === TRUE)
+            if (port.divWriteValid[lane] === TRUE)
                 return;
             Tick();
         end
@@ -137,7 +141,7 @@ module TestMulDivUnit;
         SetFlush(headPtr, tailPtr, all);
         // Any result that was about to be written must lose to the flush.
         #1;
-        assert (!activeList.divWrite[lane] && !registerFile.divDstRegWE[lane])
+        assert (!port.divWriteValid[lane])
             else $fatal(1, "Flushed DIV still writes on lane %0d", lane);
         Tick();
         pending[lane] = FALSE;
@@ -163,9 +167,11 @@ module TestMulDivUnit;
         for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
             pending[i] = FALSE;
             started[i] = FALSE;
-            invalidations[i] = 0;
+            passedRW[i] = FALSE;
             completions[i] = 0;
             port.divAcquire[i] = FALSE;
+            port.divPassedRW[i] = FALSE;
+            port.divWriteReady[i] = TRUE;
             port.divReq[i] = FALSE;
             port.acquireActiveListPtr[i] = '0;
             port.acquireOpDst[i] = '0;
@@ -185,7 +191,7 @@ module TestMulDivUnit;
             Acquire(lane, 10, 7);
             repeat (4) begin
                 Tick();
-                assert (port.divReserved[lane] && !port.divBusy[lane] && !activeList.divWrite[lane])
+                assert (port.divReserved[lane] && !port.divBusy[lane] && !port.divWriteValid[lane])
                     else $fatal(1, "DIV did not wait for operands");
             end
             Start(lane, 84, 7, AC_DIV, 12);
@@ -204,7 +210,7 @@ module TestMulDivUnit;
             Start(lane, 32'h80000000, 0, AC_REMU, 32'h80000000);
             Finish(lane);
 
-            // rd=x0 still completes the instruction but never writes the RF.
+            // rd=x0 must still request completion; only the RW stage suppresses RF WE.
             Acquire(lane, 23, 0, FALSE);
             Start(lane, 19, 0, AC_DIV, 32'hffffffff);
             Finish(lane);
@@ -231,6 +237,44 @@ module TestMulDivUnit;
             port.stall = FALSE;
             #1;
             Finish(lane);
+
+            // Even the shortest computation must wait for its successful
+            // pipeline attempt to leave RW. A late invalidation must never
+            // overwrite the final value, including after reuse of the unit.
+            Acquire(lane, 29, 18);
+            Start(lane, 0, 7, AC_DIVU, 0, FALSE);
+            repeat (MAX_CYCLES) begin
+                Tick();
+                assert (!port.divWriteValid[lane] && port.divBusy[lane] &&
+                        !port.divFree[lane] && completions[lane] == 0)
+                    else $fatal(1, "DIV completed before passing normal RW");
+            end
+            PassRW(lane);
+            Finish(lane);
+
+            // Normal RW can be occupied for an arbitrarily long burst. The
+            // request, data and tags remain stable and only one accept occurs.
+            Acquire(lane, 30, 19);
+            port.divWriteReady[lane] = FALSE;
+            Start(lane, 99, 4, AC_DIVU, 24);
+            WaitForWrite(lane);
+            repeat (2 * MAX_CYCLES) begin
+                Tick();
+                assert (port.divWriteValid[lane] && port.divBusy[lane] &&
+                        completions[lane] == 0)
+                    else $fatal(1, "DIV lost its pending result while RW was busy");
+            end
+            port.divWriteReady[lane] = TRUE;
+            #1;
+            Finish(lane);
+
+            // A flush also cancels an already completed but unaccepted result.
+            Acquire(lane, 31, 0, FALSE);
+            port.divWriteReady[lane] = FALSE;
+            Start(lane, 7, 2, AC_REMU, 1);
+            WaitForWrite(lane);
+            Cancel(lane, 31, 32);
+            port.divWriteReady[lane] = TRUE;
 
             // A younger branch recovery must not discard an older division.
             Acquire(lane, 10, 15);

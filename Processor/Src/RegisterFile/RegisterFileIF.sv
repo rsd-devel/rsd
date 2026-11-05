@@ -73,21 +73,11 @@ interface RegisterFileIF( input logic clk, rst, rstStart );
     PRegDataPath  fpDstRegData  [ FP_ISSUE_WIDTH ];
 `endif
 
-    // Integer divider invalidation and completion share this port.
-    logic divDstRegWE[MULDIV_ISSUE_WIDTH];
-    PRegNumPath divDstRegNum[MULDIV_ISSUE_WIDTH];
-    PRegDataPath divDstRegData[MULDIV_ISSUE_WIDTH];
-
-    modport MulDivUnit(output divDstRegWE, divDstRegNum, divDstRegData);
-
     modport RegisterFile(
     input 
         clk,
         rst,
         rstStart,
-        divDstRegWE,
-        divDstRegNum,
-        divDstRegData,
         intSrcRegNumA,
         intSrcRegNumB,
         memSrcRegNumA,

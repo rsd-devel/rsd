@@ -21,6 +21,7 @@ module ComplexIntegerRegisterWriteStage(
     ComplexIntegerExecutionStageIF.NextStage prev,
     RegisterFileIF.ComplexIntegerRegisterWriteStage registerFile,
     ActiveListIF.ComplexIntegerRegisterWriteStage activeList,
+    MulDivUnitIF.ComplexIntegerRegisterWriteStage mulDivUnit,
     RecoveryManagerIF.ComplexIntegerRegisterWriteStage recovery,
     ControllerIF.ComplexIntegerRegisterWriteStage ctrl,
     DebugIF.ComplexIntegerRegisterWriteStage debug
@@ -55,6 +56,7 @@ module ComplexIntegerRegisterWriteStage(
     logic update [ COMPLEX_ISSUE_WIDTH ];
     logic valid [ COMPLEX_ISSUE_WIDTH ];
     logic regValid [ COMPLEX_ISSUE_WIDTH ];
+    logic isDiv [ COMPLEX_ISSUE_WIDTH ];
 
     always_comb begin
 
@@ -74,9 +76,13 @@ module ComplexIntegerRegisterWriteStage(
                         recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
-            // The divider owns invalidation and completion for DIV/REM.
-            update[i] = !stall && !clear && valid[i] && !flush[i] &&
-                iqData[i].opType != COMPLEX_MOP_TYPE_DIV;
+            isDiv[i] = iqData[i].opType == COMPLEX_MOP_TYPE_DIV;
+            update[i] = !stall && !clear && valid[i] && !flush[i];
+
+            // DIV attempts invalidate through the normal port. Only the last,
+            // accepted attempt releases the divider's pending completion.
+            mulDivUnit.divPassedRW[i] = update[i] && isDiv[i] && pipeReg[i].divStarted;
+            mulDivUnit.divWriteReady[i] = !stall && !clear && !update[i];
 
 
             //
@@ -111,7 +117,19 @@ module ComplexIntegerRegisterWriteStage(
                 alWriteData[i].state = EXEC_STATE_NOT_FINISHED;
             end
 
-            activeList.complexWrite[i] = update[i];
+            activeList.complexWrite[i] = update[i] && !isDiv[i];
+
+            // Share both ports atomically, including completions with rd=x0.
+            if (mulDivUnit.divWriteValid[i] && mulDivUnit.divWriteReady[i]) begin
+                registerFile.complexDstRegWE[i] = mulDivUnit.divPendingDst[i].writeReg;
+                registerFile.complexDstRegNum[i] = mulDivUnit.divPendingDst[i].phyDstRegNum;
+                registerFile.complexDstRegData[i].valid = TRUE;
+                registerFile.complexDstRegData[i].data = mulDivUnit.divWriteData[i];
+                alWriteData[i] = '0;
+                alWriteData[i].ptr = mulDivUnit.divWritePtr[i];
+                alWriteData[i].state = EXEC_STATE_SUCCESS;
+                activeList.complexWrite[i] = TRUE;
+            end
             activeList.complexWriteData[i] = alWriteData[i];
         end
 

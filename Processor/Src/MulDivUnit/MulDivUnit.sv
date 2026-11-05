@@ -16,9 +16,7 @@ import ActiveListIndexTypes::*;
 
 module MulDivUnit(
     MulDivUnitIF.MulDivUnit port,
-    RecoveryManagerIF.MulDivUnit recovery,
-    RegisterFileIF.MulDivUnit registerFile,
-    ActiveListIF.MulDivUnit activeList
+    RecoveryManagerIF.MulDivUnit recovery
 );
 
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockMulUnit
@@ -61,6 +59,8 @@ module MulDivUnit(
     ActiveListIndexPath nextActiveListPtr[MULDIV_ISSUE_WIDTH];
     OpDst regOpDst[MULDIV_ISSUE_WIDTH];
     OpDst nextOpDst[MULDIV_ISSUE_WIDTH];
+    logic regPassedRW[MULDIV_ISSUE_WIDTH];
+    logic nextPassedRW[MULDIV_ISSUE_WIDTH];
 
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : BlockDivUnit
         DividerUnit divUnit(
@@ -81,12 +81,14 @@ module MulDivUnit(
                 regPhase[i] <= DIVIDER_PHASE_FREE;
                 regActiveListPtr[i] <= 0;
                 regOpDst[i] <= '0;
+                regPassedRW[i] <= FALSE;
             end
         end
         else begin
             regPhase <= nextPhase;
             regActiveListPtr <= nextActiveListPtr;
             regOpDst <= nextOpDst;
+            regPassedRW <= nextPassedRW;
         end
     end
 
@@ -94,6 +96,7 @@ module MulDivUnit(
         nextPhase = regPhase;
         nextActiveListPtr = regActiveListPtr;
         nextOpDst = regOpDst;
+        nextPassedRW = regPassedRW;
 
         for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
 
@@ -109,11 +112,15 @@ module MulDivUnit(
             divReq[i] = port.divReq[i] && regPhase[i] == DIVIDER_PHASE_RESERVED &&
                 !port.rst && !port.stall && !flush[i];
 
-            registerFile.divDstRegWE[i] = FALSE;
-            registerFile.divDstRegNum[i] = regOpDst[i].phyDstRegNum;
-            registerFile.divDstRegData[i] = '0;
-            activeList.divWrite[i] = FALSE;
-            activeList.divWritePtr[i] = regActiveListPtr[i];
+            // The accepted DIV must pass normal RW first. Otherwise a short
+            // division could complete before its delayed RF invalidation.
+            if (port.divPassedRW[i]) begin
+                nextPassedRW[i] = TRUE;
+            end
+            port.divWriteValid[i] = regPhase[i] == DIVIDER_PHASE_WRITE &&
+                regPassedRW[i] && !port.rst && !port.stall && !flush[i];
+            port.divWritePtr[i] = regActiveListPtr[i];
+            port.divWriteData[i] = divDataOut[i];
 
             case (regPhase[i])
             default: begin
@@ -126,10 +133,7 @@ module MulDivUnit(
                     nextPhase[i] = DIVIDER_PHASE_RESERVED;
                     nextActiveListPtr[i] = port.acquireActiveListPtr[i];
                     nextOpDst[i] = port.acquireOpDst[i];
-                    // Invalidate on first issue. The normal pipeline must not
-                    // later invalidate a result already written by this unit.
-                    registerFile.divDstRegWE[i] = port.acquireOpDst[i].writeReg;
-                    registerFile.divDstRegNum[i] = port.acquireOpDst[i].phyDstRegNum;
+                    nextPassedRW[i] = FALSE;
                 end
             end
 
@@ -150,12 +154,9 @@ module MulDivUnit(
             end
 
             DIVIDER_PHASE_WRITE: begin
-                if (!port.rst && !port.stall && !flush[i]) begin
-                    registerFile.divDstRegWE[i] = regOpDst[i].writeReg;
-                    registerFile.divDstRegData[i].valid = TRUE;
-                    registerFile.divDstRegData[i].data = divDataOut[i];
-                    // Integer DIV/REM, including division by zero, cannot trap.
-                    activeList.divWrite[i] = TRUE;
+                // Hold the result until the ordinary RF/AL write ports are
+                // free. rd=x0 still needs the ActiveList completion write.
+                if (port.divWriteValid[i] && port.divWriteReady[i]) begin
                     nextPhase[i] = DIVIDER_PHASE_FREE;
                 end
             end
@@ -165,6 +166,7 @@ module MulDivUnit(
             // 除算器に要求をしたdivがフラッシュされたので，除算器を解放する
             if (port.rst || flush[i]) begin
                 nextPhase[i] = DIVIDER_PHASE_FREE;
+                nextPassedRW[i] = FALSE;
             end
             rst_divider[i] = port.rst | flush[i];
 
@@ -172,10 +174,11 @@ module MulDivUnit(
             // どうかを判定する必要がある
             port.divFree[i]     = nextPhase[i] == DIVIDER_PHASE_FREE ? TRUE : FALSE;   
             // Consumers replay through IS/RR, so writing at this edge is early
-            // enough. Keep them waiting if writeback is stalled, but never in
-            // RESERVED: that would block the DIV's own missing-operand replay.
+            // enough. Wait while RW has not been passed or its ports are busy,
+            // but never in RESERVED: that would block missing-operand replay.
             port.divBusy[i] = regPhase[i] == DIVIDER_PHASE_PROCESSING ||
-                (regPhase[i] == DIVIDER_PHASE_WRITE && port.stall);
+                (regPhase[i] == DIVIDER_PHASE_WRITE &&
+                 !(port.divWriteValid[i] && port.divWriteReady[i]));
             port.divReserved[i] = regPhase[i] == DIVIDER_PHASE_RESERVED ? TRUE : FALSE;
             port.divPendingDst[i] = regOpDst[i];
 

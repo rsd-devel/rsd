@@ -23,7 +23,7 @@ module RegisterFile(
     // Register
     //
     parameter REG_READ_NUM = (INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH) * 2 + FP_ISSUE_WIDTH;
-    parameter REG_WRITE_NUM = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH + MULDIV_ISSUE_WIDTH;
+    parameter REG_WRITE_NUM = INT_ISSUE_WIDTH + COMPLEX_ISSUE_WIDTH + MEM_ISSUE_WIDTH + FP_ISSUE_WIDTH;
 
     logic       regWE      [ REG_WRITE_NUM ];
     PScalarRegNumPath dstRegNum  [ REG_WRITE_NUM ];
@@ -130,12 +130,6 @@ module RegisterFile(
             dstRegData[(i+INT_ISSUE_WIDTH+COMPLEX_ISSUE_WIDTH+MEM_ISSUE_WIDTH)] = port.fpDstRegData[i];
         end
 `endif
-        for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
-            regWE[ISSUE_WIDTH+i] = port.divDstRegWE[i];
-            dstRegNum[ISSUE_WIDTH+i] = port.divDstRegNum[i].regNum;
-            dstRegData[ISSUE_WIDTH+i] = port.divDstRegData[i];
-        end
-
         // 以下のリセット後の初期化処理で全てのレジスタに0x0を代入する.
         // ゼロレジスタは, 書き込み時にはDecoderでwriteフラグを落とし,
         // 読み込み時は,RMTの初期化によって割り当てられる,
