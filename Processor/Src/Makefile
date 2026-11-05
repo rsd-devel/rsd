@@ -98,6 +98,7 @@ UNIT_TESTS = \
 	MultiWidthQueuePointer \
 	MultiWidthFreeList \
 	Divider \
+	MulDivUnit \
 	Memory \
 	ICache \
 	DCache \

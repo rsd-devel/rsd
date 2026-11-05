@@ -176,12 +176,12 @@ output
     ComplexIntegerExecutionStage complexExStage( complexExStageIF, complexRrStageIF, mulDivUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 `endif
-        MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF);
+        MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF, registerFileIF, activeListIF);
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, amoCacheIF, debugIF );
-    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF, perfCounterIF );
+    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF, perfCounterIF );
     MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF );
         LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );

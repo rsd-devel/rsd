@@ -74,7 +74,9 @@ module ComplexIntegerRegisterWriteStage(
                         recovery.flushAllInsns,
                         iqData[i].activeListPtr
                         );
-            update[i] = !stall && !clear && valid[i] && !flush[i];
+            // The divider owns invalidation and completion for DIV/REM.
+            update[i] = !stall && !clear && valid[i] && !flush[i] &&
+                iqData[i].opType != COMPLEX_MOP_TYPE_DIV;
 
 
             //

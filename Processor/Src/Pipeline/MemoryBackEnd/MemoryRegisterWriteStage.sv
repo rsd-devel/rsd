@@ -123,7 +123,7 @@ module MemoryRegisterWriteStage(
             alWriteData[i].pc = pipeReg[i].pc;
             alWriteData[i].dataAddr = pipeReg[i].addrOut;
 
-            activeList.memWrite[i] = update[i];
+            activeList.memWrite[i] = update[i] && !pipeReg[i].isDiv;
             activeList.memWriteData[i] = alWriteData[i];
         end
 
@@ -134,7 +134,7 @@ module MemoryRegisterWriteStage(
         for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
 
             registerFile.memDstRegWE[i] =
-                update[i] && pipeReg[i].opDst.writeReg;
+                update[i] && !pipeReg[i].isDiv && pipeReg[i].opDst.writeReg;
 
             registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
             registerFile.memDstRegData[i] = pipeReg[i].dataOut;

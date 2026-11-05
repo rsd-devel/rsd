@@ -393,6 +393,7 @@ typedef struct packed // MemoryRegisterWriteStageRegPath
     ExecutionState execState; // Execution status. See RenameLogicTypes.sv
     logic isStore;
     logic isLoad;
+    logic isDiv;
     
     logic zaamoReleaseMSHR;
 

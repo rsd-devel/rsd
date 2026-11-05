@@ -63,6 +63,11 @@ interface ActiveListIF( input logic clk, rst );
     FFlags_Path     fpFFlagsData[FP_ISSUE_WIDTH];
     FFlags_Path     fflagsData[COMMIT_WIDTH];
 `endif
+    // Integer division can only complete successfully; it supplies no recovery data.
+    logic divWrite[MULDIV_ISSUE_WIDTH];
+    ActiveListIndexPath divWritePtr[MULDIV_ISSUE_WIDTH];
+    modport MulDivUnit(output divWrite, divWritePtr);
+
     // Status of an active list.
     logic allocatable;
 
@@ -85,6 +90,8 @@ interface ActiveListIF( input logic clk, rst );
         pushedTailData,
         popHeadNum,
         popTailNum,
+        divWrite,
+        divWritePtr,
         intWrite,
         intWriteData,
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE

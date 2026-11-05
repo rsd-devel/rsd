@@ -351,7 +351,8 @@ module ActiveList(
     // --- ExecutionState
     //
 
-    parameter EXEC_STATE_WRITE_NUM = RENAME_WIDTH + ISSUE_WIDTH;
+    // DIV completion only updates the finished bit, not recovery selection.
+    parameter EXEC_STATE_WRITE_NUM = RENAME_WIDTH + ISSUE_WIDTH + MULDIV_ISSUE_WIDTH;
     logic               esWE[EXEC_STATE_WRITE_NUM];
     ActiveListIndexPath esWA[EXEC_STATE_WRITE_NUM];
     ActiveListIndexPath esRA[COMMIT_WIDTH];
@@ -397,6 +398,12 @@ module ActiveList(
                 //exceptionIndexは例外を起こした命令の場所を示す
                 //esWV[(i+RENAME_WIDTH)] = ( exceptionDetected && !recovery.unableToStartRecovery && (exceptionIndex == i) ) ? TRUE : writeData[i].state;
                 esWV[(i+RENAME_WIDTH)] = (writeData[i].state != EXEC_STATE_NOT_FINISHED);
+            end
+
+            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
+                esWE[RENAME_WIDTH+ISSUE_WIDTH+i] = port.divWrite[i];
+                esWA[RENAME_WIDTH+ISSUE_WIDTH+i] = port.divWritePtr[i];
+                esWV[RENAME_WIDTH+ISSUE_WIDTH+i] = TRUE;
             end
         end
 
@@ -533,6 +540,12 @@ module ActiveList(
                 //Rwステージで検出された例外はコミットステージで再度検出されないようにExecStateをEXEC_STATE_SUCCESSにしておく必要がある
                 //exceptionIndexは例外を起こした命令の場所を示す
                 esRefWV[(i+RENAME_WIDTH)] = ( exceptionDetected && !recovery.unableToStartRecovery && (exceptionIndex == i) ) ? EXEC_STATE_SUCCESS : writeData[i].state;
+            end
+
+            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
+                esRefWE[RENAME_WIDTH+ISSUE_WIDTH+i] = port.divWrite[i];
+                esRefWA[RENAME_WIDTH+ISSUE_WIDTH+i] = port.divWritePtr[i];
+                esRefWV[RENAME_WIDTH+ISSUE_WIDTH+i] = EXEC_STATE_SUCCESS;
             end
         end
 

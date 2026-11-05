@@ -28,16 +28,15 @@ interface MulDivUnitIF(input logic clk, rst);
     logic       mulGetUpper [MULDIV_ISSUE_WIDTH];
     IntMUL_Code mulCode     [MULDIV_ISSUE_WIDTH];
 
-    DataPath    divDataOut  [MULDIV_ISSUE_WIDTH];
     IntDIV_Code divCode     [MULDIV_ISSUE_WIDTH];
     logic       divReq      [MULDIV_ISSUE_WIDTH];
     logic       divReserved [MULDIV_ISSUE_WIDTH];
-    logic       divFinished [MULDIV_ISSUE_WIDTH];
     logic       divBusy     [MULDIV_ISSUE_WIDTH];
     logic       divFree     [MULDIV_ISSUE_WIDTH];
 
     logic divAcquire[MULDIV_ISSUE_WIDTH];
-    logic divRelease[MULDIV_ISSUE_WIDTH];
+    OpDst acquireOpDst[MULDIV_ISSUE_WIDTH];
+    OpDst divPendingDst[MULDIV_ISSUE_WIDTH];
 
     ActiveListIndexPath acquireActiveListPtr[MULDIV_ISSUE_WIDTH];
 
@@ -53,12 +52,11 @@ interface MulDivUnitIF(input logic clk, rst);
         divCode,
         divReq,
         divAcquire,
-        divRelease,
+        acquireOpDst,
         acquireActiveListPtr,
     output
         mulDataOut,
-        divDataOut,
-        divFinished,
+        divPendingDst,
         divBusy,
         divReserved,
         divFree
@@ -71,15 +69,14 @@ interface MulDivUnitIF(input logic clk, rst);
         ,
     output
         divAcquire,
-        acquireActiveListPtr
+        acquireActiveListPtr,
+        acquireOpDst
 `endif
     );
 
     modport ComplexIntegerExecutionStage(
     input
         mulDataOut,
-        divDataOut,
-        divFinished,
         divBusy,
         divReserved,
         divFree
@@ -92,8 +89,7 @@ interface MulDivUnitIF(input logic clk, rst);
         mulGetUpper,
         mulCode,
         divCode,
-        divReq,
-        divRelease
+        divReq
 `endif
     );
 
@@ -104,7 +100,8 @@ interface MulDivUnitIF(input logic clk, rst);
         ,
     output
         divAcquire,
-        acquireActiveListPtr
+        acquireActiveListPtr,
+        acquireOpDst
 `endif
     );
 
@@ -126,23 +123,7 @@ interface MulDivUnitIF(input logic clk, rst);
 `endif
     );
 
-    modport MemoryTagAccessStage(
-    input
-        divFinished
-    );
-
-    modport MemoryAccessStage(
-    input
-        mulDataOut,
-        divDataOut,
-        divFinished
-`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-        ,
-    output
-        divRelease
-`endif
-    );
-
+    modport MemoryAccessStage(input mulDataOut);
 
     modport Scheduler(
     input
@@ -151,6 +132,7 @@ interface MulDivUnitIF(input logic clk, rst);
 
     modport ReplayQueue(
     input
+        divPendingDst,
         divBusy
     );
 

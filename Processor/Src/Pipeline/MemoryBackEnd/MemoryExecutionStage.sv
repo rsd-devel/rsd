@@ -222,6 +222,7 @@ module MemoryExecutionStage(
     MulOpSubInfo mulSubInfo[MULDIV_ISSUE_WIDTH];
     DivOpSubInfo divSubInfo[MULDIV_ISSUE_WIDTH];
     always_comb begin
+        mulDivUnit.stall = stall;
 
         for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
             mulDivUnit.dataInA[i] = fuOpA[i].data;
@@ -239,13 +240,11 @@ module MemoryExecutionStage(
             isDiv[i] =  
                 memOpInfo[i].opType inside {MEM_MOP_TYPE_DIV};
 
-            // Request to the divider
-            // NOT make a request when below situation
-            // 1) When any operands of inst. are invalid
-            // 2) When the divider is waiting for the instruction
-            //    to receive the result of the divider
+            // Start only the reserved DIV with valid operands. Completion is
+            // written directly by MulDivUnit, without a result-collection replay.
             mulDivUnit.divReq[i] = 
                 mulDivUnit.divReserved[i] && 
+                !port.rst && !stall && !clear && !flush[i] &&
                 pipeReg[i].valid && isDiv[i] && 
                 fuOpA[i].valid && fuOpB[i].valid;
         end
@@ -351,5 +350,19 @@ module MemoryExecutionStage(
         end
     endgenerate
 
+
+`ifndef RSD_SYNTHESIS
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+    for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : CheckDivReservation
+        always @(posedge port.clk) begin
+            if (!port.rst && !stall && !clear && !flush[i] &&
+                pipeReg[i].valid && isDiv[i] && regValid[i]) begin
+                assert (mulDivUnit.divReserved[i])
+                    else $fatal(1, "DIV reached execution without a reservation");
+            end
+        end
+    end
+`endif
+`endif
 
 endmodule : MemoryExecutionStage

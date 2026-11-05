@@ -133,6 +133,9 @@ module ComplexIntegerExecutionStage(
     logic finished      [ COMPLEX_ISSUE_WIDTH ];
 
     always_comb begin
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        mulDivUnit.stall = stall;
+`endif
 
         for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin
 
@@ -157,28 +160,14 @@ module ComplexIntegerExecutionStage(
             mulDivUnit.dataInB[i] = fuOpB[i].data;
 
 
-            // Request to the divider
-            // NOT make a request when below situation
-            // 1) When any operands of inst. are invalid
-            // 2) When the divider is waiting for the instruction
-            //    to receive the result of the divider
+            // Start only the reserved DIV with valid operands. Completion is
+            // written directly by MulDivUnit, without a result-collection replay.
             mulDivUnit.divReq[i] = 
                 mulDivUnit.divReserved[i] && 
+                !port.rst && !stall && !clear && !flush[i][0] &&
                 pipeReg[i].valid && isDiv[i] && 
                 fuOpA[i].valid && fuOpB[i].valid;
 
-            if (mulDivUnit.divFinished[i] &&
-                localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].valid &&
-                localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].complexQueueData.opType == COMPLEX_MOP_TYPE_DIV && 
-                localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].regValid
-            ) begin 
-                // Divが除算器から結果を取得できたので，
-                // IQからのdivの発行を許可する 
-                mulDivUnit.divRelease[i] = TRUE;
-            end
-            else begin
-                mulDivUnit.divRelease[i] = FALSE;
-            end
 `endif
         end
     end
@@ -237,7 +226,10 @@ module ComplexIntegerExecutionStage(
                 = localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].regValid;
 
             unique case ( localPipeReg[i][COMPLEX_EXEC_STAGE_DEPTH-2].complexQueueData.opType )
-            COMPLEX_MOP_TYPE_DIV: dataOut[i].data = mulDivUnit.divDataOut[i];
+            COMPLEX_MOP_TYPE_DIV: begin
+                // MulDivUnit writes the result through its own RF port.
+                dataOut[i] = '0;
+            end
             default: /* mul */    dataOut[i].data = mulDivUnit.mulDataOut[i];
             endcase
 
@@ -283,15 +275,8 @@ module ComplexIntegerExecutionStage(
             nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
             nextLocalPipeReg[i][0].complexQueueData = pipeReg[i].complexQueueData;
 
-            // Reg valid of local pipeline 
-            if (isDiv[i]) begin
-                nextLocalPipeReg[i][0].regValid = 
-                    pipeReg[i].replay && (mulDivUnit.divFinished[i]);
-            end
-            else begin
-                nextLocalPipeReg[i][0].regValid = regValid[i];
-            end
-            
+            // Replay only when operands are missing, not to collect a result.
+            nextLocalPipeReg[i][0].regValid = regValid[i];
 
             for (int j = 1; j < COMPLEX_EXEC_STAGE_DEPTH-1; j++) begin
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -342,6 +327,18 @@ module ComplexIntegerExecutionStage(
         end //for ( int i = 0; i < COMPLEX_ISSUE_WIDTH; i++ ) begin
 `endif
 end
+
+`ifndef RSD_SYNTHESIS
+    for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : CheckDivReservation
+        always @(posedge port.clk) begin
+            if (!port.rst && !stall && !clear && !flush[i][0] &&
+                pipeReg[i].valid && isDiv[i] && regValid[i]) begin
+                assert (mulDivUnit.divReserved[i])
+                    else $fatal(1, "DIV reached execution without a reservation");
+            end
+        end
+    end
+`endif
 
 endmodule : ComplexIntegerExecutionStage
 

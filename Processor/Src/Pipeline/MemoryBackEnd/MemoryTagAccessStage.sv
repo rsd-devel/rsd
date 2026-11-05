@@ -29,7 +29,6 @@ module MemoryTagAccessStage(
     MemoryExecutionStageIF.NextStage prev,
     SchedulerIF.MemoryTagAccessStage scheduler,
     LoadStoreUnitIF.MemoryTagAccessStage loadStoreUnit,
-    MulDivUnitIF.MemoryTagAccessStage mulDivUnit,    
     RecoveryManagerIF.MemoryTagAccessStage recovery,
     ControllerIF.MemoryTagAccessStage ctrl,
     AMOCacheIF.MemoryTagAccessStage amoCache,
@@ -317,12 +316,7 @@ module MemoryTagAccessStage(
             // Sends to the load queue whether the load executed in this cycle is valid.
             loadStoreUnit.executedLoadRegValid[i] = ldRegValid[i];
             
-            `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-                if (isDiv[i] && ldRegValid[i]) begin
-                    /*ldPipeReg[i].replay && */
-                    ldRegValid[i] = mulDivUnit.divFinished[i];
-                end
-            `endif
+
 
             // Pipeline レジスタ書き込み
             ldNextStage[i].regValid = ldRegValid[i];
@@ -416,7 +410,7 @@ module MemoryTagAccessStage(
             end
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
             else if (isDiv[i]) begin
-                ldNextStage[i].execState = mulDivUnit.divFinished[i] ? EXEC_STATE_SUCCESS : EXEC_STATE_NOT_FINISHED;
+                ldNextStage[i].execState = EXEC_STATE_NOT_FINISHED;
             end
 `endif 
             else begin
