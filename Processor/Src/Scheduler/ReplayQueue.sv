@@ -535,41 +535,55 @@ module ReplayQueue(
                 popEntry = FALSE;
             end
 
-`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-            for (int i = 0; i < MEM_ISSUE_WIDTH; i++) begin
-                if (
-                    replayEntryOut.memValid[i] && !flushMem[i] &&
-                    replayEntryOut.memData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV &&
-                    mulDivUnit.divBusy[i]
-                ) begin
-                    popEntry = FALSE;
+            // The divider completes independently. Delay consumers of its
+            // destination instead of replaying the DIV to collect its result.
+            for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
+                if (mulDivUnit.divBusy[i] && mulDivUnit.divPendingDst[i].writeReg) begin
+                    for (int j = 0; j < INT_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.intValid[j] && !flushInt[j] &&
+                            DependsOnDivider(replayEntryOut.intData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
+                            popEntry = FALSE;
+                    end
+`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+                    for (int j = 0; j < COMPLEX_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.complexValid[j] && !flushComplex[j] &&
+                            DependsOnDivider(replayEntryOut.complexData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
+                            popEntry = FALSE;
+                    end
+`endif
+                    for (int j = 0; j < MEM_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.memValid[j] && !flushMem[j] &&
+                            DependsOnDivider(replayEntryOut.memData[j].opSrc, mulDivUnit.divPendingDst[i], FALSE))
+                            popEntry = FALSE;
+                    end
+`ifdef RSD_MARCH_FP_PIPE
+                    for (int j = 0; j < FP_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.fpValid[j] && !flushFP[j] &&
+                            DependsOnDivider(replayEntryOut.fpData[j].opSrc, mulDivUnit.divPendingDst[i], TRUE))
+                            popEntry = FALSE;
+                    end
+`endif
                 end
             end
-`endif
-            
-`ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-            for (int i = 0; i < COMPLEX_ISSUE_WIDTH; i++) begin 
-                if (replayEntryOut.complexValid[i] && !flushComplex[i] &&
-                    replayEntryOut.complexData[i].opType == COMPLEX_MOP_TYPE_DIV && 
-                    mulDivUnit.divBusy[i]   // Div unit is busy and wait it
-                ) begin 
-                    // Div interlock (stop issuing div while there is 
-                    // any divs in the complex pipeline including replay queue)
-                    popEntry = FALSE; 
-                end 
-            end 
-`endif
+
 `ifdef RSD_MARCH_FP_PIPE
-            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin 
-                if (replayEntryOut.fpValid[i] && !flushFP[i] && 
-                    replayEntryOut.fpData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT} && 
-                    fpDivSqrtUnit.Busy[i]   // FP Div/Sqrt unit is busy and wait it
-                ) begin 
-                    // Div/Sqrt interlock (stop issuing div/sqrt while there is 
-                    // any div/sqrt in the fp pipeline including replay queue)
-                    popEntry = FALSE; 
-                end 
-            end 
+            // FP DIV/SQRT also completes independently. Wait for its consumers,
+            // including stores, rather than replaying the producer for a result.
+            // Only FP and memory operations can read its FP register destination.
+            for (int i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin
+                if (fpDivSqrtUnit.Busy[i] && fpDivSqrtUnit.pendingDst[i].writeReg) begin
+                    for (int j = 0; j < MEM_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.memValid[j] && !flushMem[j] &&
+                            DependsOnDivider(replayEntryOut.memData[j].opSrc, fpDivSqrtUnit.pendingDst[i], FALSE))
+                            popEntry = FALSE;
+                    end
+                    for (int j = 0; j < FP_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.fpValid[j] && !flushFP[j] &&
+                            DependsOnDivider(replayEntryOut.fpData[j].opSrc, fpDivSqrtUnit.pendingDst[i], TRUE))
+                            popEntry = FALSE;
+                    end
+                end
+            end
 `endif
         end
 
@@ -664,5 +678,18 @@ module ReplayQueue(
     always_comb begin
         recovery.replayQueueFlushedOpExist = (canBeFlushedEntryCount != 0);
     end
+
+    function automatic logic DependsOnDivider(input OpSrc src, input OpDst dst, input logic useSrcC);
+        // Compare the register bank as well as its index. Unused source fields
+        // may conservatively delay replay, but cannot wait past DIV completion.
+        // Only FP uses source C. Comparing it for other pipelines would retain
+        // unused register numbers throughout their issue/replay queues.
+        return src.phySrcRegNumA == dst.phyDstRegNum ||
+               src.phySrcRegNumB == dst.phyDstRegNum
+`ifdef RSD_MARCH_FP_PIPE
+               || (useSrcC && src.phySrcRegNumC == dst.phyDstRegNum)
+`endif
+               ;
+    endfunction
 
 endmodule : ReplayQueue

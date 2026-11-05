@@ -147,28 +147,12 @@ module MemoryAccessStage(
                 ldDataOut[i].data = pipeReg[i].addrOut;
 
             `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-                if (isDiv[i])
-                    ldDataOut[i].data = mulDivUnit.divDataOut[i];
-                else if (isMul[i])
+                if (isMul[i])
                     ldDataOut[i].data = mulDivUnit.mulDataOut[i];
-
-                if (mulDivUnit.divFinished[i] &&
-                    update[i] &&
-                    isDiv[i] && 
-                    regValid[i]
-                ) begin 
-                    // Divが除算器から結果を取得できたので，
-                    // IQからのdivの発行を許可する 
-                    mulDivUnit.divRelease[i] = TRUE;
-                end
-                else begin
-                    mulDivUnit.divRelease[i] = FALSE;
-                end
-
             `endif
 
 
-            ldDataOut[i].valid = regValid[i];
+            ldDataOut[i].valid = regValid[i] && !isDiv[i];
         end
         
         for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
@@ -216,6 +200,10 @@ module MemoryAccessStage(
             nextStage[i].addrOut = pipeReg[i].addrOut;
             nextStage[i].isStore = pipeReg[i].isStore;
             nextStage[i].isLoad = pipeReg[i].isLoad;
+            nextStage[i].isDiv = pipeReg[i].isDiv;
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+            nextStage[i].divStarted = pipeReg[i].regValid;
+`endif
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;

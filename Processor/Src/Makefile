@@ -98,11 +98,15 @@ UNIT_TESTS = \
 	MultiWidthQueuePointer \
 	MultiWidthFreeList \
 	Divider \
+	MulDivUnit \
 	Memory \
 	ICache \
 	DCache \
 	DecodeStage \
 	InterruptController
+ifneq ($(findstring +define+RSD_MARCH_FP_PIPE,$(RSD_SRC_CFG)),)
+UNIT_TESTS += FPDivSqrtUnit
+endif
 UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
 
 .PHONY: test-unit $(UNIT_TEST_TARGETS)

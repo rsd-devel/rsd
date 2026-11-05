@@ -24,6 +24,7 @@ module MemoryRegisterWriteStage(
     LoadStoreUnitIF.MemoryRegisterWriteStage loadStoreUnit,
     RegisterFileIF.MemoryRegisterWriteStage registerFile,
     ActiveListIF.MemoryRegisterWriteStage activeList,
+    MulDivUnitIF.MemoryRegisterWriteStage mulDivUnit,
     RecoveryManagerIF.MemoryRegisterWriteStage recovery,
     ControllerIF.MemoryRegisterWriteStage ctrl,
     DebugIF.MemoryRegisterWriteStage debug
@@ -123,7 +124,7 @@ module MemoryRegisterWriteStage(
             alWriteData[i].pc = pipeReg[i].pc;
             alWriteData[i].dataAddr = pipeReg[i].addrOut;
 
-            activeList.memWrite[i] = update[i];
+            activeList.memWrite[i] = update[i] && !pipeReg[i].isDiv;
             activeList.memWriteData[i] = alWriteData[i];
         end
 
@@ -139,6 +140,24 @@ module MemoryRegisterWriteStage(
             registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
             registerFile.memDstRegData[i] = pipeReg[i].dataOut;
         end
+
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
+            // Also reserve the port for AL-only operations such as stores.
+            mulDivUnit.divWriteReady[i] = !stall && !clear && !update[i];
+            mulDivUnit.divPassedRW[i] = update[i] && pipeReg[i].isDiv && pipeReg[i].divStarted;
+            if (mulDivUnit.divWriteValid[i] && mulDivUnit.divWriteReady[i]) begin
+                registerFile.memDstRegWE[i] = mulDivUnit.divPendingDst[i].writeReg;
+                registerFile.memDstRegNum[i] = mulDivUnit.divPendingDst[i].phyDstRegNum;
+                registerFile.memDstRegData[i].valid = TRUE;
+                registerFile.memDstRegData[i].data = mulDivUnit.divWriteData[i];
+                activeList.memWrite[i] = TRUE;
+                activeList.memWriteData[i] = '0;
+                activeList.memWriteData[i].ptr = mulDivUnit.divWritePtr[i];
+                activeList.memWriteData[i].state = EXEC_STATE_SUCCESS;
+            end
+        end
+`endif
 
 
         // Debug Register

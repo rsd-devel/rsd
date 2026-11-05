@@ -21,6 +21,7 @@ module FPRegisterWriteStage(
     FPExecutionStageIF.NextStage prev,
     RegisterFileIF.FPRegisterWriteStage registerFile,
     ActiveListIF.FPRegisterWriteStage activeList,
+    FPDivSqrtUnitIF.FPRegisterWriteStage fpDivSqrtUnit,
     RecoveryManagerIF.FPRegisterWriteStage recovery,
     ControllerIF.FPRegisterWriteStage ctrl,
     DebugIF.FPRegisterWriteStage debug
@@ -55,6 +56,7 @@ module FPRegisterWriteStage(
     logic update [ FP_ISSUE_WIDTH ];
     logic valid [ FP_ISSUE_WIDTH ];
     logic regValid [ FP_ISSUE_WIDTH ];
+    logic isDivSqrt [ FP_ISSUE_WIDTH ];
 
     always_comb begin
 
@@ -75,6 +77,11 @@ module FPRegisterWriteStage(
                         iqData[i].activeListPtr
                         );
             update[i] = !stall && !clear && valid[i] && !flush[i];
+            isDivSqrt[i] = iqData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};
+
+            // All normal updates reserve the RF/AL/fflags ports together.
+            fpDivSqrtUnit.writeReady[i] = !stall && !clear && !update[i];
+            fpDivSqrtUnit.passedRW[i] = update[i] && isDivSqrt[i] && pipeReg[i].divSqrtStarted;
 
 
             //
@@ -107,9 +114,23 @@ module FPRegisterWriteStage(
                 alWriteData[i].state = EXEC_STATE_NOT_FINISHED;
             end
 
-            activeList.fpWrite[i] = update[i];
-            activeList.fpWriteData[i] = alWriteData[i];
+            activeList.fpWrite[i] = update[i] && !isDivSqrt[i];
             activeList.fpFFlagsData[i] = pipeReg[i].fflagsOut;
+
+            // Preserve the ordinary FP write port, including the valid f0
+            // destination. Result, completion and exception flags are atomic.
+            if (fpDivSqrtUnit.writeValid[i] && fpDivSqrtUnit.writeReady[i]) begin
+                registerFile.fpDstRegWE[i] = fpDivSqrtUnit.pendingDst[i].writeReg;
+                registerFile.fpDstRegNum[i] = fpDivSqrtUnit.pendingDst[i].phyDstRegNum;
+                registerFile.fpDstRegData[i].valid = TRUE;
+                registerFile.fpDstRegData[i].data = fpDivSqrtUnit.DataOut[i];
+                alWriteData[i] = '0;
+                alWriteData[i].ptr = fpDivSqrtUnit.writePtr[i];
+                alWriteData[i].state = EXEC_STATE_SUCCESS;
+                activeList.fpWrite[i] = TRUE;
+                activeList.fpFFlagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
+            end
+            activeList.fpWriteData[i] = alWriteData[i];
         end
 
         // Debug Register

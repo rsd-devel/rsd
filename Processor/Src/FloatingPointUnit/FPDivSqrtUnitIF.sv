@@ -23,13 +23,19 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
     Rounding_Mode rm     [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Req      [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Reserved [FP_DIVSQRT_ISSUE_WIDTH];
-    logic       Finished [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Busy     [FP_DIVSQRT_ISSUE_WIDTH];
     logic       Free     [FP_DIVSQRT_ISSUE_WIDTH];
 
     logic Acquire[FP_DIVSQRT_ISSUE_WIDTH];
-    logic Release[FP_DIVSQRT_ISSUE_WIDTH];
     ActiveListIndexPath acquireActiveListPtr[FP_DIVSQRT_ISSUE_WIDTH];
+    OpDst acquireOpDst[FP_DIVSQRT_ISSUE_WIDTH];
+    OpDst pendingDst[FP_DIVSQRT_ISSUE_WIDTH];
+
+    // Complete through an idle ordinary FP RW port after its invalidation.
+    logic passedRW[FP_DIVSQRT_ISSUE_WIDTH];
+    logic writeReady[FP_DIVSQRT_ISSUE_WIDTH];
+    logic writeValid[FP_DIVSQRT_ISSUE_WIDTH];
+    ActiveListIndexPath writePtr[FP_DIVSQRT_ISSUE_WIDTH];
 
     modport FPDivSqrtUnit(
     input
@@ -42,12 +48,16 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
         rm,
         Req,
         Acquire,
-        Release,
         acquireActiveListPtr,
+        acquireOpDst,
+        passedRW,
+        writeReady,
     output
         DataOut,
         FFlagsOut,
-        Finished,
+        pendingDst,
+        writeValid,
+        writePtr,
         Busy,
         Reserved,
         Free
@@ -56,25 +66,34 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
     modport FPIssueStage(
     output
         Acquire,
-        acquireActiveListPtr
+        acquireActiveListPtr,
+        acquireOpDst
     );
 
     modport FPExecutionStage(
     input
-        DataOut,
-        Finished,
         Busy,
         Reserved,
         Free,
-        FFlagsOut,
     output
         stall,
         dataInA,
         dataInB,
         is_divide,
         rm,
-        Req,
-        Release
+        Req
+    );
+
+    modport FPRegisterWriteStage(
+    input
+        DataOut,
+        FFlagsOut,
+        pendingDst,
+        writeValid,
+        writePtr,
+    output
+        passedRW,
+        writeReady
     );
 
     modport Scheduler(
@@ -84,6 +103,7 @@ interface FPDivSqrtUnitIF(input logic clk, rst);
 
     modport ReplayQueue(
     input
-        Busy
+        Busy,
+        pendingDst
     );
 endinterface
