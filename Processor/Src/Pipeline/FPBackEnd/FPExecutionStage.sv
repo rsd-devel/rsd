@@ -172,6 +172,7 @@ module FPExecutionStage(
     end
 
     always_comb begin
+        fpDivSqrtUnit.stall = stall;
         // FMA Unit
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
             fmaMulLHS[i] = fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data;
@@ -204,28 +205,13 @@ module FPExecutionStage(
             isDivSqrt[i] =  
                 pipeReg[i].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};
 
-            // Request to the divider/sqrter
-            // NOT make a request when below situation
-            // 1) When any operands of inst. are invalid
-            // 2) When the divider/sqrter is waiting for the instruction
-            //    to receive the result of the divider/sqrter
+            // Start only the reserved operation with its used operands valid.
+            // SQRT does not depend on the unused B operand.
             fpDivSqrtUnit.Req[i] = 
                 fpDivSqrtUnit.Reserved[i] && 
+                !port.rst && !stall && !clear && !flush[i][0] &&
                 pipeReg[i].valid && isDivSqrt[i] && 
-                fuOpA[i].valid && fuOpB[i].valid;
-
-            if (fpDivSqrtUnit.Finished[i] &&
-                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid &&
-                (localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT})&& 
-                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid
-            ) begin 
-                // Div/Sqrt Unitから結果を取得できたので，
-                // IQからの発行を許可する 
-                fpDivSqrtUnit.Release[i] = TRUE;
-            end
-            else begin
-                fpDivSqrtUnit.Release[i] = FALSE;
-            end
+                regValid[i];
         end
     end
 
@@ -298,8 +284,9 @@ module FPExecutionStage(
                     fflagsOut[i] = fmaFFlagsOut[i];
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
-                    dataOut[i].data = fpDivSqrtUnit.DataOut[i];
-                    fflagsOut[i] = fpDivSqrtUnit.FFlagsOut[i];
+                    // Completion uses an idle RW cycle, not this bypass path.
+                    dataOut[i] = '0;
+                    fflagsOut[i] = '0;
                 end 
                 default: begin /* FP_MOP_TYPE_OTHER */
                     dataOut[i].data = otherDataOut[i];
@@ -349,14 +336,8 @@ module FPExecutionStage(
             nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
             nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
 
-            // Reg valid of local pipeline 
-            if (isDivSqrt[i]) begin
-                nextLocalPipeReg[i][0].regValid = 
-                    pipeReg[i].replay && (fpDivSqrtUnit.Finished[i]);
-            end
-            else begin
-                nextLocalPipeReg[i][0].regValid = regValid[i];
-            end
+            // Replay only missing operands; the unit completes independently.
+            nextLocalPipeReg[i][0].regValid = regValid[i];
             
 
             for (int j = 1; j < FP_EXEC_STAGE_DEPTH-1; j++) begin
@@ -386,6 +367,7 @@ module FPExecutionStage(
                 (stall || clear || port.rst || flush[i][FP_EXEC_STAGE_DEPTH-1]) ? FALSE : localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid;
 
             nextStage[i].dataOut = dataOut[i];
+            nextStage[i].divSqrtStarted = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid;
         end
 
         port.nextStage = nextStage;
@@ -410,6 +392,18 @@ module FPExecutionStage(
         end
 `endif
     end
+
+`ifndef RSD_SYNTHESIS
+    for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : CheckDivSqrtReservation
+        always @(posedge port.clk) begin
+            if (!port.rst && !stall && !clear && !flush[i][0] &&
+                pipeReg[i].valid && isDivSqrt[i] && regValid[i]) begin
+                assert (fpDivSqrtUnit.Reserved[i])
+                    else $fatal(1, "FP DIV/SQRT reached execution without a reservation");
+            end
+        end
+    end
+`endif
 
 endmodule : FPExecutionStage
 

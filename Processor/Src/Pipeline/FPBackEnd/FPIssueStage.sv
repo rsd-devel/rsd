@@ -106,6 +106,7 @@ module FPIssueStage(
                 !clear && valid[i] &&
                 !flush[i] && (issuedData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT});
             fpDivSqrtUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
+            fpDivSqrtUnit.acquireOpDst[i] = issuedData[i].opDst;
 
             // --- Pipeline ラッチ書き込み
             // リセットorフラッシュ時はNOP

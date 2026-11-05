@@ -458,6 +458,7 @@ typedef struct packed // FPRegisterWriteStageRegPath
 
     PRegDataPath dataOut;   // Result of Execution
     FFlags_Path fflagsOut;
+    logic divSqrtStarted;  // Accepted DIV/SQRT must pass RW invalidation first.
 } FPRegisterWriteStageRegPath;
 
 endpackage

@@ -567,16 +567,23 @@ module ReplayQueue(
             end
 
 `ifdef RSD_MARCH_FP_PIPE
-            for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin 
-                if (replayEntryOut.fpValid[i] && !flushFP[i] && 
-                    replayEntryOut.fpData[i].fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT} && 
-                    fpDivSqrtUnit.Busy[i]   // FP Div/Sqrt unit is busy and wait it
-                ) begin 
-                    // Div/Sqrt interlock (stop issuing div/sqrt while there is 
-                    // any div/sqrt in the fp pipeline including replay queue)
-                    popEntry = FALSE; 
-                end 
-            end 
+            // FP DIV/SQRT also completes independently. Wait for its consumers,
+            // including stores, rather than replaying the producer for a result.
+            // Only FP and memory operations can read its FP register destination.
+            for (int i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin
+                if (fpDivSqrtUnit.Busy[i] && fpDivSqrtUnit.pendingDst[i].writeReg) begin
+                    for (int j = 0; j < MEM_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.memValid[j] && !flushMem[j] &&
+                            DependsOnDivider(replayEntryOut.memData[j].opSrc, fpDivSqrtUnit.pendingDst[i], FALSE))
+                            popEntry = FALSE;
+                    end
+                    for (int j = 0; j < FP_ISSUE_WIDTH; j++) begin
+                        if (replayEntryOut.fpValid[j] && !flushFP[j] &&
+                            DependsOnDivider(replayEntryOut.fpData[j].opSrc, fpDivSqrtUnit.pendingDst[i], TRUE))
+                            popEntry = FALSE;
+                    end
+                end
+            end
 `endif
         end
 
