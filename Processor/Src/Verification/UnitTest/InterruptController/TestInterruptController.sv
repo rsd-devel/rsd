@@ -42,6 +42,7 @@ module TestInterruptController;
     int cases = 0;
     int aliasCases = 0;
     int cfiCases = 0;
+    int sepcCases = 0;
     string caseName;
 
     // Keep stimulus and checks away from the active edge in both simulators.
@@ -209,6 +210,57 @@ module TestInterruptController;
                         number, expected, csr.csrReadOut, caseName);
         csr.csrRE = 0;
         #1;
+    endtask
+
+    task automatic CheckSEPCAlignment(input bit fromSupervisor, returnToSupervisor,
+                                      input CSR_Code operation, input logic [1:0] lowBits);
+        CSR_MSTATUS_Path statusValue;
+        caseName = $sformatf("SEPC fromS=%0b toS=%0b op=%0d low=%0d",
+                            fromSupervisor, returnToSupervisor, operation, lowBits);
+        Reset();
+        WriteCSR(CSR_NUM_MEPC, VECTOR_BASE);
+        statusValue = '0;
+        statusValue.MPP = fromSupervisor ? PRIVILEGE_LEVEL_S : PRIVILEGE_LEVEL_M;
+        statusValue.SPP = returnToSupervisor;
+        statusValue.SPIE = 1;
+        WriteCSR(CSR_NUM_MSTATUS, statusValue);
+        if (fromSupervisor) begin
+            csr.triggerExcpt = 1; // MRET enters S before the SEPC access.
+            Tick();
+            csr.triggerExcpt = 0;
+        end
+        case (operation)
+            CSR_WRITE: begin
+                WriteCSR(CSR_NUM_SEPC, VECTOR_BASE);
+                WriteCSR(CSR_NUM_SEPC, RETURN_PC | DataPath'(lowBits));
+            end
+            CSR_SET: begin
+                WriteCSR(CSR_NUM_SEPC, RETURN_PC & ~32'h4);
+                WriteCSR(CSR_NUM_SEPC, 32'h4 | DataPath'(lowBits), CSR_SET);
+            end
+            CSR_CLEAR: begin
+                WriteCSR(CSR_NUM_SEPC, RETURN_PC | 32'hb);
+                WriteCSR(CSR_NUM_SEPC, 32'h8 | DataPath'(lowBits), CSR_CLEAR);
+            end
+        endcase
+        // Check SRET's implicit read independently of CSR read enables and of
+        // triggerExcpt: RecoveryManager needs this target before trap entry.
+        csr.excptCause = EXEC_STATE_TRAP_SRET;
+        #1;
+        assert (csr.excptTargetAddr === RETURN_PC)
+            else $fatal(1, "Unaligned SRET target %08x (%s)", csr.excptTargetAddr, caseName);
+        ReadCSR(CSR_NUM_SEPC, RETURN_PC);
+        csr.triggerExcpt = 1;
+        #1;
+        assert (csr.excptTargetAddr === RETURN_PC)
+            else $fatal(1, "SRET target changed when triggered (%s)", caseName);
+        Tick();
+        csr.triggerExcpt = 0;
+        assert (csr.privilegeLevel === (returnToSupervisor ? PRIVILEGE_LEVEL_S : PRIVILEGE_LEVEL_U) &&
+                csr.csrWholeOut.mepc === VECTOR_BASE &&
+                csr.csrWholeOut.mstatus.SIE === 1'b1 && csr.csrWholeOut.mstatus.SPP === 1'b0)
+            else $fatal(1, "SEPC alignment changed return state (%s)", caseName);
+        sepcCases++;
     endtask
 
     task automatic CheckSIE;
@@ -748,6 +800,11 @@ module TestInterruptController;
                                      32'h80010000, 32'h80010000, 32'h80010000, 32'h80010000};
         static DataPath customDelegated[6] = '{32'h00010000, 32'h80000000,
                                        32'h80000000, 32'h00010000, 32'h80010000, 32'h0};
+        for (int fromS = 0; fromS < 2; fromS++)
+            for (int toS = 0; toS < 2; toS++)
+                for (int operation = 1; operation < 4; operation++)
+                    for (int lowBits = 0; lowBits < 4; lowBits++)
+                        CheckSEPCAlignment(1'(fromS), 1'(toS), CSR_Code'(operation), 2'(lowBits));
         CheckSupervisorAlias(0);
         CheckSupervisorAlias(1);
         CheckSIE();
@@ -804,6 +861,7 @@ module TestInterruptController;
                     end
         $display("Interrupt priority/mask/entry: %0d cases passed", cases);
         $display("CSR alias: %0d cases passed", aliasCases);
+        $display("SEPC alignment: %0d cases passed", sepcCases);
         $display("CFI CSR/trap/return: %0d cases passed (Zicfilp=%0b)", cfiCases, CFI_ENABLED);
         $display("========== Test Passed ==========");
         $finish;
