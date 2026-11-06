@@ -170,6 +170,13 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
         .*
     );
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+    // External interrupt sources are inactive until driven by the testbench.
+    ExternalInterruptRequestPath externalInterruptRequest = '0;
+`endif
+`endif
+
 `ifdef RSD_SYNTHESIS_VIVADO
     always_comb begin
         debugRegister = main.debugRegister;

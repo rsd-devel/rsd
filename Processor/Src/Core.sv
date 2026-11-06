@@ -29,6 +29,7 @@ input
     logic memAccessWriteBusy,
     logic reqCustomInterrupt,
     CustomInterruptCodePath customInterruptCode,
+    ExternalInterruptRequestPath externalInterruptRequest,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -111,6 +112,11 @@ output
     CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqCustomInterrupt, customInterruptCode);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
     PLIC_UnitIF plicUnitIF(clk, rst, rstStart);
+    // Input bit i drives PLIC source i + 1; source 0 is reserved.
+    assign plicUnitIF.interruptReqFromInterruptSource[0] = FALSE;
+    for (genvar i = 0; i < PLIC_NUM_SOURCES; i++) begin : externalInterruptSource
+        assign plicUnitIF.interruptReqFromInterruptSource[i+1] = externalInterruptRequest[i];
+    end
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
     AMOCacheIF amoCacheIF(clk, rst);

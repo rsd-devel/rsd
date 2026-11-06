@@ -43,6 +43,9 @@ typedef struct packed {
 localparam PLIC_NUM_SOURCES = 1;
 localparam PLIC_NUM_CONTEXTS = 2;
 
+// Bit i requests PLIC source i + 1; source 0 is reserved.
+typedef logic [PLIC_NUM_SOURCES-1:0] ExternalInterruptRequestPath;
+
 localparam PLIC_NUM_SOURCES_BEGIN = 1;
 localparam PLIC_NUM_SOURCES_END = PLIC_NUM_SOURCES + 1;
 

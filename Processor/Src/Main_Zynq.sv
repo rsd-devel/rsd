@@ -23,6 +23,8 @@ module Main_Zynq #(
     parameter MEM_INIT_HEX_FILE = ""
 `endif
 )(
+input
+    ExternalInterruptRequestPath externalInterruptRequest,
 
 `ifdef RSD_SYNTHESIS_ZEDBOARD
 input
@@ -276,6 +278,7 @@ logic clk;
         .memAccessWriteBusy( memAccessWriteBusy ),
         .reqCustomInterrupt( reqCustomInterrupt ),
         .customInterruptCode( customInterruptCode ),
+        .externalInterruptRequest( externalInterruptRequest ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),
         .memReadDataReady( memReadDataReady ),
