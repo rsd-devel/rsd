@@ -3,6 +3,7 @@
 
 `timescale 1ns/1ps
 import BasicTypes::*;
+import IO_UnitTypes::*;
 import MemoryMapTypes::*;
 import OpFormatTypes::*;
 import MicroOpTypes::*;
@@ -23,6 +24,7 @@ module TestInterruptController;
     localparam DataPath SUPERVISOR_INTERRUPTS = 32'h00000222;
     localparam DataPath ALL_INTERRUPTS = MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS | 32'hffff0000;
     logic clk = 0, rst = 1, rstStart = 1;
+    ExternalInterruptRequestPath externalInterruptRequest = '0;
 
     CSR_UnitIF csr(.*);
     PLIC_UnitIF plic(.*);
@@ -102,7 +104,7 @@ module TestInterruptController;
         WriteCSR(CSR_NUM_MIDELEG, SUPERVISOR_INTERRUPTS);
         WritePLIC(PHY_ADDR_PLIC_SOURCE_PRIORITY_BASE + 4, 1);
         WritePLIC(PHY_ADDR_PLIC_ENABLE_BASE + 'h80, 2);
-        plic.interruptReqFromInterruptSource[1] = 1;
+        externalInterruptRequest[0] = 1;
         repeat (3) Tick();
         ReadCSR(CSR_NUM_MIP, 32'h200);
         WriteCSR(CSR_NUM_MIP, 2, CSR_SET);
@@ -111,7 +113,7 @@ module TestInterruptController;
         ReadCSR(CSR_NUM_MIP, 32'h200);
         WriteCSR(CSR_NUM_SIP, 0);
         ReadCSR(CSR_NUM_SIP, 32'h200);
-        plic.interruptReqFromInterruptSource[1] = 0;
+        externalInterruptRequest[0] = 0;
         WritePLIC(PHY_ADDR_PLIC_ENABLE_BASE + 'h80, 0);
         repeat (2) Tick();
         ReadCSR(CSR_NUM_MIP, 0);
@@ -175,8 +177,7 @@ module TestInterruptController;
         plic.ioWriteDataIn = '0;
         plic.phyRawWriteAddrIn = '0;
         plic.phyRawReadAddrIn = '0;
-        foreach (plic.interruptReqFromInterruptSource[i])
-            plic.interruptReqFromInterruptSource[i] = 0;
+        externalInterruptRequest = '0;
         rst = 1;
         rstStart = 1;
         Tick();
@@ -673,7 +674,7 @@ module TestInterruptController;
         WritePLIC(PHY_ADDR_PLIC_ENABLE_BASE + 'h80, pending[9] ? 2 : 0);
         WritePLIC(PHY_ADDR_PLIC_PRIORITY_THRESHOLD_BASE, 0);
         WritePLIC(PHY_ADDR_PLIC_PRIORITY_THRESHOLD_BASE + 'h1000, 0);
-        plic.interruptReqFromInterruptSource[1] = pending[11] || pending[9];
+        externalInterruptRequest[0] = pending[11] || pending[9];
         csr.msip = pending[3];
         csr.reqTimerInterrupt = pending[7];
         repeat (3) Tick();

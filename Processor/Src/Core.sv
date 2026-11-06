@@ -109,12 +109,7 @@ output
     RecoveryManagerIF recoveryManagerIF( clk, rst );
     CSR_UnitIF csrUnitIF(clk, rst, rstStart);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
-    PLIC_UnitIF plicUnitIF(clk, rst, rstStart);
-    // Input bit i drives PLIC source i + 1; source 0 is reserved.
-    assign plicUnitIF.interruptReqFromInterruptSource[0] = FALSE;
-    for (genvar i = 0; i < PLIC_NUM_SOURCES; i++) begin : externalInterruptSource
-        assign plicUnitIF.interruptReqFromInterruptSource[i+1] = externalInterruptRequest[i];
-    end
+    PLIC_UnitIF plicUnitIF(clk, rst, rstStart, externalInterruptRequest);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
     AMOCacheIF amoCacheIF(clk, rst);
