@@ -3,7 +3,7 @@ $schema: config_schema.json#
 kind: architecture configuration
 type: fully configured
 name: rsd-rv32i
-description: RSD integer and exception tests, and machine interrupts from M/U modes
+description: RSD integer and exception tests, and interrupt delivery/delegation from M/S/U modes
 implemented_extensions:
   - { name: I, version: "= 2.1" }
   - { name: M, version: "= 2.0" }
@@ -14,6 +14,7 @@ implemented_extensions:
   - { name: Zicsr, version: "= 2.0" }
   # Zifencei is added by the Makefile when selected.
   - { name: Sm, version: "= 1.11.0" }
+  - { name: S, version: "= 1.11.0" }
   - { name: U, version: "= 1.0.0" }
 params:
   MXLEN: 32
@@ -22,6 +23,39 @@ params:
   U_MODE_ENDIANNESS: little
   UXLEN: [32]
   MUTABLE_MISA_U: true
+  S_MODE_ENDIANNESS: little
+  SXLEN: [32]
+  MUTABLE_MISA_S: true
+  ASID_WIDTH: 0
+  SATP_MODE_BARE: true
+  TRAP_ON_SFENCE_VMA_WHEN_SATP_MODE_IS_READ_ONLY: true
+  MSTATUS_FS_LEGAL_VALUES: [0]
+  MSTATUS_VS_LEGAL_VALUES: [0]
+  # Paging is absent; these required UDB fields are unused by this suite.
+  REPORT_VA_IN_MTVAL_ON_INSTRUCTION_PAGE_FAULT: false
+  REPORT_VA_IN_MTVAL_ON_LOAD_PAGE_FAULT: false
+  REPORT_VA_IN_MTVAL_ON_STORE_AMO_PAGE_FAULT: false
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_PAGE_FAULT: false
+  REPORT_VA_IN_STVAL_ON_LOAD_PAGE_FAULT: false
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_PAGE_FAULT: false
+  SEI_INTR_IMPL: true
+  SSI_INTR_IMPL: true
+  STI_INTR_IMPL: true
+  STVEC_MODES: [0, 1]
+  STVEC_BASE_ALIGNMENT_VECTORED: 4
+  STVAL_WIDTH: 32
+  REPORT_VA_IN_STVAL_ON_BREAKPOINT: false
+  REPORT_VA_IN_STVAL_ON_LOAD_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_MISALIGNED: true
+  REPORT_VA_IN_STVAL_ON_LOAD_ACCESS_FAULT: true
+  REPORT_VA_IN_STVAL_ON_STORE_AMO_ACCESS_FAULT: true
+  REPORT_VA_IN_STVAL_ON_INSTRUCTION_ACCESS_FAULT: false
+  REPORT_ENCODING_IN_STVAL_ON_ILLEGAL_INSTRUCTION: false
+  SCOUNTENABLE_EN: [false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false]
   MISA_CSR_IMPLEMENTED: true
   MUTABLE_MISA_M: false
   MUTABLE_MISA_A: false
@@ -35,6 +69,7 @@ params:
   PRECISE_SYNCHRONOUS_EXCEPTIONS: true
   TRAP_ON_ECALL_FROM_M: true
   TRAP_ON_ECALL_FROM_U: true
+  TRAP_ON_ECALL_FROM_S: true
   TRAP_ON_EBREAK: true
   TRAP_ON_UNIMPLEMENTED_INSTRUCTION: true
   TRAP_ON_RESERVED_INSTRUCTION: true
@@ -43,8 +78,8 @@ params:
   # The current decoder treats WFI as a NOP in every privilege mode.
   WFI_FINITE: true
   WFI_U_MODE: true
-  # The simulation adapter cannot inject an external interrupt.
-  MEI_INTR_IMPL: false
+  # The shared RTL testbench supplies the PLIC interrupt source.
+  MEI_INTR_IMPL: true
   MSI_INTR_IMPL: true
   MTI_INTR_IMPL: true
   REPORT_VA_IN_MTVAL_ON_BREAKPOINT: false

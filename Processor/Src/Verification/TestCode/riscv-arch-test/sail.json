@@ -1,5 +1,5 @@
 // Sail 0.15 requires a complete configuration, including unused extensions.
-// This models instruction tests and M/U-mode traps; CLINT/SIG are reference-only devices.
+// This models instruction tests and M/S/U-mode traps; CLINT/SIG are reference-only devices.
 {
   "base": {
     "xlen": 32,
@@ -19,8 +19,9 @@
     },
     "stvec": {"direct": {"supported": true, "base_alignment": 2}, "vectored": {"supported": true, "base_alignment": 2}},
     "vstvec": {"direct": {"supported": false}, "vectored": {"supported": false, "base_alignment": 2}},
-    "medeleg": {"delegatable_bits": {"len": 64, "value": "0x0"}},
-    "mideleg": {"delegatable_bits": {"len": "xlen", "value": "0x0"}},
+    // Model the standard exceptions and interrupts used by this profile.
+    "medeleg": {"delegatable_bits": {"len": 64, "value": "0xb3ff"}},
+    "mideleg": {"delegatable_bits": {"len": "xlen", "value": "0x222"}},
     "xtval_nonzero": {
       "illegal_instruction": false,
       "virtual_instruction": true,
@@ -179,7 +180,7 @@
     "interrupts": {
       "machine": {
         "software": {"supported": true},
-        "external": {"supported": false},
+        "external": {"supported": true},
         "timer": {"supported": true}
       }
     },
@@ -210,14 +211,14 @@
     },
     "B": {"supported": false, "mutable_misa": true},
     // RSD boots with misa.S/U set, so M-mode tests can write SIE/SPIE.
-    // The UDB profile includes U-mode execution with M-mode trap handling.
+    // The UDB profile also exercises S/U-mode and delegated interrupts.
     "S": {
       "supported": true,
       "mutable_misa": true,
       "interrupts": {
-        "software": {"supported": false},
-        "external": {"supported": false},
-        "timer": {"supported": false}
+        "software": {"supported": true},
+        "external": {"supported": true},
+        "timer": {"supported": true}
       }
     },
     "U": {"supported": true, "mutable_misa": true},

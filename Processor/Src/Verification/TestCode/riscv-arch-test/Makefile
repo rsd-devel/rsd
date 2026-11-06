@@ -30,9 +30,11 @@ ifneq ($(filter build run run-cases,$(MAKECMDGOALS) $(if $(MAKECMDGOALS),,build)
 include Build/Generated/F.mk
 endif
 endif
-# Exercise machine interrupts while running in M-mode and U-mode.
+# Exercise interrupt delivery and delegation while running in M/S/U modes.
+# Upstream's wfi_U is empty when S-mode is implemented.
 ACT_INTERRUPT_SOURCES := $(if $(filter InterruptsSm,$(ACT_EXTENSION_LIST)),\
-	$(foreach mode,M U,$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _$(mode)-00.S,trigger enable priority_mip priority_mie wfi))))
+	$(foreach mode,M S U,$(addprefix Build/Generated/priv/InterruptsSm/InterruptsSm_,$(addsuffix _$(mode)-00.S,trigger enable priority_mip priority_mie priority_mideleg)))) \
+	$(if $(filter InterruptsSm,$(ACT_EXTENSION_LIST)),$(foreach mode,M S,Build/Generated/priv/InterruptsSm/InterruptsSm_wfi_$(mode)-00.S))
 ACT_GENERATED_SOURCES := $(foreach extension,$(filter-out InterruptsSm,$(filter $(ACT_PRIV_EXTENSIONS),$(ACT_EXTENSION_LIST))),Build/Generated/priv/$(extension)/$(extension)-00.S) $(ACT_INTERRUPT_SOURCES)
 ACT_SOURCES := $(sort $(foreach extension,$(filter-out F,$(ACT_EXTENSION_LIST)),$(wildcard External/tests/rv32i/$(extension)/*.S)) \
 	$(if $(filter F,$(ACT_EXTENSION_LIST)),$(ACT_FP_SOURCES)) \
@@ -161,8 +163,8 @@ config:
 		cp "$$file" "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1; \
 		if test -n "$(filter F,$(ACT_EXTENSION_LIST))"; then \
 			case "$$file" in \
-				rsd-rv32i.yaml) sed '/name: Zicsr,/a\  - { name: F, version: "= 2.2.0" }' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" && \
-					printf '\n  MUTABLE_MISA_F: false\n  HW_MSTATUS_FS_DIRTY_UPDATE: precise\n  MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]\n' >> "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
+				rsd-rv32i.yaml) sed -e '/name: Zicsr,/a\  - { name: F, version: "= 2.2.0" }' -e 's/MSTATUS_FS_LEGAL_VALUES: \[0\]/MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" && \
+					printf '\n  MUTABLE_MISA_F: false\n  HW_MSTATUS_FS_DIRTY_UPDATE: precise\n' >> "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
 				sail.json) sed -e 's/"fs_legal_states": "ExtContext_Off"/"fs_legal_states": "ExtContext_FourState"/' \
 					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
 			esac; \
@@ -181,11 +183,17 @@ config:
 
 build: check-source check-selection check config $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
 # Replace only the staged sources, so narrowing the filter cannot include old tests.
+# Priority tests must allow asynchronous delivery before withdrawing requests.
+# a0 is reserved for the framework; preserve the upstream checks and generators.
 	rm -rf "$(BUILD_ROOT)/Tests"
 	@for source in $(ACT_SELECTED_SOURCES); do \
 		relative=$${source#External/tests/}; relative=$${relative#Build/Generated/}; \
 		mkdir -p "$(BUILD_ROOT)/Tests/$${relative%/*}" && \
-		cp -p "$$source" "$(BUILD_ROOT)/Tests/$$relative" || exit 1; \
+		case "$$relative" in \
+			priv/InterruptsSm/InterruptsSm_priority_*) \
+				sed '/^[[:space:]]*RVTEST_CLR_/i\  RVTEST_IDLE_FOR_INTERRUPT(a0)' "$$source" > "$(BUILD_ROOT)/Tests/$$relative" ;; \
+			*) cp -p "$$source" "$(BUILD_ROOT)/Tests/$$relative" ;; \
+		esac || exit 1; \
 	done
 	cp -a External/tests/env "$(BUILD_ROOT)/Tests/"
 	act test_config.yaml --test-dir "$(BUILD_ROOT)/Tests" --coverpoint-dir External/coverpoints \
@@ -213,10 +221,13 @@ $(CASE_ROOT)/%/cfg.xml: cfg.xml Makefile
 # FENCE.I drains dirty cache lines, including at the end of privileged tests.
 	@case "$*" in \
 		rv32i/F/*|rv32i/Zalrsc/Zalrsc-sc.w-*) sed 's/<MaxTestInstructions>20000/<MaxTestInstructions>50000/' "$<" > "$@" ;; \
+		priv/InterruptsSm/InterruptsSm_trigger_*|priv/InterruptsSm/InterruptsSm_priority_mie_*) sed -e 's/<MaxTestInstructions>20000/<MaxTestInstructions>300000/' -e 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		priv/Exceptions*/*|priv/InterruptsSm/*) sed -e 's/<MaxTestInstructions>20000/<MaxTestInstructions>100000/' -e 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		rv32i/Zifencei/*) sed 's/<MaxNoCommitCycles>500/<MaxNoCommitCycles>2500/' "$<" > "$@" ;; \
 		*) cp "$<" "$@" ;; \
 	esac
+# Only interrupt tests interpret UART DC1/DC3 as testbench commands.
+	@case "$*" in priv/InterruptsSm/*) sed -i '/<Config>/a\  <EnableUART_Interrupts>1</EnableUART_Interrupts>' "$@" ;; esac
 
 # Match the complete upstream self-check pass message, including its filename.
 $(CASE_ROOT)/%/serial.ref.txt: Makefile
