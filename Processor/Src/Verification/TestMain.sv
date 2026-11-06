@@ -101,6 +101,7 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
     longint MAX_NO_COMMIT_CYCLES;
     int SHOW_SERIAL_OUT;
     int ENABLE_PC_GOAL;
+    int ENABLE_UART_INTERRUPTS;
     string TEST_CODE;
     string RSD_LOG_FILE;
     string REG_CSV_FILE;
@@ -172,7 +173,8 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
 
 `ifdef RSD_FUNCTIONAL_SIMULATION
 `ifndef RSD_POST_SYNTHESIS_SIMULATION
-    // External interrupt sources are inactive until driven by the testbench.
+    // Simulation-only source controlled by UART DC1/DC3 when explicitly enabled.
+    // The real PLIC handles delivery and claim/complete; no pending CSR is forced.
     ExternalInterruptRequestPath externalInterruptRequest = '0;
 `endif
 `endif
@@ -232,6 +234,14 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
         if( !$value$plusargs( "ENABLE_PC_GOAL=%d", ENABLE_PC_GOAL ) ) begin
             ENABLE_PC_GOAL = 1;
         end
+        if (!$value$plusargs("ENABLE_UART_INTERRUPTS=%d", ENABLE_UART_INTERRUPTS))
+            ENABLE_UART_INTERRUPTS = 0;
+        if (ENABLE_UART_INTERRUPTS != 0 && ENABLE_UART_INTERRUPTS != 1)
+            $fatal(1, "ENABLE_UART_INTERRUPTS must be 0 or 1.");
+`ifdef RSD_POST_SYNTHESIS_SIMULATION
+        if (ENABLE_UART_INTERRUPTS)
+            $fatal(1, "UART interrupt stimulus requires RTL simulation.");
+`endif
 
         enableDumpKanata = FALSE;
         if( $value$plusargs( "RSD_LOG_FILE=%s", RSD_LOG_FILE ) ) begin
@@ -286,7 +296,17 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
             @(posedge clk);
             #HOLD_PLUS_WAIT;
 
-            serialDumper.CheckSignal( serialWE, serialWriteData, SHOW_SERIAL_OUT );
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+            // DC1 (0x11) asserts source 1; DC3 (0x13) deasserts it. Consume
+            // these commands only in opted-in tests; otherwise preserve all bytes.
+            if (ENABLE_UART_INTERRUPTS && serialWE &&
+                (serialWriteData[7:0] == 8'h11 || serialWriteData[7:0] == 8'h13))
+                externalInterruptRequest[0] = serialWriteData[7:0] == 8'h11;
+            else
+`endif
+`endif
+                serialDumper.CheckSignal( serialWE, serialWriteData, SHOW_SERIAL_OUT );
 
             // Dump RSD.log for Kanata
             if ( enableDumpKanata ) begin
