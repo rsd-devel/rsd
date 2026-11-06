@@ -33,11 +33,6 @@ module InterruptController(
     PC_Path interruptTargetAddr;
     CSR_BodyPath csrReg;
 
-    `RSD_STATIC_ASSERT(
-        RSD_CUSTOM_INTERRUPT_CODE_WIDTH + 1 == CSR_CAUSE_INTERRUPT_CODE_WIDTH,
-        "The width of an custom interrupt code and the code in the CSR do not match"
-    );
-
     // Each destination has its own priority encoder. Select the destination
     // once, so an S-mode source never extends the M-mode selection chain.
     function automatic CSR_CAUSE_InterruptCodePath SelectInterruptCode(

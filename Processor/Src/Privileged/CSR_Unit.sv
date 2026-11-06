@@ -88,7 +88,7 @@ module CSR_Unit(
 
     always_comb begin
         mipWired = '0;
-        mipWired.CUSTOM[port.customInterruptCode] = port.reqCustomInterrupt;   // Custom interrupt request
+        // Custom interrupts are requested only through software writes to MIP.
         mipWired.MEIP = plicUnit.reqExternalInterrupt[0]; // external interrupt for hart 0
         mipWired.MTIP = port.reqTimerInterrupt;      // Timer interrupt request
         mipWired.MSIP = port.msip; // Machine Software Interrupt request

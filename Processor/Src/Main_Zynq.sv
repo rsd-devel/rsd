@@ -257,13 +257,6 @@ logic clk;
                             memAccessWE_FromProgramLoader,
                             programLoaded);
 `endif
-    logic reqCustomInterrupt;
-    CustomInterruptCodePath customInterruptCode; 
-    always_comb begin
-        reqCustomInterrupt = FALSE;
-        customInterruptCode = 0;
-    end
-
     //
     // --- Processor core
     //
@@ -276,8 +269,6 @@ logic clk;
         .memAccessWE( memAccessWE_FromCore ),
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
-        .reqCustomInterrupt( reqCustomInterrupt ),
-        .customInterruptCode( customInterruptCode ),
         .externalInterruptRequest( externalInterruptRequest ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),

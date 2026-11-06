@@ -23,8 +23,6 @@ module TestInterruptController;
     localparam DataPath SUPERVISOR_INTERRUPTS = 32'h00000222;
     localparam DataPath ALL_INTERRUPTS = MACHINE_INTERRUPTS | SUPERVISOR_INTERRUPTS | 32'hffff0000;
     logic clk = 0, rst = 1, rstStart = 1;
-    logic reqCustomInterrupt = 0;
-    CustomInterruptCodePath customInterruptCode = '0;
 
     CSR_UnitIF csr(.*);
     PLIC_UnitIF plic(.*);
