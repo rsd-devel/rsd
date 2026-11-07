@@ -27,8 +27,7 @@ input
     MemAccessResponse memAccessResponse, // メモリ書き込み完了通知
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
-    logic reqCustomInterrupt,
-    CustomInterruptCodePath customInterruptCode,
+    ExternalInterruptRequestPath externalInterruptRequest,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -108,9 +107,9 @@ output
     BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqCustomInterrupt, customInterruptCode);
+    CSR_UnitIF csrUnitIF(clk, rst, rstStart);
     IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
-    PLIC_UnitIF plicUnitIF(clk, rst, rstStart);
+    PLIC_UnitIF plicUnitIF(clk, rst, rstStart, externalInterruptRequest);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
     AMOCacheIF amoCacheIF(clk, rst);

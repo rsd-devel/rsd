@@ -27,6 +27,11 @@ module Main_Zynq_Wrapper #(
 `endif
 )(
 
+`ifndef RSD_SYNTHESIS
+input
+    ExternalInterruptRequestPath externalInterruptRequest,
+`endif
+
 `ifdef RSD_SYNTHESIS_ZEDBOARD
 input
     logic clk,
@@ -63,6 +68,12 @@ output
 `endif
 );
 
+`ifdef RSD_SYNTHESIS
+    // No board interrupt device is connected yet. Keep synthesis inputs defined
+    // without adding FPGA pins; RTL testbenches drive the port above.
+    wire ExternalInterruptRequestPath externalInterruptRequest = '0;
+`endif
+
 `ifdef RSD_SYNTHESIS_VIVADO
    (* DONT_TOUCH="yes"*) logic [$bits(DebugRegister)-1:0] debugRegister;
 `endif
@@ -91,6 +102,7 @@ output
     Main_Zynq #(
         .MEM_INIT_HEX_FILE (MEM_INIT_HEX_FILE)
     ) main (
+        externalInterruptRequest,
 `ifdef RSD_SYNTHESIS_ZEDBOARD
         clk,
         negResetIn,

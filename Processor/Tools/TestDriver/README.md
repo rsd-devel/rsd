@@ -26,6 +26,11 @@
   configurations remain accepted; with `EnablePC_Goal=0`, their cycle cap is still
   the intended end of execution.
 
+`EnableUART_Interrupts` defaults to `0`. Set it to `1` only for RTL tests that
+use UART DC1 (`0x11`) / DC3 (`0x13`) to assert/deassert testbench PLIC source 1.
+These commands are consumed by the testbench; other bytes are recorded normally.
+When disabled, all bytes are recorded. Post-synthesis simulation rejects this mode.
+
 Register and serial expectations are checked after successful execution. An empty
 `RegisterValues` element is allowed for execution-only or serial-only tests.
 Despite their `.txt` suffix, `serial.out.txt` and `serial.ref.txt` contain raw UART

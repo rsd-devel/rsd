@@ -231,21 +231,21 @@ access; the check target uses the installed tools without downloads.
 UDB's regenerated architecture data uses `/tmp/rsd-arch-test-<uid>/data/` inside
 the container because its read-only exclusive locks fail on NFS.
 
-The integer/privileged subset runs 83 cases: I (39), M (8), Zaamo (9),
-Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), Zifencei (1), and the generated M-mode
-`ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (10).
+The integer/privileged subset runs 90 cases: I (39), M (8), Zaamo (9),
+Zalrsc (2), Zba (3), Zicond (2), Zicsr (6), Zifencei (1), and the generated
+`ExceptionsSm`, `ExceptionsZaamo`, `ExceptionsZalrsc` (one each) and `InterruptsSm` (17).
 A is split into Zaamo (AMO) and Zalrsc (LR/SC) in upstream.
 Zba and Zicond are included only when their `RSD_ENABLE_ZBA` / `RSD_ENABLE_ZICOND`
 defines are enabled in `RSD_SRC_CFG`; disabled extensions reject explicit selection.
-F is included by default when `RSD_MARCH_FP_PIPE` is enabled, for 364 cases in
+F is included by default when `RSD_MARCH_FP_PIPE` is enabled, for 371 cases in
 the default RTL configuration. Use `ACT_EXTENSIONS=F` to run only F: the pinned
 generator divides the upstream testplan into 281 files, targeting 250 testcases
 per ELF to fit RSD's existing RAM layout. All coverpoints are retained, without
 upstream patches.
 FP-disabled configurations exclude F and reject explicit F selections.
 The pinned `testgen` generates privileged sources under `Build/Generated/`;
-exception cases run in M-mode; machine interrupts are tested from M/U-mode,
-without S-mode delegation variants.
+exception suites boot in M-mode; interrupts run from M/S/U-mode, including
+S-mode delegation and external interrupts through the PLIC.
 `test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
@@ -280,6 +280,7 @@ The build generates each `serial.ref.txt`; no-commit limits detect stalls.
 Successful cases wait in their termination loop until the budget is reached.
 Integer/CSR cases have a 20,000-instruction budget, SC and FP cases have 50,000,
 and exception/interrupt cases have 100,000 for trap-handler work and timer waits.
+Interrupt trigger and enable-priority cases use 300,000 for their larger sweeps.
 The no-commit limit is 500 cycles, or 2,500 for Zifencei and privileged tests
 whose trap-handler cleanup flushes dirty cache lines.
 ACT4 prints failures, including the test number, instruction, approximate PC,
@@ -289,11 +290,18 @@ illegal instructions, and misaligned/access-fault traps for instruction fetch,
 loads/stores and AMO/LR/SC. Atomic cases check destination-register preservation;
 LR/SC also checks scratch memory. The existing `test-RV32A-Aext` separately checks
 memory preservation on cached/uncached AMO faults.
-InterruptsSm checks MSI/MTI enable masks, Direct/Vectored entry, priority and
-WFI polling with a delayed timer. Trap signatures check cause, status, pending
-bits and the number of interrupts; they do not compare asynchronous trap PCs.
-The U-mode cases also check that machine interrupts ignore `mstatus.MIE` while
-executing at a lower privilege level and return through `mret`.
+InterruptsSm checks MEI/MSI/MTI and SEI/SSI/STI enable masks, Direct/Vectored
+entry, delegation, mixed priorities and WFI polling with a delayed timer.
+Trap signatures check cause, status, pending bits and interrupt count, without
+comparing asynchronous trap PCs. Priority cases are staged with a wait before
+clearing requests, allowing the pipeline to drain and deliver pending interrupts.
+Interrupt cases enable `EnableUART_Interrupts` in their generated `cfg.xml`.
+The shared RTL testbench consumes UART DC1/DC3 (`0x11`/`0x13`) to assert/deassert
+PLIC source 1; other tests retain every UART byte. The adapter configures the M/S
+context and performs normal claim/complete accesses. This stimulus is simulation-only,
+unavailable in post-synthesis tests or hardware; no CSR pending bits are forced.
+Requests pass through module input ports to Core. The synthesis wrapper ties them
+low until a board interrupt device is connected.
 Zifencei checks self-modifying code in RAM, including ignored nonzero rs1/rd/funct12
 fields and preservation of rd. Select `ACT_EXTENSIONS=Zifencei` to run it alone.
 The CSR cases also check `mepc` bit 1 readback.
@@ -304,8 +312,8 @@ The F suite checks numerical results and exception flags across all five
 rounding modes, including division and square root.
 The FP reference profile enables standard `mstatus.FS` state for instruction
 execution; this suite does not validate RSD's FS gating or dirty tracking.
-External interrupts and S-mode tests are outside this subset. Sail models RSD's
-initial S/U status fields; the UDB profile enables U-mode with M-mode trap handling.
+The S-mode profile remains Bare-only; paging and full S-mode ISA compliance
+are outside this subset.
 `test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
 removes its generated files. Run the fetch/setup steps above before `test-ex`
 or `test-build-ex`.

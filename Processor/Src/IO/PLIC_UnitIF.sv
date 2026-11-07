@@ -8,7 +8,8 @@ import MemoryMapTypes::*;
 
 interface PLIC_UnitIF(
     input 
-        logic clk, rst, rstStart
+        logic clk, rst, rstStart,
+        ExternalInterruptRequestPath externalInterruptRequest
 );
 
     logic ioWE;
@@ -17,9 +18,6 @@ interface PLIC_UnitIF(
     logic ioRE;
     PhyAddrPath phyRawReadAddrIn;
     DataPath ioReadDataOut;
-
-    // Interrupt Source -> PLIC_Unit
-    logic interruptReqFromInterruptSource [PLIC_NUM_SOURCES:0]; // source 0 is unused
 
     // PLIC_Unit -> InterruptController
     logic [PLIC_NUM_CONTEXTS-1:0] reqExternalInterrupt;
@@ -48,7 +46,7 @@ interface PLIC_UnitIF(
         phyRawWriteAddrIn,
         ioRE,
         phyRawReadAddrIn,
-        interruptReqFromInterruptSource,
+        externalInterruptRequest,
     output
         ioReadDataOut,
         reqExternalInterrupt

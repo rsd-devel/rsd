@@ -16,8 +16,7 @@ import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(
-    input logic clk, rst, rstStart, reqCustomInterrupt, 
-    CustomInterruptCodePath customInterruptCode
+    input logic clk, rst, rstStart
 );
 
     logic csrRE;  // CSR read enable
@@ -140,9 +139,7 @@ interface CSR_UnitIF(
         excptELP,
         retireNum,
         reqTimerInterrupt,
-        reqCustomInterrupt,
         msip,
-        customInterruptCode,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,

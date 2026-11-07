@@ -170,6 +170,9 @@ class ConfigParser( object ):
         self.enablePC_Goal = readInteger('EnablePC_Goal', 1)
         if self.enablePC_Goal not in (0, 1):
             raise TestConfigError('EnablePC_Goal must be 0 or 1 in %s' % xmlFileName)
+        self.enableUART_Interrupts = readInteger('EnableUART_Interrupts', 0)
+        if self.enableUART_Interrupts not in (0, 1):
+            raise TestConfigError('EnableUART_Interrupts must be 0 or 1 in %s' % xmlFileName)
 
         # Set reference register values.
         elemRegisterValues = tree.find('./RegisterValues')
@@ -182,12 +185,15 @@ class ConfigParser( object ):
             self.registerValueDict[regNum] = regValue
 
     def GetSimulationParameters(self):
-        return [
+        parameters = [
             ('MAX_TEST_INSTRUCTIONS', self.maxTestInstructions),
             ('MAX_NO_COMMIT_CYCLES', self.maxNoCommitCycles),
             ('MAX_TEST_CYCLES', self.maxTestCycles),
             ('ENABLE_PC_GOAL', self.enablePC_Goal),
         ]
+        if self.enableUART_Interrupts:
+            parameters.append(('ENABLE_UART_INTERRUPTS', 1))
+        return parameters
 
 
 def ReadSimulationResult(logPath):

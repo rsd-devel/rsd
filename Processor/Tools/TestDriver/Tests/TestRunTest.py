@@ -448,6 +448,20 @@ class RunTestProcessTests(unittest.TestCase):
                     for argument in expected:
                         self.assertIn(argument, arguments)
 
+    def test_uart_interrupt_commands_require_explicit_enable(self):
+        for simulator in self.executables:
+            for setting in ('', '<EnableUART_Interrupts>0</EnableUART_Interrupts>',
+                            '<EnableUART_Interrupts>1</EnableUART_Interrupts>'):
+                with self.subTest(simulator=simulator, setting=setting):
+                    (self.case / 'cfg.xml').write_text(
+                        '<Config><MaxTestInstructions>10000</MaxTestInstructions>' +
+                        setting + '<RegisterValues/></Config>')
+                    result = self.run_runner(simulator)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    arguments = [arg.lstrip('+') for arg in self.calls()[-1]['args']]
+                    self.assertEqual('ENABLE_UART_INTERRUPTS=1' in arguments,
+                                     '>1<' in setting)
+
     def test_invalid_limits_fail_before_starting_simulator(self):
         for limits in (
             '', '<MaxTestInstructions>0</MaxTestInstructions>',
@@ -459,6 +473,7 @@ class RunTestProcessTests(unittest.TestCase):
             '<MaxTestInstructions>100</MaxTestInstructions><MaxNoCommitCycles>-2</MaxNoCommitCycles>',
             '<MaxTestInstructions>100</MaxTestInstructions><MaxTestCycles>-1</MaxTestCycles>',
             '<MaxTestInstructions>100</MaxTestInstructions><EnablePC_Goal>2</EnablePC_Goal>',
+            '<MaxTestInstructions>100</MaxTestInstructions><EnableUART_Interrupts>2</EnableUART_Interrupts>',
         ):
             with self.subTest(limits=limits):
                 (self.case / 'cfg.xml').write_text('<Config>' + limits + '<RegisterValues/></Config>')

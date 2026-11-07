@@ -166,9 +166,9 @@ module PLIC_Unit(
             end
         end
 
-        // handle interrupt from interrupt source
+        // Request bits are zero-based; PLIC source IDs start at 1.
         for (int i = PLIC_NUM_SOURCES_BEGIN; i < PLIC_NUM_SOURCES_END; i++) begin
-            if (gateInterruptRequests[i] == FALSE && port.interruptReqFromInterruptSource[i]) begin
+            if (gateInterruptRequests[i] == FALSE && port.externalInterruptRequest[i-1]) begin
                 plicNext.pending[i] = TRUE;
                 nextGateInterruptRequests[i] = TRUE;
             end
