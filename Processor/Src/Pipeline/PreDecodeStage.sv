@@ -66,7 +66,8 @@ module PreDecodeStage(
             .insnInfo(insnInfo[i]),
             .microOps(microOps[i]),
             .illegalPC(illegalPC[i]),
-            .landingPadEnabled(csrUnit.xLPE)
+            .landingPadEnabled(csrUnit.xLPE),
+            .fpStateEnabled(csrUnit.fpStateEnabled)
         );
     end
 

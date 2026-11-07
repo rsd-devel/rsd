@@ -115,6 +115,7 @@ module CSR_Unit(
             ToPrivilegeLevelFromSPP(csrReg.mstatus.SPP);
 
         port.xLPE = IsLandingPadEnabled(csrReg, privilegeLevel);
+        port.fpStateEnabled = csrReg.mstatus.FS != FP_STATE_OFF;
         // Recovery consumes this alongside the CSR target, before trap state is
         // clocked. The return destination controls LPE, independently of IRQs.
         port.recoverELP_FromCSR = LP_NOT_EXPECTED;
@@ -141,6 +142,7 @@ module CSR_Unit(
             CSR_NUM_MSTATUS: begin
                 CSR_MSTATUS_Path value;
                 value = csrReg.mstatus;
+                value.SD = csrReg.mstatus.FS == FP_STATE_DIRTY;
                 if (!csrReg.misa.EXTENSIONS.S) begin
                     value.TSR = '0;
                     value.TVM = '0;
@@ -233,6 +235,9 @@ module CSR_Unit(
         port.csrUnitTriggerExcpt = (port.csrRE || port.csrWE) &&
             (!csrImplemented || privilegeLevel < port.csrNumber[9:8] ||
              (port.csrWE && port.csrNumber[11:10] == 2'b11) ||
+             (!port.fpStateEnabled && port.csrNumber inside {
+                 CSR_NUM_FFLAGS, CSR_NUM_FRM, CSR_NUM_FCSR
+             }) ||
              (privilegeLevel == PRIVILEGE_LEVEL_S && csrReg.mstatus.TVM &&
               port.csrNumber == CSR_NUM_SATP));
 
@@ -373,6 +378,9 @@ module CSR_Unit(
                         end
                         csrNext.mstatus.MPIE= wv.mstatus.MPIE;
                         csrNext.mstatus.MIE = wv.mstatus.MIE;
+`ifdef RSD_MARCH_FP_PIPE
+                        csrNext.mstatus.FS = wv.mstatus.FS;
+`endif
                     end
                     else if (csrReg.misa.EXTENSIONS.S) begin
                         csrNext.mstatus = ToMstatusFromSstatus(wv, csrReg.mstatus);
@@ -431,11 +439,18 @@ module CSR_Unit(
                     minstretWritePendingNext = TRUE;
                 end
 `ifdef RSD_MARCH_FP_PIPE
-                CSR_NUM_FFLAGS:     csrNext.fcsr.fflags = wv;
-                CSR_NUM_FRM:        csrNext.fcsr.frm = Rounding_Mode'(wv);
+                CSR_NUM_FFLAGS: begin
+                    csrNext.fcsr.fflags = wv;
+                    csrNext.mstatus.FS = FP_STATE_DIRTY;
+                end
+                CSR_NUM_FRM: begin
+                    csrNext.fcsr.frm = Rounding_Mode'(wv);
+                    csrNext.mstatus.FS = FP_STATE_DIRTY;
+                end
                 CSR_NUM_FCSR: begin
                     csrNext.fcsr.frm = wv.fcsr.frm;
                     csrNext.fcsr.fflags = wv.fcsr.fflags;
+                    csrNext.mstatus.FS = FP_STATE_DIRTY;
                 end
 `endif
                 default: if (csrReg.misa.EXTENSIONS.S) begin
@@ -489,7 +504,16 @@ module CSR_Unit(
         end
         port.fflags = csrReg.fcsr.fflags;
         port.frm = csrReg.fcsr.frm;
+        // Committed FP destinations and changed exception flags dirty the context.
+        // CSR writes are serialized, so they cannot race an older FP retirement.
+        if (port.fpStateDirty && port.fpStateEnabled)
+            csrNext.mstatus.FS = FP_STATE_DIRTY;
+`else
+        csrNext.mstatus.FS = FP_STATE_OFF;
 `endif
+
+        // SD is derived on reads; it has no independently writable state.
+        csrNext.mstatus.SD = FALSE;
 
 `ifndef RSD_ENABLE_ZICFILP
         // Apply after every write/trap path so synthesis removes CFI-only state.
@@ -530,6 +554,7 @@ module CSR_Unit(
         end
 
         port.csrWholeOut = csrReg;
+        port.csrWholeOut.mstatus.SD = csrReg.mstatus.FS == FP_STATE_DIRTY;
 
         port.privilegeLevel = privilegeLevel;
     end

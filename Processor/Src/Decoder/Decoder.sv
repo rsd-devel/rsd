@@ -2118,6 +2118,7 @@ input
     InsnPath insn,      // Input instruction
     logic illegalPC,
     logic landingPadEnabled,
+    logic fpStateEnabled,
 output
     OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,  // Outputed micro ops
     InsnInfo insnInfo  // Whether this instruction is branch or not.
@@ -2228,6 +2229,17 @@ output
                 undefined = TRUE;
             end
         end
+
+`ifdef RSD_MARCH_FP_PIPE
+        // CSR instructions flush younger decoded ops and serialize execution.
+        // A subsequent FP instruction therefore observes the updated FS state.
+        if (!fpStateEnabled && isf.opCode inside {
+            RISCV_F_LD, RISCV_F_ST, RISCV_F_OP,
+            RISCV_F_FMADD, RISCV_F_FMSUB, RISCV_F_FNMSUB, RISCV_F_FNMADD
+        }) begin
+            undefined = TRUE;
+        end
+`endif
 
         if (undefined || illegalPC) begin
             RISCV_DecodeIllegal(microOps, insnInfo, insn, illegalPC);

@@ -19,10 +19,18 @@ typedef enum logic [1:0] {
     PRIVILEGE_LEVEL_U = 2'b00
 } PrivilegeLevelType;
 
+typedef enum logic [1:0] {
+    FP_STATE_OFF = 2'b00,
+    FP_STATE_INITIAL = 2'b01,
+    FP_STATE_CLEAN = 2'b10,
+    FP_STATE_DIRTY = 2'b11
+} FP_State_Type;
+
 // If you add additional status bits, check CSR_Unit.sv because 
 // only valid fields are updated.
 typedef struct packed {
-    logic [7:0] padding_7;  // 31:24
+    logic SD;              // 31 (read-only summary)
+    logic [6:0] padding_7;  // 30:24
     ELP_State_Type SPELP;   // 23
     logic TSR;              // 22
     logic padding_6;        // 21
@@ -30,7 +38,8 @@ typedef struct packed {
     logic MXR;              // 19
     logic SUM;              // 18
     logic MPRV;             // 17
-    logic [3:0] padding_5;  // 16:13
+    logic [1:0] padding_5;  // 16:15 (XS is not implemented)
+    FP_State_Type FS;       // 14:13
     PrivilegeLevelType MPP; // 12:11
     logic [1:0] padding_4;  // 10:9
     logic SPP;              // 8
@@ -53,12 +62,15 @@ typedef struct packed {
 // If you add additional sstatus fields,
 // add fields that will be copied from/to mstatus in ToSstatusFromMstatus/ToMstatusFromSstatus
 typedef struct packed {
-    logic [7:0] padding_4;  // 31:24
+    logic SD;              // 31 (read-only summary)
+    logic [6:0] padding_4;  // 30:24
     ELP_State_Type SPELP;   // 23
     logic [2:0] padding_5;  // 22:20
     logic MXR;              // 19
     logic SUM;              // 18
-    logic [8:0] padding_3;  // 17:9
+    logic [2:0] padding_3;  // 17:15
+    FP_State_Type FS;       // 14:13
+    logic [3:0] padding_6;  // 12:9
     logic SPP;              // 8
     logic [1:0] padding_2;  // 7:6
     logic SPIE;             // 5
@@ -70,6 +82,8 @@ typedef struct packed {
 function automatic CSR_SSTATUS_Path ToSstatusFromMstatus(input CSR_MSTATUS_Path mstatus);
     CSR_SSTATUS_Path value;
     value      = '0;
+    value.SD   = mstatus.FS == FP_STATE_DIRTY;
+    value.FS   = mstatus.FS;
     value.SPELP = mstatus.SPELP;
     value.MXR  = mstatus.MXR ;
     value.SUM  = mstatus.SUM ;
@@ -82,6 +96,7 @@ endfunction
 function automatic CSR_MSTATUS_Path ToMstatusFromSstatus(input CSR_SSTATUS_Path sstatus, input CSR_MSTATUS_Path currentMstatus);
     CSR_MSTATUS_Path value;
     value      = currentMstatus;
+    value.FS   = sstatus.FS;
     value.SPELP = sstatus.SPELP;
     value.MXR  = sstatus.MXR ;
     value.SUM  = sstatus.SUM ;

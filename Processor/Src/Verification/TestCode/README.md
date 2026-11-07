@@ -311,7 +311,8 @@ Any case failure makes the command fail after collecting all results.
 The F suite checks numerical results and exception flags across all five
 rounding modes, including division and square root.
 The FP reference profile enables standard `mstatus.FS` state for instruction
-execution; this suite does not validate RSD's FS gating or dirty tracking.
+execution. The basic `Asm/CSR` test separately checks FS/SD state, FP access
+while FS is Off, and dirty tracking.
 The S-mode profile remains Bare-only; paging and full S-mode ISA compliance
 are outside this subset.
 `test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also

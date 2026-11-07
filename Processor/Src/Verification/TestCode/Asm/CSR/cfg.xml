@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <Config>
-  <MaxTestInstructions>10000</MaxTestInstructions>
+  <MaxTestInstructions>20000</MaxTestInstructions>
   <MaxNoCommitCycles>500</MaxNoCommitCycles>
   <RegisterValues>
       <R0>0x00000000</R0>

@@ -19,6 +19,48 @@
     bnez t3, fail
     .endm
 
+    .macro CHECK_FS state
+    li t3, 0x80006000
+    csrr t4, mstatus
+    and t4, t4, t3
+#ifdef __riscv_flen
+    li t3, ((\state << 13) | ((\state == 3) & 0x80000000))
+#else
+    li t3, 0
+#endif
+    bne t4, t3, fail
+    csrr t4, sstatus
+    li t3, 0x80006000
+    and t4, t4, t3
+#ifdef __riscv_flen
+    li t3, ((\state << 13) | ((\state == 3) & 0x80000000))
+#else
+    li t3, 0
+#endif
+    bne t4, t3, fail
+    .endm
+
+#ifdef __riscv_flen
+    .macro SET_FS state
+    li t3, 0x6000
+    csrc mstatus, t3
+    li t3, (\state << 13)
+    csrs mstatus, t3
+    .endm
+
+    .macro EXPECT_FP_OFF instruction:vararg
+    la t0, 1f
+    la t2, 2f
+    # There must be no intervening instruction between disabling FS and FP.
+    csrc mstatus, t1
+1:
+    \instruction
+    j fail
+2:
+    CHECK_FS 0
+    .endm
+#endif
+
     .macro CHECK_XTVEC_MODE csr
     csrr t5, \csr
     la t1, trap_vector
@@ -433,6 +475,149 @@ main:
 #endif
     bne a4, t3, fail
 
+    # FS is shared by mstatus/sstatus; SD is derived and never writable.
+    # Without F, all attempted FS values remain Off and SD remains zero.
+    csrr s3, mstatus
+    li t3, 0x80006000
+    not t3, t3
+    and t5, s3, t3
+    .irp state, 0, 1, 2, 3
+    li t3, (\state << 13)
+    or t3, t3, t5
+    csrw mstatus, t3
+    CHECK_FS \state
+    li t1, 0x80000000
+    csrs mstatus, t1
+    CHECK_FS \state
+    csrc sstatus, t1
+    CHECK_FS \state
+    li t1, 0x6000
+    csrc sstatus, t1
+    CHECK_FS 0
+    li t1, (\state << 13)
+    csrs sstatus, t1
+    CHECK_FS \state
+    li t3, (\state << 13)
+    or t3, t3, t5
+    csrw sstatus, t3
+    CHECK_FS \state
+    .endr
+
+#ifdef __riscv_flen
+    SET_FS 1
+    csrwi fcsr, 0
+    fmv.w.x ft0, a3
+    li t3, 0x3f800000
+    fmv.w.x ft1, t3
+    li t3, 0x7f800001
+    fmv.w.x ft2, t3       # Signaling NaN for the discarded integer result below.
+    la s0, fp_state_data
+    li s1, 0x2468ace0
+    sw s1, 0(s0)
+
+    # FS=Off forbids even FP reads and stores, and cannot modify any FP state.
+    li t1, 0x6000
+    EXPECT_FP_OFF flw ft0, 0(s0)
+    EXPECT_FP_OFF fsw ft1, 0(s0)
+    EXPECT_FP_OFF fadd.s ft0, ft1, ft1
+    EXPECT_FP_OFF fmadd.s ft0, ft1, ft1, ft1
+    EXPECT_FP_OFF fdiv.s ft0, ft1, ft1
+    EXPECT_FP_OFF fsqrt.s ft0, ft1
+    EXPECT_FP_OFF fsgnj.s ft0, ft1, ft1
+    EXPECT_FP_OFF fmv.w.x ft0, zero
+    EXPECT_FP_OFF fcvt.s.w ft0, zero
+    EXPECT_FP_OFF fmv.x.w a2, ft1
+    EXPECT_FP_OFF fclass.s a2, ft1
+    EXPECT_FP_OFF feq.s a2, ft1, ft1
+    EXPECT_FP_OFF fcvt.w.s a2, ft1, rtz
+    EXPECT_FP_OFF fcvt.w.s zero, ft2, rtz
+    CHECK_FORBIDDEN_CSR fflags
+    CHECK_FORBIDDEN_CSR frm
+    CHECK_FORBIDDEN_CSR fcsr
+    CHECK_FS 0
+
+    # Enabling FS must apply to the immediately following FP instruction.
+    li t1, 0x2000
+    csrs mstatus, t1
+    fmv.x.w t3, ft0
+    bne t3, a3, fail
+    EXPECT_ZERO_CSR fcsr
+    CHECK_FS 1
+    lw t3, 0(s0)
+    bne t3, s1, fail
+
+    # FPR writes dirty the context, including loads and each execution pipe.
+    SET_FS 1
+    fmv.w.x ft0, zero
+    CHECK_FS 3
+    SET_FS 2
+    flw ft0, 0(s0)
+    CHECK_FS 3
+    SET_FS 2
+    fadd.s ft0, ft1, ft1
+    CHECK_FS 3
+    SET_FS 2
+    fmadd.s ft0, ft1, ft1, ft1
+    CHECK_FS 3
+    SET_FS 2
+    fdiv.s ft0, ft1, ft1
+    CHECK_FS 3
+    SET_FS 2
+    fsqrt.s ft0, ft1
+    CHECK_FS 3
+    SET_FS 2
+    fcvt.s.w ft0, zero
+    CHECK_FS 3
+
+    # Integer destinations, including x0, can still update accrued FP flags.
+    csrwi fflags, 0
+    SET_FS 2
+    fcvt.w.s zero, ft2, rtz
+    CHECK_FS 3
+    csrr t3, fflags
+    li t4, 0x10
+    bne t3, t4, fail
+
+    # Reading FP state or storing an FPR does not dirty a clean context.
+    csrwi fflags, 0
+    SET_FS 2
+    fsw ft1, 0(s0)
+    fmv.x.w t5, ft1
+    fclass.s t5, ft1
+    feq.s t5, ft1, ft1
+    fcvt.w.s t5, ft1, rtz
+    csrr t5, fcsr
+    csrrc t5, fflags, zero
+    csrrsi t5, frm, 0
+    csrrci zero, fcsr, 0
+    CHECK_FS 2
+
+    # Every FP CSR write form dirties the context, even a zero-valued write.
+    li t5, 0
+    .irp csr, fflags, frm, fcsr
+    SET_FS 2
+    csrw \csr, zero
+    CHECK_FS 3
+    SET_FS 2
+    csrs \csr, t5
+    CHECK_FS 3
+    SET_FS 2
+    csrc \csr, t5
+    CHECK_FS 3
+    SET_FS 2
+    csrwi \csr, 0
+    CHECK_FS 3
+    SET_FS 2
+    csrsi \csr, 1
+    CHECK_FS 3
+    SET_FS 2
+    csrci \csr, 1
+    CHECK_FS 3
+    .endr
+    csrwi fcsr, 0
+#endif
+    csrw mstatus, s3
+
     # These implemented CSRs remain readable even though their value is zero.
     EXPECT_ZERO_CSR mvendorid
     EXPECT_ZERO_CSR marchid
@@ -486,9 +671,9 @@ main:
     # mstatus already ignores padding; preserve that behavior for WRITE/SET/CLEAR.
     csrr t1, mstatus
 #ifdef RSD_ENABLE_ZICFILP
-    li t0, 0xff21e655
+    li t0, 0xff218655
 #else
-    li t0, 0xffa1e655
+    li t0, 0xffa18655
 #endif
     or t3, t1, t0
     csrw mstatus, t3
@@ -727,3 +912,10 @@ supervisor_trap_vector:
     or t3, t2, t3
     csrw sepc, t3
     sret
+
+#ifdef __riscv_flen
+    .data
+    .align 2
+fp_state_data:
+    .word 0
+#endif
