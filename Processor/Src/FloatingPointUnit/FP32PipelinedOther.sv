@@ -8,89 +8,6 @@ function automatic [5:0] leading_zeros_count(
         if(x >> (31-leading_zeros_count) != 0) break;
 endfunction
 
-function automatic void FP32CVT_F2I(
-input
-    logic [31:0] lhs,
-    logic fmt_unsigned,
-    Rounding_Mode rm,
-output
-    logic [31:0] result,
-    FFlags_Path fflags
-);
-    logic sign;
-    logic [7:0] expo;
-    logic [22:0] mant;
-    logic [4:0] shift_amount;
-    logic [31:0] int_result, abs_result;
-    logic [22:0] lower_bits;
-    logic round_up;
-    logic lsb, guard, sticky;
-    logic is_invalid, lhs_is_neg, lhs_is_nan;
-    
-    {sign, expo, mant} = lhs;
-    /* verilator lint_off WIDTH */
-    shift_amount = 158 - expo;
-    /* verilator lint_on WIDTH */
-    lhs_is_neg = sign;
-    lhs_is_nan = expo == 8'hff & mant != 0;
-    if (expo <= 126) begin // e < 0
-        int_result = 0;
-        lsb = 0;
-        guard = (expo == 126) ? 1 : 0;
-        sticky = (expo == 0 || expo == 126) ? |mant : 1;
-    end
-    else if (expo <= 157) begin // 0 <= e <= 30
-        {int_result, lower_bits} = {1'b1, mant, 31'h0} >> shift_amount;
-        lsb = int_result[0];
-        {guard, sticky} = {lower_bits[22], |lower_bits[21:0]};
-    end
-    else if (expo == 158) begin // e = 31
-        if (fmt_unsigned) begin
-            int_result = lhs_is_neg ? 32'h00000000 : {1'b1, mant, 8'h0};
-        end 
-        else begin
-            int_result = lhs_is_neg ? 32'h80000000 : 32'h7fffffff;
-        end
-    end
-    else begin // e > 31(overflow)
-        if(fmt_unsigned) begin
-            int_result = (~lhs_is_nan & lhs_is_neg) ? 32'h00000000 : 32'hffffffff;
-        end
-        else begin
-            int_result = (~lhs_is_nan & lhs_is_neg) ? 32'h80000000 : 32'h7fffffff;
-        end
-    end
-    // rounding
-    case (rm)
-            RM_RNE:  round_up = guard & (lsb | sticky);
-            RM_RTZ:  round_up = FALSE;
-            RM_RDN:  round_up = (guard | sticky) & lhs_is_neg;
-            RM_RUP:  round_up = (guard | sticky) & ~lhs_is_neg;
-            RM_RMM:  round_up = guard;
-            default: round_up = FALSE; // RTZ
-    endcase
-    if (expo <= 157) begin
-        int_result = int_result + {31'h0, round_up};
-        result = lhs_is_neg ? (fmt_unsigned ? 32'h0 : -int_result): int_result;
-    end
-    else begin
-        //result = (fmt_unsigned & lhs_is_neg & ~lhs_is_nan) ? 32'h0 : int_result;
-        result = int_result;
-    end
-
-    fflags = '0;
-    // fflag update
-    is_invalid =  expo >= 159 |  // overflow or nan/inf
-                (~fmt_unsigned & expo == 158 & (~lhs_is_neg | (lhs_is_neg & mant != 0))) |  // overflow in signed conversino
-                (fmt_unsigned & lhs_is_neg & (expo >= 127 | round_up));                     // rounded result is negative in unsigned conversion
-    if (is_invalid) begin
-        fflags.NV = TRUE;
-    end
-    else if (guard | sticky) begin
-        fflags.NX = TRUE;
-    end
-endfunction
-
 module FP32PipelinedOther #(parameter PIPELINE_DEPTH = 5)(
 input
     logic clk,
@@ -120,7 +37,25 @@ output
     typedef union packed {
         logic [31:0] result;
         I2FNormalizedPath i2f;
+        logic [31:0] f2i;
     } FirstDataPath;
+
+    typedef struct packed {
+        logic sign;
+        Rounding_Mode rm;
+    } I2FControlPath;
+
+    typedef struct packed {
+        logic needsRound;
+        logic roundUp;
+        logic sign;
+        logic padding; // Match the I2F control width in the shared union.
+    } F2IControlPath;
+
+    typedef union packed {
+        I2FControlPath i2f;
+        F2IControlPath f2i;
+    } FirstControlPath;
 
     function automatic void FP32CVT_I2F_Normalize(
         input logic [31:0] lhs,
@@ -188,34 +123,171 @@ output
         FP32CVT_I2F_FromNormalized(normalized, sign, rm, result, fflags);
     endfunction
 
+    function automatic void FP32CVT_F2I_Prepare(
+        input logic [31:0] lhs,
+        input logic fmt_unsigned,
+        input Rounding_Mode rm,
+        output logic [31:0] result,
+        output F2IControlPath control,
+        output FFlags_Path fflags
+    );
+        logic sign;
+        logic [7:0] expo;
+        logic [22:0] mant;
+        logic [4:0] shift_amount;
+        logic [31:0] int_result;
+        logic [22:0] lower_bits;
+        logic round_up;
+        logic lsb, guard, sticky;
+        logic is_invalid, lhs_is_neg, lhs_is_nan;
+
+        {sign, expo, mant} = lhs;
+        /* verilator lint_off WIDTH */
+        shift_amount = 158 - expo;
+        /* verilator lint_on WIDTH */
+        lhs_is_neg = sign;
+        lhs_is_nan = expo == 8'hff & mant != 0;
+        // Large exact conversions discard no bits; saturation reports NV only.
+        lsb = 0;
+        guard = 0;
+        sticky = 0;
+        lower_bits = '0;
+        if (expo <= 126) begin // e < 0
+            int_result = 0;
+            guard = (expo == 126) ? 1 : 0;
+            sticky = (expo == 0 || expo == 126) ? |mant : 1;
+        end
+        else if (expo <= 157) begin // 0 <= e <= 30
+            {int_result, lower_bits} = {1'b1, mant, 31'h0} >> shift_amount;
+            lsb = int_result[0];
+            {guard, sticky} = {lower_bits[22], |lower_bits[21:0]};
+        end
+        else if (expo == 158) begin // e = 31
+            if (fmt_unsigned) begin
+                int_result = lhs_is_neg ? 32'h00000000 : {1'b1, mant, 8'h0};
+            end
+            else begin
+                int_result = lhs_is_neg ? 32'h80000000 : 32'h7fffffff;
+            end
+        end
+        else begin // e > 31 (overflow or NaN/Inf)
+            if (fmt_unsigned) begin
+                int_result = (~lhs_is_nan & lhs_is_neg) ? 32'h00000000 : 32'hffffffff;
+            end
+            else begin
+                int_result = (~lhs_is_nan & lhs_is_neg) ? 32'h80000000 : 32'h7fffffff;
+            end
+        end
+        case (rm)
+            RM_RNE:  round_up = guard & (lsb | sticky);
+            RM_RTZ:  round_up = FALSE;
+            RM_RDN:  round_up = (guard | sticky) & lhs_is_neg;
+            RM_RUP:  round_up = (guard | sticky) & ~lhs_is_neg;
+            RM_RMM:  round_up = guard;
+            default: round_up = FALSE; // RTZ
+        endcase
+
+        result = int_result;
+        control = '0;
+        // Completed and saturated results share the other operations' pass path.
+        if (expo <= 157) begin
+            if (fmt_unsigned && lhs_is_neg) begin
+                result = '0;
+            end
+            else begin
+                control.needsRound = TRUE;
+                control.roundUp = round_up;
+                control.sign = lhs_is_neg;
+            end
+        end
+
+        fflags = '0;
+        is_invalid = expo >= 159 |
+            (~fmt_unsigned & expo == 158 & (~lhs_is_neg | (lhs_is_neg & mant != 0))) |
+            (fmt_unsigned & lhs_is_neg & (expo >= 127 | round_up));
+        if (is_invalid) begin
+            fflags.NV = TRUE;
+        end
+        else if (guard | sticky) begin
+            fflags.NX = TRUE;
+        end
+    endfunction
+
+    function automatic void FP32CVT_F2I_Finish(
+        input logic [31:0] data,
+        input F2IControlPath control,
+        output logic [31:0] result
+    );
+        logic [31:0] int_result;
+        int_result = data;
+        if (control.needsRound) begin
+            int_result = data + {31'h0, control.roundUp};
+            result = control.sign ? -int_result : int_result;
+        end
+        else begin
+            result = data;
+        end
+    endfunction
+
+    function automatic void FP32CVT_F2I(
+        input logic [31:0] lhs,
+        input logic fmt_unsigned,
+        input Rounding_Mode rm,
+        output logic [31:0] result,
+        output FFlags_Path fflags
+    );
+        logic [31:0] prepared;
+        F2IControlPath control;
+        FP32CVT_F2I_Prepare(lhs, fmt_unsigned, rm, prepared, control, fflags);
+        FP32CVT_F2I_Finish(prepared, control, result);
+    endfunction
+
     generate
-        if (PIPELINE_DEPTH >= 3) begin : splitI2F
+        if (PIPELINE_DEPTH >= 3) begin : splitConversion
             typedef struct packed {
                 FirstDataPath data;
                 FFlags_Path fflags;
                 logic isI2F;
-                logic sign;
-                Rounding_Mode rm;
+                FirstControlPath control;
             } FirstRegPath;
             FirstDataPath firstData;
+            FFlags_Path firstFlags;
+            logic firstIsI2F;
+            FirstControlPath firstControl;
             FirstRegPath firstReg;
             PipeRegPath nextResult;
             PipeRegPath pipeReg[PIPELINE_DEPTH - 2];
 
-            // Share 32 bits between normalized I2F data and completed results;
-            // only five metadata bits are added to the original result delay.
+            // Both conversions share the original data delay and five metadata
+            // bits. Other operations carry completed results with zero control.
             always_comb begin
                 firstData.result = resultOut;
-                if (fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU}) begin
+                firstFlags = fflagsOut;
+                firstIsI2F = fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU};
+                firstControl = '0;
+                if (firstIsI2F) begin
+                    firstControl.i2f.sign = fpuCode == FC_FCVT_SW && lhs[31];
+                    firstControl.i2f.rm = rm;
                     FP32CVT_I2F_Normalize(
-                        lhs, fpuCode == FC_FCVT_SW && lhs[31], firstData.i2f
+                        lhs, firstControl.i2f.sign, firstData.i2f
+                    );
+                end
+                else if (fpuCode inside {FC_FCVT_WS, FC_FCVT_WUS}) begin
+                    FP32CVT_F2I_Prepare(
+                        lhs, fpuCode == FC_FCVT_WUS, rm,
+                        firstData.f2i, firstControl.f2i, firstFlags
                     );
                 end
                 nextResult = {firstReg.data.result, firstReg.fflags};
                 if (firstReg.isI2F) begin
                     FP32CVT_I2F_FromNormalized(
-                        firstReg.data.i2f, firstReg.sign, firstReg.rm,
+                        firstReg.data.i2f, firstReg.control.i2f.sign, firstReg.control.i2f.rm,
                         nextResult.result, nextResult.fflags
+                    );
+                end
+                else begin
+                    FP32CVT_F2I_Finish(
+                        firstReg.data.f2i, firstReg.control.f2i, nextResult.result
                     );
                 end
                 {result, fflags} = pipeReg[0];
@@ -223,11 +295,10 @@ output
 
             always_ff @(posedge clk) begin
                 firstReg.data <= firstData;
-                firstReg.fflags <= fflagsOut;
-                firstReg.isI2F <= fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU};
-                firstReg.sign <= fpuCode == FC_FCVT_SW && lhs[31];
-                firstReg.rm <= rm;
-                // Consume one of the original delay stages for normalization.
+                firstReg.fflags <= firstFlags;
+                firstReg.isI2F <= firstIsI2F;
+                firstReg.control <= firstControl;
+                // The first stage normalizes I2F or prepares F2I rounding.
                 pipeReg[PIPELINE_DEPTH-3] <= nextResult;
                 for (int i = 1; i < PIPELINE_DEPTH - 2; ++i) begin
                     pipeReg[i-1] <= pipeReg[i];
@@ -338,7 +409,12 @@ output
                 end
             end
             FC_FCVT_WS, FC_FCVT_WUS: begin
-                FP32CVT_F2I(lhs, fmt_unsigned, rm, resultOut, fflagsOut);
+                if (PIPELINE_DEPTH >= 3) begin
+                    resultOut = '0; // The first pipeline stage prepares F2I data and flags.
+                end
+                else begin
+                    FP32CVT_F2I(lhs, fmt_unsigned, rm, resultOut, fflagsOut);
+                end
             end
             FC_FEQ: begin
                 if (lhs_is_nan || rhs_is_nan) begin
