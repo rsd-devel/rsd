@@ -31,6 +31,14 @@ _init:
 	la a0, trap_vector
 	csrw mtvec, a0
 
+	# Enable FP before the loader or a library can access floating-point state.
+	# Check misa at runtime so the same startup also works on cores without F.
+	csrr a0, misa
+	andi a0, a0, 0x20
+	beqz a0, 1f
+	li a0, 0x2000             # mstatus.FS = Initial
+	csrs mstatus, a0
+1:
 	li	sp,0x80020000
 	call _load
 

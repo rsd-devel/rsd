@@ -258,6 +258,7 @@ module CommitStage(
 `ifdef RSD_MARCH_FP_PIPE
     logic fflagsWE;
     FFlags_Path fflagsData;
+    logic fpStateDirty;
 `endif
 
     PipelinePhase phase;
@@ -370,14 +371,19 @@ module CommitStage(
         // CSR FFLAGS Update
         fflagsWE = FALSE;
         fflagsData = csrUnit.fflags;
+        fpStateDirty = FALSE;
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 fflagsWE = TRUE;
                 fflagsData |= activeList.fflagsData[i];
+                if (alReadData[i].writeReg && alReadData[i].logDstRegNum.isFP)
+                    fpStateDirty = TRUE;
             end
         end
         csrUnit.fflagsWE = fflagsWE;
         csrUnit.fflagsData = fflagsData;
+        // Integer destinations (including x0) may still change accrued FP flags.
+        csrUnit.fpStateDirty = fpStateDirty || fflagsData != csrUnit.fflags;
 `endif
 
         // Debug Register

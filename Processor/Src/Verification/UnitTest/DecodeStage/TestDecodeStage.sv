@@ -49,6 +49,7 @@ module TestDecodeStage;
     for (genvar i = 0; i < DECODE_WIDTH; i++) begin : DecodeInput
         Decoder decoder(
             .insn(insn[i]), .illegalPC(illegalPC[i]), .landingPadEnabled(TRUE),
+            .fpStateEnabled(TRUE),
             .microOps(decodedOps[i]), .insnInfo(decodedInfo[i])
         );
     end

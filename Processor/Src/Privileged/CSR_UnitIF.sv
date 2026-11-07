@@ -53,14 +53,16 @@ interface CSR_UnitIF(
 
     PrivilegeLevelType privilegeLevel;
     logic xLPE;
+    logic fpStateEnabled;
 
-    modport PreDecodeStage(input xLPE);
+    modport PreDecodeStage(input xLPE, fpStateEnabled);
 
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
     Rounding_Mode frm;
     logic fflagsWE;
     FFlags_Path fflagsData;
+    logic fpStateDirty;
 `endif
 
     modport MemoryExecutionStage(
@@ -107,7 +109,8 @@ interface CSR_UnitIF(
 `ifdef RSD_MARCH_FP_PIPE
         ,
         fflagsWE,
-        fflagsData
+        fflagsData,
+        fpStateDirty
 `endif
     );
 
@@ -147,6 +150,7 @@ interface CSR_UnitIF(
 `ifdef RSD_MARCH_FP_PIPE
         fflagsWE,
         fflagsData,
+        fpStateDirty,
 `endif
     output 
 `ifdef RSD_MARCH_FP_PIPE
@@ -159,6 +163,7 @@ interface CSR_UnitIF(
         excptTargetAddr,
         privilegeLevel,
         xLPE,
+        fpStateEnabled,
         recoverELP_FromCSR
     );
 

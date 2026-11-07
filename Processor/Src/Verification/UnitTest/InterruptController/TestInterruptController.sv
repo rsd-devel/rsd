@@ -17,6 +17,11 @@ module TestInterruptController;
     localparam bit CFI_ENABLED = 0;
 `endif
     localparam ELP_State_Type EXPECTED_ELP = CFI_ENABLED ? LP_EXPECTED : LP_NOT_EXPECTED;
+`ifdef RSD_MARCH_FP_PIPE
+    localparam bit FP_ENABLED = 1;
+`else
+    localparam bit FP_ENABLED = 0;
+`endif
     localparam AddrPath VECTOR_BASE = 32'h80000100;
     localparam AddrPath SUPERVISOR_VECTOR_BASE = 32'h80000200;
     localparam AddrPath RETURN_PC = 32'h80001234;
@@ -43,6 +48,7 @@ module TestInterruptController;
     int aliasCases = 0;
     int cfiCases = 0;
     int sepcCases = 0;
+    int fpStateCases = 0;
     string caseName;
 
     // Keep stimulus and checks away from the active edge in both simulators.
@@ -168,6 +174,7 @@ module TestInterruptController;
 `ifdef RSD_MARCH_FP_PIPE
         csr.fflagsWE = 0;
         csr.fflagsData = '0;
+        csr.fpStateDirty = 0;
 `endif
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
         perf.perfCounter = '0;
@@ -209,6 +216,99 @@ module TestInterruptController;
                         number, expected, csr.csrReadOut, caseName);
         csr.csrRE = 0;
         #1;
+    endtask
+
+    task automatic CheckFPState;
+        CSR_NumberPath numbers[3] = '{CSR_NUM_FFLAGS, CSR_NUM_FRM, CSR_NUM_FCSR};
+        DataPath values[3] = '{32'h15, 32'h3, 32'h75};
+        DataPath statusValue;
+        caseName = "FS reset and status aliases";
+        Reset();
+        assert (csr.fpStateEnabled === 1'b0)
+            else $fatal(1, "FP state enabled after reset");
+        for (int stateValue = 0; stateValue < 4; stateValue++) begin
+            statusValue = FP_ENABLED ? DataPath'(stateValue) << 13 : 0;
+            if (FP_ENABLED && stateValue == 3)
+                statusValue |= 32'h80000000;
+            // SD cannot be written, and sstatus must preserve M-only fields.
+            WriteCSR(CSR_NUM_MSTATUS, 32'h80000008 | (DataPath'(stateValue) << 13));
+            ReadCSR(CSR_NUM_MSTATUS, statusValue | 8);
+            ReadCSR(CSR_NUM_SSTATUS, statusValue);
+            WriteCSR(CSR_NUM_MSTATUS, 8);
+            WriteCSR(CSR_NUM_SSTATUS, 32'h80000000 | (DataPath'(stateValue) << 13));
+            ReadCSR(CSR_NUM_MSTATUS, statusValue | 8);
+            ReadCSR(CSR_NUM_SSTATUS, statusValue);
+            assert (csr.fpStateEnabled === (FP_ENABLED && stateValue != 0))
+                else $fatal(1, "Wrong FP enable for FS=%0d", stateValue);
+            WriteCSR(CSR_NUM_SSTATUS, 32'h80000000, CSR_CLEAR);
+            ReadCSR(CSR_NUM_SSTATUS, statusValue);
+            fpStateCases++;
+        end
+
+        caseName = "FP CSR access while FS is Off";
+        Reset();
+        foreach (numbers[i]) begin
+            for (int accessMode = 0; accessMode < 3; accessMode++) begin
+                csr.csrNumber = numbers[i];
+                csr.csrRE = accessMode != 1;
+                csr.csrWE = accessMode != 0;
+                csr.csrWriteIn = '1;
+                #1;
+                assert (csr.csrUnitTriggerExcpt === 1'b1)
+                    else $fatal(1, "FS Off allowed CSR %03x access %0d", numbers[i], accessMode);
+                Tick();
+                csr.csrRE = 0;
+                csr.csrWE = 0;
+`ifdef RSD_MARCH_FP_PIPE
+                assert (csr.csrWholeOut.fcsr === '0)
+                    else $fatal(1, "Trapping FP CSR access changed fcsr");
+`endif
+                ReadCSR(CSR_NUM_MSTATUS, 0);
+                fpStateCases++;
+            end
+        end
+
+`ifdef RSD_MARCH_FP_PIPE
+        caseName = "FP CSR writes dirty, reads preserve Clean";
+        foreach (numbers[i]) begin
+            WriteCSR(CSR_NUM_MSTATUS, 32'h4000);
+            WriteCSR(numbers[i], values[i]);
+            ReadCSR(CSR_NUM_MSTATUS, 32'h80006000);
+            WriteCSR(CSR_NUM_MSTATUS, 32'h4000);
+            ReadCSR(numbers[i], values[i]);
+            ReadCSR(CSR_NUM_MSTATUS, 32'h4000);
+            fpStateCases++;
+        end
+
+        caseName = "Commit dirty notification and unchanged flags";
+        // Ordinary integer commits also assert fflagsWE; they must stay Clean.
+        csr.fflagsData = csr.fflags;
+        csr.fflagsWE = 1;
+        Tick();
+        csr.fflagsWE = 0;
+        ReadCSR(CSR_NUM_MSTATUS, 32'h4000);
+        // A committed FP destination dirties state without changing fflags.
+        csr.fpStateDirty = 1;
+        Tick();
+        csr.fpStateDirty = 0;
+        ReadCSR(CSR_NUM_MSTATUS, 32'h80006000);
+        WriteCSR(CSR_NUM_MSTATUS, 32'h4000);
+        // Integer-destination FP operations can dirty state through fflags.
+        csr.fflagsData = csr.fflags | 5'h08;
+        csr.fflagsWE = 1;
+        csr.fpStateDirty = 1;
+        Tick();
+        csr.fflagsWE = 0;
+        csr.fpStateDirty = 0;
+        ReadCSR(CSR_NUM_MSTATUS, 32'h80006000);
+        ReadCSR(CSR_NUM_FFLAGS, 32'h1d);
+        // Changing FS does not initialize or destroy the saved FP state.
+        WriteCSR(CSR_NUM_MSTATUS, 0);
+        WriteCSR(CSR_NUM_MSTATUS, 32'h2000);
+        ReadCSR(CSR_NUM_FCSR, 32'h7d);
+        ReadCSR(CSR_NUM_MSTATUS, 32'h2000);
+        fpStateCases += 4;
+`endif
     endtask
 
     task automatic CheckSEPCAlignment(input bit fromSupervisor, returnToSupervisor,
@@ -799,6 +899,7 @@ module TestInterruptController;
                                      32'h80010000, 32'h80010000, 32'h80010000, 32'h80010000};
         static DataPath customDelegated[6] = '{32'h00010000, 32'h80000000,
                                        32'h80000000, 32'h00010000, 32'h80010000, 32'h0};
+        CheckFPState();
         for (int fromS = 0; fromS < 2; fromS++)
             for (int toS = 0; toS < 2; toS++)
                 for (int operation = 1; operation < 4; operation++)
@@ -862,6 +963,7 @@ module TestInterruptController;
         $display("CSR alias: %0d cases passed", aliasCases);
         $display("SEPC alignment: %0d cases passed", sepcCases);
         $display("CFI CSR/trap/return: %0d cases passed (Zicfilp=%0b)", cfiCases, CFI_ENABLED);
+        $display("FP state CSR: %0d cases passed (FP=%0b)", fpStateCases, FP_ENABLED);
         $display("========== Test Passed ==========");
         $finish;
     end
