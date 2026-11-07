@@ -8,49 +8,6 @@ function automatic [5:0] leading_zeros_count(
         if(x >> (31-leading_zeros_count) != 0) break;
 endfunction
 
-function automatic void FP32CVT_I2F(
-input
-    logic [31:0] lhs,
-    logic fmt_unsigned,
-    Rounding_Mode rm,
-output
-    logic [31:0] result,
-    FFlags_Path fflags
-);
-    logic is_exact, is_valid, lhs_is_neg;
-    logic [5:0] lzc;
-    logic [31:0] abs_lhs, shifted_lhs; // hidden 1(1) + mantissa(23) + lower_bits(8)
-    logic [7:0]  expo;
-    logic [22:0] mant;
-    logic round_up, exp_plus_one;
-    logic lsb, guard, sticky;
-    lhs_is_neg =  ~fmt_unsigned & lhs[31];
-    abs_lhs = lhs_is_neg ? -lhs : lhs;
-    lzc = leading_zeros_count(abs_lhs);
-    shifted_lhs = abs_lhs << lzc;
-    mant = shifted_lhs[30:8];
-    expo = (abs_lhs == '0) ? 0 : 8'd127 + 8'd31 - lzc;
-    {lsb, guard, sticky} = {shifted_lhs[8:7], |shifted_lhs[6:0]};
-    case (rm)
-        RM_RNE:  round_up = guard & (lsb | sticky);
-        RM_RTZ:  round_up = FALSE;
-        RM_RDN:  round_up = (guard | sticky) & lhs_is_neg;
-        RM_RUP:  round_up = (guard | sticky) & ~lhs_is_neg;
-        RM_RMM:  round_up = guard;
-        default: round_up = FALSE; // RTZ
-    endcase
-    exp_plus_one = round_up & (&mant); // 1.111111.. + round_up
-    expo = expo + {7'h0, exp_plus_one};
-    mant = mant + {22'h0, round_up};
-    result = {lhs_is_neg, expo, mant};
-
-    // fflag update
-    fflags = '0;
-    if (guard | sticky) begin
-        fflags.NX = TRUE;
-    end
-endfunction
-
 function automatic void FP32CVT_F2I(
 input
     logic [31:0] lhs,
@@ -152,24 +109,146 @@ output
         logic [31:0] result;
         FFlags_Path fflags; 
     } PipeRegPath;
-    PipeRegPath pipeReg[PIPELINE_DEPTH - 1];
 
-    // just a buffer
-    always_comb begin
-        if( PIPELINE_DEPTH > 1) begin
-            {result, fflags} = pipeReg[0];
-        end else begin
-            {result, fflags} = {resultOut, fflagsOut};
-        end
-    end
-    always_ff @(posedge clk) begin
-        if (PIPELINE_DEPTH > 1) begin
-            pipeReg[PIPELINE_DEPTH-2] <= {resultOut, fflagsOut};
-            for (int i=1; i < PIPELINE_DEPTH - 1; ++i) begin
-                pipeReg[i-1] <= pipeReg[i];
+    typedef struct packed {
+        logic [23:0] significand;
+        logic guardBit;
+        logic stickyBit;
+        logic [5:0] leadingZeros;
+    } I2FNormalizedPath;
+
+    typedef union packed {
+        logic [31:0] result;
+        I2FNormalizedPath i2f;
+    } FirstDataPath;
+
+    function automatic void FP32CVT_I2F_Normalize(
+        input logic [31:0] lhs,
+        input logic sign,
+        output I2FNormalizedPath normalized
+    );
+        logic [31:0] transitions, shifted;
+        logic [5:0] lzc;
+        // As in FMA, locate |lhs|-1 for negative inputs without a carry chain.
+        transitions = lhs ^ {sign, lhs[31:1]};
+        lzc = leading_zeros_count(transitions);
+        // Keep -1 distinct from zero and leave its late +1 in the significand.
+        if (sign && lzc == 6'd32) lzc = 6'd31;
+        shifted = lhs << lzc;
+        normalized.significand = shifted[31:8];
+        normalized.guardBit = shifted[7];
+        normalized.stickyBit = |shifted[6:0];
+        normalized.leadingZeros = lzc;
+    endfunction
+
+    function automatic void FP32CVT_I2F_FromNormalized(
+        input I2FNormalizedPath normalized,
+        input logic sign,
+        input Rounding_Mode rm,
+        output logic [31:0] result,
+        output FFlags_Path fflags
+    );
+        logic [23:0] significand;
+        logic guardBit, tailBit, roundUp;
+        logic [24:0] rounded;
+        logic [7:0] expo;
+        // Zero-fill before inversion leaves |lhs|*2^shift-1 on the negative
+        // path. Fold its +1 into rounding, as in FMA's RoundIncrement.
+        significand = normalized.significand ^ {24{sign}};
+        guardBit = normalized.guardBit ^ sign;
+        tailBit = sign ? !normalized.stickyBit : normalized.stickyBit;
+        case (rm)
+            RM_RNE: roundUp = sign ? guardBit || (significand[0] && tailBit)
+                                   : guardBit && (significand[0] || tailBit);
+            RM_RTZ: roundUp = sign && guardBit && tailBit;
+            RM_RDN: roundUp = sign;
+            RM_RUP: roundUp = sign ? guardBit && tailBit : guardBit || tailBit;
+            RM_RMM: roundUp = guardBit || (sign && tailBit);
+            default: roundUp = sign && guardBit && tailBit; // Preserve I2F's RTZ fallback.
+        endcase
+        rounded = {1'b0, significand} + {24'b0, roundUp};
+        expo = normalized.leadingZeros == 6'd32 ? 8'd0
+            : 8'd158 - {2'b0, normalized.leadingZeros} + {7'b0, rounded[24]};
+        result = {sign, expo, rounded[22:0]};
+        fflags = '0;
+        fflags.NX = normalized.guardBit || normalized.stickyBit;
+    endfunction
+
+    function automatic void FP32CVT_I2F(
+        input logic [31:0] lhs,
+        input logic fmt_unsigned,
+        input Rounding_Mode rm,
+        output logic [31:0] result,
+        output FFlags_Path fflags
+    );
+        I2FNormalizedPath normalized;
+        logic sign;
+        sign = !fmt_unsigned && lhs[31];
+        FP32CVT_I2F_Normalize(lhs, sign, normalized);
+        FP32CVT_I2F_FromNormalized(normalized, sign, rm, result, fflags);
+    endfunction
+
+    generate
+        if (PIPELINE_DEPTH >= 3) begin : splitI2F
+            typedef struct packed {
+                FirstDataPath data;
+                FFlags_Path fflags;
+                logic isI2F;
+                logic sign;
+                Rounding_Mode rm;
+            } FirstRegPath;
+            FirstDataPath firstData;
+            FirstRegPath firstReg;
+            PipeRegPath nextResult;
+            PipeRegPath pipeReg[PIPELINE_DEPTH - 2];
+
+            // Share 32 bits between normalized I2F data and completed results;
+            // only five metadata bits are added to the original result delay.
+            always_comb begin
+                firstData.result = resultOut;
+                if (fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU}) begin
+                    FP32CVT_I2F_Normalize(
+                        lhs, fpuCode == FC_FCVT_SW && lhs[31], firstData.i2f
+                    );
+                end
+                nextResult = {firstReg.data.result, firstReg.fflags};
+                if (firstReg.isI2F) begin
+                    FP32CVT_I2F_FromNormalized(
+                        firstReg.data.i2f, firstReg.sign, firstReg.rm,
+                        nextResult.result, nextResult.fflags
+                    );
+                end
+                {result, fflags} = pipeReg[0];
+            end
+
+            always_ff @(posedge clk) begin
+                firstReg.data <= firstData;
+                firstReg.fflags <= fflagsOut;
+                firstReg.isI2F <= fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU};
+                firstReg.sign <= fpuCode == FC_FCVT_SW && lhs[31];
+                firstReg.rm <= rm;
+                // Consume one of the original delay stages for normalization.
+                pipeReg[PIPELINE_DEPTH-3] <= nextResult;
+                for (int i = 1; i < PIPELINE_DEPTH - 2; ++i) begin
+                    pipeReg[i-1] <= pipeReg[i];
+                end
             end
         end
-    end
+        else if (PIPELINE_DEPTH == 2) begin : delayResult
+            PipeRegPath pipeReg;
+            always_ff @(posedge clk) begin
+                pipeReg <= {resultOut, fflagsOut};
+            end
+            always_comb begin
+                {result, fflags} = pipeReg;
+            end
+        end
+        else begin : combinationalResult
+            always_comb begin
+                {result, fflags} = {resultOut, fflagsOut};
+            end
+        end
+    endgenerate
 
     // exec unit
     logic lhs_sign, rhs_sign;
@@ -251,7 +330,12 @@ output
                 resultOut = lhs;
             end
             FC_FCVT_SW, FC_FCVT_SWU: begin
-                FP32CVT_I2F(lhs, fmt_unsigned, rm, resultOut, fflagsOut);
+                if (PIPELINE_DEPTH >= 3) begin
+                    resultOut = '0; // The first pipeline stage carries normalized I2F data.
+                end
+                else begin
+                    FP32CVT_I2F(lhs, fmt_unsigned, rm, resultOut, fflagsOut);
+                end
             end
             FC_FCVT_WS, FC_FCVT_WUS: begin
                 FP32CVT_F2I(lhs, fmt_unsigned, rm, resultOut, fflagsOut);
