@@ -19,7 +19,7 @@ For `cfg.xml`, execution limits, and result checking, see the
 | --- | --- | --- |
 | `test-all` | `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone) | Build the Verilator model; fetch the benchmark sources below. |
 | `test-ex` | ACT4 and Zephyr | Build the Verilator model; run each suite's fetch/setup below. |
-| `test-unit` | RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Install ModelSim/QuestaSim and set `RSD_QUESTASIM_PATH` to its executable directory. |
+| `test-unit` | RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Use the dev container (Verilator), or select ModelSim/QuestaSim as described below. |
 | `test-tools` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
 
 ```sh
@@ -37,8 +37,13 @@ preserving downloaded sources and installed dependencies.
 
 The default core simulator is Verilator. Use `SIM=modelsim` or `SIM=xsim`
 for both the build and program-test commands to select another simulator.
-`test-unit` always builds its own testbenches with ModelSim/QuestaSim;
-`UNIT_PROJECT_WORK` can override its output directory independently of `SIM`.
+`test-unit` builds and runs its own testbenches with Verilator by default.
+Use `make SIM=modelsim test-unit` for ModelSim/QuestaSim, setting
+`RSD_QUESTASIM_PATH` to its executable directory. Units support `verilator` and
+`modelsim`; `UNIT_SIM` selects them independently (for example,
+`make SIM=xsim UNIT_SIM=verilator test-unit`). `UNIT_PROJECT_WORK` overrides
+their output directory. ModelSim/QuestaSim also checks unknown (`X`) values
+that Verilator's two-state simulation cannot detect.
 Select one unit with, for example, `make test-unit-Divider`.
 `test-tools` uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise

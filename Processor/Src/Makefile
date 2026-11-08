@@ -44,9 +44,9 @@ include Makefiles/XSim.mk
 endif
 include Makefiles/TestCommands.inc.mk
 
-# RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.
-# Unit tests keep their ModelSim output directory regardless of SIM.
-UNIT_PROJECT_WORK ?= $(if $(filter command line,$(origin PROJECT_WORK)),$(PROJECT_WORK),../Project/ModelSim)
+# Units follow SIM; UNIT_SIM can select them independently of the core.
+UNIT_SIM ?= $(SIM)
+UNIT_PROJECT_WORK ?= $(if $(filter command line,$(origin PROJECT_WORK)),$(PROJECT_WORK),$(if $(filter modelsim,$(UNIT_SIM)),../Project/ModelSim,../Project/Verilator/UnitTest))
 UNIT_TESTS = \
 	InitializedBlockRAM \
 	BlockDualPortRAM \
@@ -73,5 +73,5 @@ test-unit: $(UNIT_TEST_TARGETS)
 
 # Generate shared RTL before starting unit submakes, including parallel runs.
 $(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
-	$(MAKE) -C Verification/UnitTest/$* test PROJECT_WORK="$(abspath $(UNIT_PROJECT_WORK))"
+	$(MAKE) -C Verification/UnitTest/$* test UNIT_SIM="$(UNIT_SIM)" PROJECT_WORK="$(abspath $(UNIT_PROJECT_WORK))"
 	@echo "==== Test Successful (test-unit-$*) ===="

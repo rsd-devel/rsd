@@ -341,6 +341,7 @@ module TestInterruptController;
                 WriteCSR(CSR_NUM_SEPC, RETURN_PC | 32'hb);
                 WriteCSR(CSR_NUM_SEPC, 32'h8 | DataPath'(lowBits), CSR_CLEAR);
             end
+            default: $fatal(1, "Unsupported CSR operation in SEPC test");
         endcase
         // Check SRET's implicit read independently of CSR read enables and of
         // triggerExcpt: RecoveryManager needs this target before trap entry.

@@ -1,7 +1,6 @@
 UNIT_NAME = DecodeStage
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
 SOURCE_ROOT = ../../../
-PROJECT_WORK = ../../../../Project/ModelSim
 
 include $(SOURCE_ROOT)Makefiles/CoreSources.inc.mk
 
@@ -36,4 +35,4 @@ TEST_MODULES = Verification/UnitTest/DecodeStage/TestDecodeStage.sv
 VLOG_OPTIONS = $(RSD_SRC_CFG) -suppress 2605 +incdir+$(SOURCE_ROOT)
 VSIM_OPTIONS = -suppress 2605 -suppress 8233
 
-include ../../../Makefiles/ModelSim.inc.mk
+include ../../../Makefiles/UnitTest.inc.mk

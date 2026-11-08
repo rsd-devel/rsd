@@ -47,6 +47,7 @@
 
 
 # Verilator
+/Processor/Project/Verilator/UnitTest/
 /Processor/Project/Verilator/obj_dir
 
 
