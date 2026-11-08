@@ -74,7 +74,7 @@ Use the dev container configuration as the reference for manual setup:
 
 1. Follow the base OS, package installation, and tool build steps in [.devcontainer/Dockerfile](.devcontainer/Dockerfile), including its specified tool versions.
 2. Install the Python dependencies from [.devcontainer/requirements.txt](.devcontainer/requirements.txt).
-3. Export the variables listed under `containerEnv` in [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json), setting `RSD_ROOT` to your checkout's absolute path and adjusting tool paths for your host.
+3. Copy [SetEnv.sh](Processor/Tools/SetEnv/SetEnv.sh) to `Processor/Tools/SetEnv/MySetEnv.sh`, edit the tool paths, and run `source Processor/Tools/SetEnv/MySetEnv.sh`. The template also lists optional EDA tool settings. Missing required settings produce a make error.
 
 Then, from the repository root, use the same `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;

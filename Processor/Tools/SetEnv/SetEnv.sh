@@ -1,52 +1,36 @@
-#
-# Copy SetEnv.sh, edit the contents, and source as follows.
-#
-#     source MySetEnv.sh
-#
-# * This file does not function if run it directly, You should "source".
-# * This file is for bash.
-# 
-# * If you run RTL simulation, you should set RSD_ROOT and RSD_CYGWIN_PATH. 
-#   If you use modelsim/questa, you should set RSD_QUESTASIM_PATH in addition  
-#   to the above.
-#
+# Manual environment template for Bash. The dev container sets these itself.
+# From the repository root, copy this file to MySetEnv.sh, edit it, then run:
+#   source Processor/Tools/SetEnv/MySetEnv.sh
+# MySetEnv.sh is ignored by Git. Makefiles do not source it automatically.
 
+# Make infers RSD_ROOT from the checkout and exports it to child processes.
 
-# Specify the root directory where you checked out RSD.
-export RSD_ROOT=~/work/rsd-git/
+# Required for the basic test programs and benchmarks.
+# These defaults match Ubuntu's RISC-V GCC and the dev container.
+export RSD_GCC_PATH=/usr/bin
 
+# RISC-V compiler executable prefix.
+export RSD_GCC_PREFIX=riscv64-unknown-elf-
 
-# Specify the path of a directory that contains a gcc cross compiler binary for RISC-V. 
-export RSD_GCC_PATH=/opt/gcc/riscv/7.1.0/bin
-# Specify the prefix of the file name of the compiler binary.
-export RSD_GCC_PREFIX=riscv32-unknown-elf-
+# Optional: omit this to use verilator from PATH.
+# export RSD_VERILATOR_BIN=/usr/local/bin/verilator
 
-# Specify the binary path of Modelsim or QuestaSim.
-export RSD_QUESTASIM_PATH=~/opt/cad/mentor/questasim_2019.4.2_x64/questasim/bin
+# Optional EDA tools: enable only the tools you use.
+# Set up their runtime dependencies and licenses using your site's environment.
+# ModelSim/Questa: directory containing vlog, vlib and vsim.
+# export RSD_QUESTASIM_PATH=/opt/questa/bin
 
+# Vivado/XSim: directory containing vivado, xvlog, xelab and xsim.
+# export RSD_VIVADO_BIN=/opt/Xilinx/Vivado/2019.2/bin
 
-# Specify the binary path of Synplify.
-export SYNOPSYS_BIN=~/opt/cad/synopsys/fpga_M-2017.03-SP1/bin/
+# Optional Synplify command override; otherwise use PATH.
+# export SYNPLIFY=/opt/synplify/bin/synplify_premier_dp
 
-# Specify the path of "dc_shell" for Design Compiler.
-export RSD_DC_SHELL_BIN=~/opt/cad/synopsys/O-2018.06-SP4/bin/dc_shell
+# Optional VCS command override; otherwise use PATH.
+# export VCS=/opt/vcs/bin/vcs
 
-# Specify the path of a "verilator" binary
-export RSD_VERILATOR_BIN=verilator
+# Optional: Design Compiler (legacy flow).
+# export RSD_DC_SHELL_BIN=/opt/synopsys/bin/dc_shell
 
-# Specify the ISE folder in Vivado.
-export RSD_VIVADO=~/opt/cad/xilinx/Vivado/2019.2/ids_lite/ISE
-
-# Specify the path where CORE Generator/ngc2edif/xtclsh exists
-export RSD_VIVADO_BIN=~/opt/cad/xilinx/Vivado/2019.2/bin
-
-# Specify the path of a work directory where download or build ZYNQ PS Linux 
-export RSD_ARM_LINUX=~/work/rsd-arm-linux
-
-
-# Specify the root path of RSD-env, which is a closed repository that contains 
-# external commercial packages/tools for RSD development.
-# Currently, this repository is not opened.
-# export RSD_ENV=~/work/rsd-env/
-
-
+# Optional: working directory for Zynq PS Linux image builds (legacy flow).
+# export RSD_ARM_LINUX="$HOME/work/rsd-arm-linux"

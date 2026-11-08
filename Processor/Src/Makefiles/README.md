@@ -46,3 +46,11 @@ Tool-specific options and output directories stay in their backends. Test
 programs and individual unit tests retain local Makefiles. Generated files stay
 under `Processor/Project`. Verilator units use `Verilator/UnitTest/<unit>`;
 ModelSim units use `ModelSim/<unit>`.
+
+The dev container supplies environment settings automatically. For manual setup,
+copy and edit [SetEnv.sh](../../Tools/SetEnv/SetEnv.sh), then source `MySetEnv.sh`.
+`RSD_ROOT` always comes from the Makefile location and is exported to child
+processes; it needs no manual setting. Program builds require `RSD_GCC_PATH` and `RSD_GCC_PREFIX`. ModelSim/Questa requires `RSD_QUESTASIM_PATH`, and Vivado/XSim
+requires `RSD_VIVADO_BIN`. Verilator, Synplify and VCS can use commands from PATH.
+`Environment.inc.mk` shares the checks; make's query mode skips them so target
+completion works before setup.

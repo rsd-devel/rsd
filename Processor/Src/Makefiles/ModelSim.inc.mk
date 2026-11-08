@@ -2,11 +2,11 @@
 # Shared ModelSim/QuestaSim definitions for core and RTL unit tests.
 #
 
-VLOG = $(RSD_QUESTASIM_PATH)/vlog
-VLIB = $(RSD_QUESTASIM_PATH)/vlib
+VLOG = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vlog
+VLIB = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vlib
 # In Linux, "vsim" is launched in GUI, so explicitly specify a command line mode (-c)
-VSIM = $(RSD_QUESTASIM_PATH)/vsim -c
-MODELSIM = $(RSD_QUESTASIM_PATH)/vsim
+VSIM = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vsim -c
+MODELSIM = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vsim
 
 
 # -------------------------------

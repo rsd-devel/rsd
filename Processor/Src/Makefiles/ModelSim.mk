@@ -1,4 +1,5 @@
 # ModelSim/QuestaSim RTL backend, included by the main Makefile.
+SIM_REQUIRED_ENV = RSD_QUESTASIM_PATH
 #TEST_CODE = Verification/TestCode/Asm/CacheFlush
 #TEST_CODE = Verification/TestCode/C/HelloWorld
 TEST_CODE = Verification/TestCode/C/FP

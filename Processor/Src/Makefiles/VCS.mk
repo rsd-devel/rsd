@@ -3,6 +3,7 @@
 .DEFAULT_GOAL := test-post-implementation
 
 include Makefiles/Build.inc.mk
+$(call REQUIRE_ENV,RSD_VIVADO_BIN)
 
 TEST_CODE ?= Verification/TestCode/C/HelloWorld
 POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))

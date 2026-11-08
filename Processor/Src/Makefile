@@ -46,7 +46,7 @@ REG_CSV_FILE = Register.csv
 
 # TestDriver retains its existing name for the XSim backend.
 TEST_SIMULATOR = $(if $(filter xsim,$(SIM)),vivadosim,$(SIM))
-RUN_TEST = @python3 $(TOOLS_ROOT)TestDriver/RunTest.py --simulator=$(TEST_SIMULATOR)
+RUN_TEST = @$(call REQUIRE_ENV,$(SIM_REQUIRED_ENV))python3 $(TOOLS_ROOT)TestDriver/RunTest.py --simulator=$(TEST_SIMULATOR)
 RUN_TEST_OMIT_MSG = $(RUN_TEST) -o
 
 ifeq ($(SIM),verilator)

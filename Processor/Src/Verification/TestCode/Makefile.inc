@@ -1,4 +1,5 @@
 # クロスコンパイラ環境の設定
+include $(dir $(lastword $(MAKEFILE_LIST)))../../Makefiles/Environment.inc.mk
 
 HOST_TYPE = $(shell uname)
 
@@ -14,13 +15,7 @@ RSD_GCC_NATIVE = $(shell cygpath -u "$$RSD_GCC_PATH")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
-# Check required environment variables
-ifndef RSD_GCC_PATH
-$(error RSD_GCC_PATH is not set.)
-endif
-ifndef RSD_GCC_PREFIX
-$(error RSD_GCC_PREFIX is not set.)
-endif
+$(call REQUIRE_ENV,RSD_GCC_PATH RSD_GCC_PREFIX)
 
 RSD_GCC_VERSION := $(shell "$(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc" -dumpversion 2>/dev/null)
 ifndef RSD_GCC_VERSION

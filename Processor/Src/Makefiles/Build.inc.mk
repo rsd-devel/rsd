@@ -1,7 +1,7 @@
 # Shared core source dependencies and generated RTL; run from Processor/Src.
 SOURCE_ROOT ?= ./
 TOOLS_ROOT ?= ../Tools/
-RSD_ROOT ?= $(abspath ../..)
+include Makefiles/Environment.inc.mk
 
 # Keep this manifest in place with literal TYPES/CORE_MODULES lists for sv-tests.
 include Makefiles/CoreSources.inc.mk

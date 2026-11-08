@@ -1,3 +1,8 @@
+$(call REQUIRE_ENV,RSD_VIVADO_BIN)
+ifneq ($(filter xilinx-arm-linux%,$(MAKECMDGOALS)),)
+$(call REQUIRE_ENV,RSD_ARM_LINUX)
+endif
+
 
 # Specify the target Zynq board.
 # Supported Zynq boards: Zedboard

@@ -1,4 +1,5 @@
 # XSim RTL backend, included by the main Makefile.
+SIM_REQUIRED_ENV = RSD_VIVADO_BIN
 SOURCE_ROOT = $(RSD_ROOT)/Processor/Src/
 TEST_CODE = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
 PROJECT_WORK = ../Project/VivadoSim/work
@@ -6,9 +7,9 @@ UNIT_NAME = Main
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
 
 # Simulation tools
-XVLOG = $(RSD_VIVADO_BIN)/xvlog
-XELAB = $(RSD_VIVADO_BIN)/xelab
-XSIM  = $(RSD_VIVADO_BIN)/xsim
+XVLOG = $(call REQUIRE_ENV,RSD_VIVADO_BIN)$(RSD_VIVADO_BIN)/xvlog
+XELAB = $(call REQUIRE_ENV,RSD_VIVADO_BIN)$(RSD_VIVADO_BIN)/xelab
+XSIM  = $(call REQUIRE_ENV,RSD_VIVADO_BIN)$(RSD_VIVADO_BIN)/xsim
 
 # Simulation options
 XVLOG_OPTIONS = \
