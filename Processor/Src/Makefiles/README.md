@@ -1,6 +1,10 @@
 # Build entry points
 
-Run from `Processor/Src`:
+The root `Makefile` is a symlink to `Processor/Src/Makefile`. When invoked outside
+`Processor/Src`, that Makefile forwards targets, variables and parallel jobs there.
+Both directories support the normal `make` commands and target completion.
+Relative path arguments such as `TEST_CODE` are resolved from `Processor/Src`.
+Use `Processor/Src` for the tool-specific `-f Makefiles/...` commands below:
 
 ```sh
 make -j8                         # Verilator (default)

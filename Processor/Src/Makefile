@@ -1,5 +1,19 @@
 # Common RTL simulation and test entry point. Synthesis uses Makefiles/*.mk.
 .DEFAULT_GOAL := all
+SOURCE_DIRECTORY := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+
+# Resolve the root symlink and keep all existing paths relative to Src.
+ifneq ($(realpath $(CURDIR))/,$(SOURCE_DIRECTORY))
+.DEFAULT_GOAL := _forward
+.PHONY: _forward $(MAKECMDGOALS)
+# Forward goals together, preserving variables and the jobserver.
+# Recursive make also exposes the child database to standard shell completion.
+$(MAKECMDGOALS): _forward ;
+_forward:
+	$(MAKE) -C "$(SOURCE_DIRECTORY)" $(MAKECMDGOALS)
+
+else
+
 SIM ?= verilator
 ifneq ($(words $(SIM)),1)
 $(error Select one SIM: verilator, modelsim or xsim)
@@ -75,3 +89,5 @@ test-unit: $(UNIT_TEST_TARGETS)
 $(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
 	$(MAKE) -C Verification/UnitTest/$* test UNIT_SIM="$(UNIT_SIM)" PROJECT_WORK="$(abspath $(UNIT_PROJECT_WORK))"
 	@echo "==== Test Successful (test-unit-$*) ===="
+
+endif

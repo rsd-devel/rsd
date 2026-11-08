@@ -48,7 +48,6 @@ Log out and log back in to apply Docker group membership, then run from the repo
 
 ```bash
 ./RunContainer.sh                     # Open a shell in the container
-cd Processor/Src
 make -j"$(nproc)"                         # Build the Verilator simulator
 make test-1                              # Build and run the basic tests
 ```
@@ -57,15 +56,15 @@ make test-1                              # Build and run the basic tests
 See the [test program instructions](Processor/Src/Verification/TestCode/README.md) for FP configurations and CoreMark.
 The first launch builds the environment; later launches reuse it and rebuild when its configuration changes.
 From the host repository root, use `./RunContainer.sh --help` for command execution and rebuild options.
-With VS Code's Dev Containers extension, you can instead use **Reopen in Container** and run the same `cd` and `make` commands.
+With VS Code's Dev Containers extension, you can instead use **Reopen in Container** and run the same `make` commands.
 
-After the tests, visualize the Fibonacci pipeline from the same `Processor/Src` directory:
+After the tests, visualize the Fibonacci pipeline from the repository root:
 
 ```bash
 make kanata TEST_CODE=Verification/TestCode/C/Fibonacci
 ```
 
-Open the generated `Kanata.log` with [Konata](https://github.com/shioyadan/Konata/releases).
+Open the generated `Processor/Src/Kanata.log` with [Konata](https://github.com/shioyadan/Konata/releases).
 
 ![konata](Docs/Images/konata.gif)
 
@@ -77,7 +76,7 @@ Use the dev container configuration as the reference for manual setup:
 2. Install the Python dependencies from [.devcontainer/requirements.txt](.devcontainer/requirements.txt).
 3. Export the variables listed under `containerEnv` in [.devcontainer/devcontainer.json](.devcontainer/devcontainer.json), setting `RSD_ROOT` to your checkout's absolute path and adjusting tool paths for your host.
 
-Then, from the repository root, use the same `cd` and `make` commands above.
+Then, from the repository root, use the same `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;
 see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
 Select ModelSim/QuestaSim with `make SIM=modelsim`, or XSim with `make SIM=xsim`.
