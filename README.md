@@ -47,7 +47,7 @@ sudo npm install -g @devcontainers/cli@0.83.3  # Compatible with Ubuntu 24.04's 
 Log out and log back in to apply Docker group membership, then run from the repository root:
 
 ```bash
-./DevContainer.sh                     # Open a shell in the container
+./RunContainer.sh                     # Open a shell in the container
 cd Processor/Src
 make -j"$(nproc)"                         # Build the Verilator simulator
 make test-1                              # Build and run the basic tests
@@ -56,7 +56,7 @@ make test-1                              # Build and run the basic tests
 `test-1` builds the test HEX files automatically and prints `Test Successful (test-1)` on success.
 See the [test program instructions](Processor/Src/Verification/TestCode/README.md) for FP configurations and CoreMark.
 The first launch builds the environment; later launches reuse it and rebuild when its configuration changes.
-From the host repository root, use `./DevContainer.sh --help` for command execution and rebuild options.
+From the host repository root, use `./RunContainer.sh --help` for command execution and rebuild options.
 With VS Code's Dev Containers extension, you can instead use **Reopen in Container** and run the same `cd` and `make` commands.
 
 After the tests, visualize the Fibonacci pipeline from the same `Processor/Src` directory:

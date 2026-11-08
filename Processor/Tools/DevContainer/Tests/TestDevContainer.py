@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 
-LAUNCHER = Path(__file__).resolve().parents[1] / 'DevContainer.sh'
+LAUNCHER = Path(__file__).resolve().parents[1] / 'RunContainer.sh'
 FAKE_DOCKER = '''#!/usr/bin/env python3
 import os
 import sys
@@ -63,10 +63,10 @@ class DevContainerLauncherTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory(prefix='rsd launcher ')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.implementation = self.root / 'Processor/Tools/DevContainer/DevContainer.sh'
+        self.implementation = self.root / 'Processor/Tools/DevContainer/RunContainer.sh'
         self.implementation.parent.mkdir(parents=True)
         shutil.copy2(LAUNCHER, self.implementation)
-        self.launcher = self.root / 'DevContainer.sh'
+        self.launcher = self.root / 'RunContainer.sh'
         self.launcher.symlink_to(self.implementation.relative_to(self.root))
         self.src = self.root / 'Processor/Src'
         self.src.mkdir()
@@ -141,7 +141,7 @@ class DevContainerLauncherTests(unittest.TestCase):
     def test_current_directory_is_preserved_for_commands_and_shells(self):
         entries = (
             (self.root, self.launcher, self.remote),
-            (self.src, '../../DevContainer.sh', self.remote / 'Processor/Src'),
+            (self.src, '../../RunContainer.sh', self.remote / 'Processor/Src'),
         )
         for cwd, launcher, expected in entries:
             for command in ((), ('true',)):
