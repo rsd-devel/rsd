@@ -32,8 +32,7 @@
             "label": "make",
             "command": "make",
             
-            "args": ["-f", "Makefile.verilator.mk"],
-            // "args": ["-f", "Makefile"],
+            "args": [],
             
             "group": {
                 "kind": "build",
@@ -133,7 +132,7 @@
         {
             "label": "run",
             "command": "make",
-            "args": ["run", "-f", "Makefile.verilator.mk"],
+            "args": ["run"],
             "group": {
                 "kind": "test",
                 "isDefault": true
@@ -142,13 +141,13 @@
         {
             "label": "dump",
             "command": "make",
-            "args": ["dump", "-f", "Makefile.verilator.mk"],
+            "args": ["dump"],
             "problemMatcher": []
         },
         {
             "label": "clean",
             "command": "make",
-            "args": ["clean", "-f", "Makefile.verilator.mk"],
+            "args": ["clean"],
             "problemMatcher": []
         }
     ]
