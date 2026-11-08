@@ -61,13 +61,13 @@ make -C Processor/Tools/TestDriver test
 To also check the DevContainer launcher, run from `Processor/Src`:
 
 ```sh
-make -j2 -f Makefile.verilator.mk test-tools
+make -j2 test-tools
 ```
 
 Use `test-tools-TestDriver` or `test-tools-DevContainer` to run only one suite.
 The launcher tests use stubs and do not build images or start containers.
 
 The CLI tests use simulator stubs. The model tests also run when the Verilator
-binary and Fibonacci HEX have been built with `make -f Makefile.verilator.mk` and
-`make -f Makefile.verilator.mk test-build-basic` in `Processor/Src`.
+binary and Fibonacci HEX have been built with `make` and
+`make test-build-basic` in `Processor/Src`.
 Otherwise, the model tests are reported as skipped.

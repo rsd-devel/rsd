@@ -2,11 +2,11 @@
 # Shared ModelSim/QuestaSim definitions for core and RTL unit tests.
 #
 
-VLOG = $(RSD_QUESTASIM_PATH)/vlog
-VLIB = $(RSD_QUESTASIM_PATH)/vlib
+VLOG = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vlog
+VLIB = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vlib
 # In Linux, "vsim" is launched in GUI, so explicitly specify a command line mode (-c)
-VSIM = $(RSD_QUESTASIM_PATH)/vsim -c   
-MODELSIM = $(RSD_QUESTASIM_PATH)/vsim 
+VSIM = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vsim -c
+MODELSIM = $(call REQUIRE_ENV,RSD_QUESTASIM_PATH)$(RSD_QUESTASIM_PATH)/vsim
 
 
 # -------------------------------
@@ -23,7 +23,7 @@ VLOG_OPTIONS_RTL = \
 # -nocovercells: ???
 # -novopt: disable optimization
 # -incr: incremental build
-# +incdir+./: adds "./" to include search paths 
+# +incdir+./: adds "./" to include search paths
 VLOG_OPTIONS_COMMON = \
 	-lint \
 	-pedanticerrors \
@@ -73,12 +73,9 @@ LIBRARY_WORK_RTL = $(PROJECT_WORK)/$(LIBRARY_NAME_RTL)
 TARGET_MODULE_RTL = \
 	$(PROJECT_WORK)/$(LIBRARY_NAME_RTL).$(TEST_BENCH_MODULE) \
 
-DEPS_RTL = \
-	$(TYPES:%=$(SOURCE_ROOT)%) \
-	$(MODULES:%=$(SOURCE_ROOT)%) \
-	$(TEST_MODULES:%=$(SOURCE_ROOT)%) \
+DEPS_RTL ?= $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
 
-rtl: $(LIBRARY_WORK_RTL) Makefile $(DEPS_RTL)
+rtl: $(LIBRARY_WORK_RTL) $(MAKEFILE_LIST) $(DEPS_RTL)
 	$(VLOG) -work $(LIBRARY_WORK_RTL) \
 	$(VLOG_OPTIONS) $(VLOG_OPTIONS_COMMON) $(VLOG_OPTIONS_RTL) \
 	$(DEPS_RTL) # compile

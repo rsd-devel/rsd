@@ -1,94 +1,66 @@
-# Specify test code and progress limits (independent of cfg.xml)
+# Common RTL simulation and test entry point. Synthesis uses Makefiles/*.mk.
+.DEFAULT_GOAL := all
+SOURCE_DIRECTORY := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+
+# Resolve the root symlink and keep all existing paths relative to Src.
+ifneq ($(realpath $(CURDIR))/,$(SOURCE_DIRECTORY))
+.DEFAULT_GOAL := _forward
+.PHONY: _forward $(MAKECMDGOALS)
+# Forward goals together, preserving variables and the jobserver.
+# Recursive make also exposes the child database to standard shell completion.
+$(MAKECMDGOALS): _forward ;
+_forward:
+	$(MAKE) -C "$(SOURCE_DIRECTORY)" $(MAKECMDGOALS)
+
+else
+
+SIM ?= verilator
+ifneq ($(words $(SIM)),1)
+$(error Select one SIM: verilator, modelsim or xsim)
+endif
+ifeq ($(filter verilator modelsim xsim,$(SIM)),)
+$(error Unsupported SIM '$(SIM)'; use verilator, modelsim or xsim)
+endif
+
+include Makefiles/Build.inc.mk
+
+# Manual simulation limits are independent of each test's cfg.xml.
 MAX_TEST_INSTRUCTIONS = 100000
 MAX_NO_COMMIT_CYCLES = 500
 MAX_TEST_CYCLES = 0
 SHOW_SERIAL_OUT = 1
 ENABLE_PC_GOAL = 1
-#TEST_CODE = Verification/TestCode/Asm/CacheFlush
-#TEST_CODE = Verification/TestCode/C/HelloWorld
-TEST_CODE = Verification/TestCode/C/FP
-#TEST_CODE = Verification/TestCode/Asm/FP
+SIM_PLUSARGS = \
+	MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
+	MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
+	MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
+	TEST_CODE=$(TEST_CODE) \
+	ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) \
+	SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT)
 
-SOURCE_ROOT  = ./
-TOOLS_ROOT   = ../Tools/
-PROJECT_WORK =  ../Project/ModelSim
-TEST_CODE_HEX = $(TEST_CODE)/code.hex
+KANATA_CONVERTER = python3 $(TOOLS_ROOT)KanataConverter/KanataConverter.py
+RSD_LOG_FILE_RTL = RSD.log
+KANATA_LOG_FILE_RTL = Kanata.log
+DEBUG_LOG_FILE_RTL = Debug.log
+REG_CSV_FILE = Register.csv
 
-# Specify a top module name for test
-UNIT_NAME         = Main
+# TestDriver retains its existing name for the XSim backend.
+TEST_SIMULATOR = $(if $(filter xsim,$(SIM)),vivadosim,$(SIM))
+RUN_TEST = @$(call REQUIRE_ENV,$(SIM_REQUIRED_ENV))python3 $(TOOLS_ROOT)TestDriver/RunTest.py --simulator=$(TEST_SIMULATOR)
+RUN_TEST_OMIT_MSG = $(RUN_TEST) -o
 
-# Library name and a top level module（simulation target）
-TEST_BENCH_MODULE = Test$(UNIT_NAME)
-TOP_MODULE        = $(UNIT_NAME)
-
-# Output files
-RSD_LOG_FILE_RTL       			= RSD.log
-KANATA_LOG_FILE_RTL       		= Kanata.log
-DEBUG_LOG_FILE_RTL       		= Debug.log
-REG_CSV_FILE 					= Register.csv
-
-
-# Include core source code definition
-include Makefiles/CoreSources.inc.mk
-
-# Additional files
-TYPES += \
-	# Verification/Dumper.sv 
-MODULES += \
-
-# VLOG_OPTIONS is referenced in Makefile.inc.
-# VLOG_OPTIONS is used in all simulation/post synthesis simulation 
-VLOG_OPTIONS = \
-	$(RSD_SRC_CFG) \
-
-# Simulation options
-VSIM_OPTIONS = \
-	+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-	+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-	+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-	+TEST_CODE=$(TEST_CODE) \
-	+ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) \
-	+SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
-	-suppress 8233 \
-	+autofindloop \
-
-VSIM_OPTIONS_RTL = \
-	+RSD_LOG_FILE=$(RSD_LOG_FILE_RTL) \
-	+DEBUG_LOG_FILE=$(DEBUG_LOG_FILE_RTL) \
-
-VSIM_OPTIONS_DUMP = \
-	+REG_CSV_FILE=$(REG_CSV_FILE) \
-
-
-
-# -------------------------------
-# Commands
-#
-
-# Core tests use TestDriver instead of the shared unit-test recipe.
-RUN_TEST = python3 ../Tools/TestDriver/RunTest.py
-RUN_TEST_OMIT_MSG = python3 ../Tools/TestDriver/RunTest.py -o
-
-# Include basic command definitions.
-include Makefile.inc
-
-$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
-	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
-
-# Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
-
-kanata: rtl-kanata
-
-rtl-kanata: rtl-run
-	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
-
-# -------------------------------
-# Test related items are defined in this file
+ifeq ($(SIM),verilator)
+include Makefiles/Verilator.mk
+else ifeq ($(SIM),modelsim)
+include Makefiles/ModelSim.mk
+else
+include Makefiles/XSim.mk
+endif
 include Makefiles/TestCommands.inc.mk
 
-# RTL unit tests use ModelSim/QuestaSim, configured by RSD_QUESTASIM_PATH.
-# Run all with "make test-unit -jN", or one with "make test-unit-Divider".
+# Units follow SIM; UNIT_SIM can select them independently of the core.
+UNIT_SIM ?= $(SIM)
+UNIT_PROJECT_WORK ?= $(if $(filter command line,$(origin PROJECT_WORK)),$(PROJECT_WORK),$(if $(filter modelsim,$(UNIT_SIM)),../Project/ModelSim,../Project/Verilator/UnitTest))
 UNIT_TESTS = \
 	InitializedBlockRAM \
 	BlockDualPortRAM \
@@ -115,11 +87,7 @@ test-unit: $(UNIT_TEST_TARGETS)
 
 # Generate shared RTL before starting unit submakes, including parallel runs.
 $(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
-	$(MAKE) -C Verification/UnitTest/$* test PROJECT_WORK="$(abspath $(PROJECT_WORK))"
+	$(MAKE) -C Verification/UnitTest/$* test UNIT_SIM="$(UNIT_SIM)" PROJECT_WORK="$(abspath $(UNIT_PROJECT_WORK))"
 	@echo "==== Test Successful (test-unit-$*) ===="
 
-# -------------------------------
-# Dump : Run test and dump values of register files for each cycle.
-#        This is only for pre-translate simulation.
-dump:
-	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) $(VSIM_OPTIONS_DUMP) -do "run -all"
+endif

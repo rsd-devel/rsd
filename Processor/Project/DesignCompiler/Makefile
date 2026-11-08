@@ -1,3 +1,6 @@
+include ../../Src/Makefiles/Environment.inc.mk
+$(call REQUIRE_ENV,RSD_DC_SHELL_BIN)
+
 include ../../Src/Makefiles/CoreSources.inc.mk
 
 all:

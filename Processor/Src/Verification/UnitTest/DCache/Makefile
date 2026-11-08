@@ -6,7 +6,6 @@ TEST_BENCH_MODULE = Test$(UNIT_NAME)
 
 SOURCE_ROOT  = ../../../
 TOOLS_ROOT   = ../../../../Tools/
-PROJECT_WORK = ../../../../Project/ModelSim
 
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
@@ -54,4 +53,4 @@ VSIM_OPTIONS = \
 	-suppress 2605 \
 	-suppress 8233 \
 
-include ../../../Makefile.inc
+include ../../../Makefiles/UnitTest.inc.mk

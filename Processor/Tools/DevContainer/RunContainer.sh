@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
     cat <<'EOF'
-Usage: ./DevContainer.sh [--rebuild] [--] [command [args...]]
+Usage: ./RunContainer.sh [--rebuild] [--] [command [args...]]
 
 With no command, open a login Bash shell in the current checkout directory.
 Otherwise, run the command there and return its exit status.
@@ -16,10 +16,10 @@ Startup state is stored in Processor/Tools/DevContainer/State/<Docker daemon ID>
 
 Host requirements: Bash, Python 3, flock, Docker, and the Dev Container CLI.
 Examples:
-  ./DevContainer.sh
-  ./DevContainer.sh make -C Processor/Src -f Makefile.verilator.mk test-1
+  ./RunContainer.sh
+  ./RunContainer.sh make -C Processor/Src test-1
   cd Processor/Src
-  ../../DevContainer.sh make -f Makefile.verilator.mk
+  ../../RunContainer.sh make
 EOF
 }
 
@@ -124,4 +124,4 @@ fi
 # devcontainer exec starts at the container workspace root. Pass the directory
 # and command as separate arguments so spaces and shell metacharacters stay literal.
 exec devcontainer exec "${container_args[@]}" -- /bin/sh -c \
-    'cd -- "$1" && shift && exec "$@"' DevContainer.sh "./$relative_dir" "$@"
+    'cd -- "$1" && shift && exec "$@"' RunContainer.sh "./$relative_dir" "$@"
