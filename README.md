@@ -47,8 +47,8 @@ Log out and log back in to apply Docker group membership, then run from the repo
 ```bash
 ./DevContainer.sh                     # Open a shell in the container
 cd Processor/Src
-make -j"$(nproc)" -f Makefile.verilator.mk  # Build the simulator
-make -f Makefile.verilator.mk test-1       # Build and run the basic tests
+make -j"$(nproc)"                         # Build the Verilator simulator
+make test-1                              # Build and run the basic tests
 ```
 
 `test-1` builds the test HEX files automatically and prints `Test Successful (test-1)` on success.
@@ -60,7 +60,7 @@ With VS Code's Dev Containers extension, you can instead use **Reopen in Contain
 After the tests, visualize the Fibonacci pipeline from the same `Processor/Src` directory:
 
 ```bash
-make -f Makefile.verilator.mk kanata TEST_CODE=Verification/TestCode/C/Fibonacci
+make kanata TEST_CODE=Verification/TestCode/C/Fibonacci
 ```
 
 Open the generated `Kanata.log` with [Konata](https://github.com/shioyadan/Konata/releases).
@@ -78,7 +78,7 @@ Use the dev container configuration as the reference for manual setup:
 Then, from the repository root, use the same `cd` and `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;
 see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
-For ModelSim/QuestaSim, build with `make rtl`; for XSim (Vivado Simulator), use `make -f Makefile.xsim.mk`.
+For ModelSim/QuestaSim, build with `make -f Makefile.modelsim.mk`; for XSim (Vivado Simulator), use `make -f Makefile.xsim.mk`.
 
 ### Run on a Xilinx Zynq board
 

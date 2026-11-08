@@ -4,8 +4,8 @@ Run the commands below from `Processor/Src`. For program tests, first build the
 Verilator simulator, then run the basic tests:
 
 ```sh
-make -j"$(nproc)" -f Makefile.verilator.mk
-make -f Makefile.verilator.mk test-1
+make -j"$(nproc)"
+make test-1
 ```
 
 `test-1` also builds the assembly and C test HEX files as needed.
@@ -23,10 +23,10 @@ For `cfg.xml`, execution limits, and result checking, see the
 | `test-tools` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
 
 ```sh
-make -j4 -f Makefile.verilator.mk test-all
-make -j4 -f Makefile.verilator.mk test-ex
+make -j4 test-all
+make -j4 test-ex
 make -j4 test-unit
-make -j2 -f Makefile.verilator.mk test-tools
+make -j2 test-tools
 ```
 
 `test-all` covers the normal program tests; request the other groups explicitly.
@@ -35,7 +35,8 @@ They build HEX files as needed. `test-build` builds the normal test programs;
 `test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
 preserving downloaded sources and installed dependencies.
 
-`test-unit` uses the ModelSim/QuestaSim Makefile and builds its own testbenches.
+`test-unit` delegates to `Makefile.modelsim.mk` and builds its own testbenches
+with ModelSim/QuestaSim; the default core simulator is Verilator.
 Select one unit with, for example, `make test-unit-Divider`.
 `test-tools` uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
@@ -44,7 +45,7 @@ or start containers. The [TestDriver documentation](../../../Tools/TestDriver/RE
 lists the individual tool-test targets.
 
 For synthesized cores, build the test HEX first (for example, with
-`make -f Makefile.verilator.mk test-build-basic`). Then use
+`make test-build-basic`). Then use
 `make -f Makefile.vivado.mk test-post-synthesis` for Vivado + XSim, or
 `make -f Makefile.synplify.mk test-post-synthesis` for Synplify + XSim.
 `make -f Makefile.vcs.mk test-post-implementation` uses Vivado placement/routing
@@ -62,7 +63,7 @@ cases. For benchmark scores, use the `bench-*` targets described below.
 the assembly and C FP tests in `test-1`. Without it, basic builds omit FP
 tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
 test fails. When changing the configuration, clean and rebuild both the
-simulator and test programs (`make -f Makefile.verilator.mk clean test-clean-basic`,
+simulator and test programs (`make clean test-clean-basic`,
 then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
 ## CFI test selection
@@ -78,9 +79,9 @@ it; leave it undefined to disable CFI.
 ## CoreMark
 
 ```sh
-make -f Makefile.verilator.mk test-fetch-Coremark
-make -j"$(nproc)" -f Makefile.verilator.mk test-build-Coremark
-make -f Makefile.verilator.mk test-Coremark test-Coremark_for_RV32I
+make test-fetch-Coremark
+make -j"$(nproc)" test-build-Coremark
+make test-Coremark test-Coremark_for_RV32I
 ```
 
 The fetch target checks out the public `eembc/coremark` repository at the commit
@@ -103,9 +104,9 @@ test configurations. Clean before changing compilers or build flags.
 ## Dhrystone
 
 ```sh
-make -f Makefile.verilator.mk test-fetch-Dhrystone
-make -j"$(nproc)" -f Makefile.verilator.mk test-build-Dhrystone
-make -f Makefile.verilator.mk test-Dhrystone
+make test-fetch-Dhrystone
+make -j"$(nproc)" test-build-Dhrystone
+make test-Dhrystone
 ```
 
 The fetch target checks out [SiFive's Dhrystone C 2.1](https://github.com/sifive/benchmark-dhrystone)
@@ -126,7 +127,7 @@ no-commit waits are limited to 500 cycles.
 GCC's libc builtins are enabled by default for Dhrystone. To disable them, use:
 
 ```sh
-make -f Makefile.verilator.mk test-Dhrystone DHRYSTONE_BUILTINS=0
+make test-Dhrystone DHRYSTONE_BUILTINS=0
 ```
 
 The default is `DHRYSTONE_BUILTINS=1`, which appends `-fbuiltin`
@@ -144,12 +145,12 @@ clean before changing compilers or build flags.
 ## Cycle measurements
 
 ```sh
-make -f Makefile.verilator.mk bench-Coremark
-make -f Makefile.verilator.mk bench-Dhrystone
+make bench-Coremark
+make bench-Dhrystone
 # Compare Dhrystone without GCC libc builtins:
-make -f Makefile.verilator.mk bench-Dhrystone DHRYSTONE_BUILTINS=0
+make bench-Dhrystone DHRYSTONE_BUILTINS=0
 # Short run for comparison:
-make -f Makefile.verilator.mk bench-Dhrystone DHRYSTONE_BENCH_ITERATIONS=100
+make bench-Dhrystone DHRYSTONE_BENCH_ITERATIONS=100
 ```
 
 These targets build with `BENCHMARK=1`, retain the normal result checks, and
@@ -183,9 +184,9 @@ the benchmark targets.
 ## Zephyr
 
 ```sh
-make -f Makefile.verilator.mk test-fetch-Zephyr
-make -f Makefile.verilator.mk test-setup-Zephyr
-make -f Makefile.verilator.mk test-Zephyr
+make test-fetch-Zephyr
+make test-setup-Zephyr
+make test-Zephyr
 ```
 
 The [Zephyr Makefile](Zephyr/Makefile) pins public Zephyr 4.4.0 under
@@ -215,11 +216,11 @@ print call. Zephyr Dhrystone remains outside this migration.
 In the Ubuntu 26.04 dev container, explicitly fetch the source and install its dependencies:
 
 ```sh
-make -f Makefile.verilator.mk test-fetch-riscv-arch-test
-make -f Makefile.verilator.mk test-setup-riscv-arch-test
-make -f Makefile.verilator.mk test-check-riscv-arch-test
-make -j"$(nproc)" -f Makefile.verilator.mk
-make -j16 -f Makefile.verilator.mk test-riscv-arch-test
+make test-fetch-riscv-arch-test
+make test-setup-riscv-arch-test
+make test-check-riscv-arch-test
+make -j"$(nproc)"
+make -j16 test-riscv-arch-test
 ```
 
 The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
@@ -262,14 +263,14 @@ Any failure makes the command fail. Vivado retains sequential execution.
 Narrow the selection for debugging:
 
 ```sh
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=I
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=InterruptsSm
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=Zifencei
-make -j16 -f Makefile.verilator.mk test-riscv-arch-test ACT_EXTENSIONS=F
-make -f Makefile.verilator.mk test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
+make test-riscv-arch-test ACT_EXTENSIONS=I
+make test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
+make test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
+make test-riscv-arch-test ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
+make test-riscv-arch-test ACT_EXTENSIONS=InterruptsSm
+make test-riscv-arch-test ACT_EXTENSIONS=Zifencei
+make -j16 test-riscv-arch-test ACT_EXTENSIONS=F
+make test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
 ```
 
 Only the selected cases are built and run; unknown selections fail.
