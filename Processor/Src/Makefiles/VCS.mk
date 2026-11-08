@@ -2,7 +2,7 @@
 # Build TEST_CODE first. Use post-implementation-run to reuse the routed netlist.
 .DEFAULT_GOAL := test-post-implementation
 
-include Makefiles/CoreSources.inc.mk
+include Makefiles/Build.inc.mk
 
 TEST_CODE ?= Verification/TestCode/C/HelloWorld
 POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))
@@ -22,7 +22,7 @@ test-post-implementation: post-implementation-build
 
 # Vivado owns synthesis, placement, routing, and netlist/SDF export.
 post-implementation-build:
-	$(MAKE) -f Makefile.vivado.mk post-implementation-build \
+	$(MAKE) -f Makefiles/Vivado.mk post-implementation-build \
 		TEST_CODE="$(TEST_CODE)" POST_SYNTHESIS_WORK="$(POST_SYNTHESIS_WORK)" \
 		POST_IMPLEMENTATION_CLOCK_NS=$(POST_IMPLEMENTATION_CLOCK_NS)
 

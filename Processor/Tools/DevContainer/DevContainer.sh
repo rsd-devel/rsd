@@ -17,9 +17,9 @@ Startup state is stored in Processor/Tools/DevContainer/State/<Docker daemon ID>
 Host requirements: Bash, Python 3, flock, Docker, and the Dev Container CLI.
 Examples:
   ./DevContainer.sh
-  ./DevContainer.sh make -C Processor/Src -f Makefile.verilator.mk test-1
+  ./DevContainer.sh make -C Processor/Src test-1
   cd Processor/Src
-  ../../DevContainer.sh make -f Makefile.verilator.mk
+  ../../DevContainer.sh make
 EOF
 }
 

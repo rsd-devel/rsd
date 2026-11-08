@@ -33,4 +33,4 @@ TEST_MODULES = Verification/UnitTest/BranchPredictorQueue/TestBranchPredictorQue
 VLOG_OPTIONS = -suppress 2605 +incdir+$(SOURCE_ROOT) +define+RSD_MARCH_INT_ISSUE_WIDTH=2
 VSIM_OPTIONS = -suppress 2605 -suppress 8233
 
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

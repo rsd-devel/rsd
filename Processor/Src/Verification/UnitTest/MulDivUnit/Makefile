@@ -16,4 +16,4 @@ TEST_MODULES = Verification/UnitTest/MulDivUnit/TestMulDivUnit.sv
 VLOG_OPTIONS = $(RSD_SRC_CFG) +incdir+$(SOURCE_ROOT) -suppress 2605
 VSIM_OPTIONS = -suppress 2605 -suppress 8233
 
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

@@ -1,4 +1,4 @@
-# Called by Makefile.synplify.mk from an isolated output directory.
+# Called by Makefiles/Synplify.mk from an isolated output directory.
 set src $env(RSD_POST_SYNTHESIS_SRC)
 # Reuse the project's source order and options without writing beside it.
 set input [open $src/../Project/Synplify/ver2017-03.prj r]

@@ -7,4 +7,4 @@ TYPES =
 MODULES = Primitives/RAM.sv
 TEST_MODULES = Verification/UnitTest/MultiBankRAM/TestMultiBankRAM.sv
 VLOG_OPTIONS = +incdir+$(SOURCE_ROOT)
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

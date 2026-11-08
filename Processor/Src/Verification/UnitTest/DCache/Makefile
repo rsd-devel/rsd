@@ -54,4 +54,4 @@ VSIM_OPTIONS = \
 	-suppress 2605 \
 	-suppress 8233 \
 
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

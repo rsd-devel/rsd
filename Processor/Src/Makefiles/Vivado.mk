@@ -1,22 +1,14 @@
 # Vivado synthesis, implementation, and post-synthesis simulation.
-# RTL simulation is defined in Makefile.xsim.mk.
+# RTL simulation is selected by make SIM=xsim.
 .DEFAULT_GOAL := vivado-synthesis
 
 SOURCE_ROOT = $(RSD_ROOT)/Processor/Src/
 TOOLS_ROOT = ../Tools/
 TEST_CODE = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
-MAKEFILE = Makefile.vivado.mk
+MAKEFILE = Makefiles/Vivado.mk
 KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
 
-include Makefiles/CoreSources.inc.mk
-
-DEPS_RTL = \
-	$(TYPES:%=$(SOURCE_ROOT)%) \
-	$(MODULES:%=$(SOURCE_ROOT)%) \
-	$(TEST_MODULES:%=$(SOURCE_ROOT)%) \
-
-$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
-	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
+include Makefiles/Build.inc.mk
 
 # -------------------------------
 # Synthesis
@@ -81,7 +73,7 @@ post-implementation-timing: post-implementation-timing-run
 
 # Open post-synthesis project
 post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) & 
+	$(RSD_VIVADO_BIN)/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) &
 
 # Run post-synthesis simulation
 post-synthesis-timing-run: $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
@@ -176,15 +168,10 @@ POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado/$(notdir $(TEST_
 POST_SYNTHESIS_MODE = functional
 POST_IMPLEMENTATION_CLOCK_NS ?= 32
 
-export RSD_VIVADO_BIN
-export RSD_POST_SYNTHESIS_SRC = $(CURDIR)
 export RSD_POST_SYNTHESIS_SOURCES = $(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(MODULES))
 POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisVivado.tcl)
-POST_SYNTHESIS_XILINX = $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
 
 .PHONY: test-post-synthesis post-synthesis-build post-implementation-build
-# These targets need UART output; command-line TEST_CODE overrides this default.
-test-post-synthesis post-synthesis-build: TEST_CODE = Verification/TestCode/C/HelloWorld
 post-implementation-build: TEST_CODE = Verification/TestCode/C/HelloWorld
 post-implementation-build: POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))
 post-implementation-build: POST_SYNTHESIS_MODE = timing
@@ -198,17 +185,6 @@ post-synthesis-build post-implementation-build: $(CORE_TEMPLATE_FILES)
 		-tclargs $(POST_SYNTHESIS_MODE) $(POST_IMPLEMENTATION_CLOCK_NS)
 	test -s $(POST_SYNTHESIS_WORK)/netlist.v
 
-test-post-synthesis: post-synthesis-build
-	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog -sv \
-		-i $(CURDIR) $(patsubst +define+%,-d %,$(RSD_SRC_CFG)) \
-		-d RSD_FUNCTIONAL_SIMULATION -d RSD_POST_SYNTHESIS_SIMULATION \
-		-d RSD_SYNTHESIS_VIVADO \
-		$(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(TEST_MODULES))
-	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog netlist.v $(POST_SYNTHESIS_XILINX)/glbl.v
-	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xelab -relax -timescale 1ns/1ps -L unisims_ver \
-		-s post_synthesis work.TestMain work.glbl
-	timeout 12h python3 ../Tools/TestDriver/RunTest.py --simulator=post-synthesis $(POST_SYNTHESIS_WORK)
-
-# Keep the existing entry points on the same XSim test flow.
-.PHONY: post-synthesis post-synthesis-run
-post-synthesis post-synthesis-run: test-post-synthesis
+POST_SYNTHESIS_NETLIST = netlist.v
+POST_SYNTHESIS_DEFINES = RSD_SYNTHESIS_VIVADO
+include Makefiles/PostSynthesis.inc.mk

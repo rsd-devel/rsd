@@ -8,4 +8,4 @@ MODULES = Primitives/RAM.sv
 TEST_MODULES = Verification/UnitTest/InitializedBlockRAM/TestInitializedBlockRAM.sv
 VLOG_OPTIONS = +incdir+$(SOURCE_ROOT)
 VSIM_OPTIONS = -suppress 8233
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

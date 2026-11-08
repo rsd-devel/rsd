@@ -36,4 +36,4 @@ TEST_MODULES = Verification/UnitTest/DecodeStage/TestDecodeStage.sv
 VLOG_OPTIONS = $(RSD_SRC_CFG) -suppress 2605 +incdir+$(SOURCE_ROOT)
 VSIM_OPTIONS = -suppress 2605 -suppress 8233
 
-include ../../../Makefile.inc
+include ../../../Makefiles/ModelSim.inc.mk

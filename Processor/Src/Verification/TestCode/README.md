@@ -19,7 +19,7 @@ For `cfg.xml`, execution limits, and result checking, see the
 | --- | --- | --- |
 | `test-all` | `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone) | Build the Verilator model; fetch the benchmark sources below. |
 | `test-ex` | ACT4 and Zephyr | Build the Verilator model; run each suite's fetch/setup below. |
-| `test-unit` | Nine RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Install ModelSim/QuestaSim and set `RSD_QUESTASIM_PATH` to its executable directory. |
+| `test-unit` | RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Install ModelSim/QuestaSim and set `RSD_QUESTASIM_PATH` to its executable directory. |
 | `test-tools` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
 
 ```sh
@@ -35,8 +35,10 @@ They build HEX files as needed. `test-build` builds the normal test programs;
 `test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
 preserving downloaded sources and installed dependencies.
 
-`test-unit` delegates to `Makefile.modelsim.mk` and builds its own testbenches
-with ModelSim/QuestaSim; the default core simulator is Verilator.
+The default core simulator is Verilator. Use `SIM=modelsim` or `SIM=xsim`
+for both the build and program-test commands to select another simulator.
+`test-unit` always builds its own testbenches with ModelSim/QuestaSim;
+`UNIT_PROJECT_WORK` can override its output directory independently of `SIM`.
 Select one unit with, for example, `make test-unit-Divider`.
 `test-tools` uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
@@ -46,9 +48,9 @@ lists the individual tool-test targets.
 
 For synthesized cores, build the test HEX first (for example, with
 `make test-build-basic`). Then use
-`make -f Makefile.vivado.mk test-post-synthesis` for Vivado + XSim, or
-`make -f Makefile.synplify.mk test-post-synthesis` for Synplify + XSim.
-`make -f Makefile.vcs.mk test-post-implementation` uses Vivado placement/routing
+`make -f Makefiles/Vivado.mk test-post-synthesis` for Vivado + XSim, or
+`make -f Makefiles/Synplify.mk test-post-synthesis` for Synplify + XSim.
+`make -f Makefiles/VCS.mk test-post-implementation` uses Vivado placement/routing
 and VCS with SDF delays. These require separately installed CAD tools and
 `RSD_VIVADO_BIN`; they default to HelloWorld and accept `TEST_CODE` to select a
 UART-checked program. They are separate from the four groups above.
@@ -168,7 +170,8 @@ still uses 100 iterations. The benchmark instruction budget defaults to
 They do not meet the minimum-duration rules for
 published benchmark scores. The upstream synthetic timing remains solely for
 functional checks; the estimates use only the separate real cycle counts.
-RSD's 32-bit counter requires intervals shorter than `2^32` cycles.
+The measurement code reads the lower 32 bits of the 64-bit `mcycle` counter,
+so measured intervals must be shorter than `2^32` cycles.
 
 Dhrystone measures `mcycle` and reports the iteration count with the cycle count.
 Make passes the same iteration count to GCC and TestDriver. GCC builtins and

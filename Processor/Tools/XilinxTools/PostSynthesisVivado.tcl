@@ -1,4 +1,4 @@
-# Called by Makefile.vivado.mk from an isolated output directory.
+# Called by Makefiles/Vivado.mk from an isolated output directory.
 set src $env(RSD_POST_SYNTHESIS_SRC)
 set timing [expr {[lindex $argv 0] eq "timing"}]
 set_param general.maxThreads 4

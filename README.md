@@ -5,7 +5,9 @@ RSD is very fast due to aggressive OoO features, while it is very compact and ca
 The key features of RSD are as follows:
 
 * ISA
-    * Support RV32IMF
+    * Support RV32IMAF, Zicsr, Zifencei, Zba, and Zicond
+    * Optional Zicfilp landing-pad protection
+    * M/S/U privilege modes (no MMU)
     * Support Zephyr applications
 * Microarchitecture
     * 2-fetch front-end and 6-issue back-end pipelines
@@ -17,7 +19,7 @@ The key features of RSD are as follows:
     * Support AXI4 bus
 * Implementation
     * Written in SystemVerilog
-    * Can be simulated with Modelsim/QuestaSim, Verilator, and Vivado
+    * RTL simulation with Verilator, ModelSim/QuestaSim, and XSim
     * Can be synthesized with Synplify, Vivado and Design Compiler 
         * Design Compiler support is experimental
     * Can run on a Xilinx Zynq board  
@@ -78,7 +80,8 @@ Use the dev container configuration as the reference for manual setup:
 Then, from the repository root, use the same `cd` and `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;
 see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).
-For ModelSim/QuestaSim, build with `make -f Makefile.modelsim.mk`; for XSim (Vivado Simulator), use `make -f Makefile.xsim.mk`.
+Select ModelSim/QuestaSim with `make SIM=modelsim`, or XSim with `make SIM=xsim`.
+Use the same `SIM` setting when running tests, for example `make SIM=xsim test-1`.
 
 ### Run on a Xilinx Zynq board
 

@@ -1,9 +1,4 @@
-# Specify test code and progress limits (independent of cfg.xml)
-MAX_TEST_INSTRUCTIONS = 100000
-MAX_NO_COMMIT_CYCLES = 500
-MAX_TEST_CYCLES = 0
-SHOW_SERIAL_OUT = 1
-ENABLE_PC_GOAL = 1
+# Verilator RTL backend, included by the main Makefile.
 TEST_CODE = Verification/TestCode/Asm/FP
 #TEST_CODE = Verification/TestCode/C/FP
 #TEST_CODE = Verification/TestCode/C/HelloWorld
@@ -15,27 +10,11 @@ VERILATOR_BIN = $(RSD_VERILATOR_BIN)
 endif
 
 
-SOURCE_ROOT  = ./
-TOOLS_ROOT   = ../Tools/
 PROJECT_WORK =  ../Project/Verilator
 LIBRARY_WORK_RTL = $(PROJECT_WORK)/obj_dir
 
 TOP_MODULE = TestMain
 VERILATED_TOP_MODULE_NAME = V$(TOP_MODULE)
-
-# Convert a RSD log to a Kanata log.
-KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
-RSD_LOG_FILE_RTL = RSD.log
-KANATA_LOG_FILE_RTL = Kanata.log
-
-# Include core source code definition
-include Makefiles/CoreSources.inc.mk
-
-
-DEPS_RTL = \
-	$(TYPES:%=$(SOURCE_ROOT)%) \
-	$(MODULES:%=$(SOURCE_ROOT)%) \
-	$(TEST_MODULES:%=$(SOURCE_ROOT)%) \
 
 # Temporally disabled warnings
 # MULTIDRIVEN: simulation-only initializers also write always_ff registers.
@@ -82,22 +61,13 @@ all: $(CORE_TEMPLATE_FILES) $(LIBRARY_WORK_RTL) $(DEPS_RTL) Makefiles/CoreSource
 	$(MAKE) -C $(LIBRARY_WORK_RTL) -f $(VERILATED_TOP_MODULE_NAME).mk
 	@echo "==== Build Successful ===="
 
-$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
-	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
-
 run:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT)
+		$(addprefix +,$(SIM_PLUSARGS))
 
 kanata:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
+		$(addprefix +,$(SIM_PLUSARGS)) \
 		+REG_CSV_FILE=Register.csv \
 		+RSD_LOG_FILE=RSD.log
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
@@ -107,12 +77,9 @@ kanata:
 # Dump : Run test and dump values of register files for each cycle.
 #        This is only for pre-translate simulation.
 #
-dump:	
+dump:
 	$(LIBRARY_WORK_RTL)/$(VERILATED_TOP_MODULE_NAME) \
-		+MAX_TEST_INSTRUCTIONS=$(MAX_TEST_INSTRUCTIONS) \
-		+MAX_NO_COMMIT_CYCLES=$(MAX_NO_COMMIT_CYCLES) \
-		+MAX_TEST_CYCLES=$(MAX_TEST_CYCLES) \
-		+TEST_CODE=$(TEST_CODE) +ENABLE_PC_GOAL=$(ENABLE_PC_GOAL) +SHOW_SERIAL_OUT=$(SHOW_SERIAL_OUT) \
+		$(addprefix +,$(SIM_PLUSARGS)) \
 		+REG_CSV_FILE=Register.csv \
 		+RSD_LOG_FILE=RSD.log \
 		+WAVE_LOG_FILE=simx.vcd
@@ -124,12 +91,3 @@ $(LIBRARY_WORK_RTL):
 clean:
 	rm $(LIBRARY_WORK_RTL) -f -r
 	rm $(CORE_TEMPLATE_FILES) -f
-
-# -------------------------------
-# Test related items are defined in this file
-RUN_TEST = @python3 ../Tools/TestDriver/RunTest.py --simulator=verilator
-RUN_TEST_OMIT_MSG = \
-	@python3 ../Tools/TestDriver/RunTest.py -o --simulator=verilator 
-include Makefiles/TestCommands.inc.mk
-
-
