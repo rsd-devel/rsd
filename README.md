@@ -10,9 +10,9 @@ The key features of RSD are as follows:
     * M/S/U privilege modes (no MMU)
     * Support Zephyr applications
 * Microarchitecture
-    * 2-fetch front-end and 6-issue back-end pipelines
-    * Up to 64 instructions are in-flight.
-        * These parameters can be configurable.
+    * Build-time configurable pipeline widths, queue/register counts, and cache parameters
+        * See [MicroArchConf.sv](Processor/Src/MicroArchConf.sv) for parameters and constraints
+    * Default configuration: 2-wide fetch, up to 6-wide issue, and a 64-entry reorder buffer
     * A high-speed speculative instruction scheduler with a replay mechanism
     * Speculative OoO load/store execution and dynamic memory disambiguation
     * Non-blocking L1 data cache
@@ -92,7 +92,7 @@ Use the same `SIM` setting when running tests, for example `make SIM=xsim test-1
 
 ## License
 
-Copyright 2019-2023 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors, 
+Copyright 2019-2026 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors,
 see also CREDITS.md. This implementation is released under the Apache License,
 Version 2.0, see LICENSE for details. This implementation integrates third-party 
 packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.
