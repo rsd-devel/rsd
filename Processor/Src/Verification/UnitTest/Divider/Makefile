@@ -1,3 +1,5 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # Specify the name of a module to be tested.
 UNIT_NAME         = Divider
 

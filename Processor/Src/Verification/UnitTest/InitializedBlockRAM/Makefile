@@ -1,3 +1,5 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # Check the initialized RAM itself, including widths different from the HEX format.
 UNIT_NAME = InitializedBlockRAM
 TEST_BENCH_MODULE = Test$(UNIT_NAME)

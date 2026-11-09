@@ -91,7 +91,7 @@ module IO_Unit(
             port.ioReadDataOut = {31'h0, csrUnit.msip}; // zero-extend
         end
         // PLIC
-        else if (PHY_ADDR_PLIC_BASE <= phyRawReadAddr && phyRawReadAddr < PHY_ADDR_PLIC_END) begin
+        else if (PHY_ADDR_PLIC_BASE <= phyRawReadAddr && phyRawReadAddr <= PHY_ADDR_PLIC_END) begin
             port.ioReadDataOut = plicUnit.ioReadDataOut;
         end
         // Read a timer rigister

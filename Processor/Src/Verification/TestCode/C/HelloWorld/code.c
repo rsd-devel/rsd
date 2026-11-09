@@ -2,7 +2,7 @@
 
 int main(void){
 
-    volatile char* outputAddr = (char*)0x40002000;
+    volatile char* outputAddr = (char*)RSD_SERIAL_OUTPUT;
     *outputAddr = 'H';
     *outputAddr = 'e';
     *outputAddr = 'l';

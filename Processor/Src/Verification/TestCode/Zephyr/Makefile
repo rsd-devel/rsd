@@ -1,3 +1,7 @@
+include ../../../Makefiles/Environment.inc.mk
+include ../../../Makefiles/GenerateMemoryMap.inc.mk
+include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
+
 # Fetch public Zephyr explicitly; ordinary builds never download dependencies.
 ZEPHYR_URL = https://github.com/zephyrproject-rtos/zephyr.git
 ZEPHYR_REVISION = 684c9e8f32e4373a21098559f748f06915f950c9
@@ -57,7 +61,7 @@ check: check-source
 # The upstream sample and kernel use RSD's out-of-tree board/SoC unchanged.
 # Zephyr 4.4 needs the module scanner's generated Kconfig includes. Passing
 # ZEPHYR_BASE runs that scanner, which excludes Zephyr itself from the modules.
-$(ELFS): Build/%/zephyr/zephyr.elf: Makefile $(PORT_FILES) | check
+$(ELFS): Build/%/zephyr/zephyr.elf: Makefile $(PORT_FILES) $(RSD_MEMORY_MAP_OUTPUTS) | check
 	cmake -S "$(ZEPHYR_BASE)/samples/$(SAMPLE_$*)" -B Build/$* -G Ninja \
 		-DBOARD=rsd/rsd -DBOARD_ROOT="$(CURDIR)" -DSOC_ROOT="$(CURDIR)" \
 		-DUSER_CACHE_DIR="$(CURDIR)/Build/cache" \
@@ -67,12 +71,12 @@ $(ELFS): Build/%/zephyr/zephyr.elf: Makefile $(PORT_FILES) | check
 		-DTOOLCHAIN_HAS_NEWLIB=OFF -DTOOLCHAIN_HAS_PICOLIBC=OFF $(CMAKE_$*)
 	cmake --build Build/$* --parallel $(JOBS)
 
-$(SAMPLES:%=Build/%/code.hex): Build/%/code.hex: Build/%/zephyr/zephyr.elf Makefile ../../../../Tools/TestDriver/BinaryToHex.py
+$(SAMPLES:%=Build/%/code.hex): Build/%/code.hex: Build/%/zephyr/zephyr.elf Makefile ../../../../Tools/TestDriver/BinaryToHex.py $(RSD_MEMORY_MAP_OUTPUTS)
 	$(CROSS_COMPILE)objdump -d "$<" > Build/$*/code.dump
 # With XIP, initialized RAM data also has a ROM load address.
-	$(CROSS_COMPILE)objcopy -O binary --gap-fill=0 --pad-to=0x10000 "$<" Build/$*/rom.bin
-	@test "$$(stat -c %s Build/$*/rom.bin)" -eq 61440
-	dd if=/dev/zero of=Build/$*/code.bin bs=4096 count=1 status=none
+	$(CROSS_COMPILE)objcopy -O binary --gap-fill=0 --pad-to=$$(($(RSD_ROM_END) + 1)) "$<" Build/$*/rom.bin
+	@test "$$(stat -c %s Build/$*/rom.bin)" -eq $(RSD_ROM_SIZE)
+	dd if=/dev/zero of=Build/$*/code.bin bs=1 count=$(RSD_ROM_PHYSICAL_BASE) status=none
 	cat Build/$*/rom.bin >> Build/$*/code.bin
 	$(PYTHON) ../../../../Tools/TestDriver/BinaryToHex.py Build/$*/code.bin "$@.tmp"
 	mv "$@.tmp" "$@"

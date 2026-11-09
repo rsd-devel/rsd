@@ -1,3 +1,5 @@
+include Makefiles/Environment.inc.mk
+
 # Synplify synthesis and Vivado implementation.
 .DEFAULT_GOAL := vivado
 

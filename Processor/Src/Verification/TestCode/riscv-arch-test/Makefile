@@ -1,3 +1,4 @@
+include ../../../Makefiles/Environment.inc.mk
 # ACT4 dependencies are fetched and installed explicitly, outside test builds.
 ARCH_TEST_URL = https://github.com/riscv/riscv-arch-test.git
 ARCH_TEST_REVISION = 887ca0885f427e2b7824fedce5806b7fb7aed5d1
@@ -11,6 +12,8 @@ SAIL_URL = https://github.com/riscv/sail-riscv/releases/download/$(SAIL_VERSION)
 PYTHON ?= python3
 JOBS ?= $(shell nproc)
 include ../../../Makefiles/CoreSources.inc.mk
+include ../../../Makefiles/GenerateMemoryMap.inc.mk
+include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
 # Add extensions here as their RSD configuration and adapters are validated.
 comma := ,
 empty :=
@@ -157,28 +160,28 @@ Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
 
 # Generate the selected optional extensions without duplicating configuration.
 # Preserve unchanged timestamps so ACT4 can reuse its build and Sail results.
-config:
+config: $(RSD_MEMORY_MAP_OUTPUTS)
 	mkdir -p "$(BUILD_ROOT)/Config"
-	@for file in rsd-rv32i.yaml sail.json rvmodel_macros.h; do \
-		cp "$$file" "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1; \
+	@for file in rsd-rv32i.yaml sail.json rvmodel_macros.h ../rsd-memory-map.h; do \
+		cp "$$file" "$(BUILD_ROOT)/Config/$${file##*/}.tmp" || exit 1; \
 		if test -n "$(filter F,$(ACT_EXTENSION_LIST))"; then \
 			case "$$file" in \
-				rsd-rv32i.yaml) sed -e '/name: Zicsr,/a\  - { name: F, version: "= 2.2.0" }' -e 's/MSTATUS_FS_LEGAL_VALUES: \[0\]/MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" && \
-					printf '\n  MUTABLE_MISA_F: false\n  HW_MSTATUS_FS_DIRTY_UPDATE: precise\n' >> "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
+				rsd-rv32i.yaml) sed -e '/name: Zicsr,/a\  - { name: F, version: "= 2.2.0" }' -e 's/MSTATUS_FS_LEGAL_VALUES: \[0\]/MSTATUS_FS_LEGAL_VALUES: [0, 1, 2, 3]/' "$$file" > "$(BUILD_ROOT)/Config/$${file##*/}.tmp" && \
+					printf '\n  MUTABLE_MISA_F: false\n  HW_MSTATUS_FS_DIRTY_UPDATE: precise\n' >> "$(BUILD_ROOT)/Config/$${file##*/}.tmp" || exit 1 ;; \
 				sail.json) sed -e 's/"fs_legal_states": "ExtContext_Off"/"fs_legal_states": "ExtContext_FourState"/' \
-					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$$file.tmp" || exit 1 ;; \
+					-e 's/"F": {"supported": false, "mutable_misa": true,/"F": {"supported": true, "mutable_misa": false,/' "$$file" > "$(BUILD_ROOT)/Config/$${file##*/}.tmp" || exit 1 ;; \
 			esac; \
 		fi; \
 		for extension in $(filter Zba Zicond Zifencei,$(ACT_EXTENSION_LIST)); do \
 			version=1.0.0; test "$$extension" != Zifencei || version=2.0.0; \
 			case "$$file" in \
-				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= $$version\" }" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
-				sail.json) sed -i "s/\"$$extension\": {\"supported\": false}/\"$$extension\": {\"supported\": true}/" "$(BUILD_ROOT)/Config/$$file.tmp" ;; \
+				rsd-rv32i.yaml) sed -i "/name: Zicsr,/a\\  - { name: $$extension, version: \"= $$version\" }" "$(BUILD_ROOT)/Config/$${file##*/}.tmp" ;; \
+				sail.json) sed -i "s/\"$$extension\": {\"supported\": false}/\"$$extension\": {\"supported\": true}/" "$(BUILD_ROOT)/Config/$${file##*/}.tmp" ;; \
 			esac || exit 1; \
 		done; \
-		if cmp -s "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; then \
-			rm "$(BUILD_ROOT)/Config/$$file.tmp"; \
-		else mv "$(BUILD_ROOT)/Config/$$file.tmp" "$(BUILD_ROOT)/Config/$$file"; fi || exit 1; \
+		if cmp -s "$(BUILD_ROOT)/Config/$${file##*/}.tmp" "$(BUILD_ROOT)/Config/$${file##*/}"; then \
+			rm "$(BUILD_ROOT)/Config/$${file##*/}.tmp"; \
+		else mv "$(BUILD_ROOT)/Config/$${file##*/}.tmp" "$(BUILD_ROOT)/Config/$${file##*/}"; fi || exit 1; \
 	done
 
 build: check-source check-selection check config $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
@@ -202,16 +205,17 @@ build: check-source check-selection check config $(filter Build/Generated/%,$(AC
 		$(addprefix $(CASE_ROOT)/,$(addsuffix /cfg.xml,$(ACT_CASES))) \
 		$(addprefix $(CASE_ROOT)/,$(addsuffix /serial.ref.txt,$(ACT_CASES)))
 
-$(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile
+$(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile $(RSD_MEMORY_MAP_OUTPUTS)
 	mkdir -p "$(@D)"
 	llvm-objcopy -O binary --only-section=.text.reset --only-section=.text.init \
-		--gap-fill=0 --pad-to=0x10000 "$<" "$(@D)/rom.bin"
-	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq 61440
+		--gap-fill=0 --pad-to=$$(($(RSD_ROM_END) + 1)) "$<" "$(@D)/rom.bin"
+	@test "$$(stat -c %s "$(@D)/rom.bin")" -eq $(RSD_ROM_SIZE)
 	llvm-objcopy -O binary --only-section=.data --only-section=.text.rvtest --only-section=.text.rvmodel \
-		--gap-fill=0 --pad-to=0x80040000 "$<" "$(@D)/ram.bin"
-	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq 262144
-	dd if=/dev/zero of="$(@D)/code.bin" bs=4096 count=1 status=none
-	cat "$(@D)/rom.bin" "$(@D)/ram.bin" >> "$(@D)/code.bin"
+		--gap-fill=0 --pad-to=$$(($(RSD_RAM_END) + 1)) "$<" "$(@D)/ram.bin"
+	@test "$$(stat -c %s "$(@D)/ram.bin")" -eq $(RSD_RAM_SIZE)
+	head -c $$(($(RSD_RAM_PHYSICAL_END) + 1)) /dev/zero > "$(@D)/code.bin"
+	dd if="$(@D)/rom.bin" of="$(@D)/code.bin" bs=64K oflag=seek_bytes seek=$(RSD_ROM_PHYSICAL_BASE) conv=notrunc status=none
+	dd if="$(@D)/ram.bin" of="$(@D)/code.bin" bs=64K oflag=seek_bytes seek=$(RSD_RAM_PHYSICAL_BASE) conv=notrunc status=none
 	$(PYTHON) ../../../../Tools/TestDriver/BinaryToHex.py "$(@D)/code.bin" "$@.tmp"
 	mv "$@.tmp" "$@"
 

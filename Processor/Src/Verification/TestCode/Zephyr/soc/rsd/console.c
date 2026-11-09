@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <zephyr/init.h>
+#include "../../../rsd-memory-map.h"
 #include <zephyr/sys/libc-hooks.h>
 #include <zephyr/sys/printk-hooks.h>
 
@@ -7,7 +8,7 @@
 int arch_printk_char_out(int c)
 {
     __asm__ volatile ("fence iorw, iorw" ::: "memory");
-    *(volatile unsigned char *)0x40002000 = (unsigned char)c;
+    *(volatile unsigned char *)RSD_SERIAL_OUTPUT = (unsigned char)c;
     return c;
 }
 

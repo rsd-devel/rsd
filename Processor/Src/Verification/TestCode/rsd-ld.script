@@ -5,9 +5,12 @@ OUTPUT_ARCH("riscv")
 ENTRY(_start);
 
 
+INCLUDE rsd-memory-map.ld
+
+/* Keep the small-program limits independent of the hardware capacity. */
 MEMORY {
-    ROM(rxai) :     ORIGIN = 0x00001000, LENGTH = 32k
-    RAM(wa) :       ORIGIN = 0x80000000, LENGTH = 32k
+    ROM(rxai) :     ORIGIN = RSD_ROM_BASE, LENGTH = MIN(RSD_ROM_SIZE, 32k)
+    RAM(wa) :       ORIGIN = RSD_RAM_BASE, LENGTH = MIN(RSD_RAM_SIZE, 32k)
 }
 
 SECTIONS
@@ -15,15 +18,15 @@ SECTIONS
     .text : { *(.text) }     > ROM
     .rodata : { *(.rodata) } > ROM
     .srodata : { *(.srodata) } > ROM
-    __rodata_end = .;
-    .data : { 
+    /* Align the RAM and ROM starts for the loader's word-copy fast path. */
+    .data : ALIGN(4) {
       __data_start = .;
       *(.data)
       *(.sdata)
       __data_end = .;
-    } > RAM  AT> ROM 
-    . = ALIGN(4);
-    .bss : { 
+    } > RAM  AT> ROM
+    __data_load_start = LOADADDR(.data);
+    .bss : ALIGN(4) {
       __bss_start = .;
       *(.bss)
       *(.sbss)
@@ -32,3 +35,5 @@ SECTIONS
     
     .comment : { *(.comment) } > ROM
 }
+
+ASSERT(RSD_RESET_VECTOR == ORIGIN(ROM), "Startup must begin at the reset vector")

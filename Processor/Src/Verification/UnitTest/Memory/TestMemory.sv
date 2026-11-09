@@ -12,6 +12,7 @@ module TestMemory;
     localparam HOLD = 4;
     localparam PhyAddrPath ADDR_A = PhyAddrPath'('h1000);
     localparam PhyAddrPath ADDR_B = PhyAddrPath'('h1000 + MEMORY_ENTRY_BYTE_NUM);
+    localparam PhyAddrPath ADDR_HIGH = PhyAddrPath'('h41000);
     localparam MemoryEntryDataPath DATA_A = 64'h01234567_89abcdef;
     localparam MemoryEntryDataPath DATA_B = 64'hfedcba98_76543210;
 
@@ -156,6 +157,14 @@ module TestMemory;
         Step('0, '{TRUE, TRUE, ADDR_B, '0}, FALSE, TRUE);
         Drain();
         Step('{TRUE, ADDR_B}, '0, TRUE, FALSE, '0);
+        Drain();
+        Step('0, '{TRUE, FALSE, ADDR_A, '0}, FALSE, TRUE, DATA_A);
+        Drain();
+
+        // The mapped RAM extends above 256 KiB. It must not alias the ROM at A.
+        Step('0, '{TRUE, TRUE, ADDR_HIGH, DATA_B}, FALSE, TRUE);
+        Drain();
+        Step('0, '{TRUE, FALSE, ADDR_HIGH, '0}, FALSE, TRUE, DATA_B);
         Drain();
         Step('0, '{TRUE, FALSE, ADDR_A, '0}, FALSE, TRUE, DATA_A);
         Drain();

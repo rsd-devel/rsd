@@ -94,6 +94,7 @@ typedef struct packed {
 
 //
 // Memory map between logical and physical address spaces
+// BEGIN and END are inclusive addresses.
 // 
 
 {{ MEMORY_MAP_CONSTANTS }}

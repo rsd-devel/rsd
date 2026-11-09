@@ -1,3 +1,5 @@
+include Makefiles/Environment.inc.mk
+
 # Routed timing simulation with VCS using a Vivado netlist.
 # Build TEST_CODE first. Use post-implementation-run to reuse the routed netlist.
 .DEFAULT_GOAL := test-post-implementation

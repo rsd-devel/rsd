@@ -1,1 +1,0 @@
-"""rsd source generator"""
