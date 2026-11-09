@@ -1,17 +1,19 @@
 OUTPUT_ARCH("riscv")
 ENTRY(_rsd_reset)
 
+INCLUDE ../rsd-memory-map.ld
+
 MEMORY {
-  rom (rx) : ORIGIN = 0x1000, LENGTH = 0xf000
-  ram (rw) : ORIGIN = 0x80000000, LENGTH = 0x40000
+  rom (rx) : ORIGIN = RSD_ROM_BASE, LENGTH = RSD_ROM_SIZE
+  ram (rw) : ORIGIN = RSD_RAM_BASE, LENGTH = RSD_RAM_SIZE
 }
 
 SECTIONS {
   /* Keep reset and the legacy termination loop at 0x1000/0x1004. */
-  .text.reset 0x1000 : { KEEP(*(.text.reset)) } > rom
+  .text.reset RSD_RESET_VECTOR : { KEEP(*(.text.reset)) } > rom
   .text.init : { *(.text.init) } > rom
 
-  .data 0x80000000 : {
+  .data RSD_RAM_BASE : {
     *(.rodata) *(.rodata.*) *(.srodata) *(.srodata.*)
     *(.data) *(.data.*) *(.sdata) *(.sdata.*)
   } > ram
@@ -27,7 +29,7 @@ SECTIONS {
     _end = .;
   } > ram
   /* Keep the usual code address, but leave room for larger exception data. */
-  .text.rvtest MAX(0x80010000, ALIGN(__stack_top, 0x1000)) : {
+  .text.rvtest MAX(RSD_RAM_BASE + 0x10000, ALIGN(__stack_top, 0x1000)) : {
     *(.text.rvtest) *(.text.rvtest.*)
   } > ram
 

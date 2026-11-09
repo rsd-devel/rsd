@@ -1,5 +1,6 @@
 #ifndef RSD_RVMODEL_MACROS_H
 #define RSD_RVMODEL_MACROS_H
+#include "rsd-memory-map.h"
 
 // Keep instruction tests in M-mode when U is enabled in the profile.
 // Privileged tests enter S/U-mode explicitly through the ACT4 trap handler.
@@ -66,7 +67,7 @@ _rsd_goal:
 #define RVMODEL_HALT_FAIL RSD_ACT4_HALT(1)
 
 #define RVMODEL_IO_WRITE_STR(_R1, _R2, _R3, _STR_PTR) \
-  li _R2, 0x40002000; \
+  li _R2, RSD_SERIAL_OUTPUT; \
 1: lbu _R1, 0(_STR_PTR); \
   beqz _R1, 2f; \
   sw _R1, 0(_R2); \
@@ -75,9 +76,9 @@ _rsd_goal:
 2:
 
 // RSD CLINT addresses used by ACT4; the trap prolog parks the timer.
-#define RVMODEL_MTIME_ADDRESS 0x40017ff8
-#define RVMODEL_MTIMECMP_ADDRESS 0x40014000
-#define RVMODEL_MSIP_ADDRESS 0x40010000
+#define RVMODEL_MTIME_ADDRESS RSD_CLINT_TIMER_LOW
+#define RVMODEL_MTIMECMP_ADDRESS RSD_CLINT_TIMER_CMP_LOW
+#define RVMODEL_MSIP_ADDRESS RSD_CLINT_MSIP
 
 // Allow interrupt propagation and keep delayed MTI pending after WFI setup.
 #define RVMODEL_INTERRUPT_LATENCY 10
@@ -86,28 +87,28 @@ _rsd_goal:
 // With EnableUART_Interrupts, TestMain consumes UART DC1/DC3 as source-1
 // assert/deassert commands. Sail substitutes its own interrupt device.
 #define RSD_ACT4_SET_EXT(_R1, _R2, _CTX) \
-  li _R2, 0xc0000004; \
+  li _R2, (RSD_PLIC_SOURCE_PRIORITY_BASE + 4); \
   li _R1, 1; \
   sw _R1, 0(_R2); \
-  li _R2, (0xc0002000 + (1 - _CTX) * 0x80); \
+  li _R2, (RSD_PLIC_ENABLE_BASE + (1 - _CTX) * 0x80); \
   sw zero, 0(_R2); \
-  li _R2, (0xc0002000 + _CTX * 0x80); \
+  li _R2, (RSD_PLIC_ENABLE_BASE + _CTX * 0x80); \
   li _R1, 2; \
   sw _R1, 0(_R2); \
-  li _R2, (0xc0200000 + _CTX * 0x1000); \
+  li _R2, (RSD_PLIC_PRIORITY_THRESHOLD_BASE + _CTX * 0x1000); \
   sw zero, 0(_R2); \
-  li _R2, 0x40002000; \
+  li _R2, RSD_SERIAL_OUTPUT; \
   li _R1, 0x11; \
   sw _R1, 0(_R2); \
   fence iorw, iorw
 
 // Deassert the level before completing, so the gateway cannot re-pend it.
 #define RSD_ACT4_CLR_EXT(_R1, _R2, _CTX) \
-  li _R2, 0x40002000; \
+  li _R2, RSD_SERIAL_OUTPUT; \
   li _R1, 0x13; \
   sw _R1, 0(_R2); \
   fence iorw, iorw; \
-  li _R2, (0xc0200004 + _CTX * 0x1000); \
+  li _R2, (RSD_PLIC_CLAIM_COMPLETE_BASE + _CTX * 0x1000); \
   lw _R1, 0(_R2); \
   sw _R1, 0(_R2); \
   fence iorw, iorw
