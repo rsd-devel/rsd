@@ -1,6 +1,6 @@
 include ../../Src/Makefiles/Environment.inc.mk
 .DEFAULT_GOAL := all
-include ../../Src/Makefiles/MemoryMap.inc.mk
+include ../../Src/Makefiles/GenerateMemoryMap.inc.mk
 $(call REQUIRE_ENV,RSD_DC_SHELL_BIN)
 
 include ../../Src/Makefiles/CoreSources.inc.mk
