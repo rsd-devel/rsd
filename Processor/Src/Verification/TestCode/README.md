@@ -54,9 +54,9 @@ lists the individual tool-test targets.
 
 For synthesized cores, build the test HEX first (for example, with
 `make test-build-basic`). Then use
-`make -f Makefiles/Vivado.mk test-post-synthesis` for Vivado + XSim, or
-`make -f Makefiles/Synplify.mk test-post-synthesis` for Synplify + XSim.
-`make -f Makefiles/VCS.mk test-post-implementation` uses Vivado placement/routing
+`make vivado/post-synthesis/test` for Vivado + XSim, or
+`make synplify/post-synthesis/test` for Synplify + XSim.
+`make vcs/post-implementation/test` uses Vivado placement/routing
 and VCS with SDF delays. These require separately installed CAD tools and
 `RSD_VIVADO_BIN`; they default to HelloWorld and accept `TEST_CODE` to select a
 UART-checked program. They are separate from the four groups above.

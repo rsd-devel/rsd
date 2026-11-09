@@ -4,7 +4,6 @@ The root `Makefile` is a symlink to `Processor/Src/Makefile`. When invoked outsi
 `Processor/Src`, that Makefile forwards targets, variables and parallel jobs there.
 Both directories support the normal `make` commands and target completion.
 Relative path arguments such as `TEST_CODE` are resolved from `Processor/Src`.
-Use `Processor/Src` for the tool-specific `-f Makefiles/...` commands below:
 
 ```sh
 make -j8                         # Verilator (default)
@@ -14,17 +13,32 @@ make SIM=xsim                    # XSim
 make SIM=xsim test-1
 make test-unit                   # Verilator RTL unit tests
 make SIM=modelsim test-unit       # ModelSim/QuestaSim RTL unit tests
-make -f Makefiles/Vivado.mk       # Vivado board build
-make -f Makefiles/Synplify.mk     # Synplify netlist / Vivado board flow
-make -f Makefiles/VCS.mk          # VCS post-implementation timing test
+make vivado/build                # Board synthesis through bitstream generation
+make vivado/post-synthesis/test  # Vivado + XSim functional test
+make synplify/post-synthesis/test # Synplify + XSim functional test
+make vcs/post-implementation/test # Vivado implementation + VCS timing test
 ```
 
-RTL backends (`Verilator.mk`, `ModelSim.mk`, `XSim.mk`) are included by the main
-Makefile; use `SIM` to select them. The former `Makefile.<tool>.mk` entry points
+RTL backends (`VerilatorCore.inc.mk`, `ModelSimCore.inc.mk`, `XSimCore.inc.mk`)
+are included by the main Makefile; use `SIM` to select them. The former `Makefile.<tool>.mk` entry points
 have been removed. Unit-test Makefiles include `Makefiles/UnitTest.inc.mk`
 instead of the former `Makefile.inc`. VCS currently provides timing verification,
 not a `SIM=vcs` RTL backend. See the [test instructions](../Verification/TestCode/README.md)
 for prerequisites and post-synthesis commands.
+
+EDA targets use `vivado/`, `synplify/`, and `vcs/` prefixes. Standard Bash completion
+shows these groups before their individual targets, without a custom completion
+script. `EDA.inc.mk` maps them to separate tool submakes, preserving command-line
+variables and parallel job limits. The backend `Vivado.mk`, `Synplify.mk`, and
+`VCS.mk` files remain directly usable with `make -f Makefiles/<tool>.mk` from
+`Processor/Src`; include-only files use the `.inc.mk` suffix.
+
+`vivado/build` and `synplify/build` include board implementation and bitstream
+generation. The latter still requires a separately prepared Synplify board
+netlist. Post-synthesis `build`/`test` targets generate their verification netlists
+automatically. `vcs/post-implementation/run` reuses an existing routed netlist,
+while `test` also builds it. Existing ARM Linux commands are under
+`vivado/arm-linux/`; their tool and source requirements are unchanged.
 
 - `CoreSources.inc.mk`: the stable source/configuration manifest. **sv-tests
   parses `TYPES` and `CORE_MODULES` directly**, without evaluating Make. Preserve

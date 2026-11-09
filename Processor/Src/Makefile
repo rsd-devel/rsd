@@ -1,4 +1,4 @@
-# Common RTL simulation and test entry point. Synthesis uses Makefiles/*.mk.
+# Common entry point for RTL tests and tool-specific synthesis/verification.
 .DEFAULT_GOAL := all
 SOURCE_DIRECTORY := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(SOURCE_DIRECTORY)Makefiles/Environment.inc.mk
@@ -51,13 +51,14 @@ RUN_TEST = @$(call REQUIRE_ENV,$(SIM_REQUIRED_ENV))python3 $(TOOLS_ROOT)TestDriv
 RUN_TEST_OMIT_MSG = $(RUN_TEST) -o
 
 ifeq ($(SIM),verilator)
-include Makefiles/Verilator.mk
+include Makefiles/VerilatorCore.inc.mk
 else ifeq ($(SIM),modelsim)
-include Makefiles/ModelSim.mk
+include Makefiles/ModelSimCore.inc.mk
 else
-include Makefiles/XSim.mk
+include Makefiles/XSimCore.inc.mk
 endif
 include Makefiles/TestCommands.inc.mk
+include Makefiles/EDA.inc.mk
 
 # Units follow SIM; UNIT_SIM can select them independently of the core.
 UNIT_SIM ?= $(SIM)
