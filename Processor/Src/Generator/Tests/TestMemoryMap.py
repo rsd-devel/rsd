@@ -1,11 +1,12 @@
 import copy
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 SRC = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SRC))
-from Generator.config import CpuConfig
+from Generator.config import CpuConfig, load_config
 from Generator.memory_map_renderer import MemoryMapRenderer
 from Generator.yaml_utils import ConfigError, load_yaml
 
@@ -52,6 +53,54 @@ class TestMemoryMap(unittest.TestCase):
 
     def test_checked_in_output(self):
         self.assertEqual(self.render(), (SRC / 'Memory/MemoryMapTypes.sv').read_text())
+
+
+    def test_required_hardware_constants(self):
+        del self.values['memory_map']['regions']['plic']
+        with self.assertRaisesRegex(ConfigError, 'plic.*required'):
+            self.render()
+
+    def test_required_register(self):
+        del self.values['memory_map']['regions']['plic']['registers']['CLAIM_COMPLETE_BASE']
+        with self.assertRaisesRegex(ConfigError, 'CLAIM_COMPLETE_BASE.*required'):
+            self.render()
+
+    def test_required_prefix(self):
+        self.values['memory_map']['regions']['serial']['constants']['logical_prefix'] = 'UART'
+        with self.assertRaisesRegex(ConfigError, 'must be LOG_ADDR_SERIAL'):
+            self.render()
+
+    def test_narrow_pc(self):
+        self.values['memory_map']['pc'] = {'narrow': True, 'width': 2}
+        with self.assertRaisesRegex(ConfigError, 'narrow PC'):
+            self.render()
+        # Include the uncachable memory region, not just the reset vector.
+        self.values['memory_map']['pc']['width'] = 20
+        self.render()
+
+    def test_reset_vector(self):
+        for address in (-4, 0x1002, 0x40002000, 0x100000000):
+            with self.subTest(address=address):
+                self.values['INSN_RESET_VECTOR'] = address
+                with self.assertRaises(ConfigError):
+                    self.render()
+
+    def test_unknown_setting(self):
+        self.values['memory_map']['regions']['ram']['uncachble'] = True
+        with self.assertRaisesRegex(ConfigError, 'unknown keys: uncachble'):
+            self.render()
+
+    def test_duplicate_setting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'config.yml'
+            path.write_text('memory_map: {}\nmemory_map: {}\n')
+            with self.assertRaisesRegex(ConfigError, 'duplicate YAML key'):
+                load_config(path)
+
+    def test_overlap(self):
+        self.values['memory_map']['regions']['ram']['logical_base'] = 0x1000
+        with self.assertRaises(ConfigError):
+            self.render()
 
 
 if __name__ == '__main__':

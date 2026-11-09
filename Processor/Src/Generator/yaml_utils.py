@@ -17,6 +17,27 @@ _MISSING = object()
 _SV_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*\Z")
 
 
+def validate_keys(values: YamlMapping, allowed: tuple[str, ...], path: str) -> None:
+    unknown = values.keys() - set(allowed)
+    if unknown:
+        raise ConfigError(f"{path}: unknown keys: {', '.join(sorted(unknown))}")
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    # A misspelled or repeated setting must not silently change the hardware.
+    def construct_mapping(self, node, deep=False):
+        self.flatten_mapping(node)
+        values = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if not isinstance(key, str):
+                raise ConfigError("YAML mapping keys must be strings")
+            if key in values:
+                raise ConfigError(f"duplicate YAML key: {key}")
+            values[key] = self.construct_object(value_node, deep=deep)
+        return values
+
+
 def value_path(path: str, key: str) -> str:
     return f"{path}.{key}"
 
@@ -110,7 +131,7 @@ def validate_sv_identifier(value: str, path: str) -> str:
 
 def load_yaml(path: Path) -> YamlMapping:
     try:
-        value = yaml.safe_load(path.read_text(encoding="utf-8"))
+        value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
     except yaml.YAMLError as exc:
         raise ConfigError(f"{path}: invalid YAML: {exc}") from exc
     return require_mapping(value, "config")

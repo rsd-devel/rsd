@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
+import re
 
 from Generator.yaml_utils import (
     ConfigError,
@@ -15,6 +16,7 @@ from Generator.yaml_utils import (
     read_value,
     require_integer,
     validate_sv_identifier,
+    validate_keys,
     value_path,
 )
 
@@ -60,6 +62,7 @@ class RegionConstantNames:
         values: YamlMapping,
         path: str,
     ) -> "RegionConstantNames":
+        validate_keys(values, ("logical_prefix", "physical_prefix"), path)
         logical_prefix = validate_sv_identifier(
             read_string(values, "logical_prefix", path),
             value_path(path, "logical_prefix"),
@@ -84,7 +87,8 @@ class Register:
         region_size: int,
         path: str,
     ) -> "Register":
-        validate_sv_identifier(name, path)
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ConfigError(f"{path} must be a valid C/SystemVerilog identifier")
         offset = require_integer(value, path)
         if not 0 <= offset < region_size:
             raise ConfigError(f"{path} must be within the region size")
@@ -113,6 +117,12 @@ class Region:
         path: str,
         raw_address_width: int,
     ) -> "Region":
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", key):
+            raise ConfigError(f"{path}: region keys must use lowercase letters, digits and underscores")
+        validate_keys(values, (
+            "type", "name", "logical_base", "physical_base", "size",
+            "translation", "addr_bit_width", "uncachable", "constants", "registers",
+        ), path)
         region_type = RegionType.parse(
             read_value(values, "type", path),
             value_path(path, "type"),
