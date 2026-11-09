@@ -8,5 +8,5 @@ include Makefiles/CoreSources.inc.mk
 
 DEPS_RTL = $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
 
-$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) default.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
+$(CORE_TEMPLATE_FILES): $(wildcard Generator/*.py) MemoryMap.yml $(CORE_TEMPLATE_FILES:.sv=.template.sv)
 	python3 Generator/cpu_generator.py --rsd-root $(RSD_ROOT)

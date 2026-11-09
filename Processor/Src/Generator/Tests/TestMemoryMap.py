@@ -14,10 +14,10 @@ from Generator.yaml_utils import ConfigError, load_yaml
 class TestMemoryMap(unittest.TestCase):
 
     def setUp(self):
-        self.values = copy.deepcopy(load_yaml(SRC / 'default.yml'))
+        self.values = copy.deepcopy(load_yaml(SRC / 'MemoryMap.yml'))
 
     def render(self):
-        return MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'default.yml',
+        return MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
                                  SRC / 'Memory/MemoryMapTypes.template.sv').render(
                                      (SRC / 'Memory/MemoryMapTypes.template.sv').read_text())
 

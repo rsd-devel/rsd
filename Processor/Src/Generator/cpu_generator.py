@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     source_root = args.rsd_root / "Processor" / "Src"
-    config_path = source_root / "default.yml"
+    config_path = source_root / "MemoryMap.yml"
     template_path = source_root / "Memory" / "MemoryMapTypes.template.sv"
     output_path = source_root / "Memory" / "MemoryMapTypes.sv"
 
