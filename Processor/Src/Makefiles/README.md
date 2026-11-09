@@ -52,5 +52,8 @@ copy and edit [SetEnv.sh](../../Tools/SetEnv/SetEnv.sh), then source `MySetEnv.s
 `RSD_ROOT` always comes from the Makefile location and is exported to child
 processes; it needs no manual setting. Program builds require `RSD_GCC_PATH` and `RSD_GCC_PREFIX`. ModelSim/Questa requires `RSD_QUESTASIM_PATH`, and Vivado/XSim
 requires `RSD_VIVADO_BIN`. Verilator, Synplify and VCS can use commands from PATH.
-`Environment.inc.mk` shares the checks; make's query mode skips them so target
-completion works before setup.
+RTL/EDA and standalone test-suite entry points include `Environment.inc.mk` first.
+Ordinary test programs initialize it in their shared `TestCode/Makefile.inc`,
+also used by `BuildC.inc.mk`, so individual program Makefiles need no setup.
+Memory-map rules use the initialized environment without loading it again.
+Make's query mode skips the checks so target completion works before setup.

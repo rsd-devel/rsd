@@ -1,3 +1,5 @@
+include ../../../Makefiles/Environment.inc.mk
+
 UNIT_NAME = InterruptController
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
 SOURCE_ROOT = ../../../

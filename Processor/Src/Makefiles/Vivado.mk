@@ -1,3 +1,5 @@
+include Makefiles/Environment.inc.mk
+
 # Vivado synthesis, implementation, and post-synthesis simulation.
 # RTL simulation is selected by make SIM=xsim.
 .DEFAULT_GOAL := vivado-synthesis

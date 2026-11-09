@@ -1,6 +1,7 @@
 # Common RTL simulation and test entry point. Synthesis uses Makefiles/*.mk.
 .DEFAULT_GOAL := all
 SOURCE_DIRECTORY := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+include $(SOURCE_DIRECTORY)Makefiles/Environment.inc.mk
 
 # Resolve the root symlink and keep all existing paths relative to Src.
 ifneq ($(realpath $(CURDIR))/,$(SOURCE_DIRECTORY))

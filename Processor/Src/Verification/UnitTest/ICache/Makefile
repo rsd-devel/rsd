@@ -1,3 +1,5 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # テスト対象となるモジュールの名前を指定．
 UNIT_NAME         = ICache
 

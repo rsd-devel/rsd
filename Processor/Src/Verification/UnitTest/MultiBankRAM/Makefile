@@ -1,3 +1,5 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # Check bank routing and read latency with equal and unequal port counts.
 UNIT_NAME = MultiBankRAM
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
