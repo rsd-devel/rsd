@@ -45,7 +45,8 @@ Use `make SIM=modelsim test-unit` for ModelSim/QuestaSim, setting
 their output directory. ModelSim/QuestaSim also checks unknown (`X`) values
 that Verilator's two-state simulation cannot detect.
 Select one unit with, for example, `make test-unit-Divider`.
-`test-tools` uses stubs for the launcher and runner CLI. Its simulation-limit
+`test-tools` also checks memory-map generation (`test-tools-MemoryMap`) and
+uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
 those checks are reported as skipped. It does not build models, download tools
 or start containers. The [TestDriver documentation](../../../Tools/TestDriver/README.md)
@@ -328,3 +329,20 @@ are outside this subset.
 removes its generated files. Run the fetch/setup steps above before `test-ex`
 or `test-build-ex`.
 `test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.
+
+## Memory map
+
+`../../MemoryMap.yml` defines the RTL and shared software addresses. Make regenerates
+the RTL file `../../Memory/MemoryMapTypes.sv` and the software files
+`rsd-memory-map.h`, `rsd-memory-map.ld`, and `rsd-memory-map.mk` in this directory
+through `../../Makefiles/GenerateMemoryMap.inc.mk`. Keep these generated files in Git so
+external RTL consumers can compile a checkout without running the generator.
+All memory-map `END` constants denote the last valid address (inclusive).
+An image starting at physical address zero has `PHYSICAL_END + 1` bytes;
+`objcopy --pad-to` uses the exclusive logical bound, `END + 1`.
+
+The common startup, UART helpers, linker scripts, ACT4 adapter, and Zephyr board
+use these constants. Linker scripts retain their own section layout and program
+limits. Directed assembly tests and their expected register values still assume
+the default map; changing the map does not automatically relocate those tests.
+The ACT4 Sail configuration also has reference-model-specific device addresses.
