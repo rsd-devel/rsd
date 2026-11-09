@@ -14,7 +14,7 @@ from Generator.yaml_utils import ConfigError
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate MemoryMapTypes.sv from the RSD source configuration."
+        description="Generate RTL and software memory-map constants from MemoryMap.yml."
     )
     parser.add_argument(
         "--rsd-root",
@@ -36,7 +36,12 @@ def main() -> int:
         config = load_config(config_path)
         template = template_path.read_text(encoding="utf-8")
         renderer = MemoryMapRenderer(config, config_path, template_path)
-        output_path.write_text(renderer.render(template), encoding="utf-8")
+        outputs = {output_path: renderer.render(template)}
+        outputs.update({source_root / "Verification/TestCode" / name: content
+                        for name, content in renderer.render_software().items()})
+        # Render everything before writing any outputs.
+        for path, content in outputs.items():
+            path.write_text(content, encoding="utf-8")
     except (ConfigError, OSError) as exc:
         print(f"cpu_generator.py: error: {exc}", file=sys.stderr)
         return 1

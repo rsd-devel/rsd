@@ -53,6 +53,10 @@ class TestMemoryMap(unittest.TestCase):
 
     def test_checked_in_output(self):
         self.assertEqual(self.render(), (SRC / 'Memory/MemoryMapTypes.sv').read_text())
+        renderer = MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+                                     SRC / 'Memory/MemoryMapTypes.template.sv')
+        for name, content in renderer.render_software().items():
+            self.assertEqual(content, (SRC / 'Verification/TestCode' / name).read_text())
 
 
     def test_required_hardware_constants(self):
@@ -101,6 +105,19 @@ class TestMemoryMap(unittest.TestCase):
         self.values['memory_map']['regions']['ram']['logical_base'] = 0x1000
         with self.assertRaises(ConfigError):
             self.render()
+
+
+    def test_software_addresses_follow_configuration(self):
+        self.values['memory_map']['regions']['ram']['logical_base'] = 0x90000000
+        self.values['PC_GOAL'] = 0x90001004
+        config = CpuConfig.from_yaml(self.values)
+        renderer = MemoryMapRenderer(config, SRC / 'MemoryMap.yml',
+                                     SRC / 'Memory/MemoryMapTypes.template.sv')
+        values = renderer.software_constants()
+        self.assertEqual(values['RSD_RAM_BASE'], 0x90000000)
+        self.assertEqual(values['RSD_RAM_END'], 0x9003ffff)
+        self.assertEqual(values['RSD_RAM_PHYSICAL_BASE'], 0x10000)
+        self.assertEqual(values['RSD_CLINT_TIMER_LOW'], 0x40017ff8)
 
 
 if __name__ == '__main__':

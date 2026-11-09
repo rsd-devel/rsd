@@ -5,6 +5,7 @@ from Generator.config import CpuConfig
 from Generator.region import Region, Translation
 from Generator.sv_utils import SystemVerilog
 from Generator.template import TemplateContext
+from Generator.yaml_utils import ConfigError
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,49 @@ class MemoryMapRenderer:
             self.render_single_region_constants(region)
             for region in self.config.memory_map.regions
         )
+
+    def software_constants(self) -> dict[str, int]:
+        constants = {"RSD_RESET_VECTOR": self.config.instruction_reset_vector,
+                     "RSD_PC_GOAL": self.config.pc_goal}
+        for region in self.config.memory_map.regions:
+            prefix = f"RSD_{region.key.upper()}"
+            values = {f"{prefix}_BASE": region.logical_base,
+                      f"{prefix}_SIZE": region.size,
+                      f"{prefix}_END": region.logical_end,
+                      f"{prefix}_PHYSICAL_BASE": region.physical_range[0],
+                      f"{prefix}_PHYSICAL_END": region.physical_range[1]}
+            for register in region.registers:
+                name = f"{prefix}_{register.name}"
+                if name in values:
+                    raise ConfigError(f"duplicate software constant: {name}")
+                values[name] = region.logical_base + register.offset
+            if constants.keys() & values.keys():
+                raise ConfigError(f"duplicate software constants for region {region.key}")
+            constants.update(values)
+        return constants
+
+    def render_software(self) -> dict[str, str]:
+        constants = self.software_constants()
+        notice = "Generated from MemoryMap.yml by Generator/cpu_generator.py. Do not edit."
+        # DTS unit addresses are tokens without the 0x prefix used by C/assembly.
+        unit_addresses = {}
+        for name in ("RSD_ROM_BASE", "RSD_RAM_BASE", "RSD_CLINT_TIMER_LOW"):
+            if name + "_HEX" in constants:
+                raise ConfigError(f"reserved DTS constant: {name}_HEX")
+            unit_addresses[name + "_HEX"] = constants[name]
+        return {
+            "rsd-memory-map.h": (
+                f"/* {notice} */\n#ifndef RSD_MEMORY_MAP_H\n#define RSD_MEMORY_MAP_H\n"
+                + "".join(f"#define {key} 0x{value:x}\n" for key, value in constants.items())
+                + "/* Hexadecimal tokens without 0x for DTS unit addresses. */\n"
+                + "".join(f"#define {key} {value:x}\n" for key, value in unit_addresses.items())
+                + "#endif\n"
+            ),
+            "rsd-memory-map.ld": f"/* {notice} */\n" +
+                "".join(f"{key} = 0x{value:x};\n" for key, value in constants.items()),
+            "rsd-memory-map.mk": f"# {notice}\n" +
+                "".join(f"{key} := {value}\n" for key, value in constants.items()),
+        }
 
     def render_single_region_constants(self, region: Region) -> str:
         logical_prefix = region.constants.logical_prefix
