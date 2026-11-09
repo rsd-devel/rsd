@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /dts-v1/;
+#include "../../../rsd-memory-map.h"
 
 / {
 	model = "RSD simulation";
@@ -33,19 +34,19 @@
 		};
 	};
 
-	ram: memory@80000000 {
+	ram: memory@RSD_RAM_BASE_HEX {
 		compatible = "mmio-sram";
-		reg = <0x80000000 0x40000>;
+		reg = <RSD_RAM_BASE RSD_RAM_SIZE>;
 	};
 
-	rom: flash@1000 {
+	rom: flash@RSD_ROM_BASE_HEX {
 		compatible = "soc-nv-flash";
-		reg = <0x1000 0xf000>;
+		reg = <RSD_ROM_BASE RSD_ROM_SIZE>;
 	};
 
-	mtimer: timer@40017ff8 {
+	mtimer: timer@RSD_CLINT_TIMER_LOW_HEX {
 		compatible = "riscv,machine-timer";
-		reg = <0x40017ff8 8 0x40014000 8>;
+		reg = <RSD_CLINT_TIMER_LOW 8 RSD_CLINT_TIMER_CMP_LOW 8>;
 		reg-names = "mtime", "mtimecmp";
 		interrupts-extended = <&hlic 7>;
 	};
