@@ -1,6 +1,8 @@
 # Shared unit-test entry points. SIM follows the core simulator by default.
 .DEFAULT_GOAL := all
 include $(SOURCE_ROOT)Makefiles/Environment.inc.mk
+include $(SOURCE_ROOT)Makefiles/MemoryMap.inc.mk
+$(SOURCE_ROOT)Memory/MemoryMapTypes.sv: $(MEMORY_MAP_OUTPUTS)
 SIM ?= verilator
 UNIT_SIM ?= $(SIM)
 
