@@ -7,5 +7,5 @@
 RSD_MEMORY_MAP_OUTPUTS := $(RSD_ROOT)/Processor/Src/Memory/MemoryMapTypes.sv \
 	$(addprefix $(RSD_ROOT)/Processor/Src/Verification/TestCode/,rsd-memory-map.h rsd-memory-map.ld rsd-memory-map.mk)
 
-$(RSD_MEMORY_MAP_OUTPUTS) &: $(wildcard $(RSD_ROOT)/Processor/Src/Generator/*.py) $(RSD_ROOT)/Processor/Src/MemoryMap.yml $(RSD_ROOT)/Processor/Src/Memory/MemoryMapTypes.template.sv
+$(RSD_MEMORY_MAP_OUTPUTS) &: $(RSD_ROOT)/Processor/Src/Generator/cpu_generator.py $(RSD_ROOT)/Processor/Src/MemoryMap.yml $(RSD_ROOT)/Processor/Src/Memory/MemoryMapTypes.template.sv
 	python3 $(RSD_ROOT)/Processor/Src/Generator/cpu_generator.py --rsd-root $(RSD_ROOT)

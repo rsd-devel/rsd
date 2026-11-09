@@ -1,32 +1,678 @@
 #!/usr/bin/env python3
+"""Generate RTL and software memory-map definitions from MemoryMap.yml."""
+
+from __future__ import annotations
 
 import argparse
-import sys
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+import re
+import sys
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from Generator.config import load_config
-from Generator.memory_map_renderer import MemoryMapRenderer
-from Generator.yaml_utils import ConfigError
+import yaml
 
 
-def parse_args() -> argparse.Namespace:
+# YAML loading and validation
+
+class ConfigError(Exception):
+    pass
+
+
+YamlMapping = Mapping[str, object]
+
+_MISSING = object()
+_SV_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*\Z")
+
+
+def validate_keys(values: YamlMapping, allowed: tuple[str, ...], path: str) -> None:
+    unknown = values.keys() - set(allowed)
+    if unknown:
+        raise ConfigError(f"{path}: unknown keys: {', '.join(sorted(unknown))}")
+
+
+class UniqueKeyLoader(yaml.SafeLoader):
+    # A misspelled or repeated setting must not silently change the hardware.
+    def construct_mapping(self, node, deep=False):
+        self.flatten_mapping(node)
+        values = {}
+        for key_node, value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if not isinstance(key, str):
+                raise ConfigError("YAML mapping keys must be strings")
+            if key in values:
+                raise ConfigError(f"duplicate YAML key: {key}")
+            values[key] = self.construct_object(value_node, deep=deep)
+        return values
+
+
+def require_mapping(value: object, path: str) -> YamlMapping:
+    if not isinstance(value, Mapping):
+        raise ConfigError(f"{path} must be a mapping")
+    for key in value:
+        if not isinstance(key, str):
+            raise ConfigError(f"{path} keys must be strings")
+    return value
+
+
+def read_value(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> object:
+    if key in values:
+        return values[key]
+    if default is _MISSING:
+        raise ConfigError(f"{path}.{key} is required")
+    return default
+
+
+def read_mapping(values: YamlMapping, key: str, path: str) -> YamlMapping:
+    child_path = f"{path}.{key}"
+    return require_mapping(read_value(values, key, path), child_path)
+
+
+def read_optional_mapping(values: YamlMapping, key: str, path: str) -> YamlMapping | None:
+    if key not in values:
+        return None
+    return require_mapping(values[key], f"{path}.{key}")
+
+
+def read_string(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> str:
+    child_path = f"{path}.{key}"
+    value = read_value(values, key, path, default)
+    if not isinstance(value, str):
+        raise ConfigError(f"{child_path} must be a string")
+    return value
+
+
+def require_integer(value: object, path: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ConfigError(f"{path} must be a YAML integer")
+    return value
+
+
+def read_integer(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> int:
+    return require_integer(read_value(values, key, path, default), f"{path}.{key}")
+
+
+def read_boolean(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> bool:
+    child_path = f"{path}.{key}"
+    value = read_value(values, key, path, default)
+    if not isinstance(value, bool):
+        raise ConfigError(f"{child_path} must be a boolean")
+    return value
+
+
+def validate_sv_identifier(value: str, path: str) -> str:
+    if not _SV_IDENTIFIER.fullmatch(value):
+        raise ConfigError(f"{path} must be a valid SystemVerilog identifier")
+    return value
+
+
+def load_yaml(path: Path) -> YamlMapping:
+    try:
+        value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
+    except yaml.YAMLError as exc:
+        raise ConfigError(f"{path}: invalid YAML: {exc}") from exc
+    return require_mapping(value, "config")
+
+
+# Memory regions and address translation
+
+class RegionType(Enum):
+    MEMORY = "memory"
+    IO = "io"
+
+    @classmethod
+    def parse(cls, value: object, path: str) -> "RegionType":
+        try:
+            return cls(value)
+        except (TypeError, ValueError) as exc:
+            choices = ", ".join(item.value for item in cls)
+            raise ConfigError(f"{path} must be one of: {choices}") from exc
+
+    @property
+    def memory_map_type(self) -> str:
+        return "MMT_IO" if self is RegionType.IO else "MMT_MEMORY"
+
+
+class Translation(Enum):
+    RELATIVE = "relative"
+    LOW_BITS = "low_bits"
+
+    @classmethod
+    def parse(cls, value: object, path: str) -> "Translation":
+        try:
+            return cls(value)
+        except (TypeError, ValueError) as exc:
+            choices = " or ".join(repr(item.value) for item in cls)
+            raise ConfigError(f"{path} must be {choices}") from exc
+
+
+@dataclass(frozen=True)
+class Register:
+    name: str
+    offset: int
+
+    @classmethod
+    def from_yaml(cls, name: str, value: object, region_size: int, path: str) -> "Register":
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise ConfigError(f"{path} must be a valid C/SystemVerilog identifier")
+        offset = require_integer(value, path)
+        if not 0 <= offset < region_size:
+            raise ConfigError(f"{path} must be within the region size")
+        return cls(name, offset)
+
+
+@dataclass(frozen=True)
+class Region:
+    key: str
+    region_type: RegionType
+    name: str
+    logical_prefix: str
+    physical_prefix: str
+    logical_base: int
+    physical_base: int
+    size: int
+    address_bit_width: int
+    translation: Translation
+    uncachable: bool
+    registers: tuple[Register, ...]
+
+    @classmethod
+    def from_yaml(cls, key: str, values: YamlMapping, path: str,
+                  raw_address_width: int) -> "Region":
+        if not re.fullmatch(r"[a-z][a-z0-9_]*", key):
+            raise ConfigError(f"{path}: region keys must use lowercase letters, digits and underscores")
+        validate_keys(values, (
+            "type", "name", "logical_base", "physical_base", "size",
+            "translation", "addr_bit_width", "uncachable", "constants", "registers",
+        ), path)
+        region_type = RegionType.parse(read_value(values, "type", path), f"{path}.type")
+        logical_base = read_integer(values, "logical_base", path)
+        physical_base = read_integer(values, "physical_base", path)
+        size = read_integer(values, "size", path)
+        translation = Translation.parse(
+            read_value(values, "translation", path),
+            f"{path}.translation",
+        )
+
+        cls.validate_base_values(logical_base, physical_base, size, raw_address_width, path)
+        address_bit_width = cls.resolve_address_bit_width(
+            values, path, region_type, translation, logical_base, size, raw_address_width,
+        )
+        register_values = read_optional_mapping(values, "registers", path)
+        if region_type is not RegionType.IO and register_values is not None:
+            raise ConfigError(f"{path}.registers is only valid for io regions")
+        name = read_string(values, "name", path, key.upper())
+        constants_path = f"{path}.constants"
+        constants = read_mapping(values, "constants", path)
+        validate_keys(constants, ("logical_prefix", "physical_prefix"), constants_path)
+        logical_prefix = validate_sv_identifier(
+            read_string(constants, "logical_prefix", constants_path),
+            f"{constants_path}.logical_prefix",
+        )
+        physical_prefix = validate_sv_identifier(
+            read_string(constants, "physical_prefix", constants_path),
+            f"{constants_path}.physical_prefix",
+        )
+        region = cls(
+            key=key,
+            region_type=region_type,
+            name=name,
+            logical_prefix=logical_prefix,
+            physical_prefix=physical_prefix,
+            logical_base=logical_base,
+            physical_base=physical_base,
+            size=size,
+            address_bit_width=address_bit_width,
+            translation=translation,
+            uncachable=read_boolean(values, "uncachable", path, region_type is RegionType.IO),
+            registers=cls.parse_registers(register_values, size, f"{path}.registers"),
+        )
+        region.validate_translation_window(path)
+        region.validate_physical_range(raw_address_width, path)
+        return region
+
+    @staticmethod
+    def validate_base_values(logical_base: int, physical_base: int, size: int,
+                             raw_address_width: int, path: str) -> None:
+        if logical_base < 0:
+            raise ConfigError(f"{path}.logical_base must not be negative")
+        if physical_base < 0:
+            raise ConfigError(f"{path}.physical_base must not be negative")
+        if size <= 0:
+            raise ConfigError(f"{path}.size must be positive")
+        # END includes the last valid address, which must fit in ADDR_WIDTH.
+        if logical_base + size - 1 >= (1 << 32):
+            raise ConfigError(f"{path} logical address range does not fit in ADDR_WIDTH")
+        if physical_base >= 1 << raw_address_width:
+            raise ConfigError(f"{path}.physical_base does not fit in PHY_RAW_ADDR_WIDTH")
+
+    @staticmethod
+    def resolve_address_bit_width(values: YamlMapping, path: str, region_type: RegionType,
+                                  translation: Translation, logical_base: int, size: int,
+                                  raw_address_width: int) -> int:
+        if "addr_bit_width" in values:
+            width = read_integer(values, "addr_bit_width", path)
+        elif region_type is RegionType.IO:
+            width = (size - 1).bit_length()
+        elif translation is Translation.LOW_BITS:
+            raw_mask = (1 << raw_address_width) - 1
+            width = max(1, ((logical_base & raw_mask) + size - 1).bit_length())
+        else:
+            width = max(1, (size - 1).bit_length())
+
+        if width < 0:
+            raise ConfigError(f"{path}.addr_bit_width must not be negative")
+        if width > raw_address_width:
+            raise ConfigError(f"{path}.addr_bit_width must not exceed PHY_RAW_ADDR_WIDTH")
+        return width
+
+    @staticmethod
+    def parse_registers(values: YamlMapping | None, region_size: int,
+                        path: str) -> tuple[Register, ...]:
+        if values is None:
+            return ()
+        return tuple(
+            Register.from_yaml(name, value, region_size, f"{path}.{name}")
+            for name, value in values.items()
+        )
+
+    @property
+    def logical_end(self) -> int:
+        return self.logical_base + self.size - 1
+
+    @property
+    def is_io(self) -> bool:
+        return self.region_type is RegionType.IO
+
+    @property
+    def translation_offset(self) -> int:
+        if self.translation is Translation.RELATIVE:
+            return 0
+        return self.logical_base & ((1 << self.address_bit_width) - 1)
+
+    @property
+    def physical_range(self) -> tuple[int, int]:
+        begin = self.physical_base + self.translation_offset
+        return begin, begin + self.size - 1
+
+    def validate_translation_window(self, path: str) -> None:
+        if self.translation is not Translation.LOW_BITS:
+            return
+        window_size = 1 << self.address_bit_width
+        if self.translation_offset + self.size > window_size:
+            raise ConfigError(f"{path} does not fit in its low_bits translation window")
+        if self.is_io and self.translation_offset != 0:
+            raise ConfigError(
+                f"{path}.logical_base must be aligned to the low_bits translation window"
+            )
+
+    def validate_physical_range(self, raw_address_width: int, path: str) -> None:
+        _, end = self.physical_range
+        if end >= 1 << raw_address_width:
+            raise ConfigError(f"{path} physical address range does not fit in PHY_RAW_ADDR_WIDTH")
+
+    def logical_constant(self, suffix: str) -> str:
+        return f"{self.logical_prefix}_{suffix}"
+
+    def physical_constant(self, suffix: str) -> str:
+        return f"{self.physical_prefix}_{suffix}"
+
+    def generated_constant_names(self) -> Iterator[str]:
+        yield self.logical_constant("BASE")
+        yield self.logical_constant("BEGIN")
+        yield self.logical_constant("END")
+        yield self.logical_constant("ADDR_BIT_WIDTH")
+        yield self.physical_constant("BASE")
+        yield self.physical_constant("END")
+        for register in self.registers:
+            yield self.logical_constant(register.name)
+            yield self.physical_constant(register.name)
+
+
+# Configuration and cross-region validation
+
+# These names and registers are referenced directly by the RTL.
+REQUIRED_REGIONS = (
+    ("rom", RegionType.MEMORY, "SECTION_0", ()),
+    ("ram", RegionType.MEMORY, "SECTION_1", ()),
+    ("serial", RegionType.IO, "SERIAL", ("OUTPUT",)),
+    ("clint", RegionType.IO, "CLINT",
+     ("MSIP", "TIMER_LOW", "TIMER_HI", "TIMER_CMP_LOW", "TIMER_CMP_HI")),
+    ("plic", RegionType.IO, "PLIC",
+     ("SOURCE_PRIORITY_BASE", "PENDING_BASE", "ENABLE_BASE",
+      "PRIORITY_THRESHOLD_BASE", "CLAIM_COMPLETE_BASE")),
+)
+
+
+def validate_required_regions(regions: YamlMapping, path: str) -> None:
+    for key, region_type, suffix, required_registers in REQUIRED_REGIONS:
+        region_path = f"{path}.{key}"
+        region = read_mapping(regions, key, path)
+        actual_type = RegionType.parse(read_value(region, "type", region_path), f"{region_path}.type")
+        if actual_type is not region_type:
+            raise ConfigError(f"{region_path}.type must be {region_type.value}")
+        constants = read_mapping(region, "constants", region_path)
+        for kind, prefix in (("logical", "LOG"), ("physical", "PHY")):
+            expected = f"{prefix}_ADDR_{suffix}"
+            if constants.get(f"{kind}_prefix") != expected:
+                raise ConfigError(f"{region_path}.constants.{kind}_prefix must be {expected}")
+        if required_registers:
+            registers = read_mapping(region, "registers", region_path)
+            for register in required_registers:
+                read_value(registers, register, f"{region_path}.registers")
+
+
+@dataclass(frozen=True)
+class CpuConfig:
+    instruction_reset_vector: int
+    pc_goal: int
+    physical_address_width: int
+    pc_narrow: bool
+    pc_width: int
+    regions: tuple[Region, ...]
+
+    @classmethod
+    def from_yaml(cls, values: YamlMapping, path: str = "config") -> "CpuConfig":
+        validate_keys(values, ("INSN_RESET_VECTOR", "PC_GOAL", "memory_map"), path)
+        reset_vector = read_integer(values, "INSN_RESET_VECTOR", path)
+        pc_goal = read_integer(values, "PC_GOAL", path)
+        map_path = f"{path}.memory_map"
+        memory_map = read_mapping(values, "memory_map", path)
+        validate_keys(memory_map, ("physical_address_width", "pc", "regions"), map_path)
+        physical_width = read_integer(memory_map, "physical_address_width", map_path)
+        if not 3 <= physical_width <= 34:
+            raise ConfigError(f"{map_path}.physical_address_width must be between 3 and 34")
+        regions_path = f"{map_path}.regions"
+        region_values = read_mapping(memory_map, "regions", map_path)
+        validate_required_regions(region_values, regions_path)
+        regions = tuple(
+            Region.from_yaml(key, require_mapping(value, f"{regions_path}.{key}"),
+                             f"{regions_path}.{key}", physical_width - 2)
+            for key, value in region_values.items()
+        )
+        pc_path = f"{map_path}.pc"
+        pc = read_mapping(memory_map, "pc", map_path)
+        validate_keys(pc, ("narrow", "width"), pc_path)
+        pc_narrow = read_boolean(pc, "narrow", pc_path, True)
+        pc_width = read_integer(pc, "width", pc_path, 19)
+        if not 2 <= pc_width <= 32:
+            raise ConfigError(f"{pc_path}.width must be between 2 and 32")
+        config = cls(reset_vector, pc_goal, physical_width, pc_narrow, pc_width, regions)
+        config.validate_logical_ranges()
+        config.validate_constant_names()
+        for name, addr in (("INSN_RESET_VECTOR", reset_vector), ("PC_GOAL", pc_goal)):
+            if not 0 <= addr < (1 << 32) or addr % 4:
+                raise ConfigError(f"{name} must be an aligned RV32 instruction address")
+            if not any(not r.is_io and r.logical_base <= addr <= r.logical_end for r in regions):
+                raise ConfigError(f"{name} must be in a memory region")
+        if pc_narrow:
+            # Compression drops all bits between the sign bit and the low PC bits.
+            mask = ((1 << 31) - 1) & ~((1 << (pc_width - 1)) - 1)
+            for region in regions:
+                if not region.is_io and (region.logical_base & mask or
+                                        region.logical_end & mask or
+                                        region.size > (1 << (pc_width - 1))):
+                    raise ConfigError(f"memory region {region.key} does not fit the narrow PC")
+        return config
+
+    @property
+    def raw_address_width(self) -> int:
+        return self.physical_address_width - 2
+
+    @property
+    def memory_byte_size(self) -> int:
+        # IO has a separate address space and consumes no backing RAM.
+        return max(region.physical_range[1] + 1 for region in self.regions if not region.is_io)
+
+    def validate_logical_ranges(self) -> None:
+        sorted_regions = sorted(self.regions, key=lambda region: region.logical_base)
+        for previous, current in zip(sorted_regions, sorted_regions[1:]):
+            if current.logical_base <= previous.logical_end:
+                raise ConfigError(
+                    f"logical address regions overlap: {previous.key} and {current.key}"
+                )
+
+    def validate_constant_names(self) -> None:
+        owners: dict[str, str] = {}
+        for region in self.regions:
+            for constant_name in region.generated_constant_names():
+                if constant_name in owners:
+                    raise ConfigError(
+                        f"generated constant {constant_name} is shared by "
+                        f"regions {owners[constant_name]} and {region.key}"
+                    )
+                owners[constant_name] = region.key
+
+
+def load_config(path: Path) -> CpuConfig:
+    return CpuConfig.from_yaml(load_yaml(path))
+
+
+# RTL and software output
+
+def grouped_hex(value: int, bits: int) -> str:
+    if value < 0:
+        raise ConfigError("negative address values are not supported")
+    digits = f"{value:0{max(1, (bits + 3) // 4)}x}"
+    first_group = len(digits) % 4
+    groups = [digits[:first_group]] if first_group else []
+    groups.extend(digits[index:index + 4] for index in range(first_group, len(digits), 4))
+    return "_".join(groups)
+
+
+def sized_hex_literal(value: int, bits: int) -> str:
+    if not 0 <= value < 1 << bits:
+        raise ConfigError(f"value {value} does not fit in {bits} bits")
+    digits = f"{value:0{max(1, (bits + 3) // 4)}x}"
+    return f"{bits}'h{digits}"
+
+
+_PLACEHOLDER = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
+
+
+@dataclass(frozen=True)
+class MemoryMapRenderer:
+    config: CpuConfig
+    config_path: Path
+    template_path: Path
+
+    def render(self, template: str) -> str:
+        replacements = {
+            "GENERATED_NOTICE": (
+                "// This file is generated by Generator/cpu_generator.py from "
+                f"{self.config_path.name} and {self.template_source_name()}.\n"
+                "// Do not edit this file directly."
+            ),
+            "INSN_RESET_VECTOR": sized_hex_literal(self.config.instruction_reset_vector, 32),
+            "PC_GOAL": sized_hex_literal(self.config.pc_goal, 32),
+            "RSD_NARROW_PC_DEFINE": (
+                "`define RSD_NARROW_PC" if self.config.pc_narrow else ""
+            ),
+            "PC_WIDTH": str(self.config.pc_width),
+            "PHY_ADDR_WIDTH": str(self.config.physical_address_width),
+            "MEMORY_MAP_DOC": self.render_memory_map_doc(),
+            "MEMORY_MAP_CONSTANTS": self.render_region_constants(),
+            "GET_MEMORY_MAP_TYPE_BODY": self.render_get_memory_map_type(),
+            "TO_PHY_ADDR_FROM_LOGICAL_BODY": self.render_to_physical_address(),
+        }
+        placeholders = set(_PLACEHOLDER.findall(template))
+        missing = placeholders - replacements.keys()
+        unused = replacements.keys() - placeholders
+        if missing or unused:
+            raise ConfigError(f"template placeholders differ: unknown={sorted(missing)}, missing={sorted(unused)}")
+        return _PLACEHOLDER.sub(lambda match: replacements[match.group(1)], template)
+
+    def template_source_name(self) -> str:
+        try:
+            return self.template_path.relative_to(self.config_path.parent).as_posix()
+        except ValueError:
+            return self.template_path.as_posix()
+
+    def render_memory_map_doc(self) -> str:
+        return "\n".join(
+            f"//       0x{grouped_hex(region.logical_base, 32)} "
+            f"--0x{grouped_hex(region.logical_end, 32)}: "
+            f"{region.name}"
+            for region in self.config.regions
+        )
+
+    def render_region_constants(self) -> str:
+        return ("// Backing memory must cover the translated addresses, including holes.\n"
+                f"localparam MEMORY_MAP_BYTE_SIZE = {sized_hex_literal(self.config.memory_byte_size, 33)};\n\n") + "\n\n".join(
+            self.render_single_region_constants(region)
+            for region in self.config.regions
+        )
+
+    def software_constants(self) -> dict[str, int]:
+        constants = {"RSD_RESET_VECTOR": self.config.instruction_reset_vector,
+                     "RSD_PC_GOAL": self.config.pc_goal}
+        for region in self.config.regions:
+            prefix = f"RSD_{region.key.upper()}"
+            values = {f"{prefix}_BASE": region.logical_base,
+                      f"{prefix}_SIZE": region.size,
+                      f"{prefix}_END": region.logical_end,
+                      f"{prefix}_PHYSICAL_BASE": region.physical_range[0],
+                      f"{prefix}_PHYSICAL_END": region.physical_range[1]}
+            for register in region.registers:
+                name = f"{prefix}_{register.name}"
+                if name in values:
+                    raise ConfigError(f"duplicate software constant: {name}")
+                values[name] = region.logical_base + register.offset
+            if constants.keys() & values.keys():
+                raise ConfigError(f"duplicate software constants for region {region.key}")
+            constants.update(values)
+        return constants
+
+    def render_software(self) -> dict[str, str]:
+        constants = self.software_constants()
+        notice = "Generated from MemoryMap.yml by Generator/cpu_generator.py. Do not edit."
+        # DTS unit addresses are tokens without the 0x prefix used by C/assembly.
+        unit_addresses = {}
+        for name in ("RSD_ROM_BASE", "RSD_RAM_BASE", "RSD_CLINT_TIMER_LOW"):
+            if name + "_HEX" in constants:
+                raise ConfigError(f"reserved DTS constant: {name}_HEX")
+            unit_addresses[name + "_HEX"] = constants[name]
+        return {
+            "rsd-memory-map.h": (
+                f"/* {notice} */\n#ifndef RSD_MEMORY_MAP_H\n#define RSD_MEMORY_MAP_H\n"
+                + "".join(f"#define {key} 0x{value:x}\n" for key, value in constants.items())
+                + "/* Hexadecimal tokens without 0x for DTS unit addresses. */\n"
+                + "".join(f"#define {key} {value:x}\n" for key, value in unit_addresses.items())
+                + "#endif\n"
+            ),
+            "rsd-memory-map.ld": f"/* {notice} */\n" +
+                "".join(f"{key} = 0x{value:x};\n" for key, value in constants.items()),
+            "rsd-memory-map.mk": f"# {notice}\n" +
+                "".join(f"{key} := {value}\n" for key, value in constants.items()),
+        }
+
+    def render_single_region_constants(self, region: Region) -> str:
+        logical_prefix = region.logical_prefix
+        physical_prefix = region.physical_prefix
+        physical_begin, physical_end = region.physical_range
+        raw_width = self.config.raw_address_width
+        lines = [
+            "//",
+            f"// {region.name}",
+            f"// logical [0x{grouped_hex(region.logical_base, 32)} - "
+            f"0x{grouped_hex(region.logical_end, 32)}] -> physical "
+            f"[0x{grouped_hex(physical_begin, raw_width)} - "
+            f"0x{grouped_hex(physical_end, raw_width)}]",
+            "//",
+            f"localparam {logical_prefix}_BASE = "
+            f"ADDR_WIDTH'('h{grouped_hex(region.logical_base, 32)});",
+        ]
+        for register in region.registers:
+            lines.append(
+                f"localparam {logical_prefix}_{register.name:<7} = "
+                f"{logical_prefix}_BASE + {register.offset};"
+            )
+        lines.extend(
+            [
+                f"localparam {logical_prefix}_BEGIN = {logical_prefix}_BASE;",
+                f"localparam {logical_prefix}_END   = "
+                f"{logical_prefix}_BASE + ({region.size} - 1);",
+                f"localparam {logical_prefix}_ADDR_BIT_WIDTH = "
+                f"{region.address_bit_width};",
+                f"localparam {physical_prefix}_BASE = "
+                f"PHY_RAW_ADDR_WIDTH'('h{grouped_hex(region.physical_base, raw_width)});",
+                # END is the last address and uses the same width as BASE.
+                f"localparam {physical_prefix}_END   = "
+                f"PHY_RAW_ADDR_WIDTH'('h{grouped_hex(physical_end, raw_width)});",
+            ]
+        )
+        for register in region.registers:
+            lines.append(
+                f"localparam {physical_prefix}_{register.name:<7} = "
+                + self.translation_expression(region, f"{logical_prefix}_{register.name}")
+                + ";"
+            )
+        return "\n".join(lines)
+
+    def render_get_memory_map_type(self) -> str:
+        lines: list[str] = []
+        for index, region in enumerate(self.config.regions):
+            prefix = "if" if index == 0 else "else if"
+            lines.extend(
+                [
+                    f"    {prefix} ({self.range_condition(region, 'addr')}) begin",
+                    f"        return {region.region_type.memory_map_type};",
+                    "    end",
+                ]
+            )
+        return "\n".join(lines)
+
+    def render_to_physical_address(self) -> str:
+        lines: list[str] = []
+        for index, region in enumerate(self.config.regions):
+            prefix = "if" if index == 0 else "else if"
+            lines.append(f"    {prefix} ({self.range_condition(region, 'logAddr')}) begin")
+            if not region.is_io:
+                lines.append(f"        // {region.name}")
+            lines.extend(
+                [
+                    f"        phyAddr.isUncachable = "
+                    f"{'TRUE' if region.uncachable else 'FALSE'};",
+                    f"        phyAddr.isIO = {'TRUE' if region.is_io else 'FALSE'};",
+                    "        phyAddr.addr = "
+                    + self.translation_expression(region, "logAddr")
+                    + ";",
+                    "    end",
+                ]
+            )
+        return "\n".join(lines)
+
+    @staticmethod
+    def range_condition(region: Region, address: str) -> str:
+        begin = region.logical_constant("BEGIN")
+        end = region.logical_constant("END")
+        return f"{begin} <= {address} && {address} <= {end}"
+
+    @staticmethod
+    def translation_expression(region: Region, logical_address: str) -> str:
+        physical_base = region.physical_constant("BASE")
+        if region.translation is Translation.RELATIVE:
+            logical_base = region.logical_constant("BEGIN")
+            return (
+                f"{physical_base} + "
+                f"PhyRawAddrPath'({logical_address} - {logical_base})"
+            )
+        if region.address_bit_width == 0:
+            return physical_base
+
+        width = region.logical_constant("ADDR_BIT_WIDTH")
+        return f"{physical_base} + PhyRawAddrPath'({logical_address}[{width}-1:0])"
+
+
+# Command-line entry point
+
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate RTL and software memory-map constants from MemoryMap.yml."
     )
-    parser.add_argument(
-        "--rsd-root",
-        required=True,
-        type=Path,
-        help="RSD repository root",
-    )
-    return parser.parse_args()
-
-
-def main() -> int:
-    args = parse_args()
+    parser.add_argument("--rsd-root", required=True, type=Path, help="RSD repository root")
+    args = parser.parse_args()
     source_root = args.rsd_root / "Processor" / "Src"
     config_path = source_root / "MemoryMap.yml"
     template_path = source_root / "Memory" / "MemoryMapTypes.template.sv"
