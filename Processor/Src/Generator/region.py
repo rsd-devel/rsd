@@ -189,7 +189,8 @@ class Region:
             raise ConfigError(f"{path}.physical_base must not be negative")
         if size <= 0:
             raise ConfigError(f"{path}.size must be positive")
-        if logical_base + size > 1 << 32:
+        # END includes the last valid address, which must fit in ADDR_WIDTH.
+        if logical_base + size - 1 >= (1 << 32):
             raise ConfigError(f"{path} logical address range does not fit in ADDR_WIDTH")
         if physical_base >= 1 << raw_address_width:
             raise ConfigError(
@@ -247,7 +248,7 @@ class Region:
 
     @property
     def logical_end(self) -> int:
-        return self.logical_base + self.size
+        return self.logical_base + self.size - 1
 
     @property
     def is_io(self) -> bool:

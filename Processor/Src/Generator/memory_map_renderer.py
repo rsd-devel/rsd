@@ -49,7 +49,7 @@ class MemoryMapRenderer:
     def render_memory_map_doc(self) -> str:
         return "\n".join(
             f"//       {SystemVerilog.comment_address(region.logical_base, 32)} "
-            f"--{SystemVerilog.comment_address(region.logical_end - 1, 32)}: "
+            f"--{SystemVerilog.comment_address(region.logical_end, 32)}: "
             f"{region.name}"
             for region in self.config.memory_map.regions
         )
@@ -69,7 +69,7 @@ class MemoryMapRenderer:
             "//",
             f"// {region.name}",
             f"// logical [{SystemVerilog.comment_address(region.logical_base, 32)} - "
-            f"{SystemVerilog.comment_address(region.logical_end - 1, 32)}] -> physical "
+            f"{SystemVerilog.comment_address(region.logical_end, 32)}] -> physical "
             f"[{SystemVerilog.comment_address(physical_begin, raw_width)} - "
             f"{SystemVerilog.comment_address(physical_end, raw_width)}]",
             "//",
@@ -85,14 +85,14 @@ class MemoryMapRenderer:
             [
                 f"localparam {logical_prefix}_BEGIN = {logical_prefix}_BASE;",
                 f"localparam {logical_prefix}_END   = "
-                f"{logical_prefix}_BASE + {region.size};",
+                f"{logical_prefix}_BASE + ({region.size} - 1);",
                 f"localparam {logical_prefix}_ADDR_BIT_WIDTH = "
                 f"{region.address_bit_width};",
                 f"localparam {physical_prefix}_BASE = "
                 f"{SystemVerilog.physical_address(region.physical_base, raw_width)};",
-                # The exclusive end needs an extra bit at the address-space limit.
+                # END is the last address and uses the same width as BASE.
                 f"localparam {physical_prefix}_END   = "
-                f"{SystemVerilog.sized_hex_literal(physical_end + 1, raw_width + 1)};",
+                f"{SystemVerilog.physical_address(physical_end, raw_width)};",
             ]
         )
         for register in region.registers:
@@ -145,7 +145,7 @@ class MemoryMapRenderer:
     def range_condition(region: Region, address: str) -> str:
         begin = region.logical_constant("BEGIN")
         end = region.logical_constant("END")
-        return f"{begin} <= {address} && {address} < {end}"
+        return f"{begin} <= {address} && {address} <= {end}"
 
     @staticmethod
     def translation_expression(

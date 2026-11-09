@@ -100,6 +100,7 @@ typedef struct packed {
 
 //
 // Memory map between logical and physical address spaces
+// BEGIN and END are inclusive addresses.
 // 
 
 //
@@ -108,10 +109,10 @@ typedef struct packed {
 //
 localparam LOG_ADDR_SECTION_0_BASE = ADDR_WIDTH'('h0000_1000);
 localparam LOG_ADDR_SECTION_0_BEGIN = LOG_ADDR_SECTION_0_BASE;
-localparam LOG_ADDR_SECTION_0_END   = LOG_ADDR_SECTION_0_BASE + 61440;
+localparam LOG_ADDR_SECTION_0_END   = LOG_ADDR_SECTION_0_BASE + (61440 - 1);
 localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
 localparam PHY_ADDR_SECTION_0_BASE = PHY_RAW_ADDR_WIDTH'('h00_0000);
-localparam PHY_ADDR_SECTION_0_END   = 23'h010000;
+localparam PHY_ADDR_SECTION_0_END   = PHY_RAW_ADDR_WIDTH'('h00_ffff);
 
 //
 // Section 1 (RAM)
@@ -119,10 +120,10 @@ localparam PHY_ADDR_SECTION_0_END   = 23'h010000;
 //
 localparam LOG_ADDR_SECTION_1_BASE = ADDR_WIDTH'('h8000_0000);
 localparam LOG_ADDR_SECTION_1_BEGIN = LOG_ADDR_SECTION_1_BASE;
-localparam LOG_ADDR_SECTION_1_END   = LOG_ADDR_SECTION_1_BASE + 262144;
+localparam LOG_ADDR_SECTION_1_END   = LOG_ADDR_SECTION_1_BASE + (262144 - 1);
 localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
 localparam PHY_ADDR_SECTION_1_BASE = PHY_RAW_ADDR_WIDTH'('h01_0000);
-localparam PHY_ADDR_SECTION_1_END   = 23'h050000;
+localparam PHY_ADDR_SECTION_1_END   = PHY_RAW_ADDR_WIDTH'('h04_ffff);
 
 //
 // Uncachable section (RAM)
@@ -130,10 +131,10 @@ localparam PHY_ADDR_SECTION_1_END   = 23'h050000;
 //
 localparam LOG_ADDR_UNCACHABLE_BASE = ADDR_WIDTH'('h8004_0000);
 localparam LOG_ADDR_UNCACHABLE_BEGIN = LOG_ADDR_UNCACHABLE_BASE;
-localparam LOG_ADDR_UNCACHABLE_END   = LOG_ADDR_UNCACHABLE_BASE + 65536;
+localparam LOG_ADDR_UNCACHABLE_END   = LOG_ADDR_UNCACHABLE_BASE + (65536 - 1);
 localparam LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH = 19;
 localparam PHY_ADDR_UNCACHABLE_BASE = PHY_RAW_ADDR_WIDTH'('h01_0000);
-localparam PHY_ADDR_UNCACHABLE_END   = 23'h060000;
+localparam PHY_ADDR_UNCACHABLE_END   = PHY_RAW_ADDR_WIDTH'('h05_ffff);
 
 //
 // Serial IO
@@ -142,10 +143,10 @@ localparam PHY_ADDR_UNCACHABLE_END   = 23'h060000;
 localparam LOG_ADDR_SERIAL_BASE = ADDR_WIDTH'('h4000_2000);
 localparam LOG_ADDR_SERIAL_OUTPUT  = LOG_ADDR_SERIAL_BASE + 0;
 localparam LOG_ADDR_SERIAL_BEGIN = LOG_ADDR_SERIAL_BASE;
-localparam LOG_ADDR_SERIAL_END   = LOG_ADDR_SERIAL_BASE + 1;
+localparam LOG_ADDR_SERIAL_END   = LOG_ADDR_SERIAL_BASE + (1 - 1);
 localparam LOG_ADDR_SERIAL_ADDR_BIT_WIDTH = 0;
 localparam PHY_ADDR_SERIAL_BASE = PHY_RAW_ADDR_WIDTH'('h00_2000);
-localparam PHY_ADDR_SERIAL_END   = 23'h002001;
+localparam PHY_ADDR_SERIAL_END   = PHY_RAW_ADDR_WIDTH'('h00_2000);
 localparam PHY_ADDR_SERIAL_OUTPUT  = PHY_ADDR_SERIAL_BASE;
 
 //
@@ -159,10 +160,10 @@ localparam LOG_ADDR_CLINT_TIMER_HI = LOG_ADDR_CLINT_BASE + 32764;
 localparam LOG_ADDR_CLINT_TIMER_CMP_LOW = LOG_ADDR_CLINT_BASE + 16384;
 localparam LOG_ADDR_CLINT_TIMER_CMP_HI = LOG_ADDR_CLINT_BASE + 16388;
 localparam LOG_ADDR_CLINT_BEGIN = LOG_ADDR_CLINT_BASE;
-localparam LOG_ADDR_CLINT_END   = LOG_ADDR_CLINT_BASE + 32768;
+localparam LOG_ADDR_CLINT_END   = LOG_ADDR_CLINT_BASE + (32768 - 1);
 localparam LOG_ADDR_CLINT_ADDR_BIT_WIDTH = 15;
 localparam PHY_ADDR_CLINT_BASE = PHY_RAW_ADDR_WIDTH'('h00_0000);
-localparam PHY_ADDR_CLINT_END   = 23'h008000;
+localparam PHY_ADDR_CLINT_END   = PHY_RAW_ADDR_WIDTH'('h00_7fff);
 localparam PHY_ADDR_CLINT_MSIP    = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_MSIP[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
 localparam PHY_ADDR_CLINT_TIMER_LOW = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_LOW[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
 localparam PHY_ADDR_CLINT_TIMER_HI = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(LOG_ADDR_CLINT_TIMER_HI[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
@@ -180,10 +181,10 @@ localparam LOG_ADDR_PLIC_ENABLE_BASE = LOG_ADDR_PLIC_BASE + 8192;
 localparam LOG_ADDR_PLIC_PRIORITY_THRESHOLD_BASE = LOG_ADDR_PLIC_BASE + 2097152;
 localparam LOG_ADDR_PLIC_CLAIM_COMPLETE_BASE = LOG_ADDR_PLIC_BASE + 2097156;
 localparam LOG_ADDR_PLIC_BEGIN = LOG_ADDR_PLIC_BASE;
-localparam LOG_ADDR_PLIC_END   = LOG_ADDR_PLIC_BASE + 2105344;
+localparam LOG_ADDR_PLIC_END   = LOG_ADDR_PLIC_BASE + (2105344 - 1);
 localparam LOG_ADDR_PLIC_ADDR_BIT_WIDTH = 22;
 localparam PHY_ADDR_PLIC_BASE = PHY_RAW_ADDR_WIDTH'('h01_0000);
-localparam PHY_ADDR_PLIC_END   = 23'h212000;
+localparam PHY_ADDR_PLIC_END   = PHY_RAW_ADDR_WIDTH'('h21_1fff);
 localparam PHY_ADDR_PLIC_SOURCE_PRIORITY_BASE = PHY_ADDR_PLIC_BASE + PhyRawAddrPath'(LOG_ADDR_PLIC_SOURCE_PRIORITY_BASE[LOG_ADDR_PLIC_ADDR_BIT_WIDTH-1:0]);
 localparam PHY_ADDR_PLIC_PENDING_BASE = PHY_ADDR_PLIC_BASE + PhyRawAddrPath'(LOG_ADDR_PLIC_PENDING_BASE[LOG_ADDR_PLIC_ADDR_BIT_WIDTH-1:0]);
 localparam PHY_ADDR_PLIC_ENABLE_BASE = PHY_ADDR_PLIC_BASE + PhyRawAddrPath'(LOG_ADDR_PLIC_ENABLE_BASE[LOG_ADDR_PLIC_ADDR_BIT_WIDTH-1:0]);
@@ -193,22 +194,22 @@ localparam PHY_ADDR_PLIC_CLAIM_COMPLETE_BASE = PHY_ADDR_PLIC_BASE + PhyRawAddrPa
 
 // Get a memory type from a logical address
 function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
-    if (LOG_ADDR_SECTION_0_BEGIN <= addr && addr < LOG_ADDR_SECTION_0_END) begin
+    if (LOG_ADDR_SECTION_0_BEGIN <= addr && addr <= LOG_ADDR_SECTION_0_END) begin
         return MMT_MEMORY;
     end
-    else if (LOG_ADDR_SECTION_1_BEGIN <= addr && addr < LOG_ADDR_SECTION_1_END) begin
+    else if (LOG_ADDR_SECTION_1_BEGIN <= addr && addr <= LOG_ADDR_SECTION_1_END) begin
         return MMT_MEMORY;
     end
-    else if (LOG_ADDR_UNCACHABLE_BEGIN <= addr && addr < LOG_ADDR_UNCACHABLE_END) begin
+    else if (LOG_ADDR_UNCACHABLE_BEGIN <= addr && addr <= LOG_ADDR_UNCACHABLE_END) begin
         return MMT_MEMORY;
     end
-    else if (LOG_ADDR_SERIAL_BEGIN <= addr && addr < LOG_ADDR_SERIAL_END) begin
+    else if (LOG_ADDR_SERIAL_BEGIN <= addr && addr <= LOG_ADDR_SERIAL_END) begin
         return MMT_IO;
     end
-    else if (LOG_ADDR_CLINT_BEGIN <= addr && addr < LOG_ADDR_CLINT_END) begin
+    else if (LOG_ADDR_CLINT_BEGIN <= addr && addr <= LOG_ADDR_CLINT_END) begin
         return MMT_IO;
     end
-    else if (LOG_ADDR_PLIC_BEGIN <= addr && addr < LOG_ADDR_PLIC_END) begin
+    else if (LOG_ADDR_PLIC_BEGIN <= addr && addr <= LOG_ADDR_PLIC_END) begin
         return MMT_IO;
     end
     else begin
@@ -220,35 +221,35 @@ endfunction
 function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     PhyAddrPath phyAddr;
 
-    if (LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr < LOG_ADDR_SECTION_0_END) begin
+    if (LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr <= LOG_ADDR_SECTION_0_END) begin
         // Section 0 (ROM)
         phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_SECTION_0_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH-1:0]);
     end
-    else if (LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr < LOG_ADDR_SECTION_1_END) begin
+    else if (LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr <= LOG_ADDR_SECTION_1_END) begin
         // Section 1 (RAM)
         phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_SECTION_1_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH-1:0]);
     end
-    else if (LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr < LOG_ADDR_UNCACHABLE_END) begin
+    else if (LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr <= LOG_ADDR_UNCACHABLE_END) begin
         // Uncachable section (RAM)
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = FALSE;
         phyAddr.addr = PHY_ADDR_UNCACHABLE_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_UNCACHABLE_ADDR_BIT_WIDTH-1:0]);
     end
-    else if (LOG_ADDR_SERIAL_BEGIN <= logAddr && logAddr < LOG_ADDR_SERIAL_END) begin
+    else if (LOG_ADDR_SERIAL_BEGIN <= logAddr && logAddr <= LOG_ADDR_SERIAL_END) begin
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_SERIAL_BASE;
     end
-    else if (LOG_ADDR_CLINT_BEGIN <= logAddr && logAddr < LOG_ADDR_CLINT_END) begin
+    else if (LOG_ADDR_CLINT_BEGIN <= logAddr && logAddr <= LOG_ADDR_CLINT_END) begin
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_CLINT_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_CLINT_ADDR_BIT_WIDTH-1:0]);
     end
-    else if (LOG_ADDR_PLIC_BEGIN <= logAddr && logAddr < LOG_ADDR_PLIC_END) begin
+    else if (LOG_ADDR_PLIC_BEGIN <= logAddr && logAddr <= LOG_ADDR_PLIC_END) begin
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_PLIC_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_PLIC_ADDR_BIT_WIDTH-1:0]);

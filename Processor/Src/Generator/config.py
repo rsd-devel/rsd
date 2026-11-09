@@ -120,7 +120,7 @@ class MemoryMapConfig:
     def validate_logical_ranges(self) -> None:
         sorted_regions = sorted(self.regions, key=lambda region: region.logical_base)
         for previous, current in zip(sorted_regions, sorted_regions[1:]):
-            if current.logical_base < previous.logical_end:
+            if current.logical_base <= previous.logical_end:
                 raise ConfigError(
                     f"logical address regions overlap: {previous.key} and {current.key}"
                 )
