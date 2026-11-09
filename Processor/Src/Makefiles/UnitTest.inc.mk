@@ -3,7 +3,7 @@
 include $(SOURCE_ROOT)Makefiles/Environment.inc.mk
 # Generate address types and constants needed by individual unit tests.
 include $(SOURCE_ROOT)Makefiles/GenerateMemoryMap.inc.mk
-$(SOURCE_ROOT)Memory/MemoryMapTypes.sv: $(MEMORY_MAP_OUTPUTS)
+$(SOURCE_ROOT)Memory/MemoryMapTypes.sv: $(RSD_MEMORY_MAP_OUTPUTS)
 SIM ?= verilator
 UNIT_SIM ?= $(SIM)
 

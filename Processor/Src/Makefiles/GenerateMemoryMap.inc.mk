@@ -4,9 +4,8 @@
 # sv-tests and Xilinx tools.
 # Shared by RTL builds and software/test builds, including direct invocations.
 # Include Environment.inc.mk first to set RSD_ROOT.
-MEMORY_MAP_ROOT := $(RSD_ROOT)/Processor/Src
-MEMORY_MAP_OUTPUTS := $(MEMORY_MAP_ROOT)/Memory/MemoryMapTypes.sv \
-	$(addprefix $(MEMORY_MAP_ROOT)/Verification/TestCode/,rsd-memory-map.h rsd-memory-map.ld rsd-memory-map.mk)
+RSD_MEMORY_MAP_OUTPUTS := $(RSD_ROOT)/Processor/Src/Memory/MemoryMapTypes.sv \
+	$(addprefix $(RSD_ROOT)/Processor/Src/Verification/TestCode/,rsd-memory-map.h rsd-memory-map.ld rsd-memory-map.mk)
 
-$(MEMORY_MAP_OUTPUTS) &: $(wildcard $(MEMORY_MAP_ROOT)/Generator/*.py) $(MEMORY_MAP_ROOT)/MemoryMap.yml $(MEMORY_MAP_ROOT)/Memory/MemoryMapTypes.template.sv
-	python3 $(MEMORY_MAP_ROOT)/Generator/cpu_generator.py --rsd-root $(RSD_ROOT)
+$(RSD_MEMORY_MAP_OUTPUTS) &: $(wildcard $(RSD_ROOT)/Processor/Src/Generator/*.py) $(RSD_ROOT)/Processor/Src/MemoryMap.yml $(RSD_ROOT)/Processor/Src/Memory/MemoryMapTypes.template.sv
+	python3 $(RSD_ROOT)/Processor/Src/Generator/cpu_generator.py --rsd-root $(RSD_ROOT)

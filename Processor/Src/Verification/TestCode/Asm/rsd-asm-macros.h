@@ -5,7 +5,8 @@
 #ifndef RSD_MACROAS_H
 #define RSD_MACROAS_H
 
-#define RSD_SERIAL_ADDR 0x40002000
+#include "../rsd-memory-map.h"
+#define RSD_SERIAL_ADDR RSD_SERIAL_OUTPUT
 
 #define RSD_STRINGIFY(x) #x
 #define RSD_TOSTRING(x)  RSD_STRINGIFY(x)

@@ -13,7 +13,7 @@
 	.extern main
 	.extern _load
 
-	stack_top = 0x80020000
+	stack_top = (RSD_RAM_BASE + 0x20000)
 
 	# entry point: 0x1000
 _start:
@@ -39,7 +39,7 @@ _init:
 	li a0, 0x2000             # mstatus.FS = Initial
 	csrs mstatus, a0
 1:
-	li	sp,0x80020000
+	li	sp,(RSD_RAM_BASE + 0x20000)
 	call _load
 
 	# clear registers
@@ -74,7 +74,7 @@ _init:
 	li	x29,0
 	li	x30,0
 	li	x31,0
-	li	sp,0x80020000
+	li	sp,(RSD_RAM_BASE + 0x20000)
 
 	j _call_main
 

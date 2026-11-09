@@ -1,5 +1,7 @@
 # クロスコンパイラ環境の設定
 include $(dir $(lastword $(MAKEFILE_LIST)))../../Makefiles/Environment.inc.mk
+include $(RSD_ROOT)/Processor/Src/Makefiles/GenerateMemoryMap.inc.mk
+include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
 
 HOST_TYPE = $(shell uname)
 
@@ -68,6 +70,7 @@ CFLAGS = \
 	--specs=picolibc.specs
 
 LDFLAGS= \
+	-L$(RSD_ROOT)/Processor/Src/Verification/TestCode \
 	-static \
 	-nostdlib \
 	-nodefaultlibs \
@@ -100,14 +103,14 @@ LDSCRIPT = $(RSD_TEST_CODE_ROOT)/rsd-ld.script
 DUMMY_ROM = $(RSD_TEST_CODE_ROOT)/dummy_rom.bin
 
 # スタートアップルーチンのコンパイル
-$(CRTOBJ): $(CRTASM) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc
+$(CRTOBJ): $(CRTASM) $(RSD_MEMORY_MAP_OUTPUTS) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc
 	$(CC) $(CFLAGS) -MMD -MP -x assembler-with-cpp -o $@ -c $<
 
-$(LDOBJ): $(LDSRC) $(RSD_TEST_CODE_ROOT)/Makefile.inc
+$(LDOBJ): $(LDSRC) $(RSD_MEMORY_MAP_OUTPUTS) $(RSD_TEST_CODE_ROOT)/Makefile.inc
 	$(CC) $(CFLAGS) -MMD -MP -o $@ -c $<
 
 
-$(DUMMY_ROM): $(RSD_TEST_CODE_ROOT)/Makefile.inc
+$(DUMMY_ROM): $(RSD_TEST_CODE_ROOT)/Makefile.inc $(RSD_MEMORY_MAP_OUTPUTS)
 	head -c $(ROM_PADDING_SIZE) /dev/zero > $(DUMMY_ROM)
 
 # --------
@@ -115,14 +118,15 @@ $(DUMMY_ROM): $(RSD_TEST_CODE_ROOT)/Makefile.inc
 
 # 生成するバイナリのアドレス
 # RAM は ローダでROMから必要なデータをコピーしたり初期化したりするので関係ない
-ROM_PADDING_SIZE = 4096 # 0x1000
-ROM_START_ADDR = 0x00001000
-ROM_END_ADDR   = 0x00010000
+ROM_PADDING_SIZE = $(RSD_ROM_PHYSICAL_BASE)
+ROM_START_ADDR = $(RSD_ROM_BASE)
+ROM_END_ADDR   = $(RSD_ROM_END)
 
-ROM_SIZE   = 65536      # 0x1000 + (0x10000 - 0x1000) = 0x10000
+# END is inclusive; image sizes and objcopy --pad-to use the following address.
+ROM_SIZE   = $$(($(RSD_ROM_PHYSICAL_END) + 1))
 
 # BIN_SIZE は ROM+CODE の合計サイズ
-BIN_SIZE   = 0x10000
+BIN_SIZE   = $(ROM_SIZE)
 
 # .text* と .rodata* ，.bss，.dataなどを ROM として取り出すコマンド
 # （.text* は，名前が .text から始まるセクションすべて）
@@ -138,7 +142,7 @@ ROM_COPY = $(OBJCOPY) \
 		--only-section .sbss* \
 		--only-section .sdata* \
 		--set-start=$(ROM_START_ADDR) \
-		--pad-to=$(ROM_END_ADDR) \
+		--pad-to=$$(($(ROM_END_ADDR) + 1)) \
 
 
 # --------

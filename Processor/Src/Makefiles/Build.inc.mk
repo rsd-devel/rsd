@@ -10,4 +10,4 @@ include Makefiles/CoreSources.inc.mk
 DEPS_RTL = $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
 
 # The manifest stays relative for sv-tests; share the absolute generation rule.
-$(CORE_TEMPLATE_FILES): $(MEMORY_MAP_OUTPUTS)
+$(CORE_TEMPLATE_FILES): $(RSD_MEMORY_MAP_OUTPUTS)

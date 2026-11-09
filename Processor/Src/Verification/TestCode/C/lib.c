@@ -1,3 +1,5 @@
+#include "../rsd-memory-map.h"
+
 #define DIGIT_DEC (256)
 #define DIGIT_HEX (8)
 
@@ -5,7 +7,7 @@
 #define UART_WAIT 10
 
 // シリアル出力の memory-mapped address
-#define SERIAL_ADDRESS 0x40002000
+#define SERIAL_ADDRESS RSD_SERIAL_OUTPUT
 
 #include <stddef.h>
 void* __attribute((weak)) memcpy(void* dest_, const void* src_, size_t n)
