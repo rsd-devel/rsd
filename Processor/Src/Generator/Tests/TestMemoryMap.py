@@ -118,6 +118,7 @@ class TestMemoryMap(unittest.TestCase):
         self.assertEqual(values['RSD_RAM_END'], 0x9003ffff)
         self.assertEqual(values['RSD_RAM_PHYSICAL_BASE'], 0x10000)
         self.assertEqual(values['RSD_CLINT_TIMER_LOW'], 0x40017ff8)
+        self.assertEqual(config.memory_map.memory_byte_size, 0x60000)
 
 
 if __name__ == '__main__':

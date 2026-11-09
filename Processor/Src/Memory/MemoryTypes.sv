@@ -16,10 +16,12 @@ import MemoryMapTypes::*;
     `ifdef RSD_USE_EXTERNAL_MEMORY
         localparam MEMORY_ADDR_BIT_SIZE = 32;
     `else
-        localparam MEMORY_ADDR_BIT_SIZE = 18; // 256KB
+        // Cover every mapped RAM/ROM address without aliasing the upper region.
+        localparam MEMORY_ADDR_BIT_SIZE = $clog2(MEMORY_MAP_BYTE_SIZE);
     `endif
 `else
-        localparam MEMORY_ADDR_BIT_SIZE = 25; // 512KB
+    localparam MEMORY_ADDR_BIT_SIZE = ($clog2(MEMORY_MAP_BYTE_SIZE) > 25) ?
+        $clog2(MEMORY_MAP_BYTE_SIZE) : 25; // At least 32 MiB for simulation.
 `endif
 
 localparam MEMORY_BYTE_SIZE = 1 << MEMORY_ADDR_BIT_SIZE;

@@ -128,6 +128,11 @@ class MemoryMapConfig:
     def raw_address_width(self) -> int:
         return self.physical_address_width - 2
 
+    @property
+    def memory_byte_size(self) -> int:
+        # IO has a separate address space and consumes no backing RAM.
+        return max(region.physical_range[1] + 1 for region in self.regions if not region.is_io)
+
     def validate(self) -> None:
         self.validate_logical_ranges()
         self.validate_constant_names()

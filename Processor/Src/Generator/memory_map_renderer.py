@@ -56,7 +56,8 @@ class MemoryMapRenderer:
         )
 
     def render_region_constants(self) -> str:
-        return "\n\n".join(
+        return ("// Backing memory must cover the translated addresses, including holes.\n"
+                f"localparam MEMORY_MAP_BYTE_SIZE = {SystemVerilog.sized_hex_literal(self.config.memory_map.memory_byte_size, 33)};\n\n") + "\n\n".join(
             self.render_single_region_constants(region)
             for region in self.config.memory_map.regions
         )

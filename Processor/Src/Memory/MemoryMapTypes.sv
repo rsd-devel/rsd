@@ -103,6 +103,9 @@ typedef struct packed {
 // BEGIN and END are inclusive addresses.
 // 
 
+// Backing memory must cover the translated addresses, including holes.
+localparam MEMORY_MAP_BYTE_SIZE = 33'h000060000;
+
 //
 // Section 0 (ROM)
 // logical [0x0000_1000 - 0x0000_ffff] -> physical [0x00_1000 - 0x00_ffff]
