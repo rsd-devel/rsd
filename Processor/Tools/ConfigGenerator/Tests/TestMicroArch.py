@@ -23,8 +23,8 @@ class TestMicroArch(unittest.TestCase):
             self.assertEqual(content, (SRC / name).read_text(), name)
 
     def test_changed_parameters_and_derived_widths(self):
-        self.values["parameters"].update(COMMIT_WIDTH=4, LOAD_QUEUE_ENTRY_NUM=32,
-                                         DCACHE_WAY_NUM=4)
+        self.values["parameters"].update(commit_width=4, load_queue_entry_num=32,
+                                         dcache_way_num=4)
         rtl = self.render()["Config/MicroArchConf.sv"]
         self.assertIn("CONF_COMMIT_WIDTH = 4;", rtl)
         self.assertIn("CONF_LOAD_QUEUE_ENTRY_NUM = 32;", rtl)
@@ -36,10 +36,10 @@ class TestMicroArch(unittest.TestCase):
         self.values.pop("overrides", None)
         for fp_enabled in (False, True):
             with self.subTest(fp_enabled=fp_enabled):
-                self.values["parameters"].update(FP_PIPE=fp_enabled,
-                                                INT_ISSUE_WIDTH=1,
-                                                ENABLE_ZICFILP=False,
-                                                UNIFIED_LDST_MEM_PIPE=True)
+                self.values["parameters"].update(enable_fp_pipe=fp_enabled,
+                                                int_issue_width=1,
+                                                enable_zicfilp=False,
+                                                enable_unified_ldst_mem_pipe=True)
                 outputs = self.render()
                 make = outputs["Makefiles/MicroArch.inc.mk"]
                 sv = outputs["Config/MicroArchMacros.svh"]
@@ -59,10 +59,10 @@ class TestMicroArch(unittest.TestCase):
         self.assertIn("`define RSD_DISABLE_PERFORMANCE_COUNTER", outputs["Config/MicroArchMacros.svh"])
 
     def test_common_values_and_mode_overrides(self):
-        self.values["parameters"]["PERFORMANCE_COUNTER"] = False
+        self.values["parameters"]["enable_performance_counter"] = False
         self.values["overrides"] = {
-            "simulation": {"INT_ISSUE_WIDTH": 1, "FP_PIPE": False},
-            "synthesis": {"PERFORMANCE_COUNTER": True},
+            "simulation": {"int_issue_width": 1, "enable_fp_pipe": False},
+            "synthesis": {"enable_performance_counter": True},
         }
         outputs = self.render()
         sim, synth = outputs["Makefiles/MicroArch.inc.mk"].splitlines()[1:]
@@ -75,7 +75,7 @@ class TestMicroArch(unittest.TestCase):
         self.assertNotIn("RSD_DISABLE_PERFORMANCE_COUNTER", outputs["Config/MicroArchMacros.svh"])
 
     def test_numeric_overrides(self):
-        self.values["overrides"]["synthesis"]["LOAD_QUEUE_ENTRY_NUM"] = 32
+        self.values["overrides"]["synthesis"]["load_queue_entry_num"] = 32
         rtl = self.render()["Config/MicroArchConf.sv"]
         self.assertIn("`ifdef RSD_SYNTHESIS\nlocalparam CONF_LOAD_QUEUE_ENTRY_NUM = 32;\n"
                       "`elsif RSD_POST_SYNTHESIS_SIMULATION\nlocalparam CONF_LOAD_QUEUE_ENTRY_NUM = 32;\n"
@@ -84,11 +84,11 @@ class TestMicroArch(unittest.TestCase):
     def test_invalid_overrides(self):
         for overrides in (
             {"synthessis": {}},
-            {"synthesis": {"PERFORMACE_COUNTER": False}},
-            {"simulation": {"PERFORMANCE_COUNTER": 0}},
-            {"synthesis": {"COMMIT_WIDTH": 1}},
-            {"synthesis": {"INT_ISSUE_WIDTH": 3}},
-            {"synthesis": {"FP_PIPE": "false"}},
+            {"synthesis": {"enable_performace_counter": False}},
+            {"simulation": {"enable_performance_counter": 0}},
+            {"synthesis": {"commit_width": 1}},
+            {"synthesis": {"int_issue_width": 3}},
+            {"synthesis": {"enable_fp_pipe": "false"}},
             {"synthesis": None},
             [],
         ):
@@ -99,17 +99,17 @@ class TestMicroArch(unittest.TestCase):
 
     def test_invalid_values(self):
         cases = (
-            ("FETCH_WIDTH", True),
-            ("COMMIT_WIDTH", 1),
-            ("PSCALAR_FP_NUM", 128),
-            ("REPLAY_QUEUE_ENTRY_NUM", 0),
-            ("LOAD_QUEUE_ENTRY_NUM", 17),
-            ("ICACHE_WAY_NUM", 1),
-            ("BRANCH_GLOBAL_HISTORY_BIT_WIDTH", 12),
-            ("DCACHE_INDEX_BIT_WIDTH_BASE", 32),
-            ("DCACHE_INDEX_BIT_WIDTH_BASE", 1),
-            ("INT_ISSUE_WIDTH", 3),
-            ("FP_PIPE", 0),
+            ("fetch_width", True),
+            ("commit_width", 1),
+            ("pscalar_fp_num", 128),
+            ("replay_queue_entry_num", 0),
+            ("load_queue_entry_num", 17),
+            ("icache_way_num", 1),
+            ("branch_global_history_bit_width", 12),
+            ("dcache_index_bit_width_base", 32),
+            ("dcache_index_bit_width_base", 1),
+            ("int_issue_width", 3),
+            ("enable_fp_pipe", 0),
         )
         for name, value in cases:
             with self.subTest(name=name, value=value):
@@ -119,11 +119,11 @@ class TestMicroArch(unittest.TestCase):
                     render_micro_arch(values, self.template)
 
     def test_missing_or_unknown_setting(self):
-        del self.values["parameters"]["FP_PIPE"]
+        del self.values["parameters"]["enable_fp_pipe"]
         with self.assertRaisesRegex(ConfigError, "required"):
             self.render()
-        self.values["parameters"]["FP_PIPE"] = True
-        self.values["parameters"]["FETCH_WIDHT"] = 2
+        self.values["parameters"]["enable_fp_pipe"] = True
+        self.values["parameters"]["fetch_widht"] = 2
         with self.assertRaisesRegex(ConfigError, "unknown"):
             self.render()
 

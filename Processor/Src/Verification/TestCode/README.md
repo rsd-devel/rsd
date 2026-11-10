@@ -67,7 +67,7 @@ cases. For benchmark scores, use the `bench-*` targets described below.
 
 ## FP test selection
 
-`FP_PIPE: true` in [MicroArch.yml](../../../Config/MicroArch.yml) enables
+`enable_fp_pipe: true` in [MicroArch.yml](../../../Config/MicroArch.yml) enables
 the assembly and C FP tests in `test-1`. Setting it to `false` makes basic builds omit FP
 tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
 test fails. When changing the configuration, clean and rebuild both the
@@ -76,7 +76,7 @@ then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
 ## CFI test selection
 
-`ENABLE_ZICFILP: true` in [MicroArch.yml](../../../Config/MicroArch.yml)
+`enable_zicfilp: true` in [MicroArch.yml](../../../Config/MicroArch.yml)
 enables landing-pad protection and its `test-1` test. Set it to `false`
 to build without CFI; an explicit `test-RV32I-LandingPad` request then fails.
 Clean and rebuild the simulator and basic test programs when changing this

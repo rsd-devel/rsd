@@ -659,53 +659,53 @@ MICRO_ARCH_PARAMETERS = (
 )
 # The YAML describes settings; preprocessor names are an RTL implementation detail.
 MICRO_ARCH_FEATURES = {
-    "FP_PIPE": "RSD_MARCH_FP_PIPE",
-    "ENABLE_ZBA": "RSD_ENABLE_ZBA",
-    "ENABLE_ZICOND": "RSD_ENABLE_ZICOND",
-    "ENABLE_ZICFILP": "RSD_ENABLE_ZICFILP",
-    "UNIFIED_MULDIV_MEM_PIPE": "RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE",
-    "UNIFIED_LDST_MEM_PIPE": "RSD_MARCH_UNIFIED_LDST_MEM_PIPE",
+    "enable_fp_pipe": "RSD_MARCH_FP_PIPE",
+    "enable_zba": "RSD_ENABLE_ZBA",
+    "enable_zicond": "RSD_ENABLE_ZICOND",
+    "enable_zicfilp": "RSD_ENABLE_ZICFILP",
+    "enable_unified_muldiv_mem_pipe": "RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE",
+    "enable_unified_ldst_mem_pipe": "RSD_MARCH_UNIFIED_LDST_MEM_PIPE",
 }
 
 
 def validate_micro_arch(parameters: YamlMapping) -> tuple[dict[str, int], dict[str, str | None]]:
-    validate_keys(parameters, (*MICRO_ARCH_PARAMETERS, *MICRO_ARCH_FEATURES,
-                               "PERFORMANCE_COUNTER"), "parameters")
-    params = {name: read_integer(parameters, name, "parameters")
+    validate_keys(parameters, (*(name.lower() for name in MICRO_ARCH_PARAMETERS), *MICRO_ARCH_FEATURES,
+                               "enable_performance_counter"), "parameters")
+    params = {name: read_integer(parameters, name.lower(), "parameters")
               for name in MICRO_ARCH_PARAMETERS}
     for name, value in params.items():
         if not 0 < value < (1 << 31):
-            raise ConfigError(f"parameters.{name} must be a positive signed 32-bit integer")
+            raise ConfigError(f"parameters.{name.lower()} must be a positive signed 32-bit integer")
     # Check known structural constraints, not every possible RTL configuration.
     for name in ("PSCALAR_NUM", "PSCALAR_FP_NUM", "ACTIVE_LIST_ENTRY_NUM",
                  "LOAD_QUEUE_ENTRY_NUM", "STORE_QUEUE_ENTRY_NUM", "BTB_ENTRY_NUM",
                  "PHT_ENTRY_NUM", "MDT_ENTRY_NUM", "DCACHE_WAY_NUM", "ICACHE_WAY_NUM",
                  "DCACHE_LINE_BYTE_NUM", "ICACHE_LINE_BYTE_NUM"):
         if params[name] & (params[name] - 1):
-            raise ConfigError(f"parameters.{name} must be a power of two")
+            raise ConfigError(f"parameters.{name.lower()} must be a power of two")
     if params["COMMIT_WIDTH"] < params["FETCH_WIDTH"]:
-        raise ConfigError("COMMIT_WIDTH must be at least FETCH_WIDTH for recovery")
+        raise ConfigError("commit_width must be at least fetch_width for recovery")
     if params["PSCALAR_NUM"] != params["PSCALAR_FP_NUM"]:
-        raise ConfigError("PSCALAR_NUM and PSCALAR_FP_NUM must match")
+        raise ConfigError("pscalar_num and pscalar_fp_num must match")
     if params["PSCALAR_NUM"] <= 32:
-        raise ConfigError("PSCALAR_NUM must exceed the 32 architectural registers")
+        raise ConfigError("pscalar_num must exceed the 32 architectural registers")
     if params["ICACHE_WAY_NUM"] < 2:
-        raise ConfigError("ICACHE_WAY_NUM must be at least 2")
+        raise ConfigError("icache_way_num must be at least 2")
     if params["BRANCH_GLOBAL_HISTORY_BIT_WIDTH"] > params["PHT_ENTRY_NUM"].bit_length() - 1:
-        raise ConfigError("BRANCH_GLOBAL_HISTORY_BIT_WIDTH must fit the PHT index")
+        raise ConfigError("branch_global_history_bit_width must fit the PHT index")
     for cache in ("DCACHE", "ICACHE"):
         bits = params[f"{cache}_INDEX_BIT_WIDTH_BASE"] - (params[f"{cache}_WAY_NUM"].bit_length() - 1)
         if bits < 1 or bits + params[f"{cache}_LINE_BYTE_NUM"].bit_length() - 1 >= 32:
-            raise ConfigError(f"{cache} index and line offset must leave address tag bits")
+            raise ConfigError(f"{cache.lower()} index and line offset must leave address tag bits")
     width = params["INT_ISSUE_WIDTH"]
     if width not in (1, 2):
-        raise ConfigError("INT_ISSUE_WIDTH must be 1 or 2")
+        raise ConfigError("int_issue_width must be 1 or 2")
     features = {macro: read_boolean(parameters, name, "parameters")
                 for name, macro in MICRO_ARCH_FEATURES.items()}
 
     macros = {"RSD_MARCH_INT_ISSUE_WIDTH": str(width)}
     macros.update({name: None for name, enabled in features.items() if enabled})
-    if not read_boolean(parameters, "PERFORMANCE_COUNTER", "parameters"):
+    if not read_boolean(parameters, "enable_performance_counter", "parameters"):
         macros["RSD_DISABLE_PERFORMANCE_COUNTER"] = None
     return params, macros
 
