@@ -5,11 +5,13 @@ Verilator simulator, then run the basic tests:
 
 ```sh
 make -j"$(nproc)"
-make test-1
+make test/level-1/run
 ```
 
-`test-1` also builds the assembly and C test HEX files as needed.
-Use `test-clean-basic` to remove their generated files.
+`test/level-1/run` also builds the assembly and C test HEX files as needed.
+Use `test/level-1/clean` to remove their generated files. Individual cases follow
+the source directories, for example `test/Asm/FP/run` and `test/C/HelloWorld/run`.
+Use `test/Asm/build` or `test/C/build` to build one source group.
 For `cfg.xml`, execution limits, and result checking, see the
 [TestDriver documentation](../../../Tools/TestDriver/README.md).
 
@@ -17,35 +19,36 @@ For `cfg.xml`, execution limits, and result checking, see the
 
 | Target | What it checks | Preparation |
 | --- | --- | --- |
-| `test-all` | `test-1` (ASM/C) and `test-2` (CoreMark/Dhrystone) | Build the Verilator model; fetch the benchmark sources below. |
-| `test-ex` | ACT4 and Zephyr | Build the Verilator model; run each suite's fetch/setup below. |
-| `test-unit` | RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Use the dev container (Verilator), or select ModelSim/QuestaSim as described below. |
-| `test-tools` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
+| `test/all/run` | `test/level-1/run` (ASM/C) and `test/level-2/run` (CoreMark/Dhrystone) | Build the Verilator model; fetch the benchmark sources below. |
+| `test/ex/run` | ACT4 and Zephyr | Build the Verilator model; run each suite's fetch/setup below. |
+| `test/unit/run` | RTL unit tests: RAMs, queue pointers, free list, dividers, memory and caches | Use the dev container (Verilator), or select ModelSim/QuestaSim as described below. |
+| `test/tools/run` | TestDriver and the DevContainer launcher | Use the dev container or a Linux host with Python 3, Bash and `flock`. |
 
 ```sh
-make -j4 test-all
-make -j4 test-ex
-make -j4 test-unit
-make -j2 test-tools
+make -j4 test/all/run
+make -j4 test/ex/run
+make -j4 test/unit/run
+make -j2 test/tools/run
 ```
 
-`test-all` covers the normal program tests; request the other groups explicitly.
-Specify `test-all test-ex` together to run both program-test groups.
-They build HEX files as needed. `test-build` builds the normal test programs;
-`test-build-ex` builds ACT4 and Zephyr. `test-clean` cleans both groups while
+`test/all/run` covers the normal program tests; request the other groups explicitly.
+Specify `test/all/run test/ex/run` together to run both program-test groups.
+They build HEX files as needed. `test/all/build` builds the normal test programs;
+`test/level-1/build` builds ASM/C, `test/level-2/build` builds CoreMark/Dhrystone,
+and `test/ex/build` builds ACT4 and Zephyr. `test/clean` cleans both groups while
 preserving downloaded sources and installed dependencies.
 
 The default core simulator is Verilator. Use `SIM=modelsim` or `SIM=xsim`
 for both the build and program-test commands to select another simulator.
-`test-unit` builds and runs its own testbenches with Verilator by default.
-Use `make SIM=modelsim test-unit` for ModelSim/QuestaSim, setting
+`test/unit/run` builds and runs its own testbenches with Verilator by default.
+Use `make SIM=modelsim test/unit/run` for ModelSim/QuestaSim, setting
 `RSD_QUESTASIM_PATH` to its executable directory. Units support `verilator` and
 `modelsim`; `UNIT_SIM` selects them independently (for example,
-`make SIM=xsim UNIT_SIM=verilator test-unit`). `UNIT_PROJECT_WORK` overrides
+`make SIM=xsim UNIT_SIM=verilator test/unit/run`). `UNIT_PROJECT_WORK` overrides
 their output directory. ModelSim/QuestaSim also checks unknown (`X`) values
 that Verilator's two-state simulation cannot detect.
-Select one unit with, for example, `make test-unit-Divider`.
-`test-tools` also checks configuration generation (`test-tools-Config`) and
+Select one unit with, for example, `make test/unit/Divider/run`.
+`test/tools/run` also checks configuration generation (`test/tools/Config/run`) and
 uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
 those checks are reported as skipped. It does not build models, download tools
@@ -53,32 +56,32 @@ or start containers. The [TestDriver documentation](../../../Tools/TestDriver/RE
 lists the individual tool-test targets.
 
 For synthesized cores, build the test HEX first (for example, with
-`make test-build-basic`). Then use
-`make vivado/post-synthesis/test` for Vivado + XSim, or
-`make synplify/post-synthesis/test` for Synplify + XSim.
-`make vcs/post-implementation/test` uses Vivado placement/routing
+`make test/level-1/build`). Then use
+`make synth/vivado/post-synthesis/test` for Vivado + XSim, or
+`make synth/synplify/post-synthesis/test` for Synplify + XSim.
+`make sim/vcs/post-implementation/test` uses Vivado placement/routing
 and VCS with SDF delays. These require separately installed CAD tools and
 `RSD_VIVADO_BIN`; they default to HelloWorld and accept `TEST_CODE` to select a
 UART-checked program. They are separate from the four groups above.
 
 TestDriver leaves each program's simulator log and UART output in its test
 directory. ACT4 also writes `riscv-arch-test/Build/summary.log` for the selected
-cases. For benchmark scores, use the `bench-*` targets described below.
+cases. For benchmark scores, use the `bench/*/run` targets described below.
 
 ## FP test selection
 
 `enable_fp_pipe: true` in [MicroArch.yml](../../../Config/MicroArch.yml) enables
-the assembly and C FP tests in `test-1`. Setting it to `false` makes basic builds omit FP
+the assembly and C FP tests in `test/level-1/run`. Setting it to `false` makes basic builds omit FP
 tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
 test fails. When changing the configuration, clean and rebuild both the
-simulator and test programs (`make clean test-clean-basic`,
+simulator and test programs (`make clean test/level-1/clean`,
 then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
 ## CFI test selection
 
 `enable_zicfilp: true` in [MicroArch.yml](../../../Config/MicroArch.yml)
-enables landing-pad protection and its `test-1` test. Set it to `false`
-to build without CFI; an explicit `test-RV32I-LandingPad` request then fails.
+enables landing-pad protection and its `test/level-1/run` test. Set it to `false`
+to build without CFI; an explicit `test/Asm/LandingPad/run` request then fails.
 Clean and rebuild the simulator and basic test programs when changing this
 configuration, as for FP above. The YAML settings also generate the synthesis
 macros. A command-line `RSD_SRC_CFG` override affects simulation and software
@@ -87,9 +90,9 @@ builds only; omit a macro to disable it rather than defining it as `0`.
 ## CoreMark
 
 ```sh
-make test-fetch-Coremark
-make -j"$(nproc)" test-build-Coremark
-make test-Coremark test-Coremark_for_RV32I
+make test/External/Coremark/fetch
+make -j"$(nproc)" test/External/Coremark/build
+make test/External/Coremark/run test/External/Coremark/Coremark_for_RV32I/run
 ```
 
 The fetch target checks out the public `eembc/coremark` repository at the commit
@@ -105,16 +108,16 @@ and complete serial output validate the result. Only the compiler version in the
 reference is filled in during the build. Instruction budgets allow about twice
 the measured work; no-commit waits are limited to 500 cycles.
 
-`test-clean-Coremark` removes generated files and preserves `External/` and the
+`test/External/Coremark/clean` removes generated files and preserves `External/` and the
 test configurations. Clean before changing compilers or build flags.
 `Coremark_for_Synthesis` is outside this simulation-test migration.
 
 ## Dhrystone
 
 ```sh
-make test-fetch-Dhrystone
-make -j"$(nproc)" test-build-Dhrystone
-make test-Dhrystone
+make test/External/Dhrystone/fetch
+make -j"$(nproc)" test/External/Dhrystone/build
+make test/External/Dhrystone/run
 ```
 
 The fetch target checks out [SiFive's Dhrystone C 2.1](https://github.com/sifive/benchmark-dhrystone)
@@ -135,7 +138,7 @@ no-commit waits are limited to 500 cycles.
 GCC's libc builtins are enabled by default for Dhrystone. To disable them, use:
 
 ```sh
-make test-Dhrystone DHRYSTONE_BUILTINS=0
+make test/External/Dhrystone/run DHRYSTONE_BUILTINS=0
 ```
 
 The default is `DHRYSTONE_BUILTINS=1`, which appends `-fbuiltin`
@@ -147,18 +150,18 @@ the `strcmp` in `Func_2` still calls picolibc. Its structure copies already use
 inline loads/stores. Changing this option automatically rebuilds the objects.
 Report the builtin setting with any performance measurements.
 
-`test-clean-Dhrystone` preserves the checkout and test inputs;
+`test/External/Dhrystone/clean` preserves the checkout and test inputs;
 clean before changing compilers or build flags.
 
 ## Cycle measurements
 
 ```sh
-make bench-Coremark
-make bench-Dhrystone
+make bench/Coremark/run
+make bench/Dhrystone/run
 # Compare Dhrystone without GCC libc builtins:
-make bench-Dhrystone DHRYSTONE_BUILTINS=0
+make bench/Dhrystone/run DHRYSTONE_BUILTINS=0
 # Short run for comparison:
-make bench-Dhrystone DHRYSTONE_BENCH_ITERATIONS=100
+make bench/Dhrystone/run DHRYSTONE_BENCH_ITERATIONS=100
 ```
 
 These targets build with `BENCHMARK=1`, retain the normal result checks, and
@@ -170,7 +173,7 @@ initialization, result checking and UART output. CSR timing overhead is included
 
 These are short simulation estimates: one CoreMark iteration or 2000 Dhrystone
 iterations, starting from reset. `DHRYSTONE_BENCH_ITERATIONS` changes the latter;
-changing it automatically rebuilds the benchmark. Normal `test-Dhrystone`
+changing it automatically rebuilds the benchmark. Normal `test/External/Dhrystone/run`
 still uses 100 iterations. The benchmark instruction budget defaults to
 2000000; set `MAX_TEST_INSTRUCTIONS` when requesting a longer run.
 They do not meet the minimum-duration rules for
@@ -186,16 +189,16 @@ strongly affect its score. Code/data placement can still affect performance;
 report the compiler version and build settings when comparing measurements.
 
 Run benchmark and normal test modes separately: they reuse the same output
-directories. Mode changes automatically rebuild; normal `test-*` targets restore
-`BENCHMARK=0` and the original exact UART comparison. `test-all` does not run
+directories. Mode changes automatically rebuild; normal correctness-test targets restore
+`BENCHMARK=0` and the original exact UART comparison. `test/all/run` does not run
 the benchmark targets.
 
 ## Zephyr
 
 ```sh
-make test-fetch-Zephyr
-make test-setup-Zephyr
-make test-Zephyr
+make test/External/Zephyr/fetch
+make test/External/Zephyr/setup
+make test/External/Zephyr/run
 ```
 
 The [Zephyr Makefile](Zephyr/Makefile) pins public Zephyr 4.4.0 under
@@ -205,8 +208,8 @@ upstream samples, built with RSD's out-of-tree board/SoC, Ubuntu's RISC-V GCC
 and Zephyr's minimal libc. No `RSD_ENV`, west, SDK or external modules are needed.
 The dev container provides CMake, Ninja, gperf and the devicetree compiler.
 Fetch/setup require network access; builds and tests do not download anything.
-`test-Zephyr` runs all three; individual targets include `test-Zephyr-Philosophers`
-and `test-Zephyr-Synchronization`. Each runs through TestDriver to its instruction
+`test/External/Zephyr/run` runs all three; individual targets include `test/External/Zephyr/Philosophers/run`
+and `test/External/Zephyr/Synchronization/run`. Each runs through TestDriver to its instruction
 budget with the normal no-commit limit. HelloWorld requires the exact UART greeting.
 Synchronization uses TestDriver's `--serial-prefix` to require the first four
 A/B/A/B greetings, allowing subsequent output and an incomplete final UART line.
@@ -218,18 +221,18 @@ The simulation board uses a virtual 1 MHz clock to shorten sample sleeps without
 changing the RTL or upstream source. Philosophers uses upstream `DEBUG_PRINTF=1`
 to disable terminal cursor control and `CONFIG_PRINTK_SYNC=y` to synchronize each
 print call. Zephyr Dhrystone remains outside this migration.
-`test-clean-Zephyr` preserves the downloaded source and Python environment.
+`test/External/Zephyr/clean` preserves the downloaded source and Python environment.
 
 ## riscv-arch-test (ACT4)
 
 In the Ubuntu 26.04 dev container, explicitly fetch the source and install its dependencies:
 
 ```sh
-make test-fetch-riscv-arch-test
-make test-setup-riscv-arch-test
-make test-check-riscv-arch-test
+make test/External/riscv-arch-test/fetch
+make test/External/riscv-arch-test/setup
+make test/External/riscv-arch-test/check
 make -j"$(nproc)"
-make -j16 test-riscv-arch-test
+make -j16 test/External/riscv-arch-test/run
 ```
 
 The [ACT4 Makefile](riscv-arch-test/Makefile) pins the upstream commit, Bundler,
@@ -256,14 +259,14 @@ FP-disabled configurations exclude F and reject explicit F selections.
 The pinned `testgen` generates privileged sources under `Build/Generated/`;
 exception suites boot in M-mode; interrupts run from M/S/U-mode, including
 S-mode delegation and external interrupts through the PLIC.
-`test-build-riscv-arch-test` builds them without downloads: ACT4 compiles
+`test/External/riscv-arch-test/build` builds them without downloads: ACT4 compiles
 a signature ELF, runs Sail to obtain expected values, and embeds those values
 in a self-checking ELF. The RSD adapter supplies the reset entry, UART output
 and termination; the HEX includes ROM and RAM contents. Generated tests and
 simulation output stay under `riscv-arch-test/Build/`.
 Test code and its platform helpers execute from RAM; reset code stays in ROM.
 
-`test-riscv-arch-test` runs all selected cases through the normal TestDriver,
+`test/External/riscv-arch-test/run` runs all selected cases through the normal TestDriver,
 with a fresh simulator process for each. Make's `-j` controls Verilator test
 parallelism (`-j16` runs up to 16 cases, `-j1` runs sequentially).
 Failures do not stop the remaining cases; each case has a `result.log`, and
@@ -272,14 +275,14 @@ Any failure makes the command fail. Vivado retains sequential execution.
 Narrow the selection for debugging:
 
 ```sh
-make test-riscv-arch-test ACT_EXTENSIONS=I
-make test-riscv-arch-test ACT_EXTENSIONS=Zicsr,ExceptionsSm
-make test-riscv-arch-test ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
-make test-riscv-arch-test ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
-make test-riscv-arch-test ACT_EXTENSIONS=InterruptsSm
-make test-riscv-arch-test ACT_EXTENSIONS=Zifencei
-make -j16 test-riscv-arch-test ACT_EXTENSIONS=F
-make test-riscv-arch-test ACT_TESTS="I-addi-00 I-sub-00"
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=I
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=Zicsr,ExceptionsSm
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=M,Zaamo,Zalrsc,Zba,Zicond
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=ExceptionsZaamo,ExceptionsZalrsc
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=InterruptsSm
+make test/External/riscv-arch-test/run ACT_EXTENSIONS=Zifencei
+make -j16 test/External/riscv-arch-test/run ACT_EXTENSIONS=F
+make test/External/riscv-arch-test/run ACT_TESTS="I-addi-00 I-sub-00"
 ```
 
 Only the selected cases are built and run; unknown selections fail.
@@ -298,7 +301,7 @@ actual value and expected value, to
 `Build/Cases/<suite>/<test>/serial.out.txt`. Exception cases check ECALL, EBREAK,
 illegal instructions, and misaligned/access-fault traps for instruction fetch,
 loads/stores and AMO/LR/SC. Atomic cases check destination-register preservation;
-LR/SC also checks scratch memory. The existing `test-RV32A-Aext` separately checks
+LR/SC also checks scratch memory. The existing `test/Asm/Aext/run` separately checks
 memory preservation on cached/uncached AMO faults.
 InterruptsSm checks MEI/MSI/MTI and SEI/SSI/STI enable masks, Direct/Vectored
 entry, delegation, mixed priorities and WFI polling with a delayed timer.
@@ -325,10 +328,10 @@ execution. The basic `Asm/CSR` test separately checks FS/SD state, FP access
 while FS is Off, and dirty tracking.
 The S-mode profile remains Bare-only; paging and full S-mode ISA compliance
 are outside this subset.
-`test-ex` includes this suite; `test-build-ex` builds it, and `test-clean` also
-removes its generated files. Run the fetch/setup steps above before `test-ex`
-or `test-build-ex`.
-`test-clean-riscv-arch-test` removes generated tests and keeps the installed tools.
+`test/ex/run` includes this suite; `test/ex/build` builds it, and `test/clean` also
+removes its generated files. Run the fetch/setup steps above before `test/ex/run`
+or `test/ex/build`.
+`test/External/riscv-arch-test/clean` removes generated tests and keeps the installed tools.
 
 ## Memory map
 

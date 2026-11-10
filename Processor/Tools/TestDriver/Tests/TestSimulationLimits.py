@@ -15,7 +15,7 @@ FIBONACCI = SOURCE / 'Verification/TestCode/C/Fibonacci/code.hex'
 
 
 @unittest.skipUnless(MODEL.is_file() and FIBONACCI.is_file(),
-                     'Build the Verilator model and test-build-basic first')
+                     'Build the Verilator model and test/level-1/build first')
 class SimulationLimitTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix='rsd-simulation-limits-')

@@ -48,7 +48,7 @@ measured cache-flush waits were 2,338 and 1,170 cycles. `IntDivZynq` allows 1,10
 cycles because division replay without the FP pipeline produced a 529-cycle wait.
 
 Rebuild the simulator after changing its test bench; the runner rejects models
-that do not report a termination reason. `make run`, `make kanata`, and `make dump`
+that do not report a termination reason. `make sim/run`, `make sim/kanata`, and `make sim/dump`
 use Makefile variables rather than `cfg.xml`; pass `MAX_TEST_INSTRUCTIONS`,
 `MAX_NO_COMMIT_CYCLES`, and optionally `MAX_TEST_CYCLES` to override their limits.
 
@@ -61,13 +61,13 @@ make -C Processor/Tools/TestDriver test
 To also check the DevContainer launcher, run from `Processor/Src`:
 
 ```sh
-make -j2 test-tools
+make -j2 test/tools/run
 ```
 
-Use `test-tools-TestDriver` or `test-tools-DevContainer` to run only one suite.
+Use `test/tools/TestDriver/run` or `test/tools/DevContainer/run` to run only one suite.
 The launcher tests use stubs and do not build images or start containers.
 
 The CLI tests use simulator stubs. The model tests also run when the Verilator
 binary and Fibonacci HEX have been built with `make` and
-`make test-build-basic` in `Processor/Src`.
+`make test/level-1/build` in `Processor/Src`.
 Otherwise, the model tests are reported as skipped.

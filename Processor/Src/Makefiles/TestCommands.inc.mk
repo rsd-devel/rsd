@@ -1,8 +1,6 @@
-# "test-~" command is defined here.
-# Included from ../Makefile, ../Makefile.verilator
-#
-# RUN_TEST and RUN_TEST_OMIT_MSG are defined in the above Makefiles.
-# They must be changed depending on which simulator is used (modelsim or verilator).
+# Program builds and test targets, included by the main Makefile.
+# RUN_TEST and RUN_TEST_OMIT_MSG use the selected SIM backend.
+# Public test/<subject>/run targets execute tests and check their results.
 
 
 # -------------------------------
@@ -10,167 +8,165 @@
 #        This is only for pre-translate simulation.
 
 LEVEL1_TESTS = \
-	test-RV32I-ControlTransfer \
-	test-RV32I-ControlTransferZynq \
-	test-RV32I-IntRegImm \
-	test-RV32I-IntRegImmZynq \
-	test-RV32I-IntRegReg \
-	test-RV32I-IntRegRegZynq \
-	test-RV32I-LoadAndStore \
-	test-RV32I-LoadAndStoreZynq \
-	test-RV32I-MisalignedMemAccess \
-	test-RV32I-UncachableLoadAndStore \
-	test-RV32I-ICacheFlush \
-	test-RV32I-DCacheFlush \
-	test-RV32I-ZeroRegister \
-	test-RV32I-MemoryAccessZynq \
-	test-RV32I-ReplayQueueTest \
-	test-RV32I-DynamicRecovery \
-	test-RV32I-MemoryDependencyPrediction \
-	test-RV32I-Fence \
-	test-RV32I-CSR \
-	test-RV32I-ENV \
-	test-RV32I-Timer \
-	test-RV32I-MSWI \
-	test-RV32I-Fault \
-	test-RV32M-IntMulZynq \
-	test-RV32M-IntDivZynq \
-	test-RV32M-DividerTest \
-    test-RV32A-Aext \
-	test-HelloWorld \
-	test-Fibonacci \
-	test-Exception \
-	test-DCache \
-	test-PerformanceCounter \
+	test/Asm/ControlTransfer/run \
+	test/Asm/ControlTransferZynq/run \
+	test/Asm/IntRegImm/run \
+	test/Asm/IntRegImmZynq/run \
+	test/Asm/IntRegReg/run \
+	test/Asm/IntRegRegZynq/run \
+	test/Asm/LoadAndStore/run \
+	test/Asm/LoadAndStoreZynq/run \
+	test/Asm/MisalignedMemAccess/run \
+	test/Asm/UncachableLoadAndStore/run \
+	test/Asm/ICacheFlush/run \
+	test/Asm/DCacheFlush/run \
+	test/Asm/ZeroRegister/run \
+	test/Asm/MemoryAccessZynq/run \
+	test/Asm/ReplayQueueTest/run \
+	test/Asm/DynamicRecovery/run \
+	test/Asm/MemoryDependencyPrediction/run \
+	test/Asm/Fence/run \
+	test/Asm/CSR/run \
+	test/Asm/ENV/run \
+	test/Asm/Timer/run \
+	test/Asm/MSWI/run \
+	test/Asm/Fault/run \
+	test/Asm/IntMulZynq/run \
+	test/Asm/IntDivZynq/run \
+	test/Asm/DividerTest/run \
+    test/Asm/Aext/run \
+	test/C/HelloWorld/run \
+	test/C/Fibonacci/run \
+	test/C/Exception/run \
+	test/C/DCache/run \
+	test/C/PerformanceCounter/run \
 
 ifeq ($(RSD_HAS_FP),1)
-LEVEL1_TESTS += test-RV32F-Asm test-RV32F-C
+LEVEL1_TESTS += test/Asm/FP/run test/C/FP/run
 endif
 
 ifeq ($(RSD_HAS_ZICFILP),1)
-LEVEL1_TESTS += test-RV32I-LandingPad
+LEVEL1_TESTS += test/Asm/LandingPad/run
 endif
 
 LEVEL2_TESTS = \
-	test-Coremark \
-	test-Coremark_for_RV32I \
-	test-Dhrystone
+	test/External/Coremark/run \
+	test/External/Coremark/Coremark_for_RV32I/run \
+	test/External/Dhrystone/run
 
 EX_TESTS = \
-	test-riscv-arch-test \
-	test-Zephyr
+	test/External/riscv-arch-test/run \
+	test/External/Zephyr/run
 
 
 # Build the in-repository tests without external test sources.
 # Clean first when changing the toolchain or command-line build flags.
-.PHONY: test-build-basic test-clean-basic test-build-crt test-clean-crt
-.PHONY: test-build-asm test-clean-asm test-build-C test-clean-C
-test-build-basic: test-build-asm test-build-C
-test-clean-basic: test-clean-asm test-clean-C test-clean-crt
+.PHONY: test/level-1/build test/level-1/clean test/crt/build test/crt/clean
+.PHONY: test/Asm/build test/Asm/clean test/C/build test/C/clean
+test/level-1/build: test/Asm/build test/C/build
+test/level-1/clean: test/Asm/clean test/C/clean test/crt/clean
 
 # Always check source dependencies before running a basic test.
 # Each test depends on its build, including when make runs in parallel.
-BASIC_ASM_TESTS = $(filter test-RV32I-% test-RV32M-% test-RV32A-%,$(LEVEL1_TESTS))
-BASIC_C_TESTS = test-HelloWorld test-Fibonacci test-Exception test-DCache \
-	test-PerformanceCounter
-ifeq ($(RSD_HAS_FP),1)
-BASIC_ASM_TESTS += test-RV32F-Asm
-BASIC_C_TESTS += test-RV32F-C
-endif
+BASIC_ASM_TESTS = $(filter test/Asm/%,$(LEVEL1_TESTS))
+BASIC_C_TESTS = $(filter test/C/%,$(LEVEL1_TESTS))
 .PHONY: $(BASIC_ASM_TESTS) $(BASIC_C_TESTS)
-$(BASIC_ASM_TESTS): test-build-asm
-$(BASIC_C_TESTS): test-build-C
+$(BASIC_ASM_TESTS): test/Asm/build
+$(BASIC_C_TESTS): test/C/build
 
+# Public test targets use <subject>/<operation>; External groups programs built from upstream sources.
 # Build standard and extended tests separately; clean both groups.
-.PHONY: test-build test-build-ex test-clean
-test-build: test-build-crt test-build-asm test-build-C test-build-Coremark test-build-Dhrystone
-test-build-ex: test-build-Zephyr test-build-riscv-arch-test
-test-clean: test-clean-crt test-clean-asm test-clean-C test-clean-Coremark test-clean-Dhrystone test-clean-Zephyr test-clean-riscv-arch-test
+.PHONY: test/all/build test/level-2/build test/ex/build test/clean
+test/all/build: test/crt/build test/Asm/build test/C/build test/External/Coremark/build test/External/Dhrystone/build
+test/level-2/build: test/External/Coremark/build test/External/Dhrystone/build
+test/ex/build: test/External/Zephyr/build test/External/riscv-arch-test/build
+test/clean: test/crt/clean test/Asm/clean test/C/clean test/External/Coremark/clean test/External/Dhrystone/clean test/External/Zephyr/clean test/External/riscv-arch-test/clean
 
 # テストで使用するスタートアップルーチン
-test-build-crt:
+test/crt/build:
 	(cd Verification/TestCode; $(MAKE))
-test-clean-crt:
+test/crt/clean:
 	(cd Verification/TestCode; $(MAKE) clean)
 
 # アセンブラで書かれたテスト
-test-build-asm: test-build-crt
+test/Asm/build: test/crt/build
 	$(MAKE) -C Verification/TestCode/Asm
-test-clean-asm:
+test/Asm/clean:
 	$(MAKE) -C Verification/TestCode/Asm clean
 
 # C で書かれたもの
-test-build-C: test-build-crt
+test/C/build: test/crt/build
 	$(MAKE) -C Verification/TestCode/C
-test-clean-C:
+test/C/clean:
 	$(MAKE) -C Verification/TestCode/C clean
 
 
 # Coremark 関連
-.PHONY: test-fetch-Coremark test-build-Coremark test-clean-Coremark
-.PHONY: test-Coremark test-Coremark_for_RV32I
-test-fetch-Coremark:
+.PHONY: test/External/Coremark/fetch test/External/Coremark/build test/External/Coremark/clean
+.PHONY: test/External/Coremark/run test/External/Coremark/Coremark_for_RV32I/run
+test/External/Coremark/fetch:
 	$(MAKE) -C Verification/TestCode/Coremark fetch
-test-build-Coremark:
+test/External/Coremark/build:
 	$(MAKE) -C Verification/TestCode/Coremark BENCHMARK=0
-test-clean-Coremark:
+test/External/Coremark/clean:
 	$(MAKE) -C Verification/TestCode/Coremark clean
-test-Coremark test-Coremark_for_RV32I: test-build-Coremark
+test/External/Coremark/run test/External/Coremark/Coremark_for_RV32I/run: test/External/Coremark/build
 
 # Dhrystone 関連
-.PHONY: test-fetch-Dhrystone test-build-Dhrystone test-clean-Dhrystone test-Dhrystone
-test-fetch-Dhrystone:
+.PHONY: test/External/Dhrystone/fetch test/External/Dhrystone/build test/External/Dhrystone/clean test/External/Dhrystone/run
+test/External/Dhrystone/fetch:
 	$(MAKE) -C Verification/TestCode/Dhrystone fetch
-test-build-Dhrystone:
+test/External/Dhrystone/build:
 	$(MAKE) -C Verification/TestCode/Dhrystone BENCHMARK=0
-test-clean-Dhrystone:
+test/External/Dhrystone/clean:
 	$(MAKE) -C Verification/TestCode/Dhrystone clean
-test-Dhrystone: test-build-Dhrystone
+test/External/Dhrystone/run: test/External/Dhrystone/build
 
 # Measure benchmark loops using mcycle.
 DHRYSTONE_BENCH_ITERATIONS ?= 2000
-.PHONY: bench-Coremark bench-Dhrystone
-bench-Coremark:
+.PHONY: bench/Coremark/run bench/Dhrystone/run
+bench/Coremark/run:
 	$(MAKE) -C Verification/TestCode/Coremark Coremark BENCHMARK=1
 	$(RUN_TEST_OMIT_MSG) --benchmark=coremark Verification/TestCode/Coremark/Coremark
-bench-Dhrystone: MAX_TEST_INSTRUCTIONS = 2000000
-bench-Dhrystone:
+bench/Dhrystone/run: MAX_TEST_INSTRUCTIONS = 2000000
+bench/Dhrystone/run:
 	$(MAKE) -C Verification/TestCode/Dhrystone BENCHMARK=1 DHRYSTONE_ITERATIONS=$(DHRYSTONE_BENCH_ITERATIONS)
 	$(RUN_TEST_OMIT_MSG) --benchmark=dhrystone --benchmark-iterations=$(DHRYSTONE_BENCH_ITERATIONS) --max-test-instructions=$(MAX_TEST_INSTRUCTIONS) Verification/TestCode/Dhrystone/Dhrystone
 
 # Public Zephyr source and isolated Python build dependencies.
-.PHONY: test-fetch-Zephyr test-setup-Zephyr test-check-Zephyr test-build-Zephyr test-clean-Zephyr
-test-fetch-Zephyr:
+.PHONY: test/External/Zephyr/fetch test/External/Zephyr/setup test/External/Zephyr/check test/External/Zephyr/build test/External/Zephyr/clean
+test/External/Zephyr/fetch:
 	$(MAKE) -C Verification/TestCode/Zephyr fetch
-test-setup-Zephyr:
+test/External/Zephyr/setup:
 	$(MAKE) -C Verification/TestCode/Zephyr setup
-test-check-Zephyr:
+test/External/Zephyr/check:
 	$(MAKE) -C Verification/TestCode/Zephyr check
-test-build-Zephyr:
+test/External/Zephyr/build:
 	$(MAKE) -C Verification/TestCode/Zephyr build
-test-clean-Zephyr:
+test/External/Zephyr/clean:
 	$(MAKE) -C Verification/TestCode/Zephyr clean
 
 # ACT4 source checkout and isolated dependency setup.
-.PHONY: test-fetch-riscv-arch-test test-setup-riscv-arch-test test-check-riscv-arch-test
-test-fetch-riscv-arch-test:
+.PHONY: test/External/riscv-arch-test/fetch test/External/riscv-arch-test/setup test/External/riscv-arch-test/check
+test/External/riscv-arch-test/fetch:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test fetch
-test-setup-riscv-arch-test:
+test/External/riscv-arch-test/setup:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test setup
-test-check-riscv-arch-test:
+test/External/riscv-arch-test/check:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test check
 
 # Run the selected ACT4 cases through the normal TestDriver and summarize results.
-.PHONY: test-build-riscv-arch-test test-clean-riscv-arch-test test-riscv-arch-test
-test-build-riscv-arch-test:
+.PHONY: test/External/riscv-arch-test/build test/External/riscv-arch-test/clean test/External/riscv-arch-test/run
+test/External/riscv-arch-test/build:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test build
-test-clean-riscv-arch-test:
+test/External/riscv-arch-test/clean:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test clean
-test-riscv-arch-test:
+test/External/riscv-arch-test/run:
 	$(MAKE) -C Verification/TestCode/riscv-arch-test run TEST_DRIVER="$(patsubst @%,%,$(RUN_TEST_OMIT_MSG))"
 
-# test / test-* コマンドでは、RSD.logは出力しない
+# test / test/* do not write RSD.log.
 
+.PHONY: test
 test:
 	$(RUN_TEST) $(TEST_CODE)
 	@echo "==== Test Successful ===="
@@ -178,143 +174,143 @@ test:
 # Test the test infrastructure itself: TestDriver and the DevContainer launcher.
 # Each suite uses stubs; TestDriver also checks an existing Verilator model when available.
 PYTHON ?= python3
-.PHONY: test-tools test-tools-TestDriver test-tools-DevContainer
-test-tools: test-tools-TestDriver test-tools-DevContainer test-tools-Config
-	@echo "==== Test Successful (test-tools) ===="
+.PHONY: test/tools/run test/tools/TestDriver/run test/tools/DevContainer/run
+test/tools/run: test/tools/TestDriver/run test/tools/DevContainer/run test/tools/Config/run
+	@echo "==== Test Successful (test/tools/run) ===="
 
-test-tools-TestDriver test-tools-DevContainer: test-tools-%:
+test/tools/TestDriver/run test/tools/DevContainer/run: test/tools/%/run:
 	$(PYTHON) -B -m unittest discover -s ../Tools/$*/Tests -p 'Test*.py' -v
 
-.PHONY: test-all test-1 test-2 test-ex
-test-all: test-1 test-2
+.PHONY: test/all/run test/level-1/run test/level-2/run test/ex/run
+test/all/run: test/level-1/run test/level-2/run
 	@echo "==== Test Successful (all) ===="
-test-1: $(LEVEL1_TESTS)
-	@echo "==== Test Successful (test-1) ===="
-test-2: $(LEVEL2_TESTS)
-	@echo "==== Test Successful (test-2) ===="
-test-ex: $(EX_TESTS)
-	@echo "==== Test Successful (test-ex) ===="
+test/level-1/run: $(LEVEL1_TESTS)
+	@echo "==== Test Successful (test/level-1/run) ===="
+test/level-2/run: $(LEVEL2_TESTS)
+	@echo "==== Test Successful (test/level-2/run) ===="
+test/ex/run: $(EX_TESTS)
+	@echo "==== Test Successful (test/ex/run) ===="
 
-test-RV32I-ControlTransfer:
+test/Asm/ControlTransfer/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransfer
-test-RV32I-IntRegImm:
+test/Asm/IntRegImm/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegImm
-test-RV32I-IntRegReg:
+test/Asm/IntRegReg/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegReg
-test-RV32I-LoadAndStore:
+test/Asm/LoadAndStore/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LoadAndStore
-test-RV32I-ControlTransferZynq:
+test/Asm/ControlTransferZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransferZynq
-test-RV32I-IntRegImmZynq:
+test/Asm/IntRegImmZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegImmZynq
-test-RV32I-IntRegRegZynq:
+test/Asm/IntRegRegZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegRegZynq
-test-RV32I-LoadAndStoreZynq:
+test/Asm/LoadAndStoreZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LoadAndStoreZynq
-test-RV32I-UncachableLoadAndStore:
+test/Asm/UncachableLoadAndStore/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/UncachableLoadAndStore
-test-RV32I-ICacheFlush:
+test/Asm/ICacheFlush/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ICacheFlush
-test-RV32I-DCacheFlush:
+test/Asm/DCacheFlush/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DCacheFlush
-test-RV32I-ZeroRegister:
+test/Asm/ZeroRegister/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ZeroRegister
-test-RV32I-MemoryAccessZynq:
+test/Asm/MemoryAccessZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MemoryAccessZynq
-test-RV32I-ReplayQueueTest:
+test/Asm/ReplayQueueTest/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ReplayQueueTest
-test-RV32I-DynamicRecovery:
+test/Asm/DynamicRecovery/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DynamicRecovery
-test-RV32I-MemoryDependencyPrediction:
+test/Asm/MemoryDependencyPrediction/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MemoryDependencyPrediction
-test-RV32I-Fence:
+test/Asm/Fence/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fence
-test-RV32I-CSR:
+test/Asm/CSR/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/CSR
-test-RV32I-ENV:
+test/Asm/ENV/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ENV
 
-test-RV32I-MSWI:
+test/Asm/MSWI/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MSWI
-test-RV32I-Timer:
+test/Asm/Timer/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Timer
-test-RV32I-Fault:
+test/Asm/Fault/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fault
-test-RV32I-MisalignedMemAccess:
+test/Asm/MisalignedMemAccess/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MisalignedMemAccess
-.PHONY: test-RV32I-LandingPad
+.PHONY: test/Asm/LandingPad/run
 ifeq ($(RSD_HAS_ZICFILP),1)
-test-RV32I-LandingPad:
+test/Asm/LandingPad/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LandingPad
 else
-test-RV32I-LandingPad:
+test/Asm/LandingPad/run:
 	@echo "LandingPad tests require RSD_ENABLE_ZICFILP in RSD_SRC_CFG" >&2
 	@exit 1
 endif
 
-test-RV32M-IntMulZynq:
+test/Asm/IntMulZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntMulZynq
-test-RV32M-IntDivZynq:
+test/Asm/IntDivZynq/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntDivZynq
-test-RV32M-DividerTest:
+test/Asm/DividerTest/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DividerTest
 
-test-RV32A-Aext:
+test/Asm/Aext/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Aext
 
 ifeq ($(RSD_HAS_FP),1)
-test-RV32F-Asm:
+test/Asm/FP/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/FP
-test-RV32F-C:
+test/C/FP/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/FP
 else
-.PHONY: test-RV32F-Asm test-RV32F-C
-test-RV32F-Asm test-RV32F-C:
+.PHONY: test/Asm/FP/run test/C/FP/run
+test/Asm/FP/run test/C/FP/run:
 	@echo "FP tests require RSD_MARCH_FP_PIPE in RSD_SRC_CFG" >&2
 	@exit 1
 endif
 
-test-HelloWorld:
+test/C/HelloWorld/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HelloWorld
-test-Fibonacci:
+test/C/Fibonacci/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Fibonacci
-test-Coremark:
+test/External/Coremark/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark
-test-Coremark_for_RV32I:
+test/External/Coremark/Coremark_for_RV32I/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark_for_RV32I
-test-PerformanceCounter:
+test/C/PerformanceCounter/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/PerformanceCounter
-test-Dhrystone:
+test/External/Dhrystone/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone
-test-Exception:
+test/C/Exception/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Exception
-test-DCache:
+test/C/DCache/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
 
 
 # Build and run the current upstream Zephyr samples.
 ZEPHYR_TESTS = HelloWorld Philosophers Synchronization
-ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test-Zephyr-%)
+ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test/External/Zephyr/%/run)
 
 # Zephyr samples continue running until the instruction budget is reached.
-.PHONY: test-Zephyr $(ZEPHYR_TEST_TARGETS)
-$(ZEPHYR_TEST_TARGETS): test-build-Zephyr
+.PHONY: test/External/Zephyr/run $(ZEPHYR_TEST_TARGETS)
+$(ZEPHYR_TEST_TARGETS): test/External/Zephyr/build
 
-test-Zephyr-HelloWorld:
+test/External/Zephyr/HelloWorld/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/HelloWorld
 
-test-Zephyr-Synchronization:
+test/External/Zephyr/Synchronization/run:
 	$(RUN_TEST_OMIT_MSG) --serial-prefix Verification/TestCode/Zephyr/Build/Synchronization
 
-test-Zephyr-Philosophers:
+test/External/Zephyr/Philosophers/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/Philosophers
 	python3 Verification/TestCode/Zephyr/CheckOutput.py Verification/TestCode/Zephyr/Build/Philosophers/serial.out.txt
 
-test-Zephyr: $(ZEPHYR_TEST_TARGETS)
-	@echo "==== Test Successful (test-Zephyr) ===="
+test/External/Zephyr/run: $(ZEPHYR_TEST_TARGETS)
+	@echo "==== Test Successful (test/External/Zephyr/run) ===="
 
 
-.PHONY: test-tools-Config
+.PHONY: test/tools/Config/run
 # Test the configuration generator itself, not the processor RTL.
-test-tools-Config: $(RSD_CONFIG_OUTPUTS)
+test/tools/Config/run: $(RSD_CONFIG_OUTPUTS)
 	$(PYTHON) -B -m unittest discover -s $(RSD_ROOT)/Processor/Tools/ConfigGenerator/Tests -p 'Test*.py' -v

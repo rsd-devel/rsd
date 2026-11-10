@@ -60,6 +60,11 @@ endif
 include Makefiles/TestCommands.inc.mk
 include Makefiles/EDA.inc.mk
 
+# Keep the conventional default build and clean entry points.
+.PHONY: all clean
+all: sim/build
+clean: sim/clean
+
 # Units follow SIM; UNIT_SIM can select them independently of the core.
 UNIT_SIM ?= $(SIM)
 UNIT_PROJECT_WORK ?= $(if $(filter command line,$(origin PROJECT_WORK)),$(PROJECT_WORK),$(if $(filter modelsim,$(UNIT_SIM)),../Project/ModelSim,../Project/Verilator/UnitTest))
@@ -81,15 +86,15 @@ UNIT_TESTS = \
 ifneq ($(findstring +define+RSD_MARCH_FP_PIPE,$(RSD_SRC_CFG)),)
 UNIT_TESTS += FPDivSqrtUnit
 endif
-UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test-unit-%)
+UNIT_TEST_TARGETS = $(UNIT_TESTS:%=test/unit/%/run)
 
-.PHONY: test-unit $(UNIT_TEST_TARGETS)
-test-unit: $(UNIT_TEST_TARGETS)
-	@echo "==== Test Successful (test-unit) ===="
+.PHONY: test/unit/run $(UNIT_TEST_TARGETS)
+test/unit/run: $(UNIT_TEST_TARGETS)
+	@echo "==== Test Successful (test/unit/run) ===="
 
 # Generate shared RTL before starting unit submakes, including parallel runs.
-$(UNIT_TEST_TARGETS): test-unit-%: $(CORE_TEMPLATE_FILES)
+$(UNIT_TEST_TARGETS): test/unit/%/run: $(CORE_TEMPLATE_FILES)
 	$(MAKE) -C Verification/UnitTest/$* test UNIT_SIM="$(UNIT_SIM)" PROJECT_WORK="$(abspath $(UNIT_PROJECT_WORK))"
-	@echo "==== Test Successful (test-unit-$*) ===="
+	@echo "==== Test Successful (test/unit/$*/run) ===="
 
 endif

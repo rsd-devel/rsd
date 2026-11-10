@@ -6,17 +6,18 @@ Both directories support the normal `make` commands and target completion.
 Relative path arguments such as `TEST_CODE` are resolved from `Processor/Src`.
 
 ```sh
-make -j8                         # Verilator (default)
-make test-1
-make SIM=modelsim                # ModelSim/QuestaSim
-make SIM=xsim                    # XSim
-make SIM=xsim test-1
-make test-unit                   # Verilator RTL unit tests
-make SIM=modelsim test-unit       # ModelSim/QuestaSim RTL unit tests
-make vivado/build                # Board synthesis through bitstream generation
-make vivado/post-synthesis/test  # Vivado + XSim functional test
-make synplify/post-synthesis/test # Synplify + XSim functional test
-make vcs/post-implementation/test # Vivado implementation + VCS timing test
+make -j8                             # Same as sim/build; Verilator by default
+make sim/run TEST_CODE=Verification/TestCode/C/HelloWorld
+make test/level-1/run
+make SIM=modelsim sim/build          # ModelSim/QuestaSim
+make SIM=xsim sim/build              # XSim
+make SIM=xsim test/level-1/run
+make test/unit/run                      # Verilator RTL unit tests
+make SIM=modelsim test/unit/run          # ModelSim/QuestaSim RTL unit tests
+make synth/vivado/build              # Board synthesis through bitstream generation
+make synth/vivado/post-synthesis/test # Vivado + XSim functional test
+make synth/synplify/post-synthesis/test # Synplify + XSim functional test
+make sim/vcs/post-implementation/test # Vivado implementation + VCS timing test
 ```
 
 RTL backends (`VerilatorCore.inc.mk`, `ModelSimCore.inc.mk`, `XSimCore.inc.mk`)
@@ -26,19 +27,28 @@ instead of the former `Makefile.inc`. VCS currently provides timing verification
 not a `SIM=vcs` RTL backend. See the [test instructions](../Verification/TestCode/README.md)
 for prerequisites and post-synthesis commands.
 
-EDA targets use `vivado/`, `synplify/`, and `vcs/` prefixes. Standard Bash completion
-shows these groups before their individual targets, without a custom completion
-script. `EDA.inc.mk` maps them to separate tool submakes, preserving command-line
-variables and parallel job limits. The backend `Vivado.mk`, `Synplify.mk`, and
-`VCS.mk` files remain directly usable with `make -f Makefiles/<tool>.mk` from
+Public targets use `sim/`, `synth/`, `test/`, `bench/`, and `platform/` prefixes.
+Test targets end in an operation, for example `test/level-1/build`,
+`test/level-1/run`, and `test/External/Coremark/build`. `External` groups
+Coremark, Dhrystone, Zephyr, and riscv-arch-test without moving their source
+directories. Test `run` targets execute and check results; score measurement uses
+`bench/Coremark/run` and `bench/Dhrystone/run`.
+Standard Bash completion shows one slash-separated level at a time, without a
+custom completion script. `make`/`make all` and `make clean` remain shorthand for
+`sim/build` and `sim/clean`. `test/level-1/run`, `test/level-2/run`, `test/ex/run`, and
+`test/all/run` retain the former test suites and scope; `test/all/run` includes
+only `test/level-1/run` and `test/level-2/run`.
+`EDA.inc.mk` forwards EDA and platform targets to separate tool submakes,
+preserving command-line variables and parallel job limits. The backend
+`Vivado.mk`, `Synplify.mk`, and `VCS.mk` files remain directly usable with `make -f Makefiles/<tool>.mk` from
 `Processor/Src`; include-only files use the `.inc.mk` suffix.
 
-`vivado/build` and `synplify/build` include board implementation and bitstream
+`synth/vivado/build` and `synth/synplify/build` include board implementation and bitstream
 generation. The latter still requires a separately prepared Synplify board
 netlist. Post-synthesis `build`/`test` targets generate their verification netlists
-automatically. `vcs/post-implementation/run` reuses an existing routed netlist,
+automatically. `sim/vcs/post-implementation/run` reuses an existing routed netlist,
 while `test` also builds it. Existing ARM Linux commands are under
-`vivado/arm-linux/`; their tool and source requirements are unchanged.
+`platform/zynq/`; their tool and source requirements are unchanged.
 
 - `CoreSources.inc.mk`: the stable source/configuration manifest. **sv-tests
   parses `TYPES` and `CORE_MODULES` directly**, without evaluating Make. Preserve
