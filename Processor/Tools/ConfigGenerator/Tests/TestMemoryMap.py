@@ -29,7 +29,7 @@ class TestMemoryMap(unittest.TestCase):
 
     def test_software_addresses_follow_configuration(self):
         self.values['memory_map']['regions']['ram']['logical_base'] = 0x90000000
-        self.values['PC_GOAL'] = 0x90001004
+        self.values['pc_goal'] = 0x90001004
         config = ProcessorConfig.from_yaml(self.values)
         renderer = MemoryMapRenderer(config, CONFIG,
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
@@ -102,7 +102,7 @@ class TestMemoryMap(unittest.TestCase):
     def test_reset_vector(self):
         for address in (-4, 0x1002, 0x40002000, 0x100000000):
             with self.subTest(address=address):
-                self.values['INSN_RESET_VECTOR'] = address
+                self.values['insn_reset_vector'] = address
                 with self.assertRaises(ConfigError):
                     self.render()
 

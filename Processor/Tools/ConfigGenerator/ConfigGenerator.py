@@ -374,9 +374,9 @@ class ProcessorConfig:
 
     @classmethod
     def from_yaml(cls, values: YamlMapping, path: str = "config") -> "ProcessorConfig":
-        validate_keys(values, ("INSN_RESET_VECTOR", "PC_GOAL", "memory_map"), path)
-        reset_vector = read_integer(values, "INSN_RESET_VECTOR", path)
-        pc_goal = read_integer(values, "PC_GOAL", path)
+        validate_keys(values, ("insn_reset_vector", "pc_goal", "memory_map"), path)
+        reset_vector = read_integer(values, "insn_reset_vector", path)
+        pc_goal = read_integer(values, "pc_goal", path)
         map_path = f"{path}.memory_map"
         memory_map = read_mapping(values, "memory_map", path)
         validate_keys(memory_map, ("physical_address_width", "pc", "regions"), map_path)
@@ -401,7 +401,7 @@ class ProcessorConfig:
         config = cls(reset_vector, pc_goal, physical_width, pc_narrow, pc_width, regions)
         config.validate_logical_ranges()
         config.validate_constant_names()
-        for name, addr in (("INSN_RESET_VECTOR", reset_vector), ("PC_GOAL", pc_goal)):
+        for name, addr in (("insn_reset_vector", reset_vector), ("pc_goal", pc_goal)):
             if not 0 <= addr < (1 << 32) or addr % 4:
                 raise ConfigError(f"{name} must be an aligned RV32 instruction address")
             if not any(not r.is_io and r.logical_base <= addr <= r.logical_end for r in regions):

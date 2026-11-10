@@ -19,7 +19,7 @@ import BasicTypes::*;
 //
 localparam INSN_RESET_VECTOR = 32'h00001000;
 
-// The processor stops when it reaches PC_GOAL
+// See Config/MemoryMap.yml for the PC-goal termination semantics.
 localparam PC_GOAL = 32'h80001004;
 
 //
