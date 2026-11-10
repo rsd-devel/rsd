@@ -1,7 +1,7 @@
 // Copyright 2021- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
-// Generated from Config/MicroArch.yml and Src/MicroArchConf.template.sv.
+// Generated from Config/MicroArch.yml and Src/Config/MicroArchConf.template.sv.
 // Edit the YAML settings or the template, not MicroArchConf.sv.
 // Parameter meanings, units, and constraints are documented in the YAML.
 

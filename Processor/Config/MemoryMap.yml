@@ -1,6 +1,6 @@
 # Static address map shared by the RTL and software/test builds.
 # Outputs (paths relative to Processor):
-#   Src/Memory/MemoryMapTypes.sv: localparams/functions in package MemoryMapTypes.
+#   Src/Config/MemoryMapTypes.sv: localparams/functions in package MemoryMapTypes.
 #   Src/Verification/TestCode/rsd-memory-map.h: C/assembly preprocessor defines.
 #   Src/Verification/TestCode/rsd-memory-map.ld: linker-script symbols.
 #   Src/Verification/TestCode/rsd-memory-map.mk: Make variables.

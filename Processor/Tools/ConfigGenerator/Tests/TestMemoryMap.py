@@ -17,13 +17,13 @@ class TestMemoryMap(unittest.TestCase):
 
     def render(self):
         return MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
-                                 SRC / 'Memory/MemoryMapTypes.template.sv').render(
-                                     (SRC / 'Memory/MemoryMapTypes.template.sv').read_text())
+                                 SRC / 'Config/MemoryMapTypes.template.sv').render(
+                                     (SRC / 'Config/MemoryMapTypes.template.sv').read_text())
 
     def test_checked_in_output(self):
-        self.assertEqual(self.render(), (SRC / 'Memory/MemoryMapTypes.sv').read_text())
+        self.assertEqual(self.render(), (SRC / 'Config/MemoryMapTypes.sv').read_text())
         renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
-                                     SRC / 'Memory/MemoryMapTypes.template.sv')
+                                     SRC / 'Config/MemoryMapTypes.template.sv')
         for name, content in renderer.render_software().items():
             self.assertEqual(content, (SRC / 'Verification/TestCode' / name).read_text())
 
@@ -32,7 +32,7 @@ class TestMemoryMap(unittest.TestCase):
         self.values['pc_goal'] = 0x90001004
         config = ProcessorConfig.from_yaml(self.values)
         renderer = MemoryMapRenderer(config, CONFIG,
-                                     SRC / 'Memory/MemoryMapTypes.template.sv')
+                                     SRC / 'Config/MemoryMapTypes.template.sv')
         values = renderer.software_constants()
         self.assertEqual(values['RSD_RAM_BASE'], 0x90000000)
         self.assertEqual(values['RSD_RAM_END'], 0x9003ffff)
@@ -42,7 +42,7 @@ class TestMemoryMap(unittest.TestCase):
 
     def test_template_mismatch(self):
         renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
-                                     SRC / 'Memory/MemoryMapTypes.template.sv')
+                                     SRC / 'Config/MemoryMapTypes.template.sv')
         with self.assertRaises(ConfigError):
             renderer.render('{{ TYPO }}')
 

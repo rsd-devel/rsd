@@ -12,7 +12,7 @@ TOOLS_ROOT   = ../../../../Tools/
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
 
 # テスト時のみ使用し、合成時は使用しない module の定義があるファイルを指定する．

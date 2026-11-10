@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := all
 # Generate configuration types and constants needed by individual unit tests.
 include $(SOURCE_ROOT)Makefiles/GenerateConfig.inc.mk
-$(addprefix $(SOURCE_ROOT),Memory/MemoryMapTypes.sv MicroArchConf.sv): $(RSD_CONFIG_OUTPUTS)
+$(addprefix $(SOURCE_ROOT),Config/MemoryMapTypes.sv Config/MicroArchConf.sv): $(RSD_CONFIG_OUTPUTS)
 SIM ?= verilator
 UNIT_SIM ?= $(SIM)
 

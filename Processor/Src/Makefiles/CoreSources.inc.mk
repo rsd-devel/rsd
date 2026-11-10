@@ -11,13 +11,13 @@ RSD_HAS_ZICFILP = $(if $(filter +define+RSD_ENABLE_ZICFILP +define+RSD_ENABLE_ZI
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
 CORE_TEMPLATE_FILES = \
-    MicroArchConf.sv \
-	Memory/MemoryMapTypes.sv \
+    Config/MicroArchConf.sv \
+	Config/MemoryMapTypes.sv \
 
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	Memory/MemoryTypes.sv \
@@ -199,5 +199,5 @@ TEST_MODULES = \
 HEADERS = \
 	BasicMacros.sv \
 	SysDeps/SynthesisMacros.svh \
-	MicroArchMacros.svh \
+	Config/MicroArchMacros.svh \
 	SysDeps/XilinxMacros.vh \

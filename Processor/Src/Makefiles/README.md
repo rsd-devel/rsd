@@ -45,7 +45,9 @@ while `test` also builds it. Existing ARM Linux commands are under
   its path, variable names, literal source paths, continuation lines, and order.
 - `GenerateConfig.inc.mk`: regeneration rules for `Config/MemoryMap.yml` and
   `Config/MicroArch.yml`. `MicroArch.inc.mk` is generated and supplies the shared
-  CPU macro defaults; synthesis uses the generated `MicroArchMacros.svh`.
+  CPU macro defaults; synthesis uses the generated `Config/MicroArchMacros.svh`.
+  RTL definitions, templates, and synthesis settings live under `Src/Config/`;
+  editable YAML inputs remain under `Processor/Config/`.
   YAML `overrides.simulation` and `overrides.synthesis` replace common parameters
   for their mode. Netlist testbenches use `RSD_SYNTHESIS_SRC_CFG` to match synthesis.
 - `Build.inc.mk`: source dependencies and generated RTL rules shared by core

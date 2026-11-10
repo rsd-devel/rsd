@@ -13,7 +13,7 @@ from ConfigGenerator import ConfigError, load_yaml, render_micro_arch
 class TestMicroArch(unittest.TestCase):
     def setUp(self):
         self.values = copy.deepcopy(load_yaml(PROCESSOR / "Config/MicroArch.yml"))
-        self.template = (SRC / "MicroArchConf.template.sv").read_text()
+        self.template = (SRC / "Config/MicroArchConf.template.sv").read_text()
 
     def render(self):
         return render_micro_arch(self.values, self.template)
@@ -25,7 +25,7 @@ class TestMicroArch(unittest.TestCase):
     def test_changed_parameters_and_derived_widths(self):
         self.values["parameters"].update(COMMIT_WIDTH=4, LOAD_QUEUE_ENTRY_NUM=32,
                                          DCACHE_WAY_NUM=4)
-        rtl = self.render()["MicroArchConf.sv"]
+        rtl = self.render()["Config/MicroArchConf.sv"]
         self.assertIn("CONF_COMMIT_WIDTH = 4;", rtl)
         self.assertIn("CONF_LOAD_QUEUE_ENTRY_NUM = 32;", rtl)
         self.assertIn("CONF_DCACHE_WAY_NUM = 4;", rtl)
@@ -42,21 +42,21 @@ class TestMicroArch(unittest.TestCase):
                                                 UNIFIED_LDST_MEM_PIPE=True)
                 outputs = self.render()
                 make = outputs["Makefiles/MicroArch.inc.mk"]
-                sv = outputs["MicroArchMacros.svh"]
+                sv = outputs["Config/MicroArchMacros.svh"]
                 make_macros = re.findall(r"\+define\+(\w+)(?:=(\d+))?",
                                         make.splitlines()[1])
                 sv_macros = re.findall(r"^`define (\w+)(?: (\d+))?$", sv, re.M)
                 self.assertEqual(make_macros, sv_macros)
                 self.assertEqual(("RSD_MARCH_FP_PIPE", "") in make_macros, fp_enabled)
                 self.assertNotIn("RSD_ENABLE_ZICFILP", make)
-                self.assertIn("CONF_INT_ISSUE_WIDTH = 1;", outputs["MicroArchConf.sv"])
+                self.assertIn("CONF_INT_ISSUE_WIDTH = 1;", outputs["Config/MicroArchConf.sv"])
 
     def test_performance_counter_defaults(self):
         outputs = self.render()
         make = outputs["Makefiles/MicroArch.inc.mk"].splitlines()
         self.assertNotIn("RSD_DISABLE_PERFORMANCE_COUNTER", make[1])
         self.assertIn("RSD_DISABLE_PERFORMANCE_COUNTER", make[2])
-        self.assertIn("`define RSD_DISABLE_PERFORMANCE_COUNTER", outputs["MicroArchMacros.svh"])
+        self.assertIn("`define RSD_DISABLE_PERFORMANCE_COUNTER", outputs["Config/MicroArchMacros.svh"])
 
     def test_common_values_and_mode_overrides(self):
         self.values["parameters"]["PERFORMANCE_COUNTER"] = False
@@ -72,11 +72,11 @@ class TestMicroArch(unittest.TestCase):
         self.assertIn("RSD_MARCH_INT_ISSUE_WIDTH=2", synth)
         self.assertIn("RSD_MARCH_FP_PIPE", synth)
         self.assertNotIn("RSD_DISABLE_PERFORMANCE_COUNTER", synth)
-        self.assertNotIn("RSD_DISABLE_PERFORMANCE_COUNTER", outputs["MicroArchMacros.svh"])
+        self.assertNotIn("RSD_DISABLE_PERFORMANCE_COUNTER", outputs["Config/MicroArchMacros.svh"])
 
     def test_numeric_overrides(self):
         self.values["overrides"]["synthesis"]["LOAD_QUEUE_ENTRY_NUM"] = 32
-        rtl = self.render()["MicroArchConf.sv"]
+        rtl = self.render()["Config/MicroArchConf.sv"]
         self.assertIn("`ifdef RSD_SYNTHESIS\nlocalparam CONF_LOAD_QUEUE_ENTRY_NUM = 32;\n"
                       "`elsif RSD_POST_SYNTHESIS_SIMULATION\nlocalparam CONF_LOAD_QUEUE_ENTRY_NUM = 32;\n"
                       "`else\nlocalparam CONF_LOAD_QUEUE_ENTRY_NUM = 16;\n`endif", rtl)

@@ -12,7 +12,7 @@ TOOLS_ROOT   = ../../../../Tools/
 # In TYPES, specify files containing packages that define types.
 # Make sure that a dependency is in front of the dependent source.
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
 
 # Specify files with module definition.

@@ -28,7 +28,7 @@
 # 3. The following remote source files that were added to the original project:-
 #
 #    "/home/matsuo/workspace/rsd/Processor/Src/BasicTypes.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryMapTypes.sv"
+#    "/home/matsuo/workspace/rsd/Processor/Src/Config/MemoryMapTypes.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Decoder/OpFormat.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Decoder/MicroOp.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Cache/CacheSystemTypes.sv"

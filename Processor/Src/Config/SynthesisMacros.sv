@@ -29,7 +29,7 @@
 /********************************************************************/
 
 // CPU settings include the synthesis overrides from Config/MicroArch.yml.
-`include "MicroArchMacros.svh"
+`include "Config/MicroArchMacros.svh"
 
 // Enable Microsemi specific optimization
 //`define RSD_SYNTHESIS_OPT_MICROSEMI

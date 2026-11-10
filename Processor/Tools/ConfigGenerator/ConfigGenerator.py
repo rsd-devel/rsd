@@ -749,9 +749,9 @@ def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
     sv_macros = "\n".join(f"`define {name}" + (f" {value}" if value is not None else "")
                           for name, value in configs["synthesis"][1].items())
     return {
-        "MicroArchConf.sv": "".join(rtl),
+        "Config/MicroArchConf.sv": "".join(rtl),
         "Makefiles/MicroArch.inc.mk": "\n".join(make_lines) + "\n",
-        "MicroArchMacros.svh": f"// {notice}\n{sv_macros}\n",
+        "Config/MicroArchMacros.svh": f"// {notice}\n{sv_macros}\n",
     }
 
 
@@ -768,8 +768,8 @@ def main() -> int:
     processor_root = args.rsd_root / "Processor"
     source_root = processor_root / "Src"
     config_path = processor_root / "Config" / "MemoryMap.yml"
-    template_path = source_root / "Memory" / "MemoryMapTypes.template.sv"
-    output_path = source_root / "Memory" / "MemoryMapTypes.sv"
+    template_path = source_root / "Config" / "MemoryMapTypes.template.sv"
+    output_path = source_root / "Config" / "MemoryMapTypes.sv"
 
     try:
         outputs = {}
@@ -782,7 +782,7 @@ def main() -> int:
                             for name, content in renderer.render_software().items()})
         if args.only in (None, "microarch"):
             values = load_yaml(processor_root / "Config/MicroArch.yml")
-            template = (source_root / "MicroArchConf.template.sv").read_text(encoding="utf-8")
+            template = (source_root / "Config/MicroArchConf.template.sv").read_text(encoding="utf-8")
             outputs.update({source_root / name: content
                             for name, content in render_micro_arch(values, template).items()})
         # Render everything before writing any outputs.

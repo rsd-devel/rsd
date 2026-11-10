@@ -335,7 +335,7 @@ or `test-build-ex`.
 [`Processor/Config/MemoryMap.yml`](../../../Config/MemoryMap.yml) defines the RTL and shared software addresses.
 The [configuration generator](../../../Tools/ConfigGenerator/ConfigGenerator.py)
 generates their definitions. Make regenerates the RTL file
-`../../Memory/MemoryMapTypes.sv` and the software files
+`../../Config/MemoryMapTypes.sv` and the software files
 `rsd-memory-map.h`, `rsd-memory-map.ld`, and `rsd-memory-map.mk` in this directory
 through `../../Makefiles/GenerateConfig.inc.mk`. Keep these generated files in Git so
 external RTL consumers can compile a checkout without running the generator.
