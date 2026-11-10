@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate RTL and software memory-map definitions from Config/MemoryMap.yml."""
+"""Generate RTL and build definitions from Processor/Config/*.yml."""
 
 from __future__ import annotations
 
@@ -646,13 +646,124 @@ class MemoryMapRenderer:
         return f"{physical_base} + PhyRawAddrPath'({logical_address}[{width}-1:0])"
 
 
+# Microarchitecture defaults shared by RTL, synthesis, and software builds.
+
+MICRO_ARCH_PARAMETERS = (
+    "FETCH_WIDTH", "COMMIT_WIDTH", "PSCALAR_NUM", "PSCALAR_FP_NUM",
+    "ISSUE_QUEUE_ENTRY_NUM", "ACTIVE_LIST_ENTRY_NUM", "REPLAY_QUEUE_ENTRY_NUM",
+    "LOAD_QUEUE_ENTRY_NUM", "STORE_QUEUE_ENTRY_NUM", "BTB_ENTRY_NUM", "PHT_ENTRY_NUM",
+    "BRANCH_GLOBAL_HISTORY_BIT_WIDTH", "MDT_ENTRY_NUM",
+    "DCACHE_WAY_NUM", "DCACHE_LINE_BYTE_NUM", "DCACHE_MSHR_NUM",
+    "ICACHE_WAY_NUM", "ICACHE_LINE_BYTE_NUM",
+    "DCACHE_INDEX_BIT_WIDTH_BASE", "ICACHE_INDEX_BIT_WIDTH_BASE", "INT_ISSUE_WIDTH",
+)
+# The YAML describes settings; preprocessor names are an RTL implementation detail.
+MICRO_ARCH_FEATURES = {
+    "FP_PIPE": "RSD_MARCH_FP_PIPE",
+    "ENABLE_ZBA": "RSD_ENABLE_ZBA",
+    "ENABLE_ZICOND": "RSD_ENABLE_ZICOND",
+    "ENABLE_ZICFILP": "RSD_ENABLE_ZICFILP",
+    "UNIFIED_MULDIV_MEM_PIPE": "RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE",
+    "UNIFIED_LDST_MEM_PIPE": "RSD_MARCH_UNIFIED_LDST_MEM_PIPE",
+}
+
+
+def validate_micro_arch(parameters: YamlMapping) -> tuple[dict[str, int], dict[str, str | None]]:
+    validate_keys(parameters, (*MICRO_ARCH_PARAMETERS, *MICRO_ARCH_FEATURES,
+                               "PERFORMANCE_COUNTER"), "parameters")
+    params = {name: read_integer(parameters, name, "parameters")
+              for name in MICRO_ARCH_PARAMETERS}
+    for name, value in params.items():
+        if not 0 < value < (1 << 31):
+            raise ConfigError(f"parameters.{name} must be a positive signed 32-bit integer")
+    # Check known structural constraints, not every possible RTL configuration.
+    for name in ("PSCALAR_NUM", "PSCALAR_FP_NUM", "ACTIVE_LIST_ENTRY_NUM",
+                 "LOAD_QUEUE_ENTRY_NUM", "STORE_QUEUE_ENTRY_NUM", "BTB_ENTRY_NUM",
+                 "PHT_ENTRY_NUM", "MDT_ENTRY_NUM", "DCACHE_WAY_NUM", "ICACHE_WAY_NUM",
+                 "DCACHE_LINE_BYTE_NUM", "ICACHE_LINE_BYTE_NUM"):
+        if params[name] & (params[name] - 1):
+            raise ConfigError(f"parameters.{name} must be a power of two")
+    if params["COMMIT_WIDTH"] < params["FETCH_WIDTH"]:
+        raise ConfigError("COMMIT_WIDTH must be at least FETCH_WIDTH for recovery")
+    if params["PSCALAR_NUM"] != params["PSCALAR_FP_NUM"]:
+        raise ConfigError("PSCALAR_NUM and PSCALAR_FP_NUM must match")
+    if params["PSCALAR_NUM"] <= 32:
+        raise ConfigError("PSCALAR_NUM must exceed the 32 architectural registers")
+    if params["ICACHE_WAY_NUM"] < 2:
+        raise ConfigError("ICACHE_WAY_NUM must be at least 2")
+    if params["BRANCH_GLOBAL_HISTORY_BIT_WIDTH"] > params["PHT_ENTRY_NUM"].bit_length() - 1:
+        raise ConfigError("BRANCH_GLOBAL_HISTORY_BIT_WIDTH must fit the PHT index")
+    for cache in ("DCACHE", "ICACHE"):
+        bits = params[f"{cache}_INDEX_BIT_WIDTH_BASE"] - (params[f"{cache}_WAY_NUM"].bit_length() - 1)
+        if bits < 1 or bits + params[f"{cache}_LINE_BYTE_NUM"].bit_length() - 1 >= 32:
+            raise ConfigError(f"{cache} index and line offset must leave address tag bits")
+    width = params["INT_ISSUE_WIDTH"]
+    if width not in (1, 2):
+        raise ConfigError("INT_ISSUE_WIDTH must be 1 or 2")
+    features = {macro: read_boolean(parameters, name, "parameters")
+                for name, macro in MICRO_ARCH_FEATURES.items()}
+
+    macros = {"RSD_MARCH_INT_ISSUE_WIDTH": str(width)}
+    macros.update({name: None for name, enabled in features.items() if enabled})
+    if not read_boolean(parameters, "PERFORMANCE_COUNTER", "parameters"):
+        macros["RSD_DISABLE_PERFORMANCE_COUNTER"] = None
+    return params, macros
+
+
+def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
+    validate_keys(values, ("parameters", "overrides"), "MicroArch")
+    parameters = read_mapping(values, "parameters", "MicroArch")
+    validate_micro_arch(parameters)
+    overrides = read_optional_mapping(values, "overrides", "MicroArch")
+    if overrides is None:
+        overrides = {}
+    validate_keys(overrides, ("simulation", "synthesis"), "overrides")
+    configs = {}
+    for mode in ("simulation", "synthesis"):
+        override = read_optional_mapping(overrides, mode, "overrides")
+        if override is None:
+            override = {}
+        validate_keys(override, tuple(parameters), f"overrides.{mode}")
+        configs[mode] = validate_micro_arch({**parameters, **override})
+
+    if set(_PLACEHOLDER.findall(template)) != set(MICRO_ARCH_PARAMETERS):
+        raise ConfigError("MicroArchConf template placeholders do not match the settings")
+    rtl = []
+    for line in template.splitlines(keepends=True):
+        sim = _PLACEHOLDER.sub(lambda match: str(configs["simulation"][0][match[1]]), line)
+        synth = _PLACEHOLDER.sub(lambda match: str(configs["synthesis"][0][match[1]]), line)
+        if sim == synth:
+            rtl.append(sim)
+        else:
+            # Netlist testbenches must use the same widths as the synthesized core.
+            rtl.append(f"`ifdef RSD_SYNTHESIS\n{synth}"
+                       f"`elsif RSD_POST_SYNTHESIS_SIMULATION\n{synth}"
+                       f"`else\n{sim}`endif\n")
+
+    notice = "Generated from Config/MicroArch.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
+    make_lines = [f"# {notice}"]
+    for mode, variable in (("simulation", "RSD_SRC_CFG"), ("synthesis", "RSD_SYNTHESIS_SRC_CFG")):
+        flags = " ".join(f"+define+{name}" + (f"={value}" if value is not None else "")
+                         for name, value in configs[mode][1].items())
+        make_lines.append(f"{variable} = {flags}")
+    sv_macros = "\n".join(f"`define {name}" + (f" {value}" if value is not None else "")
+                          for name, value in configs["synthesis"][1].items())
+    return {
+        "MicroArchConf.sv": "".join(rtl),
+        "Makefiles/MicroArch.inc.mk": "\n".join(make_lines) + "\n",
+        "MicroArchMacros.svh": f"// {notice}\n{sv_macros}\n",
+    }
+
+
 # Command-line entry point
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate RTL and software memory-map constants from Config/MemoryMap.yml."
+        description="Generate RTL and build definitions from Processor/Config/*.yml."
     )
     parser.add_argument("--rsd-root", required=True, type=Path, help="RSD repository root")
+    parser.add_argument("--only", choices=("memory-map", "microarch"),
+                        help="Generate one configuration group (default: both)")
     args = parser.parse_args()
     processor_root = args.rsd_root / "Processor"
     source_root = processor_root / "Src"
@@ -661,15 +772,24 @@ def main() -> int:
     output_path = source_root / "Memory" / "MemoryMapTypes.sv"
 
     try:
-        config = load_config(config_path)
-        template = template_path.read_text(encoding="utf-8")
-        renderer = MemoryMapRenderer(config, config_path, template_path)
-        outputs = {output_path: renderer.render(template)}
-        outputs.update({source_root / "Verification/TestCode" / name: content
-                        for name, content in renderer.render_software().items()})
+        outputs = {}
+        if args.only in (None, "memory-map"):
+            config = load_config(config_path)
+            template = template_path.read_text(encoding="utf-8")
+            renderer = MemoryMapRenderer(config, config_path, template_path)
+            outputs[output_path] = renderer.render(template)
+            outputs.update({source_root / "Verification/TestCode" / name: content
+                            for name, content in renderer.render_software().items()})
+        if args.only in (None, "microarch"):
+            values = load_yaml(processor_root / "Config/MicroArch.yml")
+            template = (source_root / "MicroArchConf.template.sv").read_text(encoding="utf-8")
+            outputs.update({source_root / name: content
+                            for name, content in render_micro_arch(values, template).items()})
         # Render everything before writing any outputs.
         for path, content in outputs.items():
-            path.write_text(content, encoding="utf-8")
+            # Preserve the existing MicroArchConf.sv line-ending convention.
+            path.write_text(content, encoding="utf-8",
+                            newline="\r\n" if path.name == "MicroArchConf.sv" else "\n")
     except (ConfigError, OSError) as exc:
         print(f"ConfigGenerator.py: error: {exc}", file=sys.stderr)
         return 1

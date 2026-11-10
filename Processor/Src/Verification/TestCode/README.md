@@ -45,7 +45,7 @@ Use `make SIM=modelsim test-unit` for ModelSim/QuestaSim, setting
 their output directory. ModelSim/QuestaSim also checks unknown (`X`) values
 that Verilator's two-state simulation cannot detect.
 Select one unit with, for example, `make test-unit-Divider`.
-`test-tools` also checks memory-map generation (`test-tools-MemoryMap`) and
+`test-tools` also checks configuration generation (`test-tools-Config`) and
 uses stubs for the launcher and runner CLI. Its simulation-limit
 checks also run when the Verilator binary and Fibonacci HEX exist; otherwise
 those checks are reported as skipped. It does not build models, download tools
@@ -67,8 +67,8 @@ cases. For benchmark scores, use the `bench-*` targets described below.
 
 ## FP test selection
 
-`RSD_MARCH_FP_PIPE` in [CoreSources.inc.mk](../../Makefiles/CoreSources.inc.mk) enables
-the assembly and C FP tests in `test-1`. Without it, basic builds omit FP
+`FP_PIPE: true` in [MicroArch.yml](../../../Config/MicroArch.yml) enables
+the assembly and C FP tests in `test-1`. Setting it to `false` makes basic builds omit FP
 tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
 test fails. When changing the configuration, clean and rebuild both the
 simulator and test programs (`make clean test-clean-basic`,
@@ -76,13 +76,13 @@ then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
 ## CFI test selection
 
-`RSD_ENABLE_ZICFILP` in [CoreSources.inc.mk](../../Makefiles/CoreSources.inc.mk)
-enables landing-pad protection and its `test-1` test. Remove it from `RSD_SRC_CFG`
+`ENABLE_ZICFILP: true` in [MicroArch.yml](../../../Config/MicroArch.yml)
+enables landing-pad protection and its `test-1` test. Set it to `false`
 to build without CFI; an explicit `test-RV32I-LandingPad` request then fails.
 Clean and rebuild the simulator and basic test programs when changing this
-configuration, as for FP above. For synthesis, select the same macro in
-[SynthesisMacros.sv](../../SynthesisMacros.sv). Defining it as `0` still enables
-it; leave it undefined to disable CFI.
+configuration, as for FP above. The YAML settings also generate the synthesis
+macros. A command-line `RSD_SRC_CFG` override affects simulation and software
+builds only; omit a macro to disable it rather than defining it as `0`.
 
 ## CoreMark
 
@@ -337,7 +337,7 @@ The [configuration generator](../../../Tools/ConfigGenerator/ConfigGenerator.py)
 generates their definitions. Make regenerates the RTL file
 `../../Memory/MemoryMapTypes.sv` and the software files
 `rsd-memory-map.h`, `rsd-memory-map.ld`, and `rsd-memory-map.mk` in this directory
-through `../../Makefiles/GenerateMemoryMap.inc.mk`. Keep these generated files in Git so
+through `../../Makefiles/GenerateConfig.inc.mk`. Keep these generated files in Git so
 external RTL consumers can compile a checkout without running the generator.
 All memory-map `END` constants denote the last valid address (inclusive).
 An image starting at physical address zero has `PHYSICAL_END + 1` bytes;

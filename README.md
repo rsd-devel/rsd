@@ -11,7 +11,7 @@ The key features of RSD are as follows:
     * Support Zephyr applications
 * Microarchitecture
     * Build-time configurable pipeline widths, queue/register counts, and cache parameters
-        * See [MicroArchConf.sv](Processor/Src/MicroArchConf.sv) for parameters and constraints
+        * Configure defaults in [MicroArch.yml](Processor/Config/MicroArch.yml); derived parameters are in [MicroArchConf.template.sv](Processor/Src/MicroArchConf.template.sv)
     * Default configuration: 2-wide fetch, up to 6-wide issue, and a 64-entry reorder buffer
     * A high-speed speculative instruction scheduler with a replay mechanism
     * Speculative OoO load/store execution and dynamic memory disambiguation

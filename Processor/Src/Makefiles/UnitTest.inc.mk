@@ -1,8 +1,8 @@
 # Shared unit-test entry points. SIM follows the core simulator by default.
 .DEFAULT_GOAL := all
-# Generate address types and constants needed by individual unit tests.
-include $(SOURCE_ROOT)Makefiles/GenerateMemoryMap.inc.mk
-$(SOURCE_ROOT)Memory/MemoryMapTypes.sv: $(RSD_MEMORY_MAP_OUTPUTS)
+# Generate configuration types and constants needed by individual unit tests.
+include $(SOURCE_ROOT)Makefiles/GenerateConfig.inc.mk
+$(addprefix $(SOURCE_ROOT),Memory/MemoryMapTypes.sv MicroArchConf.sv): $(RSD_CONFIG_OUTPUTS)
 SIM ?= verilator
 UNIT_SIM ?= $(SIM)
 

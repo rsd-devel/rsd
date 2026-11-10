@@ -12,7 +12,7 @@ SAIL_URL = https://github.com/riscv/sail-riscv/releases/download/$(SAIL_VERSION)
 PYTHON ?= python3
 JOBS ?= $(shell nproc)
 include ../../../Makefiles/CoreSources.inc.mk
-include ../../../Makefiles/GenerateMemoryMap.inc.mk
+include ../../../Makefiles/GenerateConfig.inc.mk
 include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
 # Add extensions here as their RSD configuration and adapters are validated.
 comma := ,

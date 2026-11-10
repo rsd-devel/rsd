@@ -1,0 +1,94 @@
+# Microarchitecture defaults shared by simulation and synthesis.
+# Derived widths and tool/board macros remain in SystemVerilog.
+# Changing settings still requires RTL verification for that configuration.
+# Make regenerates the tracked outputs. Before launching tools directly, run:
+# python3 Processor/Tools/ConfigGenerator/ConfigGenerator.py --rsd-root .
+parameters:
+  # Instructions fetched per cycle. Decode, rename, and dispatch use this width.
+  FETCH_WIDTH: 2
+
+  # Instructions committed per cycle. Must be at least FETCH_WIDTH for recovery.
+  COMMIT_WIDTH: 2
+
+  # Integer and FP physical register counts. Both must currently be equal,
+  # powers of two, and greater than the 32 architectural registers.
+  PSCALAR_NUM: 64
+  PSCALAR_FP_NUM: 64
+
+  # Issue queue entries.
+  ISSUE_QUEUE_ENTRY_NUM: 16
+
+  # Active-list (reorder buffer) entries. Must be a power of two.
+  ACTIVE_LIST_ENTRY_NUM: 64
+
+  # Replay queue entries.
+  REPLAY_QUEUE_ENTRY_NUM: 20
+
+  # Integer instructions issued per cycle: 1 or 2.
+  INT_ISSUE_WIDTH: 2
+
+  # Enable the floating-point pipeline (one FP instruction issued per cycle).
+  FP_PIPE: true
+
+  # Integrate integer multiplication/division into a memory pipeline.
+  UNIFIED_MULDIV_MEM_PIPE: false
+
+  # Share one pipeline between loads and stores instead of separate pipelines.
+  UNIFIED_LDST_MEM_PIPE: false
+
+  # Load and store queue entries. Both must be powers of two.
+  LOAD_QUEUE_ENTRY_NUM: 16
+  STORE_QUEUE_ENTRY_NUM: 16
+
+  # Branch target buffer and pattern history table entries (powers of two).
+  BTB_ENTRY_NUM: 1024
+  PHT_ENTRY_NUM: 2048
+
+  # Global history length in bits for gshare. Must not exceed log2(PHT_ENTRY_NUM).
+  BRANCH_GLOBAL_HISTORY_BIT_WIDTH: 10
+
+  # Memory dependency prediction table entries. Must be a power of two.
+  MDT_ENTRY_NUM: 1024
+
+  # D-cache ways per set. Must be a power of two; direct-mapped (1) is allowed.
+  DCACHE_WAY_NUM: 2
+
+  # log2(total D-cache lines). The SV template subtracts log2(ways) to get
+  # the set index width. Total capacity = 2^this value * DCACHE_LINE_BYTE_NUM.
+  DCACHE_INDEX_BIT_WIDTH_BASE: 9
+
+  # D-cache line size in bytes. Must be a power of two.
+  DCACHE_LINE_BYTE_NUM: 8
+
+  # D-cache miss status holding register (MSHR) entries.
+  DCACHE_MSHR_NUM: 2
+
+  # I-cache ways per set. Must be a power of two greater than 1.
+  ICACHE_WAY_NUM: 2
+
+  # log2(total I-cache lines). The SV template subtracts log2(ways) to get
+  # the set index width. Total capacity = 2^this value * ICACHE_LINE_BYTE_NUM.
+  ICACHE_INDEX_BIT_WIDTH_BASE: 9
+
+  # I-cache line size in bytes. Must be a power of two.
+  ICACHE_LINE_BYTE_NUM: 8
+
+  # Enable the Zba address-generation instructions.
+  ENABLE_ZBA: true
+
+  # Enable the Zicond integer conditional operations.
+  ENABLE_ZICOND: true
+
+  # Enable Zicfilp landing-pad protection for indirect control transfers.
+  ENABLE_ZICFILP: true
+
+  # Enable cache/branch event counters for analysis. Cycle and retired-instruction
+  # counters are always present.
+  PERFORMANCE_COUNTER: true
+
+# Each mode overrides the common parameters above. Unlisted values are inherited.
+# Netlist simulation uses the synthesis settings to match the generated hardware.
+overrides:
+  synthesis:
+    # Omit performance counters to reduce hardware area.
+    PERFORMANCE_COUNTER: false

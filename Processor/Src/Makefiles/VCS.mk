@@ -42,7 +42,7 @@ test-post-implementation post-implementation-run:
 		+neg_tchk +transport_int_delays +pulse_r/0 +pulse_e/0 +pulse_int_r/0 +pulse_int_e/0 +sdfverbose \
 		-top TestMain -top glbl -pvalue+TestMain.CLOCK_PERIOD_NS=$(POST_IMPLEMENTATION_CLOCK_NS) \
 		+define+RSD_FUNCTIONAL_SIMULATION+RSD_VIVADO_SIMULATION+RSD_POST_SYNTHESIS_SIMULATION+RSD_SYNTHESIS_VIVADO \
-		$(RSD_SRC_CFG) +incdir+$(CURDIR)+$(CURDIR)/SysDeps \
+		$(RSD_SYNTHESIS_SRC_CFG) +incdir+$(CURDIR)+$(CURDIR)/SysDeps \
 		-y $(VCS_XILINX)/unisims +libext+.v \
 		$(VCS_NETLIST) $(VCS_XILINX)/glbl.v \
 		$(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(TEST_MODULES)) \

@@ -28,23 +28,13 @@
 /* These macros are for user configuration, so you can change them. */
 /********************************************************************/
 
-// Microarchitectural configuration
-//`define RSD_MARCH_UNIFIED_LDST_MEM_PIPE 
-`define RSD_MARCH_INT_ISSUE_WIDTH 2
-`define RSD_MARCH_FP_PIPE
-`define RSD_ENABLE_ZBA
-`define RSD_ENABLE_ZICOND
-`define RSD_ENABLE_ZICFILP
-//`define RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE 
-//`define RSD_MARCH_UNIFIED_LDST_MEM_PIPE
+// CPU settings include the synthesis overrides from Config/MicroArch.yml.
+`include "MicroArchMacros.svh"
 
 // Enable Microsemi specific optimization
 //`define RSD_SYNTHESIS_OPT_MICROSEMI
 
 
-
-// if RSD_DISABLE_PERFORMANCE_COUNTER is defined, performance counters are not synthesized.
-`define RSD_DISABLE_PERFORMANCE_COUNTER
 
 /*
   Define one of these macros.
