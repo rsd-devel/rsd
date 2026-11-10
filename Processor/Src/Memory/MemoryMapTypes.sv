@@ -110,23 +110,23 @@ localparam MEMORY_MAP_BYTE_SIZE = 33'h000060000;
 // Section 0 (ROM)
 // logical [0x0000_1000 - 0x0000_ffff] -> physical [0x00_1000 - 0x00_ffff]
 //
-localparam LOG_ADDR_SECTION_0_BASE = ADDR_WIDTH'('h0000_1000);
-localparam LOG_ADDR_SECTION_0_BEGIN = LOG_ADDR_SECTION_0_BASE;
-localparam LOG_ADDR_SECTION_0_END   = LOG_ADDR_SECTION_0_BASE + (61440 - 1);
-localparam LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH = 16;
-localparam PHY_ADDR_SECTION_0_BASE = PHY_RAW_ADDR_WIDTH'('h00_0000);
-localparam PHY_ADDR_SECTION_0_END   = PHY_RAW_ADDR_WIDTH'('h00_ffff);
+localparam LOG_ADDR_ROM_BASE = ADDR_WIDTH'('h0000_1000);
+localparam LOG_ADDR_ROM_BEGIN = LOG_ADDR_ROM_BASE;
+localparam LOG_ADDR_ROM_END   = LOG_ADDR_ROM_BASE + (61440 - 1);
+localparam LOG_ADDR_ROM_ADDR_BIT_WIDTH = 16;
+localparam PHY_ADDR_ROM_BASE = PHY_RAW_ADDR_WIDTH'('h00_0000);
+localparam PHY_ADDR_ROM_END   = PHY_RAW_ADDR_WIDTH'('h00_ffff);
 
 //
 // Section 1 (RAM)
 // logical [0x8000_0000 - 0x8003_ffff] -> physical [0x01_0000 - 0x04_ffff]
 //
-localparam LOG_ADDR_SECTION_1_BASE = ADDR_WIDTH'('h8000_0000);
-localparam LOG_ADDR_SECTION_1_BEGIN = LOG_ADDR_SECTION_1_BASE;
-localparam LOG_ADDR_SECTION_1_END   = LOG_ADDR_SECTION_1_BASE + (262144 - 1);
-localparam LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH = 18;
-localparam PHY_ADDR_SECTION_1_BASE = PHY_RAW_ADDR_WIDTH'('h01_0000);
-localparam PHY_ADDR_SECTION_1_END   = PHY_RAW_ADDR_WIDTH'('h04_ffff);
+localparam LOG_ADDR_RAM_BASE = ADDR_WIDTH'('h8000_0000);
+localparam LOG_ADDR_RAM_BEGIN = LOG_ADDR_RAM_BASE;
+localparam LOG_ADDR_RAM_END   = LOG_ADDR_RAM_BASE + (262144 - 1);
+localparam LOG_ADDR_RAM_ADDR_BIT_WIDTH = 18;
+localparam PHY_ADDR_RAM_BASE = PHY_RAW_ADDR_WIDTH'('h01_0000);
+localparam PHY_ADDR_RAM_END   = PHY_RAW_ADDR_WIDTH'('h04_ffff);
 
 //
 // Uncachable section (RAM)
@@ -197,10 +197,10 @@ localparam PHY_ADDR_PLIC_CLAIM_COMPLETE_BASE = PHY_ADDR_PLIC_BASE + PhyRawAddrPa
 
 // Get a memory type from a logical address
 function automatic MemoryMapType GetMemoryMapType(AddrPath addr);
-    if (LOG_ADDR_SECTION_0_BEGIN <= addr && addr <= LOG_ADDR_SECTION_0_END) begin
+    if (LOG_ADDR_ROM_BEGIN <= addr && addr <= LOG_ADDR_ROM_END) begin
         return MMT_MEMORY;
     end
-    else if (LOG_ADDR_SECTION_1_BEGIN <= addr && addr <= LOG_ADDR_SECTION_1_END) begin
+    else if (LOG_ADDR_RAM_BEGIN <= addr && addr <= LOG_ADDR_RAM_END) begin
         return MMT_MEMORY;
     end
     else if (LOG_ADDR_UNCACHABLE_BEGIN <= addr && addr <= LOG_ADDR_UNCACHABLE_END) begin
@@ -224,17 +224,17 @@ endfunction
 function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     PhyAddrPath phyAddr;
 
-    if (LOG_ADDR_SECTION_0_BEGIN <= logAddr && logAddr <= LOG_ADDR_SECTION_0_END) begin
+    if (LOG_ADDR_ROM_BEGIN <= logAddr && logAddr <= LOG_ADDR_ROM_END) begin
         // Section 0 (ROM)
         phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
-        phyAddr.addr = PHY_ADDR_SECTION_0_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_SECTION_0_ADDR_BIT_WIDTH-1:0]);
+        phyAddr.addr = PHY_ADDR_ROM_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_ROM_ADDR_BIT_WIDTH-1:0]);
     end
-    else if (LOG_ADDR_SECTION_1_BEGIN <= logAddr && logAddr <= LOG_ADDR_SECTION_1_END) begin
+    else if (LOG_ADDR_RAM_BEGIN <= logAddr && logAddr <= LOG_ADDR_RAM_END) begin
         // Section 1 (RAM)
         phyAddr.isUncachable = FALSE;
         phyAddr.isIO = FALSE;
-        phyAddr.addr = PHY_ADDR_SECTION_1_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_SECTION_1_ADDR_BIT_WIDTH-1:0]);
+        phyAddr.addr = PHY_ADDR_RAM_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_RAM_ADDR_BIT_WIDTH-1:0]);
     end
     else if (LOG_ADDR_UNCACHABLE_BEGIN <= logAddr && logAddr <= LOG_ADDR_UNCACHABLE_END) begin
         // Uncachable section (RAM)

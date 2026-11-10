@@ -52,9 +52,10 @@ class TestMemoryMap(unittest.TestCase):
             'type': 'memory', 'logical_base': 0xfffff000,
             'physical_base': (1 << raw_width) - 0x1000,
             'size': 0x1000, 'translation': 'relative',
-            'constants': {'logical_prefix': 'LOG_ADDR_TOP', 'physical_prefix': 'PHY_ADDR_TOP'},
         }
-        self.render()
+        rtl = self.render()
+        self.assertIn('localparam LOG_ADDR_TOP_BASE =', rtl)
+        self.assertIn('localparam PHY_ADDR_TOP_BASE =', rtl)
         region = ProcessorConfig.from_yaml(self.values).regions[-1]
         self.assertEqual(region.logical_end, 0xffffffff)
         self.assertEqual(region.physical_range[1], (1 << raw_width) - 1)
@@ -86,9 +87,19 @@ class TestMemoryMap(unittest.TestCase):
         with self.assertRaisesRegex(ConfigError, 'CLAIM_COMPLETE_BASE.*required'):
             self.render()
 
-    def test_required_prefix(self):
-        self.values['memory_map']['regions']['serial']['constants']['logical_prefix'] = 'UART'
-        with self.assertRaisesRegex(ConfigError, 'must be LOG_ADDR_SERIAL'):
+    def test_names_follow_region_keys(self):
+        # Descriptive labels must not change the RTL/software interface.
+        self.values['memory_map']['regions']['ram']['name'] = 'Main memory'
+        rtl = self.render()
+        for key in self.values['memory_map']['regions']:
+            self.assertIn(f'localparam LOG_ADDR_{key.upper()}_BASE =', rtl)
+            self.assertIn(f'localparam PHY_ADDR_{key.upper()}_BASE =', rtl)
+        self.assertIn('localparam LOG_ADDR_RAM_END', rtl)
+        self.assertNotIn('ADDR_SECTION_', rtl)
+
+    def test_explicit_prefix_rejected(self):
+        self.values['memory_map']['regions']['serial']['constants'] = {'logical_prefix': 'UART'}
+        with self.assertRaisesRegex(ConfigError, 'unknown keys: constants'):
             self.render()
 
     def test_narrow_pc(self):

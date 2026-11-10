@@ -23,7 +23,6 @@ class ConfigError(Exception):
 YamlMapping = Mapping[str, object]
 
 _MISSING = object()
-_SV_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*\Z")
 
 
 def validate_keys(values: YamlMapping, allowed: tuple[str, ...], path: str) -> None:
@@ -101,12 +100,6 @@ def read_boolean(values: YamlMapping, key: str, path: str, default: object = _MI
     return value
 
 
-def validate_sv_identifier(value: str, path: str) -> str:
-    if not _SV_IDENTIFIER.fullmatch(value):
-        raise ConfigError(f"{path} must be a valid SystemVerilog identifier")
-    return value
-
-
 def load_yaml(path: Path) -> YamlMapping:
     try:
         value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
@@ -167,8 +160,6 @@ class Region:
     key: str
     region_type: RegionType
     name: str
-    logical_prefix: str
-    physical_prefix: str
     logical_base: int
     physical_base: int
     size: int
@@ -184,7 +175,7 @@ class Region:
             raise ConfigError(f"{path}: region keys must use lowercase letters, digits and underscores")
         validate_keys(values, (
             "type", "name", "logical_base", "physical_base", "size",
-            "translation", "addr_bit_width", "uncachable", "constants", "registers",
+            "translation", "addr_bit_width", "uncachable", "registers",
         ), path)
         region_type = RegionType.parse(read_value(values, "type", path), f"{path}.type")
         logical_base = read_integer(values, "logical_base", path)
@@ -203,23 +194,10 @@ class Region:
         if region_type is not RegionType.IO and register_values is not None:
             raise ConfigError(f"{path}.registers is only valid for io regions")
         name = read_string(values, "name", path, key.upper())
-        constants_path = f"{path}.constants"
-        constants = read_mapping(values, "constants", path)
-        validate_keys(constants, ("logical_prefix", "physical_prefix"), constants_path)
-        logical_prefix = validate_sv_identifier(
-            read_string(constants, "logical_prefix", constants_path),
-            f"{constants_path}.logical_prefix",
-        )
-        physical_prefix = validate_sv_identifier(
-            read_string(constants, "physical_prefix", constants_path),
-            f"{constants_path}.physical_prefix",
-        )
         region = cls(
             key=key,
             region_type=region_type,
             name=name,
-            logical_prefix=logical_prefix,
-            physical_prefix=physical_prefix,
             logical_base=logical_base,
             physical_base=physical_base,
             size=size,
@@ -312,6 +290,14 @@ class Region:
         if end >= 1 << raw_address_width:
             raise ConfigError(f"{path} physical address range does not fit in PHY_RAW_ADDR_WIDTH")
 
+    @property
+    def logical_prefix(self) -> str:
+        return f"LOG_ADDR_{self.key.upper()}"
+
+    @property
+    def physical_prefix(self) -> str:
+        return f"PHY_ADDR_{self.key.upper()}"
+
     def logical_constant(self, suffix: str) -> str:
         return f"{self.logical_prefix}_{suffix}"
 
@@ -334,29 +320,24 @@ class Region:
 
 # These names and registers are referenced directly by the RTL.
 REQUIRED_REGIONS = (
-    ("rom", RegionType.MEMORY, "SECTION_0", ()),
-    ("ram", RegionType.MEMORY, "SECTION_1", ()),
-    ("serial", RegionType.IO, "SERIAL", ("OUTPUT",)),
-    ("clint", RegionType.IO, "CLINT",
+    ("rom", RegionType.MEMORY, ()),
+    ("ram", RegionType.MEMORY, ()),
+    ("serial", RegionType.IO, ("OUTPUT",)),
+    ("clint", RegionType.IO,
      ("MSIP", "TIMER_LOW", "TIMER_HI", "TIMER_CMP_LOW", "TIMER_CMP_HI")),
-    ("plic", RegionType.IO, "PLIC",
+    ("plic", RegionType.IO,
      ("SOURCE_PRIORITY_BASE", "PENDING_BASE", "ENABLE_BASE",
       "PRIORITY_THRESHOLD_BASE", "CLAIM_COMPLETE_BASE")),
 )
 
 
 def validate_required_regions(regions: YamlMapping, path: str) -> None:
-    for key, region_type, suffix, required_registers in REQUIRED_REGIONS:
+    for key, region_type, required_registers in REQUIRED_REGIONS:
         region_path = f"{path}.{key}"
         region = read_mapping(regions, key, path)
         actual_type = RegionType.parse(read_value(region, "type", region_path), f"{region_path}.type")
         if actual_type is not region_type:
             raise ConfigError(f"{region_path}.type must be {region_type.value}")
-        constants = read_mapping(region, "constants", region_path)
-        for kind, prefix in (("logical", "LOG"), ("physical", "PHY")):
-            expected = f"{prefix}_ADDR_{suffix}"
-            if constants.get(f"{kind}_prefix") != expected:
-                raise ConfigError(f"{region_path}.constants.{kind}_prefix must be {expected}")
         if required_registers:
             registers = read_mapping(region, "registers", region_path)
             for register in required_registers:

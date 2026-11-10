@@ -44,7 +44,8 @@ memory_map:
     # PC_Path uses PC_WIDTH bits; PC_TAG=ADDR_WIDTH-PC_WIDTH is derived in SV.
     width: 19
 
-  # Region keys name software constants (e.g. ram -> RSD_RAM_BASE).
+  # Region keys determine all constant names: uppercase K produces SV prefixes
+  # LOG_ADDR_K / PHY_ADDR_K and the software prefix RSD_K (e.g. ram -> RAM).
   # Shared fields:
   #   type: memory uses backing storage; io is decoded by IO_Unit/PLIC_Unit.
   #   name: descriptive label used in generated comments.
@@ -57,9 +58,6 @@ memory_map:
   #                   A low_bits region must not wrap its 2^N-byte window;
   #                   IO logical_base must be aligned to that window.
   #   uncachable: bypass the data cache; defaults to false for memory and true for IO.
-  #   constants: exact RTL identifier prefixes; existing consumers require these names.
-  #              logical_prefix names logical address constants; physical_prefix names
-  #              internal raw address constants.
   #   registers: IO register byte offsets from logical_base, each within the region.
   #              Keys become constant suffixes; address formulas/strides stay in RTL.
   # Translated ranges must fit the raw address width. IO has a separate address
@@ -68,8 +66,7 @@ memory_map:
   # SV: MEMORY_MAP_BYTE_SIZE = max(translated memory END)+1, currently 0x60000
   # (384 KiB). This capacity constant is not emitted into the software files.
   #
-  # Generated names for region key K (uppercased in software names), logical
-  # prefix L=constants.logical_prefix, and physical prefix P=constants.physical_prefix:
+  # Generated names for uppercased region key K, using L=LOG_ADDR_K and P=PHY_ADDR_K:
   #   logical_base -> SV L_BASE / L_BEGIN; software RSD_K_BASE.
   #   size         -> software RSD_K_SIZE; also used to calculate END constants.
   #   logical_base+size-1 -> SV L_END; software RSD_K_END.
@@ -87,8 +84,7 @@ memory_map:
   regions:
     # Startup/loader region: 60 KiB at logical 0x1000..0xffff.
     # low_bits preserves the initial 0x1000 offset even though physical_base is 0.
-    # Example: PHY_ADDR_SECTION_0_BASE=0, but RSD_ROM_PHYSICAL_BASE=0x1000.
-    # LOG_ADDR_SECTION_0_BASE=LOG_ADDR_SECTION_0_BEGIN=RSD_ROM_BASE=0x1000.
+    # Example: PHY_ADDR_ROM_BASE=0, but RSD_ROM_PHYSICAL_BASE=0x1000.
     rom:
       type: memory
       name: Section 0 (ROM)
@@ -97,13 +93,8 @@ memory_map:
       size: 0x0000_f000
       translation: low_bits
       uncachable: false
-      constants:
-        logical_prefix: LOG_ADDR_SECTION_0
-        physical_prefix: PHY_ADDR_SECTION_0
 
     # Main code/data region: 256 KiB, mapped to raw addresses 0x10000..0x4ffff.
-    # Example: LOG_ADDR_SECTION_1_END=RSD_RAM_END=0x8003ffff,
-    # RSD_RAM_SIZE=0x40000, PHY_ADDR_SECTION_1_END=RSD_RAM_PHYSICAL_END=0x4ffff.
     ram:
       type: memory
       name: Section 1 (RAM)
@@ -112,9 +103,6 @@ memory_map:
       size: 0x0004_0000
       translation: low_bits
       uncachable: false
-      constants:
-        logical_prefix: LOG_ADDR_SECTION_1
-        physical_prefix: PHY_ADDR_SECTION_1
 
     # Uncached memory: 64 KiB, mapped to raw addresses 0x50000..0x5ffff.
     # low_bits retains logical bit 18, adding 0x40000 to physical_base=0x10000.
@@ -128,9 +116,6 @@ memory_map:
       size: 0x0001_0000
       translation: low_bits
       uncachable: true
-      constants:
-        logical_prefix: LOG_ADDR_UNCACHABLE
-        physical_prefix: PHY_ADDR_UNCACHABLE
 
     # Serial output port. Only the output address is decoded; size is not a buffer size.
     serial:
@@ -140,13 +125,8 @@ memory_map:
       physical_base: 0x0_2000
       size: 1
       translation: low_bits
-      constants:
-        logical_prefix: LOG_ADDR_SERIAL
-        physical_prefix: PHY_ADDR_SERIAL
       registers:
         # Writing this register forwards output data to the serial interface.
-        # LOG_ADDR_SERIAL_OUTPUT=RSD_SERIAL_OUTPUT=0x40002000;
-        # PHY_ADDR_SERIAL_OUTPUT=0x2000.
         OUTPUT: 0
 
     # Core-local software interrupt and timer registers, using RSD's register layout.
@@ -158,15 +138,10 @@ memory_map:
       physical_base: 0x0_0000
       size: 0x8000
       translation: low_bits
-      constants:
-        logical_prefix: LOG_ADDR_CLINT
-        physical_prefix: PHY_ADDR_CLINT
       registers:
         # Machine software-interrupt pending control.
         MSIP: 0
         # Low/high 32-bit halves of the 64-bit timer.
-        # Example: LOG_ADDR_CLINT_TIMER_LOW=RSD_CLINT_TIMER_LOW=0x40017ff8,
-        # PHY_ADDR_CLINT_TIMER_LOW=0x7ff8. The YAML value below is only the offset.
         TIMER_LOW: 0x7ff8
         TIMER_HI: 0x7ffc
         # Low/high 32-bit halves of the 64-bit timer compare value.
@@ -183,9 +158,6 @@ memory_map:
       # Includes both 0x1000-byte context register windows at offset 0x200000.
       size: 0x20_2000
       translation: low_bits
-      constants:
-        logical_prefix: LOG_ADDR_PLIC
-        physical_prefix: PHY_ADDR_PLIC
       registers:
         # Priority array: one 32-bit register per source; source 0 is reserved.
         SOURCE_PRIORITY_BASE: 0x0
@@ -197,6 +169,4 @@ memory_map:
         PRIORITY_THRESHOLD_BASE: 0x200000
         # Read to claim a source ID, write the ID to complete its interrupt.
         # This is context 0's register; context stride is 0x1000 bytes.
-        # LOG_ADDR_PLIC_CLAIM_COMPLETE_BASE=RSD_PLIC_CLAIM_COMPLETE_BASE=0xc0200004;
-        # PHY_ADDR_PLIC_CLAIM_COMPLETE_BASE=0x210004.
         CLAIM_COMPLETE_BASE: 0x200004
