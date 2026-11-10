@@ -1,4 +1,4 @@
-/* Generated from MemoryMap.yml by Generator/cpu_generator.py. Do not edit. */
+/* Generated from MemoryMap.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit. */
 #ifndef RSD_MEMORY_MAP_H
 #define RSD_MEMORY_MAP_H
 #define RSD_RESET_VECTOR 0x1000

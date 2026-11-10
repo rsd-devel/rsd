@@ -4,9 +4,9 @@ import sys
 import tempfile
 import unittest
 
-SRC = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(SRC / "Generator"))
-from cpu_generator import ConfigError, CpuConfig, MemoryMapRenderer, load_config, load_yaml
+SRC = Path(__file__).resolve().parents[3] / "Src"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from ConfigGenerator import ConfigError, ProcessorConfig, MemoryMapRenderer, load_config, load_yaml
 
 
 class TestMemoryMap(unittest.TestCase):
@@ -14,13 +14,13 @@ class TestMemoryMap(unittest.TestCase):
         self.values = copy.deepcopy(load_yaml(SRC / 'MemoryMap.yml'))
 
     def render(self):
-        return MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        return MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
                                  SRC / 'Memory/MemoryMapTypes.template.sv').render(
                                      (SRC / 'Memory/MemoryMapTypes.template.sv').read_text())
 
     def test_checked_in_output(self):
         self.assertEqual(self.render(), (SRC / 'Memory/MemoryMapTypes.sv').read_text())
-        renderer = MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         for name, content in renderer.render_software().items():
             self.assertEqual(content, (SRC / 'Verification/TestCode' / name).read_text())
@@ -28,7 +28,7 @@ class TestMemoryMap(unittest.TestCase):
     def test_software_addresses_follow_configuration(self):
         self.values['memory_map']['regions']['ram']['logical_base'] = 0x90000000
         self.values['PC_GOAL'] = 0x90001004
-        config = CpuConfig.from_yaml(self.values)
+        config = ProcessorConfig.from_yaml(self.values)
         renderer = MemoryMapRenderer(config, SRC / 'MemoryMap.yml',
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         values = renderer.software_constants()
@@ -39,7 +39,7 @@ class TestMemoryMap(unittest.TestCase):
         self.assertEqual(config.memory_byte_size, 0x60000)
 
     def test_template_mismatch(self):
-        renderer = MemoryMapRenderer(CpuConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         with self.assertRaises(ConfigError):
             renderer.render('{{ TYPO }}')
@@ -53,7 +53,7 @@ class TestMemoryMap(unittest.TestCase):
             'constants': {'logical_prefix': 'LOG_ADDR_TOP', 'physical_prefix': 'PHY_ADDR_TOP'},
         }
         self.render()
-        region = CpuConfig.from_yaml(self.values).regions[-1]
+        region = ProcessorConfig.from_yaml(self.values).regions[-1]
         self.assertEqual(region.logical_end, 0xffffffff)
         self.assertEqual(region.physical_range[1], (1 << raw_width) - 1)
         self.values['memory_map']['regions']['top']['size'] += 1
@@ -61,7 +61,7 @@ class TestMemoryMap(unittest.TestCase):
             self.render()
 
     def test_adjacent_regions_and_shared_endpoint(self):
-        config = CpuConfig.from_yaml(self.values)
+        config = ProcessorConfig.from_yaml(self.values)
         regions = {region.key: region for region in config.regions}
         self.assertEqual(regions['ram'].logical_end + 1, regions['uncachable'].logical_base)
         self.values['memory_map']['regions']['uncachable']['logical_base'] = regions['ram'].logical_end
@@ -69,7 +69,7 @@ class TestMemoryMap(unittest.TestCase):
             self.render()
 
     def test_single_byte_region(self):
-        config = CpuConfig.from_yaml(self.values)
+        config = ProcessorConfig.from_yaml(self.values)
         serial = next(region for region in config.regions if region.key == 'serial')
         self.assertEqual(serial.logical_base, serial.logical_end)
         self.assertEqual(serial.physical_range[0], serial.physical_range[1])

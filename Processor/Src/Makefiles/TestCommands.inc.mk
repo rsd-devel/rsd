@@ -317,4 +317,4 @@ test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 .PHONY: test-tools-MemoryMap
 # Test the configuration generator itself, not the processor RTL.
 test-tools-MemoryMap: $(RSD_MEMORY_MAP_OUTPUTS)
-	$(PYTHON) -B -m unittest discover -s Generator/Tests -p 'Test*.py' -v
+	$(PYTHON) -B -m unittest discover -s $(RSD_ROOT)/Processor/Tools/ConfigGenerator/Tests -p 'Test*.py' -v
