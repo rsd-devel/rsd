@@ -1,5 +1,5 @@
 include ../../../Makefiles/Environment.inc.mk
-include ../../../Makefiles/GenerateMemoryMap.inc.mk
+include ../../../Makefiles/GenerateConfig.inc.mk
 include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
 
 # Fetch public Zephyr explicitly; ordinary builds never download dependencies.

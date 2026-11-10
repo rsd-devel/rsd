@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate RTL and software memory-map definitions from MemoryMap.yml."""
+"""Generate RTL and build definitions from Processor/Config/*.yml."""
 
 from __future__ import annotations
 
@@ -23,7 +23,6 @@ class ConfigError(Exception):
 YamlMapping = Mapping[str, object]
 
 _MISSING = object()
-_SV_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_$]*\Z")
 
 
 def validate_keys(values: YamlMapping, allowed: tuple[str, ...], path: str) -> None:
@@ -101,12 +100,6 @@ def read_boolean(values: YamlMapping, key: str, path: str, default: object = _MI
     return value
 
 
-def validate_sv_identifier(value: str, path: str) -> str:
-    if not _SV_IDENTIFIER.fullmatch(value):
-        raise ConfigError(f"{path} must be a valid SystemVerilog identifier")
-    return value
-
-
 def load_yaml(path: Path) -> YamlMapping:
     try:
         value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
@@ -167,8 +160,6 @@ class Region:
     key: str
     region_type: RegionType
     name: str
-    logical_prefix: str
-    physical_prefix: str
     logical_base: int
     physical_base: int
     size: int
@@ -184,7 +175,7 @@ class Region:
             raise ConfigError(f"{path}: region keys must use lowercase letters, digits and underscores")
         validate_keys(values, (
             "type", "name", "logical_base", "physical_base", "size",
-            "translation", "addr_bit_width", "uncachable", "constants", "registers",
+            "translation", "addr_bit_width", "uncachable", "registers",
         ), path)
         region_type = RegionType.parse(read_value(values, "type", path), f"{path}.type")
         logical_base = read_integer(values, "logical_base", path)
@@ -203,23 +194,10 @@ class Region:
         if region_type is not RegionType.IO and register_values is not None:
             raise ConfigError(f"{path}.registers is only valid for io regions")
         name = read_string(values, "name", path, key.upper())
-        constants_path = f"{path}.constants"
-        constants = read_mapping(values, "constants", path)
-        validate_keys(constants, ("logical_prefix", "physical_prefix"), constants_path)
-        logical_prefix = validate_sv_identifier(
-            read_string(constants, "logical_prefix", constants_path),
-            f"{constants_path}.logical_prefix",
-        )
-        physical_prefix = validate_sv_identifier(
-            read_string(constants, "physical_prefix", constants_path),
-            f"{constants_path}.physical_prefix",
-        )
         region = cls(
             key=key,
             region_type=region_type,
             name=name,
-            logical_prefix=logical_prefix,
-            physical_prefix=physical_prefix,
             logical_base=logical_base,
             physical_base=physical_base,
             size=size,
@@ -312,6 +290,14 @@ class Region:
         if end >= 1 << raw_address_width:
             raise ConfigError(f"{path} physical address range does not fit in PHY_RAW_ADDR_WIDTH")
 
+    @property
+    def logical_prefix(self) -> str:
+        return f"LOG_ADDR_{self.key.upper()}"
+
+    @property
+    def physical_prefix(self) -> str:
+        return f"PHY_ADDR_{self.key.upper()}"
+
     def logical_constant(self, suffix: str) -> str:
         return f"{self.logical_prefix}_{suffix}"
 
@@ -334,29 +320,24 @@ class Region:
 
 # These names and registers are referenced directly by the RTL.
 REQUIRED_REGIONS = (
-    ("rom", RegionType.MEMORY, "SECTION_0", ()),
-    ("ram", RegionType.MEMORY, "SECTION_1", ()),
-    ("serial", RegionType.IO, "SERIAL", ("OUTPUT",)),
-    ("clint", RegionType.IO, "CLINT",
+    ("rom", RegionType.MEMORY, ()),
+    ("ram", RegionType.MEMORY, ()),
+    ("serial", RegionType.IO, ("OUTPUT",)),
+    ("clint", RegionType.IO,
      ("MSIP", "TIMER_LOW", "TIMER_HI", "TIMER_CMP_LOW", "TIMER_CMP_HI")),
-    ("plic", RegionType.IO, "PLIC",
+    ("plic", RegionType.IO,
      ("SOURCE_PRIORITY_BASE", "PENDING_BASE", "ENABLE_BASE",
       "PRIORITY_THRESHOLD_BASE", "CLAIM_COMPLETE_BASE")),
 )
 
 
 def validate_required_regions(regions: YamlMapping, path: str) -> None:
-    for key, region_type, suffix, required_registers in REQUIRED_REGIONS:
+    for key, region_type, required_registers in REQUIRED_REGIONS:
         region_path = f"{path}.{key}"
         region = read_mapping(regions, key, path)
         actual_type = RegionType.parse(read_value(region, "type", region_path), f"{region_path}.type")
         if actual_type is not region_type:
             raise ConfigError(f"{region_path}.type must be {region_type.value}")
-        constants = read_mapping(region, "constants", region_path)
-        for kind, prefix in (("logical", "LOG"), ("physical", "PHY")):
-            expected = f"{prefix}_ADDR_{suffix}"
-            if constants.get(f"{kind}_prefix") != expected:
-                raise ConfigError(f"{region_path}.constants.{kind}_prefix must be {expected}")
         if required_registers:
             registers = read_mapping(region, "registers", region_path)
             for register in required_registers:
@@ -364,7 +345,7 @@ def validate_required_regions(regions: YamlMapping, path: str) -> None:
 
 
 @dataclass(frozen=True)
-class CpuConfig:
+class ProcessorConfig:
     instruction_reset_vector: int
     pc_goal: int
     physical_address_width: int
@@ -373,10 +354,10 @@ class CpuConfig:
     regions: tuple[Region, ...]
 
     @classmethod
-    def from_yaml(cls, values: YamlMapping, path: str = "config") -> "CpuConfig":
-        validate_keys(values, ("INSN_RESET_VECTOR", "PC_GOAL", "memory_map"), path)
-        reset_vector = read_integer(values, "INSN_RESET_VECTOR", path)
-        pc_goal = read_integer(values, "PC_GOAL", path)
+    def from_yaml(cls, values: YamlMapping, path: str = "config") -> "ProcessorConfig":
+        validate_keys(values, ("insn_reset_vector", "pc_goal", "memory_map"), path)
+        reset_vector = read_integer(values, "insn_reset_vector", path)
+        pc_goal = read_integer(values, "pc_goal", path)
         map_path = f"{path}.memory_map"
         memory_map = read_mapping(values, "memory_map", path)
         validate_keys(memory_map, ("physical_address_width", "pc", "regions"), map_path)
@@ -401,7 +382,7 @@ class CpuConfig:
         config = cls(reset_vector, pc_goal, physical_width, pc_narrow, pc_width, regions)
         config.validate_logical_ranges()
         config.validate_constant_names()
-        for name, addr in (("INSN_RESET_VECTOR", reset_vector), ("PC_GOAL", pc_goal)):
+        for name, addr in (("insn_reset_vector", reset_vector), ("pc_goal", pc_goal)):
             if not 0 <= addr < (1 << 32) or addr % 4:
                 raise ConfigError(f"{name} must be an aligned RV32 instruction address")
             if not any(not r.is_io and r.logical_base <= addr <= r.logical_end for r in regions):
@@ -445,8 +426,8 @@ class CpuConfig:
                 owners[constant_name] = region.key
 
 
-def load_config(path: Path) -> CpuConfig:
-    return CpuConfig.from_yaml(load_yaml(path))
+def load_config(path: Path) -> ProcessorConfig:
+    return ProcessorConfig.from_yaml(load_yaml(path))
 
 
 # RTL and software output
@@ -473,15 +454,15 @@ _PLACEHOLDER = re.compile(r"{{\s*([A-Za-z0-9_]+)\s*}}")
 
 @dataclass(frozen=True)
 class MemoryMapRenderer:
-    config: CpuConfig
+    config: ProcessorConfig
     config_path: Path
     template_path: Path
 
     def render(self, template: str) -> str:
         replacements = {
             "GENERATED_NOTICE": (
-                "// This file is generated by Generator/cpu_generator.py from "
-                f"{self.config_path.name} and {self.template_source_name()}.\n"
+                "// This file is generated by Tools/ConfigGenerator/ConfigGenerator.py from "
+                f"Config/{self.config_path.name} and {self.template_source_name()}.\n"
                 "// Do not edit this file directly."
             ),
             "INSN_RESET_VECTOR": sized_hex_literal(self.config.instruction_reset_vector, 32),
@@ -505,7 +486,7 @@ class MemoryMapRenderer:
 
     def template_source_name(self) -> str:
         try:
-            return self.template_path.relative_to(self.config_path.parent).as_posix()
+            return self.template_path.relative_to(self.config_path.parent.parent).as_posix()
         except ValueError:
             return self.template_path.as_posix()
 
@@ -546,7 +527,7 @@ class MemoryMapRenderer:
 
     def render_software(self) -> dict[str, str]:
         constants = self.software_constants()
-        notice = "Generated from MemoryMap.yml by Generator/cpu_generator.py. Do not edit."
+        notice = "Generated from Config/MemoryMap.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
         # DTS unit addresses are tokens without the 0x prefix used by C/assembly.
         unit_addresses = {}
         for name in ("RSD_ROM_BASE", "RSD_RAM_BASE", "RSD_CLINT_TIMER_LOW"):
@@ -665,31 +646,152 @@ class MemoryMapRenderer:
         return f"{physical_base} + PhyRawAddrPath'({logical_address}[{width}-1:0])"
 
 
+# Microarchitecture defaults shared by RTL, synthesis, and software builds.
+
+MICRO_ARCH_PARAMETERS = (
+    "FETCH_WIDTH", "COMMIT_WIDTH", "PSCALAR_NUM", "PSCALAR_FP_NUM",
+    "ISSUE_QUEUE_ENTRY_NUM", "ACTIVE_LIST_ENTRY_NUM", "REPLAY_QUEUE_ENTRY_NUM",
+    "LOAD_QUEUE_ENTRY_NUM", "STORE_QUEUE_ENTRY_NUM", "BTB_ENTRY_NUM", "PHT_ENTRY_NUM",
+    "BRANCH_GLOBAL_HISTORY_BIT_WIDTH", "MDT_ENTRY_NUM",
+    "DCACHE_WAY_NUM", "DCACHE_LINE_BYTE_NUM", "DCACHE_MSHR_NUM",
+    "ICACHE_WAY_NUM", "ICACHE_LINE_BYTE_NUM",
+    "DCACHE_INDEX_BIT_WIDTH_BASE", "ICACHE_INDEX_BIT_WIDTH_BASE", "INT_ISSUE_WIDTH",
+)
+# The YAML describes settings; preprocessor names are an RTL implementation detail.
+MICRO_ARCH_FEATURES = {
+    "enable_fp_pipe": "RSD_MARCH_FP_PIPE",
+    "enable_zba": "RSD_ENABLE_ZBA",
+    "enable_zicond": "RSD_ENABLE_ZICOND",
+    "enable_zicfilp": "RSD_ENABLE_ZICFILP",
+    "enable_unified_muldiv_mem_pipe": "RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE",
+    "enable_unified_ldst_mem_pipe": "RSD_MARCH_UNIFIED_LDST_MEM_PIPE",
+}
+
+
+def validate_micro_arch(parameters: YamlMapping) -> tuple[dict[str, int], dict[str, str | None]]:
+    validate_keys(parameters, (*(name.lower() for name in MICRO_ARCH_PARAMETERS), *MICRO_ARCH_FEATURES,
+                               "enable_performance_counter"), "parameters")
+    params = {name: read_integer(parameters, name.lower(), "parameters")
+              for name in MICRO_ARCH_PARAMETERS}
+    for name, value in params.items():
+        if not 0 < value < (1 << 31):
+            raise ConfigError(f"parameters.{name.lower()} must be a positive signed 32-bit integer")
+    # Check known structural constraints, not every possible RTL configuration.
+    for name in ("PSCALAR_NUM", "PSCALAR_FP_NUM", "ACTIVE_LIST_ENTRY_NUM",
+                 "LOAD_QUEUE_ENTRY_NUM", "STORE_QUEUE_ENTRY_NUM", "BTB_ENTRY_NUM",
+                 "PHT_ENTRY_NUM", "MDT_ENTRY_NUM", "DCACHE_WAY_NUM", "ICACHE_WAY_NUM",
+                 "DCACHE_LINE_BYTE_NUM", "ICACHE_LINE_BYTE_NUM"):
+        if params[name] & (params[name] - 1):
+            raise ConfigError(f"parameters.{name.lower()} must be a power of two")
+    if params["COMMIT_WIDTH"] < params["FETCH_WIDTH"]:
+        raise ConfigError("commit_width must be at least fetch_width for recovery")
+    if params["PSCALAR_NUM"] != params["PSCALAR_FP_NUM"]:
+        raise ConfigError("pscalar_num and pscalar_fp_num must match")
+    if params["PSCALAR_NUM"] <= 32:
+        raise ConfigError("pscalar_num must exceed the 32 architectural registers")
+    if params["ICACHE_WAY_NUM"] < 2:
+        raise ConfigError("icache_way_num must be at least 2")
+    if params["BRANCH_GLOBAL_HISTORY_BIT_WIDTH"] > params["PHT_ENTRY_NUM"].bit_length() - 1:
+        raise ConfigError("branch_global_history_bit_width must fit the PHT index")
+    for cache in ("DCACHE", "ICACHE"):
+        bits = params[f"{cache}_INDEX_BIT_WIDTH_BASE"] - (params[f"{cache}_WAY_NUM"].bit_length() - 1)
+        if bits < 1 or bits + params[f"{cache}_LINE_BYTE_NUM"].bit_length() - 1 >= 32:
+            raise ConfigError(f"{cache.lower()} index and line offset must leave address tag bits")
+    width = params["INT_ISSUE_WIDTH"]
+    if width not in (1, 2):
+        raise ConfigError("int_issue_width must be 1 or 2")
+    features = {macro: read_boolean(parameters, name, "parameters")
+                for name, macro in MICRO_ARCH_FEATURES.items()}
+
+    macros = {"RSD_MARCH_INT_ISSUE_WIDTH": str(width)}
+    macros.update({name: None for name, enabled in features.items() if enabled})
+    if not read_boolean(parameters, "enable_performance_counter", "parameters"):
+        macros["RSD_DISABLE_PERFORMANCE_COUNTER"] = None
+    return params, macros
+
+
+def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
+    validate_keys(values, ("parameters", "overrides"), "MicroArch")
+    parameters = read_mapping(values, "parameters", "MicroArch")
+    validate_micro_arch(parameters)
+    overrides = read_optional_mapping(values, "overrides", "MicroArch")
+    if overrides is None:
+        overrides = {}
+    validate_keys(overrides, ("simulation", "synthesis"), "overrides")
+    configs = {}
+    for mode in ("simulation", "synthesis"):
+        override = read_optional_mapping(overrides, mode, "overrides")
+        if override is None:
+            override = {}
+        validate_keys(override, tuple(parameters), f"overrides.{mode}")
+        configs[mode] = validate_micro_arch({**parameters, **override})
+
+    if set(_PLACEHOLDER.findall(template)) != set(MICRO_ARCH_PARAMETERS):
+        raise ConfigError("MicroArchConf template placeholders do not match the settings")
+    rtl = []
+    for line in template.splitlines(keepends=True):
+        sim = _PLACEHOLDER.sub(lambda match: str(configs["simulation"][0][match[1]]), line)
+        synth = _PLACEHOLDER.sub(lambda match: str(configs["synthesis"][0][match[1]]), line)
+        if sim == synth:
+            rtl.append(sim)
+        else:
+            # Netlist testbenches must use the same widths as the synthesized core.
+            rtl.append(f"`ifdef RSD_SYNTHESIS\n{synth}"
+                       f"`elsif RSD_POST_SYNTHESIS_SIMULATION\n{synth}"
+                       f"`else\n{sim}`endif\n")
+
+    notice = "Generated from Config/MicroArch.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
+    make_lines = [f"# {notice}"]
+    for mode, variable in (("simulation", "RSD_SRC_CFG"), ("synthesis", "RSD_SYNTHESIS_SRC_CFG")):
+        flags = " ".join(f"+define+{name}" + (f"={value}" if value is not None else "")
+                         for name, value in configs[mode][1].items())
+        make_lines.append(f"{variable} = {flags}")
+    sv_macros = "\n".join(f"`define {name}" + (f" {value}" if value is not None else "")
+                          for name, value in configs["synthesis"][1].items())
+    return {
+        "Config/MicroArchConf.sv": "".join(rtl),
+        "Makefiles/MicroArch.inc.mk": "\n".join(make_lines) + "\n",
+        "Config/MicroArchMacros.svh": f"// {notice}\n{sv_macros}\n",
+    }
+
+
 # Command-line entry point
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate RTL and software memory-map constants from MemoryMap.yml."
+        description="Generate RTL and build definitions from Processor/Config/*.yml."
     )
     parser.add_argument("--rsd-root", required=True, type=Path, help="RSD repository root")
+    parser.add_argument("--only", choices=("memory-map", "microarch"),
+                        help="Generate one configuration group (default: both)")
     args = parser.parse_args()
-    source_root = args.rsd_root / "Processor" / "Src"
-    config_path = source_root / "MemoryMap.yml"
-    template_path = source_root / "Memory" / "MemoryMapTypes.template.sv"
-    output_path = source_root / "Memory" / "MemoryMapTypes.sv"
+    processor_root = args.rsd_root / "Processor"
+    source_root = processor_root / "Src"
+    config_path = processor_root / "Config" / "MemoryMap.yml"
+    template_path = source_root / "Config" / "MemoryMapTypes.template.sv"
+    output_path = source_root / "Config" / "MemoryMapTypes.sv"
 
     try:
-        config = load_config(config_path)
-        template = template_path.read_text(encoding="utf-8")
-        renderer = MemoryMapRenderer(config, config_path, template_path)
-        outputs = {output_path: renderer.render(template)}
-        outputs.update({source_root / "Verification/TestCode" / name: content
-                        for name, content in renderer.render_software().items()})
+        outputs = {}
+        if args.only in (None, "memory-map"):
+            config = load_config(config_path)
+            template = template_path.read_text(encoding="utf-8")
+            renderer = MemoryMapRenderer(config, config_path, template_path)
+            outputs[output_path] = renderer.render(template)
+            outputs.update({source_root / "Verification/TestCode" / name: content
+                            for name, content in renderer.render_software().items()})
+        if args.only in (None, "microarch"):
+            values = load_yaml(processor_root / "Config/MicroArch.yml")
+            template = (source_root / "Config/MicroArchConf.template.sv").read_text(encoding="utf-8")
+            outputs.update({source_root / name: content
+                            for name, content in render_micro_arch(values, template).items()})
         # Render everything before writing any outputs.
         for path, content in outputs.items():
-            path.write_text(content, encoding="utf-8")
+            # Preserve the existing MicroArchConf.sv line-ending convention.
+            path.write_text(content, encoding="utf-8",
+                            newline="\r\n" if path.name == "MicroArchConf.sv" else "\n")
     except (ConfigError, OSError) as exc:
-        print(f"cpu_generator.py: error: {exc}", file=sys.stderr)
+        print(f"ConfigGenerator.py: error: {exc}", file=sys.stderr)
         return 1
     return 0
 

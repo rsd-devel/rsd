@@ -1,4 +1,4 @@
-/* Generated from MemoryMap.yml by Generator/cpu_generator.py. Do not edit. */
+/* Generated from Config/MemoryMap.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit. */
 RSD_RESET_VECTOR = 0x1000;
 RSD_PC_GOAL = 0x80001004;
 RSD_ROM_BASE = 0x1000;

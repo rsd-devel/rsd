@@ -1,5 +1,6 @@
 # Shared XSim checks for Vivado and Synplify netlists.
 # The synthesis backend supplies POST_SYNTHESIS_NETLIST and optional defines.
+# Match the netlist configuration, including synthesis-only overrides.
 export RSD_VIVADO_BIN
 export RSD_POST_SYNTHESIS_SRC = $(CURDIR)
 POST_SYNTHESIS_XILINX = $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
@@ -10,7 +11,7 @@ test-post-synthesis post-synthesis-build: TEST_CODE = Verification/TestCode/C/He
 
 test-post-synthesis: post-synthesis-build
 	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/xvlog -sv \
-		-i $(CURDIR) $(patsubst +define+%,-d %,$(RSD_SRC_CFG)) \
+		-i $(CURDIR) $(patsubst +define+%,-d %,$(RSD_SYNTHESIS_SRC_CFG)) \
 		-d RSD_FUNCTIONAL_SIMULATION -d RSD_POST_SYNTHESIS_SIMULATION \
 		$(addprefix -d ,$(POST_SYNTHESIS_DEFINES)) \
 		$(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(TEST_MODULES))

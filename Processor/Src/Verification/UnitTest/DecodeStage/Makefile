@@ -7,9 +7,9 @@ SOURCE_ROOT = ../../../
 include $(SOURCE_ROOT)Makefiles/CoreSources.inc.mk
 
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	FloatingPointUnit/FPUTypes.sv \

@@ -179,7 +179,7 @@ test:
 # Each suite uses stubs; TestDriver also checks an existing Verilator model when available.
 PYTHON ?= python3
 .PHONY: test-tools test-tools-TestDriver test-tools-DevContainer
-test-tools: test-tools-TestDriver test-tools-DevContainer test-tools-MemoryMap
+test-tools: test-tools-TestDriver test-tools-DevContainer test-tools-Config
 	@echo "==== Test Successful (test-tools) ===="
 
 test-tools-TestDriver test-tools-DevContainer: test-tools-%:
@@ -314,7 +314,7 @@ test-Zephyr: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test-Zephyr) ===="
 
 
-.PHONY: test-tools-MemoryMap
+.PHONY: test-tools-Config
 # Test the configuration generator itself, not the processor RTL.
-test-tools-MemoryMap: $(RSD_MEMORY_MAP_OUTPUTS)
-	$(PYTHON) -B -m unittest discover -s Generator/Tests -p 'Test*.py' -v
+test-tools-Config: $(RSD_CONFIG_OUTPUTS)
+	$(PYTHON) -B -m unittest discover -s $(RSD_ROOT)/Processor/Tools/ConfigGenerator/Tests -p 'Test*.py' -v

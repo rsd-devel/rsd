@@ -1,6 +1,6 @@
 # クロスコンパイラ環境の設定
 include $(dir $(lastword $(MAKEFILE_LIST)))../../Makefiles/Environment.inc.mk
-include $(RSD_ROOT)/Processor/Src/Makefiles/GenerateMemoryMap.inc.mk
+include $(RSD_ROOT)/Processor/Src/Makefiles/GenerateConfig.inc.mk
 include $(RSD_ROOT)/Processor/Src/Verification/TestCode/rsd-memory-map.mk
 
 HOST_TYPE = $(shell uname)

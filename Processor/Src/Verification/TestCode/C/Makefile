@@ -6,8 +6,10 @@
 # 受付可能なサブコマンド
 TARGETS = all clean
 
-.DEFAULT_GOAL =	# デフォルトターゲットを無効化しておく
+.DEFAULT_GOAL := all
 
+include ../../../Makefiles/Environment.inc.mk
+include ../../../Makefiles/GenerateConfig.inc.mk
 include ../../../Makefiles/CoreSources.inc.mk
 
 # 子 make が行われるディレクトリ

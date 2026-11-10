@@ -1,20 +1,7 @@
 
-# CAUTION! The following macros must be defined in SynthesisMacros.sv on synthesis.
-#
-# Definitions related to microarchitecture configuration:
-# * RSD_MARCH_UNIFIED_LDST_MEM_PIPE:  Use unified LS/ST pipeline
-# * RSD_MARCH_INT_ISSUE_WIDTH=N: Set issue width to N
-# * RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE: Integrate mul/div to a memory pipe
-RSD_SRC_CFG = \
-	+define+RSD_MARCH_INT_ISSUE_WIDTH=2 \
-	+define+RSD_MARCH_FP_PIPE \
-	+define+RSD_ENABLE_ZBA \
-	+define+RSD_ENABLE_ZICOND \
-	+define+RSD_ENABLE_ZICFILP \
-
-#	+define+RSD_MARCH_UNIFIED_LDST_MEM_PIPE \
-#	+define+RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
-
+# Defaults are generated from Processor/Config/MicroArch.yml.
+# Keep the literal source lists below for sv-tests and Xilinx tools.
+include $(abspath $(dir $(lastword $(MAKEFILE_LIST)))MicroArch.inc.mk)
 
 # Keep test selection and compiler flags consistent with the RTL configuration.
 RSD_HAS_FP = $(if $(filter +define+RSD_MARCH_FP_PIPE +define+RSD_MARCH_FP_PIPE=%,$(RSD_SRC_CFG)),1,0)
@@ -24,12 +11,13 @@ RSD_HAS_ZICFILP = $(if $(filter +define+RSD_ENABLE_ZICFILP +define+RSD_ENABLE_ZI
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
 CORE_TEMPLATE_FILES = \
-	Memory/MemoryMapTypes.sv \
+    Config/MicroArchConf.sv \
+	Config/MemoryMapTypes.sv \
 
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	Memory/MemoryTypes.sv \
@@ -211,4 +199,5 @@ TEST_MODULES = \
 HEADERS = \
 	BasicMacros.sv \
 	SysDeps/SynthesisMacros.svh \
+	Config/MicroArchMacros.svh \
 	SysDeps/XilinxMacros.vh \

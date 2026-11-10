@@ -5,9 +5,9 @@ TEST_BENCH_MODULE = Test$(UNIT_NAME)
 SOURCE_ROOT = ../../../
 
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	FloatingPointUnit/FPUTypes.sv \

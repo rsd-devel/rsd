@@ -28,7 +28,7 @@
 # 3. The following remote source files that were added to the original project:-
 #
 #    "/home/matsuo/workspace/rsd/Processor/Src/BasicTypes.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Memory/MemoryMapTypes.sv"
+#    "/home/matsuo/workspace/rsd/Processor/Src/Config/MemoryMapTypes.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Decoder/OpFormat.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Decoder/MicroOp.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Cache/CacheSystemTypes.sv"
@@ -274,10 +274,10 @@ if {[string equal [get_filesets -quiet sources_1] ""]} {
 # Set 'sources_1' fileset object
 set obj [get_filesets sources_1]
 set files [list \
- [file normalize "${origin_dir}/../../../../Src/Memory/MemoryMapTypes.sv"] \
- [file normalize "${origin_dir}/../../../../Src/MicroArchConf.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/Config/MemoryMapTypes.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/Config/MicroArchConf.sv"] \
  [file normalize "${origin_dir}/../../../../Src/BasicTypes.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Memory/MemoryMapTypes.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/Config/MemoryMapTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/RenameLogic/ActiveListIndexTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Cache/CacheSystemTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Memory/MemoryTypes.sv"] \
@@ -449,12 +449,12 @@ set files [list \
 add_files -norecurse -fileset $obj $files
 
 # Set 'sources_1' fileset file properties for remote files
-set file "$origin_dir/../../../../Src/Memory/MemoryMapTypes.sv"
+set file "$origin_dir/../../../../Src/Config/MemoryMapTypes.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
-set file "$origin_dir/../../../../Src/MicroArchConf.sv"
+set file "$origin_dir/../../../../Src/Config/MicroArchConf.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
@@ -464,7 +464,7 @@ set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
-set file "$origin_dir/../../../../Src/Memory/MemoryMapTypes.sv"
+set file "$origin_dir/../../../../Src/Config/MemoryMapTypes.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"

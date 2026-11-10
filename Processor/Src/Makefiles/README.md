@@ -43,6 +43,13 @@ while `test` also builds it. Existing ARM Linux commands are under
 - `CoreSources.inc.mk`: the stable source/configuration manifest. **sv-tests
   parses `TYPES` and `CORE_MODULES` directly**, without evaluating Make. Preserve
   its path, variable names, literal source paths, continuation lines, and order.
+- `GenerateConfig.inc.mk`: regeneration rules for `Config/MemoryMap.yml` and
+  `Config/MicroArch.yml`. `MicroArch.inc.mk` is generated and supplies the shared
+  CPU macro defaults; synthesis uses the generated `Config/MicroArchMacros.svh`.
+  RTL definitions, templates, and synthesis settings live under `Src/Config/`;
+  editable YAML inputs remain under `Processor/Config/`.
+  YAML `overrides.simulation` and `overrides.synthesis` replace common parameters
+  for their mode. Netlist testbenches use `RSD_SYNTHESIS_SRC_CFG` to match synthesis.
 - `Build.inc.mk`: source dependencies and generated RTL rules shared by core
   simulation and synthesis.
 - The main `Makefile`: simulator selection, manual run arguments, TestDriver
@@ -57,8 +64,9 @@ while `test` also builds it. Existing ARM Linux commands are under
 - `Vivado.inc.mk`: shared board implementation and existing PS Linux build rules.
 
 Tool-specific options and output directories stay in their backends. Test
-programs and individual unit tests retain local Makefiles. Generated files stay
-under `Processor/Project`. Verilator units use `Verilator/UnitTest/<unit>`;
+programs and individual unit tests retain local Makefiles. Build products stay
+under `Processor/Project`; generated configuration definitions are kept beside
+the sources and checked into Git for external consumers. Verilator units use `Verilator/UnitTest/<unit>`;
 ModelSim units use `ModelSim/<unit>`.
 
 The dev container supplies environment settings automatically. For manual setup,
@@ -69,5 +77,5 @@ requires `RSD_VIVADO_BIN`. Verilator, Synplify and VCS can use commands from PAT
 RTL/EDA and standalone test-suite entry points include `Environment.inc.mk` first.
 Ordinary test programs initialize it in their shared `TestCode/Makefile.inc`,
 also used by `BuildC.inc.mk`, so individual program Makefiles need no setup.
-Memory-map rules use the initialized environment without loading it again.
+Configuration rules use the initialized environment without loading it again.
 Make's query mode skips the checks so target completion works before setup.

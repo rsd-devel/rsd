@@ -12,9 +12,9 @@ TOOLS_ROOT   = ../../../../Tools/
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	FloatingPointUnit/FPUTypes.sv \
