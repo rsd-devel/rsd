@@ -7,6 +7,7 @@ include ../../Src/Makefiles/CoreSources.inc.mk
 
 all: $(RSD_CONFIG_OUTPUTS)
 	RSD_DC_SOURCE_FILES="$(TYPES) $(CORE_MODULES)" \
+	RSD_DC_DEFINES="$(patsubst +define+%,%,$(RSD_SYNTHESIS_SRC_CFG))" \
 	$(RSD_DC_SHELL_BIN) -f compile.tcl | tee compile.log
 
 clean:
