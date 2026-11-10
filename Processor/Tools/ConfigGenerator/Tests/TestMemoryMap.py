@@ -4,23 +4,25 @@ import sys
 import tempfile
 import unittest
 
-SRC = Path(__file__).resolve().parents[3] / "Src"
+PROCESSOR = Path(__file__).resolve().parents[3]
+SRC = PROCESSOR / "Src"
+CONFIG = PROCESSOR / "Config/MemoryMap.yml"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ConfigGenerator import ConfigError, ProcessorConfig, MemoryMapRenderer, load_config, load_yaml
 
 
 class TestMemoryMap(unittest.TestCase):
     def setUp(self):
-        self.values = copy.deepcopy(load_yaml(SRC / 'MemoryMap.yml'))
+        self.values = copy.deepcopy(load_yaml(CONFIG))
 
     def render(self):
-        return MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        return MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
                                  SRC / 'Memory/MemoryMapTypes.template.sv').render(
                                      (SRC / 'Memory/MemoryMapTypes.template.sv').read_text())
 
     def test_checked_in_output(self):
         self.assertEqual(self.render(), (SRC / 'Memory/MemoryMapTypes.sv').read_text())
-        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         for name, content in renderer.render_software().items():
             self.assertEqual(content, (SRC / 'Verification/TestCode' / name).read_text())
@@ -29,7 +31,7 @@ class TestMemoryMap(unittest.TestCase):
         self.values['memory_map']['regions']['ram']['logical_base'] = 0x90000000
         self.values['PC_GOAL'] = 0x90001004
         config = ProcessorConfig.from_yaml(self.values)
-        renderer = MemoryMapRenderer(config, SRC / 'MemoryMap.yml',
+        renderer = MemoryMapRenderer(config, CONFIG,
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         values = renderer.software_constants()
         self.assertEqual(values['RSD_RAM_BASE'], 0x90000000)
@@ -39,7 +41,7 @@ class TestMemoryMap(unittest.TestCase):
         self.assertEqual(config.memory_byte_size, 0x60000)
 
     def test_template_mismatch(self):
-        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), SRC / 'MemoryMap.yml',
+        renderer = MemoryMapRenderer(ProcessorConfig.from_yaml(self.values), CONFIG,
                                      SRC / 'Memory/MemoryMapTypes.template.sv')
         with self.assertRaises(ConfigError):
             renderer.render('{{ TYPO }}')

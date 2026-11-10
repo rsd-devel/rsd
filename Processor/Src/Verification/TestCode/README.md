@@ -332,7 +332,7 @@ or `test-build-ex`.
 
 ## Memory map
 
-`../../MemoryMap.yml` defines the RTL and shared software addresses.
+[`Processor/Config/MemoryMap.yml`](../../../Config/MemoryMap.yml) defines the RTL and shared software addresses.
 The [configuration generator](../../../Tools/ConfigGenerator/ConfigGenerator.py)
 generates their definitions. Make regenerates the RTL file
 `../../Memory/MemoryMapTypes.sv` and the software files
