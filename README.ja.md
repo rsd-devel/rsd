@@ -83,10 +83,17 @@ make sim/kanata TEST_CODE=Verification/TestCode/C/Fibonacci
 既定のシミュレータはVerilatorです．
 ModelSim/QuestaSimやVivadoも，別途インストールすれば使用できます．
 ModelSim/QuestaSimは`make SIM=modelsim`，XSimは`make SIM=xsim`で選択します．
-テスト実行時も，`make SIM=xsim test/level-1/run`のように同じ`SIM`を指定してください．
 
-テストベンチの構築はDev Container内で行うことを推奨します．
-必要なシミュレータ環境にGNU MakeとPython 3があれば，コンテナの外でもシミュレーションを実行できます．
+テスト用HEXファイルはDev Container内でビルドし，ホスト側にインストールされたVivadoのXSimなどのシミュレータをコンテナの外で実行できます．
+ホスト側にVivado，GNU Make，Python 3.11以上を用意し，同じチェックアウトを使って，ホスト側のリポジトリのルートで次を順に実行します．
+ツールのパスは，環境変数のほか，次のようにmakeの引数でも指定できます．
+
+```bash
+./RunContainer.sh make test/level-1/build  # コンテナ内でテスト用HEXをビルド
+make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN sim/build  # ホスト側でRTL・テストベンチをビルド
+make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN test/level-1/run  # ホスト側でテストを実行
+```
+
 
 ### Xilinx Zynqボードで動かす
 
@@ -100,7 +107,7 @@ ModelSim/QuestaSimは`make SIM=modelsim`，XSimは`make SIM=xsim`で選択しま
 
 Copyright 2019-2026 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors.
 貢献者についてはCREDITS.mdも参照してください．本実装はApache License, Version 2.0のもとで公開されています．
-詳細はLICENSEを参照してください．また，THIRD-PARTY-LICENSES.mdに記載されたライセンスに従い，サードパーティのパッケージを組み込んでいます．
+詳細はLICENSEを参照してください．
 
 ## 参考文献
 

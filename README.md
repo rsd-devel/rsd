@@ -83,10 +83,16 @@ Once setup is complete, use the same `make` commands above from the repository r
 Verilator is the default simulator.
 ModelSim/QuestaSim and Vivado can also be used if installed separately.
 Select ModelSim/QuestaSim with `make SIM=modelsim`, or XSim with `make SIM=xsim`.
-Use the same `SIM` setting when running tests, for example `make SIM=xsim test/level-1/run`.
 
-We recommend building the testbench inside the dev container.
-Simulations can also run outside the container with GNU Make, Python 3, and the required simulator environment.
+You can build test HEX files inside the dev container and run simulations outside it using tools installed on the host, such as Vivado's XSim.
+Install Vivado, GNU Make, and Python 3.11 or newer on the host, then run these commands in order from the host repository root, using the same checkout.
+Tool paths can be set through environment variables or passed as make arguments, as shown below.
+
+```bash
+./RunContainer.sh make test/level-1/build  # Build test HEX files inside the container
+make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN sim/build  # Build the RTL and testbench on the host
+make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN test/level-1/run  # Run tests on the host
+```
 
 ### Run on a Xilinx Zynq board
 
@@ -100,8 +106,7 @@ Simulations can also run outside the container with GNU Make, Python 3, and the 
 
 Copyright 2019-2026 Ryota Shioya (shioya@ci.i.u-tokyo.ac.jp) and RSD contributors,
 see also CREDITS.md. This implementation is released under the Apache License,
-Version 2.0, see LICENSE for details. This implementation integrates third-party
-packages in accordance with the licenses presented in THIRD-PARTY-LICENSES.md.
+Version 2.0, see LICENSE for details.
 
 ## References
 
