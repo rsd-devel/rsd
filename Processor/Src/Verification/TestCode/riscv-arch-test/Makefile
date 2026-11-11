@@ -89,7 +89,7 @@ fetch:
 	fi
 
 check-source:
-	@test -d External/.git || { echo "Run make test-fetch-riscv-arch-test from Processor/Src first." >&2; exit 1; }
+	@test -d External/.git || { echo "Run make test/External/riscv-arch-test/fetch from Processor/Src first." >&2; exit 1; }
 	@test "$$(git -C External rev-parse HEAD)" = "$(ARCH_TEST_REVISION)" || { echo "riscv-arch-test revision differs from ARCH_TEST_REVISION in Makefile." >&2; exit 1; }
 	@git -C External diff --quiet HEAD || { echo "riscv-arch-test External has local changes; preserve or revert them before setup." >&2; exit 1; }
 
@@ -121,7 +121,7 @@ setup: check-source check-platform $(SAIL_BINARY)
 # Check installed tools without downloading or changing the environment.
 check: check-source check-platform
 	@test -x "$(VIRTUAL_ENV)/bin/act" && test -x "$(GEM_HOME)/bin/bundle" && test -x "$(SAIL_BINARY)" || \
-		{ echo "Run make test-setup-riscv-arch-test from Processor/Src first." >&2; exit 1; }
+		{ echo "Run make test/External/riscv-arch-test/setup from Processor/Src first." >&2; exit 1; }
 	"$(VIRTUAL_ENV)/bin/python3" -m pip check
 	$(BUNDLE) check
 	$(BUNDLE) exec udb version
@@ -163,7 +163,7 @@ endif
 
 # Keep all upstream coverpoints; change only the number of testcases per ELF.
 Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
-	@test -x "$(VIRTUAL_ENV)/bin/python3" || { echo "Run make test-setup-riscv-arch-test from Processor/Src first." >&2; exit 1; }
+	@test -x "$(VIRTUAL_ENV)/bin/python3" || { echo "Run make test/External/riscv-arch-test/setup from Processor/Src first." >&2; exit 1; }
 	"$(VIRTUAL_ENV)/bin/python3" -c 'from pathlib import Path; import testgen.generate.unpriv as gen; gen.TESTCASES_PER_FILE = 250; gen.generate_unpriv_extension_tests(32, False, "F", Path("External/testplans"), Path("Build/Generated"))'
 	@printf 'ACT_FP_SOURCES := %s\n' "$$(echo Build/Generated/rv32i/F/*.S)" > "$@.tmp"
 	mv "$@.tmp" "$@"
@@ -194,7 +194,28 @@ config: $(RSD_MEMORY_MAP_OUTPUTS)
 		else mv "$(BUILD_ROOT)/Config/$${file##*/}.tmp" "$(BUILD_ROOT)/Config/$${file##*/}"; fi || exit 1; \
 	done
 
-build: check-source check-selection check config $(filter Build/Generated/%,$(ACT_SELECTED_SOURCES))
+# Reuse prepared ELFs without probing LLVM, Ruby, Sail, or Python packages.
+# Keep source/selection checks, and rebuild when inputs, cases, or ELFs change.
+RSD_ACT_ELFS := $(addprefix $(ACT_ELF_ROOT)/,$(addsuffix .elf,$(ACT_CASES)))
+RSD_ACT_BUILD_STAMP := $(BUILD_ROOT)/act-build.stamp
+RSD_ACT_BUILD_SELECTION := $(strip $(ACT_EXTENSIONS) $(ACT_TESTS))
+ifneq ($(shell cat "$(RSD_ACT_BUILD_STAMP)" 2>/dev/null),$(RSD_ACT_BUILD_SELECTION))
+.PHONY: $(RSD_ACT_BUILD_STAMP)
+endif
+ifneq ($(filter-out $(wildcard $(RSD_ACT_ELFS)),$(RSD_ACT_ELFS)),)
+.PHONY: $(RSD_ACT_BUILD_STAMP)
+endif
+
+build: $(RSD_ACT_BUILD_STAMP)
+	$(MAKE) $(addprefix $(CASE_ROOT)/,$(addsuffix /code.hex,$(ACT_CASES))) \
+		$(addprefix $(CASE_ROOT)/,$(addsuffix /cfg.xml,$(ACT_CASES))) \
+		$(addprefix $(CASE_ROOT)/,$(addsuffix /serial.ref.txt,$(ACT_CASES)))
+
+$(RSD_ACT_BUILD_STAMP): $(ACT_SELECTED_SOURCES) $(RSD_MEMORY_MAP_OUTPUTS) \
+	Makefile test_config.yaml rsd-rv32i.yaml sail.json rvmodel_macros.h link.ld \
+	| check-source check-selection
+	@rm -f "$@"
+	$(MAKE) check config
 # Replace only the staged sources, so narrowing the filter cannot include old tests.
 # Priority tests must allow asynchronous delivery before withdrawing requests.
 # a0 is reserved for the framework; preserve the upstream checks and generators.
@@ -211,9 +232,8 @@ build: check-source check-selection check config $(filter Build/Generated/%,$(AC
 	cp -a External/tests/env "$(BUILD_ROOT)/Tests/"
 	act test_config.yaml --test-dir "$(BUILD_ROOT)/Tests" --coverpoint-dir External/coverpoints \
 		--workdir "$(BUILD_ROOT)/act" --extensions "$(ACT_EXTENSIONS)" --fast --jobs $(JOBS)
-	$(MAKE) $(addprefix $(CASE_ROOT)/,$(addsuffix /code.hex,$(ACT_CASES))) \
-		$(addprefix $(CASE_ROOT)/,$(addsuffix /cfg.xml,$(ACT_CASES))) \
-		$(addprefix $(CASE_ROOT)/,$(addsuffix /serial.ref.txt,$(ACT_CASES)))
+	@for elf in $(RSD_ACT_ELFS); do test -s "$$elf" || exit 1; done
+	@printf '%s\n' "$(RSD_ACT_BUILD_SELECTION)" > "$@"
 
 $(CASE_ROOT)/%/code.hex: $(ACT_ELF_ROOT)/%.elf Makefile $(RSD_MEMORY_MAP_OUTPUTS)
 	mkdir -p "$(@D)"
@@ -285,4 +305,4 @@ run-cases: $(ACT_RESULTS)
 	test "$$failed" -eq 0
 
 clean:
-	rm -rf "$(BUILD_ROOT)/Config" "$(BUILD_ROOT)/Generated" "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log"
+	rm -rf "$(BUILD_ROOT)/Config" "$(BUILD_ROOT)/Generated" "$(BUILD_ROOT)/Tests" "$(BUILD_ROOT)/act" "$(CASE_ROOT)" "$(BUILD_ROOT)/summary.log" "$(RSD_ACT_BUILD_STAMP)"

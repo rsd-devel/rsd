@@ -12,6 +12,10 @@ make test/level-1/run
 Use `test/level-1/clean` to remove their generated files. Individual cases follow
 the source directories, for example `test/Asm/FP/run` and `test/C/HelloWorld/run`.
 Use `test/Asm/build` or `test/C/build` to build one source group.
+Build tools are checked when rebuilding is necessary, so up-to-date artifacts
+can be reused without the cross-compiler or external test build environments.
+Keep the source checkout and intermediate files: copying only HEX files does
+not preserve Make's dependency graph. If inputs changed, rebuild tools are required.
 For `cfg.xml`, execution limits, and result checking, see the
 [TestDriver documentation](../../../Tools/TestDriver/README.md).
 

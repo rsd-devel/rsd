@@ -18,6 +18,9 @@ endif
 # The same Makefile is used inside the output directory.
 ifeq ($(DHRYSTONE_BUILD),1)
 include ../../Makefile.inc
+# Keep dependency-file paths usable both inside and outside the container.
+CRTASM = ../../rsd-crt.s
+LDSRC = ../../rsd-loader.c
 ARCHFLAGS = -march=rv32im_zicsr_zifencei -mabi=ilp32
 LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
 LIBGCC = -lgcc
