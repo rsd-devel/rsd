@@ -146,10 +146,20 @@ $(filter-out $(ACT_INTERRUPT_SOURCES),$(ACT_GENERATED_SOURCES)): Makefile | chec
 	@test -s "$@"
 	touch "$@"
 
-# InterruptsSm emits separate coverpoint files; generate them once under make -j.
-$(ACT_INTERRUPT_SOURCES) &: Makefile | check-source
+# Serialize the coverpoint generator under make -j, including GNU Make 4.2.
+ifneq ($(strip $(ACT_INTERRUPT_SOURCES)),)
+RSD_ACT_INTERRUPT_STAMP := Build/Generated/InterruptsSm.stamp
+$(ACT_INTERRUPT_SOURCES): $(RSD_ACT_INTERRUPT_STAMP)
+ifneq ($(filter-out $(wildcard $(ACT_INTERRUPT_SOURCES)),$(ACT_INTERRUPT_SOURCES)),)
+.PHONY: $(RSD_ACT_INTERRUPT_STAMP)
+endif
+
+$(RSD_ACT_INTERRUPT_STAMP): Makefile | check-source
+	@rm -f "$@"
 	testgen External/testplans -o "$(BUILD_ROOT)/Generated" --extensions InterruptsSm --jobs $(JOBS)
 	@for source in $(ACT_INTERRUPT_SOURCES); do test -s "$$source" && touch "$$source" || exit 1; done
+	@touch -r "$(firstword $(ACT_INTERRUPT_SOURCES))" "$@"
+endif
 
 # Keep all upstream coverpoints; change only the number of testcases per ELF.
 Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
