@@ -284,17 +284,13 @@ class VerilatorSimulationDriver(object):
 class VivadoSimulationDriver(object):
     TOP_MODULE_NAME    = 'TestMain'
     XSIM_LOG_FILE_NAME = 'xsim.log'
-    XELAB_LOG_FILE_NAME = 'xelab.log'
     SOURCE_ROOT        = '../../../Src/'
 
     def __init__(self, projectDirPath, testCodeDirPath, config, options):
         self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
         self.testCodeDirPath = testCodeDirPath  # Test code directory
         self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
-        self.xelabLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XELAB_LOG_FILE_NAME)
         self.xsimPath = os.environ['RSD_VIVADO_BIN'] + '/xsim'
-        self.xelabPath = os.environ['RSD_VIVADO_BIN'] + '/xelab'
-        self.testID = testCodeDirPath.replace("/", "-") # Make test id from testCodeDirPath
 
         self.additionalOptionList = []
         for parameter in config.GetSimulationParameters():
@@ -306,13 +302,20 @@ class VivadoSimulationDriver(object):
 
     # Run simulation
     def RunSimulation(self):
-        cmd = [self.xelabPath, '-relax', '-s', self.testID, self.TOP_MODULE_NAME]
-        RunSimulationCommand(cmd, self.xelabLogPath, self.omitStdout,
-                             self.omitPrintCommand, cwd=self.projectDirPath)
+        import fcntl
 
-        cmd = [self.xsimPath, '-runall'] + self.additionalOptionList + [self.testID]
-        RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
-                             self.omitPrintCommand, cwd=self.projectDirPath)
+        # Reuse sim/build's snapshot. XSim rewrites its startup script at runtime,
+        # so even runs with different plusargs must not share it concurrently.
+        cmd = [self.xsimPath, '-runall', '-nolog'] + self.additionalOptionList + [self.TOP_MODULE_NAME]
+        try:
+            with open(os.path.join(self.projectDirPath, 'xsim.lock'), 'a') as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                RunSimulationCommand(cmd, self.xsimLogPath, self.omitStdout,
+                                     self.omitPrintCommand, cwd=self.projectDirPath)
+        except OSError as error:
+            raise SimulationError("Cannot lock XSim work directory %s: %s. "
+                                  "Run make SIM=xsim sim/build first." %
+                                  (self.projectDirPath, error)) from error
 
     def GetLogPath(self):
         return os.path.normpath(os.path.join(self.projectDirPath, self.xsimLogPath))

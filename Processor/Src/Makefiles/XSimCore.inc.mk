@@ -26,8 +26,8 @@ sim/build: $(CORE_TEMPLATE_FILES) Makefiles/CoreSources.inc.mk
 	mkdir $(PROJECT_WORK) -p
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
+	# Build the shared snapshot once; tests select their programs with plusargs.
+	cd $(PROJECT_WORK) && $(XELAB) -relax -s $(TEST_BENCH_MODULE) work.$(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
 
 sim/run:

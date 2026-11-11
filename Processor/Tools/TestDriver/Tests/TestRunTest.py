@@ -1,5 +1,6 @@
 """Exercise the runner CLI without requiring simulator installations."""
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,13 @@ if os.environ.get('FAKE_TIMING_VIOLATION'):
 if name != 'xelab':
     test_code = next(arg.lstrip('+').split('=', 1)[1] for arg in sys.argv[1:]
                      if arg.lstrip('+').startswith('TEST_CODE='))
+    # Model XSim's shared startup script: overlapping runs can mix plusargs.
+    if os.environ.get('FAKE_SHARED_STATE'):
+        import time
+        shared = Path(os.environ['FAKE_SHARED_STATE'])
+        shared.write_text(test_code)
+        time.sleep(0.25)
+        test_code = shared.read_text()
     test_dir = Path(test_code)
     if not os.environ.get('FAKE_SKIP_REGISTER_DUMP'):
         (test_dir / 'reg.out.hex').write_text('0x00000000\\n' * 65)
@@ -289,16 +297,33 @@ class RunTestProcessTests(unittest.TestCase):
                 self.assert_simulation_failure(result)
                 self.assertIn('exited with status -15', result.stderr)
 
-    def test_elaboration_failure_does_not_start_xsim(self):
-        self.env['FAKE_STATUS_xelab'] = '9'
+    def test_xsim_reuses_built_snapshot_without_elaborator(self):
+        (self.bin_dir / 'xelab').unlink()
         for options in ((), ('-o',)):
             with self.subTest(options=options):
                 result = self.run_runner('vivadosim', *options)
-                self.assert_simulation_failure(result)
-                self.assertIn('exited with status 9', result.stderr)
-                self.assertIn('xelab.log', result.stderr)
-                self.assertEqual([call['name'] for call in self.calls()], ['xelab'])
-                self.assertIn('simulator stderr: xelab', (self.case / 'xelab.log').read_text())
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual([call['name'] for call in self.calls()], ['xsim'])
+                self.assertEqual(self.calls()[0]['args'][-1], 'TestMain')
+                self.assertIn('-nolog', self.calls()[0]['args'])
+                self.assertFalse((self.case / 'xelab.log').exists())
+
+    def test_concurrent_xsim_runs_keep_programs_separate(self):
+        second_case = self.case.with_name('SecondCase')
+        shutil.copytree(self.case, second_case)
+        self.env['FAKE_SHARED_STATE'] = str(self.vivado_cwd / 'startup-script')
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            runs = [pool.submit(
+                subprocess.run,
+                [sys.executable, str(self.runner), '--simulator=vivadosim', '-o',
+                 str(case.relative_to(self.src))],
+                cwd=self.src, env=self.env, capture_output=True, text=True, timeout=10)
+                for case in (self.case, second_case)]
+            for run in runs:
+                result = run.result()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for case in (self.case, second_case):
+            self.assertEqual((case / 'serial.out.txt').read_text(), 'done\n')
 
     def test_missing_executable_is_a_failure(self):
         for simulator, executable in self.executables.items():
@@ -322,7 +347,7 @@ class RunTestProcessTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 calls = self.calls()
                 if simulator == 'vivadosim':
-                    self.assertEqual([call['name'] for call in calls], ['xelab', 'xsim'])
+                    self.assertEqual([call['name'] for call in calls], ['xsim'])
                     self.assertTrue(all(call['cwd'] == str(self.vivado_cwd) for call in calls))
                     args = calls[-1]['args']
                     self.assertEqual(args.count('-testplusarg'), 5)

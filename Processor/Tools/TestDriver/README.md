@@ -52,6 +52,12 @@ that do not report a termination reason. `make sim/run`, `make sim/kanata`, and 
 use Makefile variables rather than `cfg.xml`; pass `MAX_TEST_INSTRUCTIONS`,
 `MAX_NO_COMMIT_CYCLES`, and optionally `MAX_TEST_CYCLES` to override their limits.
 
+For XSim, run `make SIM=xsim sim/build` once before running tests. The runner
+reuses its `TestMain` snapshot and selects each program through runtime arguments.
+XSim updates files inside that snapshot when starting, so the runner serializes
+XSim processes with a file lock even when tests are requested with `make -j`.
+Do not rebuild or start a manual `sim/run`/`sim/gui` while tests are running.
+
 Run the driver tests from the repository root:
 
 ```sh
