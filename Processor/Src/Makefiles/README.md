@@ -53,12 +53,12 @@ while `test` also builds it. Existing ARM Linux commands are under
 - `CoreSources.inc.mk`: the stable source/configuration manifest. **sv-tests
   parses `TYPES` and `CORE_MODULES` directly**, without evaluating Make. Preserve
   its path, variable names, literal source paths, continuation lines, and order.
-- `GenerateConfig.inc.mk`: regeneration rules for `Config/MemoryMap.yml` and
-  `Config/MicroArch.yml`. `MicroArch.inc.mk` is generated and supplies the shared
+- `GenerateConfig.inc.mk`: regeneration rules for `Config/MemoryMap.toml` and
+  `Config/MicroArch.toml`. `MicroArch.inc.mk` is generated and supplies the shared
   CPU macro defaults; synthesis uses the generated `Config/MicroArchMacros.svh`.
   RTL definitions, templates, and synthesis settings live under `Src/Config/`;
-  editable YAML inputs remain under `Processor/Config/`.
-  YAML `overrides.simulation` and `overrides.synthesis` replace common parameters
+  editable TOML inputs remain under `Processor/Config/`.
+  TOML `overrides.simulation` and `overrides.synthesis` replace common parameters
   for their mode. Netlist testbenches use `RSD_SYNTHESIS_SRC_CFG` to match synthesis.
 - `Build.inc.mk`: source dependencies and generated RTL rules shared by core
   simulation and synthesis.

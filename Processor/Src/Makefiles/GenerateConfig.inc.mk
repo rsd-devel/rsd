@@ -22,7 +22,7 @@ ifneq ($(filter-out $(wildcard $(RSD_MEMORY_MAP_OUTPUTS)),$(RSD_MEMORY_MAP_OUTPU
 endif
 
 $(RSD_MEMORY_MAP_STAMP): $(RSD_CONFIG_GENERATOR) \
-	$(RSD_ROOT)/Processor/Config/MemoryMap.yml \
+	$(RSD_ROOT)/Processor/Config/MemoryMap.toml \
 	$(RSD_ROOT)/Processor/Src/Config/MemoryMapTypes.template.sv
 	@rm -f "$@"
 	python3 $(RSD_CONFIG_GENERATOR) --rsd-root $(RSD_ROOT) --only memory-map
@@ -39,7 +39,7 @@ ifneq ($(filter-out $(wildcard $(RSD_MICRO_ARCH_OUTPUTS)),$(RSD_MICRO_ARCH_OUTPU
 endif
 
 $(RSD_MICRO_ARCH_STAMP): $(RSD_CONFIG_GENERATOR) \
-	$(RSD_ROOT)/Processor/Config/MicroArch.yml \
+	$(RSD_ROOT)/Processor/Config/MicroArch.toml \
 	$(RSD_ROOT)/Processor/Src/Config/MicroArchConf.template.sv
 	@rm -f "$@"
 	python3 $(RSD_CONFIG_GENERATOR) --rsd-root $(RSD_ROOT) --only microarch

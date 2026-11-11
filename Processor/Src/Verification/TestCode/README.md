@@ -74,7 +74,7 @@ cases. For benchmark scores, use the `bench/*/run` targets described below.
 
 ## FP test selection
 
-`enable_fp_pipe: true` in [MicroArch.yml](../../../Config/MicroArch.yml) enables
+`enable_fp_pipe = true` in [MicroArch.toml](../../../Config/MicroArch.toml) enables
 the assembly and C FP tests in `test/level-1/run`. Setting it to `false` makes basic builds omit FP
 tests and use `rv32ima` instead of `rv32imaf`; explicitly requesting an FP
 test fails. When changing the configuration, clean and rebuild both the
@@ -83,11 +83,11 @@ then rebuild with the same `RSD_SRC_CFG` used to run the tests).
 
 ## CFI test selection
 
-`enable_zicfilp: true` in [MicroArch.yml](../../../Config/MicroArch.yml)
+`enable_zicfilp = true` in [MicroArch.toml](../../../Config/MicroArch.toml)
 enables landing-pad protection and its `test/level-1/run` test. Set it to `false`
 to build without CFI; an explicit `test/Asm/LandingPad/run` request then fails.
 Clean and rebuild the simulator and basic test programs when changing this
-configuration, as for FP above. The YAML settings also generate the synthesis
+configuration, as for FP above. The TOML settings also generate the synthesis
 macros. A command-line `RSD_SRC_CFG` override affects simulation and software
 builds only; omit a macro to disable it rather than defining it as `0`.
 
@@ -339,7 +339,7 @@ or `test/ex/build`.
 
 ## Memory map
 
-[`Processor/Config/MemoryMap.yml`](../../../Config/MemoryMap.yml) defines the RTL and shared software addresses.
+[`Processor/Config/MemoryMap.toml`](../../../Config/MemoryMap.toml) defines the RTL and shared software addresses.
 The [configuration generator](../../../Tools/ConfigGenerator/ConfigGenerator.py)
 generates their definitions. Make regenerates the RTL file
 `../../Config/MemoryMapTypes.sv` and the software files

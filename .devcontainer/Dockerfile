@@ -54,10 +54,5 @@ RUN cd verilator \
     && make -j$(nproc) \
     && make install
 
-# Ubuntu protects system Python from pip installs. Keep RSD's Python
-# requirements in a virtual environment, available to commands and login shells.
-ENV VIRTUAL_ENV=/opt/rsd-venv
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
-COPY requirements.txt /workspaces/requirements.txt
-RUN python3 -m venv "$VIRTUAL_ENV" \
-    && pip3 install --no-cache-dir -r /workspaces/requirements.txt
+# RSD configuration generation uses only the Python 3.11+ standard library.
+# External test suites install their dependencies through their setup targets.

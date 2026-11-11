@@ -11,7 +11,7 @@ The key features of RSD are as follows:
     * Support Zephyr applications
 * Microarchitecture
     * Build-time configurable pipeline widths, queue/register counts, and cache parameters
-        * Configure defaults in [MicroArch.yml](Processor/Config/MicroArch.yml); derived parameters are in [Config/MicroArchConf.template.sv](Processor/Src/Config/MicroArchConf.template.sv)
+        * Configure defaults in [MicroArch.toml](Processor/Config/MicroArch.toml); derived parameters are in [Config/MicroArchConf.template.sv](Processor/Src/Config/MicroArchConf.template.sv)
     * Default configuration: 2-wide fetch, up to 6-wide issue, and a 64-entry reorder buffer
     * A high-speed speculative instruction scheduler with a replay mechanism
     * Speculative OoO load/store execution and dynamic memory disambiguation
@@ -73,9 +73,9 @@ Open the generated `Processor/Src/Kanata.log` with [Konata](https://github.com/s
 Use the dev container configuration as the reference for manual setup:
 
 1. Follow the base OS, package installation, and tool build steps in [.devcontainer/Dockerfile](.devcontainer/Dockerfile), including its specified tool versions.
-2. Install the Python dependencies from [.devcontainer/requirements.txt](.devcontainer/requirements.txt).
-3. Copy [SetEnv.sh](Processor/Tools/SetEnv/SetEnv.sh) to `Processor/Tools/SetEnv/MySetEnv.sh`, edit the tool paths, and run `source Processor/Tools/SetEnv/MySetEnv.sh`. The template also lists optional EDA tool settings. Missing required settings produce a make error.
+2. Copy [SetEnv.sh](Processor/Tools/SetEnv/SetEnv.sh) to `Processor/Tools/SetEnv/MySetEnv.sh`, edit the tool paths, and run `source Processor/Tools/SetEnv/MySetEnv.sh`. The template also lists optional EDA tool settings. Missing required settings produce a make error.
 
+RSD configuration generation requires Python 3.11 or newer, with no third-party Python packages.
 Then, from the repository root, use the same `make` commands above.
 ModelSim/QuestaSim and Vivado are also supported with separate installations;
 see the [environment settings](https://github.com/rsd-devel/rsd/wiki/en-devel-environment-variables).

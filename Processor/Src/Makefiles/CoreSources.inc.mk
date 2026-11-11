@@ -1,5 +1,5 @@
 
-# Defaults are generated from Processor/Config/MicroArch.yml.
+# Defaults are generated from Processor/Config/MicroArch.toml.
 # Keep the literal source lists below for sv-tests and Xilinx tools.
 include $(abspath $(dir $(lastword $(MAKEFILE_LIST)))MicroArch.inc.mk)
 

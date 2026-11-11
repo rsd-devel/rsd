@@ -7,12 +7,12 @@ import unittest
 PROCESSOR = Path(__file__).resolve().parents[3]
 SRC = PROCESSOR / "Src"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ConfigGenerator import ConfigError, load_yaml, render_micro_arch
+from ConfigGenerator import ConfigError, load_toml, render_micro_arch
 
 
 class TestMicroArch(unittest.TestCase):
     def setUp(self):
-        self.values = copy.deepcopy(load_yaml(PROCESSOR / "Config/MicroArch.yml"))
+        self.values = copy.deepcopy(load_toml(PROCESSOR / "Config/MicroArch.toml"))
         self.template = (SRC / "Config/MicroArchConf.template.sv").read_text()
 
     def render(self):
