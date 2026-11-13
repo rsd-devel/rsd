@@ -6,7 +6,8 @@ include Makefiles/GenerateConfig.inc.mk
 # Keep this manifest in place with literal TYPES/CORE_MODULES lists for sv-tests.
 include Makefiles/CoreSources.inc.mk
 
-DEPS_RTL = $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
+DEPS_RTL = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES)))
 
-# The manifest stays relative for sv-tests; share the absolute generation rule.
-$(CORE_TEMPLATE_FILES): $(RSD_CONFIG_OUTPUTS)
+# Use the generator's absolute paths so each output has a single make target.
+# Keep the source manifest itself relative for sv-tests.
+CORE_TEMPLATE_FILES := $(abspath $(CORE_TEMPLATE_FILES))

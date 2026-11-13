@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate RTL and build definitions from Processor/Config/*.yml."""
+"""Generate RTL and build definitions from Processor/Config/*.toml."""
 
 from __future__ import annotations
 
@@ -10,43 +10,27 @@ from enum import Enum
 from pathlib import Path
 import re
 import sys
+import tomllib
 
-import yaml
 
-
-# YAML loading and validation
+# TOML loading and validation
 
 class ConfigError(Exception):
     pass
 
 
-YamlMapping = Mapping[str, object]
+ConfigMapping = Mapping[str, object]
 
 _MISSING = object()
 
 
-def validate_keys(values: YamlMapping, allowed: tuple[str, ...], path: str) -> None:
+def validate_keys(values: ConfigMapping, allowed: tuple[str, ...], path: str) -> None:
     unknown = values.keys() - set(allowed)
     if unknown:
         raise ConfigError(f"{path}: unknown keys: {', '.join(sorted(unknown))}")
 
 
-class UniqueKeyLoader(yaml.SafeLoader):
-    # A misspelled or repeated setting must not silently change the hardware.
-    def construct_mapping(self, node, deep=False):
-        self.flatten_mapping(node)
-        values = {}
-        for key_node, value_node in node.value:
-            key = self.construct_object(key_node, deep=deep)
-            if not isinstance(key, str):
-                raise ConfigError("YAML mapping keys must be strings")
-            if key in values:
-                raise ConfigError(f"duplicate YAML key: {key}")
-            values[key] = self.construct_object(value_node, deep=deep)
-        return values
-
-
-def require_mapping(value: object, path: str) -> YamlMapping:
+def require_mapping(value: object, path: str) -> ConfigMapping:
     if not isinstance(value, Mapping):
         raise ConfigError(f"{path} must be a mapping")
     for key in value:
@@ -55,7 +39,7 @@ def require_mapping(value: object, path: str) -> YamlMapping:
     return value
 
 
-def read_value(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> object:
+def read_value(values: ConfigMapping, key: str, path: str, default: object = _MISSING) -> object:
     if key in values:
         return values[key]
     if default is _MISSING:
@@ -63,18 +47,18 @@ def read_value(values: YamlMapping, key: str, path: str, default: object = _MISS
     return default
 
 
-def read_mapping(values: YamlMapping, key: str, path: str) -> YamlMapping:
+def read_mapping(values: ConfigMapping, key: str, path: str) -> ConfigMapping:
     child_path = f"{path}.{key}"
     return require_mapping(read_value(values, key, path), child_path)
 
 
-def read_optional_mapping(values: YamlMapping, key: str, path: str) -> YamlMapping | None:
+def read_optional_mapping(values: ConfigMapping, key: str, path: str) -> ConfigMapping | None:
     if key not in values:
         return None
     return require_mapping(values[key], f"{path}.{key}")
 
 
-def read_string(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> str:
+def read_string(values: ConfigMapping, key: str, path: str, default: object = _MISSING) -> str:
     child_path = f"{path}.{key}"
     value = read_value(values, key, path, default)
     if not isinstance(value, str):
@@ -84,15 +68,15 @@ def read_string(values: YamlMapping, key: str, path: str, default: object = _MIS
 
 def require_integer(value: object, path: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise ConfigError(f"{path} must be a YAML integer")
+        raise ConfigError(f"{path} must be an integer")
     return value
 
 
-def read_integer(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> int:
+def read_integer(values: ConfigMapping, key: str, path: str, default: object = _MISSING) -> int:
     return require_integer(read_value(values, key, path, default), f"{path}.{key}")
 
 
-def read_boolean(values: YamlMapping, key: str, path: str, default: object = _MISSING) -> bool:
+def read_boolean(values: ConfigMapping, key: str, path: str, default: object = _MISSING) -> bool:
     child_path = f"{path}.{key}"
     value = read_value(values, key, path, default)
     if not isinstance(value, bool):
@@ -100,11 +84,12 @@ def read_boolean(values: YamlMapping, key: str, path: str, default: object = _MI
     return value
 
 
-def load_yaml(path: Path) -> YamlMapping:
+def load_toml(path: Path) -> ConfigMapping:
     try:
-        value = yaml.load(path.read_text(encoding="utf-8"), Loader=UniqueKeyLoader)
-    except yaml.YAMLError as exc:
-        raise ConfigError(f"{path}: invalid YAML: {exc}") from exc
+        with path.open("rb") as source:
+            value = tomllib.load(source)
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"{path}: invalid TOML: {exc}") from exc
     return require_mapping(value, "config")
 
 
@@ -146,7 +131,7 @@ class Register:
     offset: int
 
     @classmethod
-    def from_yaml(cls, name: str, value: object, region_size: int, path: str) -> "Register":
+    def from_mapping(cls, name: str, value: object, region_size: int, path: str) -> "Register":
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ConfigError(f"{path} must be a valid C/SystemVerilog identifier")
         offset = require_integer(value, path)
@@ -169,7 +154,7 @@ class Region:
     registers: tuple[Register, ...]
 
     @classmethod
-    def from_yaml(cls, key: str, values: YamlMapping, path: str,
+    def from_mapping(cls, key: str, values: ConfigMapping, path: str,
                   raw_address_width: int) -> "Region":
         if not re.fullmatch(r"[a-z][a-z0-9_]*", key):
             raise ConfigError(f"{path}: region keys must use lowercase letters, digits and underscores")
@@ -226,7 +211,7 @@ class Region:
             raise ConfigError(f"{path}.physical_base does not fit in PHY_RAW_ADDR_WIDTH")
 
     @staticmethod
-    def resolve_address_bit_width(values: YamlMapping, path: str, region_type: RegionType,
+    def resolve_address_bit_width(values: ConfigMapping, path: str, region_type: RegionType,
                                   translation: Translation, logical_base: int, size: int,
                                   raw_address_width: int) -> int:
         if "addr_bit_width" in values:
@@ -246,12 +231,12 @@ class Region:
         return width
 
     @staticmethod
-    def parse_registers(values: YamlMapping | None, region_size: int,
+    def parse_registers(values: ConfigMapping | None, region_size: int,
                         path: str) -> tuple[Register, ...]:
         if values is None:
             return ()
         return tuple(
-            Register.from_yaml(name, value, region_size, f"{path}.{name}")
+            Register.from_mapping(name, value, region_size, f"{path}.{name}")
             for name, value in values.items()
         )
 
@@ -331,7 +316,7 @@ REQUIRED_REGIONS = (
 )
 
 
-def validate_required_regions(regions: YamlMapping, path: str) -> None:
+def validate_required_regions(regions: ConfigMapping, path: str) -> None:
     for key, region_type, required_registers in REQUIRED_REGIONS:
         region_path = f"{path}.{key}"
         region = read_mapping(regions, key, path)
@@ -354,7 +339,7 @@ class ProcessorConfig:
     regions: tuple[Region, ...]
 
     @classmethod
-    def from_yaml(cls, values: YamlMapping, path: str = "config") -> "ProcessorConfig":
+    def from_mapping(cls, values: ConfigMapping, path: str = "config") -> "ProcessorConfig":
         validate_keys(values, ("insn_reset_vector", "pc_goal", "memory_map"), path)
         reset_vector = read_integer(values, "insn_reset_vector", path)
         pc_goal = read_integer(values, "pc_goal", path)
@@ -368,7 +353,7 @@ class ProcessorConfig:
         region_values = read_mapping(memory_map, "regions", map_path)
         validate_required_regions(region_values, regions_path)
         regions = tuple(
-            Region.from_yaml(key, require_mapping(value, f"{regions_path}.{key}"),
+            Region.from_mapping(key, require_mapping(value, f"{regions_path}.{key}"),
                              f"{regions_path}.{key}", physical_width - 2)
             for key, value in region_values.items()
         )
@@ -427,7 +412,7 @@ class ProcessorConfig:
 
 
 def load_config(path: Path) -> ProcessorConfig:
-    return ProcessorConfig.from_yaml(load_yaml(path))
+    return ProcessorConfig.from_mapping(load_toml(path))
 
 
 # RTL and software output
@@ -527,7 +512,7 @@ class MemoryMapRenderer:
 
     def render_software(self) -> dict[str, str]:
         constants = self.software_constants()
-        notice = "Generated from Config/MemoryMap.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
+        notice = "Generated from Config/MemoryMap.toml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
         # DTS unit addresses are tokens without the 0x prefix used by C/assembly.
         unit_addresses = {}
         for name in ("RSD_ROM_BASE", "RSD_RAM_BASE", "RSD_CLINT_TIMER_LOW"):
@@ -657,7 +642,7 @@ MICRO_ARCH_PARAMETERS = (
     "ICACHE_WAY_NUM", "ICACHE_LINE_BYTE_NUM",
     "DCACHE_INDEX_BIT_WIDTH_BASE", "ICACHE_INDEX_BIT_WIDTH_BASE", "INT_ISSUE_WIDTH",
 )
-# The YAML describes settings; preprocessor names are an RTL implementation detail.
+# The configuration describes settings; preprocessor names are an RTL implementation detail.
 MICRO_ARCH_FEATURES = {
     "enable_fp_pipe": "RSD_MARCH_FP_PIPE",
     "enable_zba": "RSD_ENABLE_ZBA",
@@ -668,7 +653,7 @@ MICRO_ARCH_FEATURES = {
 }
 
 
-def validate_micro_arch(parameters: YamlMapping) -> tuple[dict[str, int], dict[str, str | None]]:
+def validate_micro_arch(parameters: ConfigMapping) -> tuple[dict[str, int], dict[str, str | None]]:
     validate_keys(parameters, (*(name.lower() for name in MICRO_ARCH_PARAMETERS), *MICRO_ARCH_FEATURES,
                                "enable_performance_counter"), "parameters")
     params = {name: read_integer(parameters, name.lower(), "parameters")
@@ -710,7 +695,7 @@ def validate_micro_arch(parameters: YamlMapping) -> tuple[dict[str, int], dict[s
     return params, macros
 
 
-def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
+def render_micro_arch(values: ConfigMapping, template: str) -> dict[str, str]:
     validate_keys(values, ("parameters", "overrides"), "MicroArch")
     parameters = read_mapping(values, "parameters", "MicroArch")
     validate_micro_arch(parameters)
@@ -740,7 +725,7 @@ def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
                        f"`elsif RSD_POST_SYNTHESIS_SIMULATION\n{synth}"
                        f"`else\n{sim}`endif\n")
 
-    notice = "Generated from Config/MicroArch.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
+    notice = "Generated from Config/MicroArch.toml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit."
     make_lines = [f"# {notice}"]
     for mode, variable in (("simulation", "RSD_SRC_CFG"), ("synthesis", "RSD_SYNTHESIS_SRC_CFG")):
         flags = " ".join(f"+define+{name}" + (f"={value}" if value is not None else "")
@@ -759,7 +744,7 @@ def render_micro_arch(values: YamlMapping, template: str) -> dict[str, str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate RTL and build definitions from Processor/Config/*.yml."
+        description="Generate RTL and build definitions from Processor/Config/*.toml."
     )
     parser.add_argument("--rsd-root", required=True, type=Path, help="RSD repository root")
     parser.add_argument("--only", choices=("memory-map", "microarch"),
@@ -767,7 +752,7 @@ def main() -> int:
     args = parser.parse_args()
     processor_root = args.rsd_root / "Processor"
     source_root = processor_root / "Src"
-    config_path = processor_root / "Config" / "MemoryMap.yml"
+    config_path = processor_root / "Config" / "MemoryMap.toml"
     template_path = source_root / "Config" / "MemoryMapTypes.template.sv"
     output_path = source_root / "Config" / "MemoryMapTypes.sv"
 
@@ -781,7 +766,7 @@ def main() -> int:
             outputs.update({source_root / "Verification/TestCode" / name: content
                             for name, content in renderer.render_software().items()})
         if args.only in (None, "microarch"):
-            values = load_yaml(processor_root / "Config/MicroArch.yml")
+            values = load_toml(processor_root / "Config/MicroArch.toml")
             template = (source_root / "Config/MicroArchConf.template.sv").read_text(encoding="utf-8")
             outputs.update({source_root / name: content
                             for name, content in render_micro_arch(values, template).items()})

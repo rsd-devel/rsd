@@ -1,4 +1,5 @@
 # XSim RTL backend, included by the main Makefile.
+.PHONY: sim/build sim/run sim/gui sim/kanata sim/clean
 SIM_REQUIRED_ENV = RSD_VIVADO_BIN
 SOURCE_ROOT = $(RSD_ROOT)/Processor/Src/
 TEST_CODE = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
@@ -21,25 +22,25 @@ XSIM_OPTIONS = $(addprefix -testplusarg ,$(SIM_PLUSARGS) RSD_LOG_FILE=$(RSD_LOG_
 
 # Vivado sim may require the following additonal components:
 # sudo apt install libncurses5 libtinfo5
-all: $(CORE_TEMPLATE_FILES) Makefiles/CoreSources.inc.mk
+sim/build: $(CORE_TEMPLATE_FILES) Makefiles/CoreSources.inc.mk
 	mkdir $(PROJECT_WORK) -p
 	# compile
 	cd $(PROJECT_WORK) && $(XVLOG) -sv $(XVLOG_OPTIONS) -i $(SOURCE_ROOT) $(DEPS_RTL)
-	# elaboration
-	cd $(PROJECT_WORK) && $(XELAB) -relax $(TEST_BENCH_MODULE)
+	# Build the shared snapshot once; tests select their programs with plusargs.
+	cd $(PROJECT_WORK) && $(XELAB) -relax -s $(TEST_BENCH_MODULE) work.$(TEST_BENCH_MODULE)
 	@echo "==== Build Successful ===="
 
-run:
+sim/run:
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -runall $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
-run-gui:
+sim/gui:
 	# simulation
 	cd $(PROJECT_WORK) && $(XSIM) -gui $(XSIM_OPTIONS) $(TEST_BENCH_MODULE)
 
-kanata:
+sim/kanata:
 	$(KANATA_CONVERTER) $(PROJECT_WORK)/$(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
-clean:
+sim/clean:
 	rm -r -f $(PROJECT_WORK)
 	rm -f $(CORE_TEMPLATE_FILES)

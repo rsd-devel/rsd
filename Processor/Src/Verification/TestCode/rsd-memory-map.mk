@@ -1,4 +1,4 @@
-# Generated from Config/MemoryMap.yml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit.
+# Generated from Config/MemoryMap.toml by Tools/ConfigGenerator/ConfigGenerator.py. Do not edit.
 RSD_RESET_VECTOR := 4096
 RSD_PC_GOAL := 2147487748
 RSD_ROM_BASE := 4096

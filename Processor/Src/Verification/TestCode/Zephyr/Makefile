@@ -40,7 +40,7 @@ fetch:
 	fi
 
 check-source:
-	@test -d External/zephyr/.git || { echo "Run make test-fetch-Zephyr from Processor/Src first." >&2; exit 1; }
+	@test -d External/zephyr/.git || { echo "Run make test/External/Zephyr/fetch from Processor/Src first." >&2; exit 1; }
 	@test "$$(git -C External/zephyr rev-parse HEAD)" = "$(ZEPHYR_REVISION)" || { echo "Zephyr revision differs from ZEPHYR_REVISION in Makefile." >&2; exit 1; }
 	@git -C External/zephyr diff --quiet HEAD || { echo "Zephyr External has local changes; preserve or revert them before building." >&2; exit 1; }
 
@@ -51,7 +51,7 @@ setup: check-source
 	$(MAKE) check
 
 check: check-source
-	@test -x "$(VENV_PYTHON)" || { echo "Run make test-setup-Zephyr from Processor/Src first." >&2; exit 1; }
+	@test -x "$(VENV_PYTHON)" || { echo "Run make test/External/Zephyr/setup from Processor/Src first." >&2; exit 1; }
 	"$(VENV_PYTHON)" -m pip check
 	"$(VENV_PYTHON)" -c 'import elftools, yaml, packaging, jsonschema, pykwalify'
 	@for tool in cmake ninja gperf dtc "$(CROSS_COMPILE)gcc" "$(CROSS_COMPILE)objcopy"; do \
@@ -61,7 +61,8 @@ check: check-source
 # The upstream sample and kernel use RSD's out-of-tree board/SoC unchanged.
 # Zephyr 4.4 needs the module scanner's generated Kconfig includes. Passing
 # ZEPHYR_BASE runs that scanner, which excludes Zephyr itself from the modules.
-$(ELFS): Build/%/zephyr/zephyr.elf: Makefile $(PORT_FILES) $(RSD_MEMORY_MAP_OUTPUTS) | check
+$(ELFS): Build/%/zephyr/zephyr.elf: Makefile $(PORT_FILES) $(RSD_MEMORY_MAP_OUTPUTS)
+	$(MAKE) check
 	cmake -S "$(ZEPHYR_BASE)/samples/$(SAMPLE_$*)" -B Build/$* -G Ninja \
 		-DBOARD=rsd/rsd -DBOARD_ROOT="$(CURDIR)" -DSOC_ROOT="$(CURDIR)" \
 		-DUSER_CACHE_DIR="$(CURDIR)/Build/cache" \

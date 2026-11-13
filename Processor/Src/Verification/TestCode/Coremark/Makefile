@@ -12,6 +12,9 @@ endif
 # The same Makefile is used inside each output directory.
 ifneq ($(COREMARK_ARCH),)
 include ../../Makefile.inc
+# Keep dependency-file paths usable both inside and outside the container.
+CRTASM = ../../rsd-crt.s
+LDSRC = ../../rsd-loader.c
 ARCHFLAGS = -march=$(COREMARK_ARCH)_zicsr_zifencei -mabi=ilp32
 LIBRARY_ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
 # This integer-only port needs GCC helpers, but no libc or math library.

@@ -2,13 +2,21 @@
 .DEFAULT_GOAL := all
 # Generate configuration types and constants needed by individual unit tests.
 include $(SOURCE_ROOT)Makefiles/GenerateConfig.inc.mk
-$(addprefix $(SOURCE_ROOT),Config/MemoryMapTypes.sv Config/MicroArchConf.sv): $(RSD_CONFIG_OUTPUTS)
+# Match the absolute output targets in GenerateConfig.inc.mk.
+DEPS_RTL = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES)))
 SIM ?= verilator
 UNIT_SIM ?= $(SIM)
 
 ifeq ($(UNIT_SIM),modelsim)
 PROJECT_WORK ?= $(SOURCE_ROOT)../Project/ModelSim
 include $(SOURCE_ROOT)Makefiles/ModelSim.inc.mk
+# Preserve the standalone unit-test entry points.
+.PHONY: all default rtl run rtl-run run-gui rtl-run-gui clean rtl-clean
+all default rtl: sim/build
+run rtl-run: sim/run
+run-gui rtl-run-gui: sim/gui
+clean: sim/clean
+rtl-clean: sim/rtl/clean
 else ifeq ($(UNIT_SIM),verilator)
 PROJECT_WORK ?= $(SOURCE_ROOT)../Project/Verilator/UnitTest
 LIBRARY_WORK_RTL = $(PROJECT_WORK)/$(UNIT_NAME)
@@ -18,7 +26,6 @@ RSD_VERILATOR_DEFINITION = +define+RSD_FUNCTIONAL_SIMULATION $(filter +define+% 
 include $(SOURCE_ROOT)Makefiles/Verilator.inc.mk
 # Small unit testbenches do not all declare a timescale.
 VERILATOR_DISABLED_WARNING += -Wno-TIMESCALEMOD
-DEPS_RTL = $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
 
 .PHONY: all default rtl test run rtl-run clean rtl-clean
 all default: rtl

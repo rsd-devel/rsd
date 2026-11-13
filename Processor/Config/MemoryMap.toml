@@ -1,0 +1,171 @@
+# Static address map shared by the RTL and software/test builds.
+# Outputs (paths relative to Processor):
+#   Src/Config/MemoryMapTypes.sv: localparams/functions in package MemoryMapTypes.
+#   Src/Verification/TestCode/rsd-memory-map.h: C/assembly preprocessor defines.
+#   Src/Verification/TestCode/rsd-memory-map.ld: linker-script symbols.
+#   Src/Verification/TestCode/rsd-memory-map.mk: Make variables.
+# "Software" below means the same RSD_* names in .h, .ld, and .mk.
+# The header also supplies RSD_ROM_BASE_HEX, RSD_RAM_BASE_HEX, and
+# RSD_CLINT_TIMER_LOW_HEX: hexadecimal tokens without 0x for DTS unit addresses.
+# This maps logical addresses to internal memory/IO addresses; it is not MMU paging.
+# Make regenerates the tracked definitions. Before launching tools directly, run:
+# python3 Processor/Tools/ConfigGenerator/ConfigGenerator.py --rsd-root .
+
+# Instruction addresses are logical byte addresses, aligned to 4 bytes and
+# located within a memory region.
+
+# Address of the first instruction fetched after reset.
+# SV: INSN_RESET_VECTOR; software: RSD_RESET_VECTOR.
+insn_reset_vector = 0x0000_1000
+
+# Completion address used by the optional simulation PC-goal check and the LED.
+# ENABLE_PC_GOAL controls simulation termination; this is not a hardware halt.
+# The testbench compares only the low LED_WIDTH bits of the last committed PC.
+# SV: PC_GOAL; software: RSD_PC_GOAL.
+pc_goal = 0x8000_1004
+
+[memory_map]
+# Total internal physical address width in bits (3..34), including the
+# isUncachable and isIO flags. The raw byte address uses the remaining bits:
+# 24 here means 22 raw address bits, not 24 bits of backing memory.
+# SV: PHY_ADDR_WIDTH=24, PHY_RAW_ADDR_WIDTH=22; these determine PhyAddrPath
+# and PhyRawAddrPath. The template derives *_BIT_SIZE and *_BYTE_WIDTH as well.
+# No corresponding software constant is emitted.
+physical_address_width = 24
+
+[memory_map.pc]
+# Compress stored PCs to the sign bit plus low address bits to reduce area.
+# Every memory region must fit that representation; false keeps full RV32 PCs.
+# true emits the RSD_NARROW_PC macro; false leaves it undefined.
+narrow = false
+# Compressed width including the sign bit (2..32); ignored when narrow=false.
+# The current map needs at least 20 bits if compression is enabled.
+# SV: PC_WIDTH=width when narrow=true, otherwise PC_WIDTH=ADDR_WIDTH (32).
+# PC_Path uses PC_WIDTH bits; PC_TAG=ADDR_WIDTH-PC_WIDTH is derived in SV.
+width = 19
+
+# Region keys determine all constant names: uppercase K produces SV prefixes
+# LOG_ADDR_K / PHY_ADDR_K and the software prefix RSD_K (e.g. ram -> RAM).
+# Shared fields:
+#   type: memory uses backing storage; io is decoded by IO_Unit/PLIC_Unit.
+#   name: descriptive label used in generated comments.
+#   logical_base: first visible RV32 byte address; logical ranges must not overlap.
+#   physical_base: additive base in the internal raw address space (without flags).
+#   size: positive byte count; generated END addresses are inclusive (base+size-1).
+#   translation: low_bits adds the low N logical address bits to physical_base;
+#                relative adds (logical_address - logical_base) instead.
+#   addr_bit_width: optional N for low_bits; normally inferred by the generator.
+#                   A low_bits region must not wrap its 2^N-byte window;
+#                   IO logical_base must be aligned to that window.
+#   uncachable: bypass the data cache; defaults to false for memory and true for IO.
+#   registers: IO register byte offsets from logical_base, each within the region.
+#              Keys become constant suffixes; address formulas/strides stay in RTL.
+# Translated ranges must fit the raw address width. IO has a separate address
+# space and does not contribute to the required backing-memory capacity.
+# Backing storage must cover the highest translated memory byte, including holes.
+# SV: MEMORY_MAP_BYTE_SIZE = max(translated memory END)+1, currently 0x60000
+# (384 KiB). This capacity constant is not emitted into the software files.
+#
+# Generated names for uppercased region key K, using L=LOG_ADDR_K and P=PHY_ADDR_K:
+#   logical_base -> SV L_BASE / L_BEGIN; software RSD_K_BASE.
+#   size         -> software RSD_K_SIZE; also used to calculate END constants.
+#   logical_base+size-1 -> SV L_END; software RSD_K_END.
+#   addr_bit_width (explicit/inferred N) -> SV L_ADDR_BIT_WIDTH.
+#   physical_base -> SV P_BASE (the additive translation base).
+#   translated last byte -> SV P_END; software RSD_K_PHYSICAL_END.
+#   translated first byte -> software RSD_K_PHYSICAL_BASE.
+#   registers.REG=offset -> SV L_REG and software RSD_K_REG (logical_base+offset),
+#                           SV P_REG (the translated register address).
+# Software PHYSICAL_BASE is therefore not always equal to SV P_BASE.
+# Neither registers' raw offsets nor an SV L_SIZE/P_BEGIN constant are emitted.
+# type selects the MMT_MEMORY/MMT_IO result in GetMemoryMapType(); translation
+# and uncachable select the address expression/flags in ToPhyAddrFromLogical().
+# These settings generate function bodies rather than standalone constants.
+# Startup/loader region: 60 KiB at logical 0x1000..0xffff.
+# low_bits preserves the initial 0x1000 offset even though physical_base is 0.
+# Example: PHY_ADDR_ROM_BASE=0, but RSD_ROM_PHYSICAL_BASE=0x1000.
+[memory_map.regions.rom]
+type = "memory"
+name = "Section 0 (ROM)"
+logical_base = 0x0000_1000
+physical_base = 0x0_0000
+size = 0x0000_f000
+translation = "low_bits"
+uncachable = false
+
+# Main code/data region: 256 KiB, mapped to raw addresses 0x10000..0x4ffff.
+[memory_map.regions.ram]
+type = "memory"
+name = "Section 1 (RAM)"
+logical_base = 0x8000_0000
+physical_base = 0x1_0000
+size = 0x0004_0000
+translation = "low_bits"
+uncachable = false
+
+# Uncached memory: 64 KiB, mapped to raw addresses 0x50000..0x5ffff.
+# low_bits retains logical bit 18, adding 0x40000 to physical_base=0x10000.
+# This is separate storage from the main RAM region, not a cache-bypass alias.
+# PHY_ADDR_UNCACHABLE_BASE=0x10000; RSD_UNCACHABLE_PHYSICAL_BASE=0x50000.
+[memory_map.regions.uncachable]
+type = "memory"
+name = "Uncachable section (RAM)"
+logical_base = 0x8004_0000
+physical_base = 0x1_0000
+size = 0x0001_0000
+translation = "low_bits"
+uncachable = true
+
+# Serial output port. Only the output address is decoded; size is not a buffer size.
+[memory_map.regions.serial]
+type = "io"
+name = "Serial IO"
+logical_base = 0x4000_2000
+physical_base = 0x0_2000
+size = 1
+translation = "low_bits"
+[memory_map.regions.serial.registers]
+# Writing this register forwards output data to the serial interface.
+OUTPUT = 0
+
+# Core-local software interrupt and timer registers, using RSD's register layout.
+# IO defaults to uncachable even when the field is omitted.
+[memory_map.regions.clint]
+type = "io"
+name = "CLINT"
+logical_base = 0x4001_0000
+physical_base = 0x0_0000
+size = 0x8000
+translation = "low_bits"
+[memory_map.regions.clint.registers]
+# Machine software-interrupt pending control.
+MSIP = 0
+# Low/high 32-bit halves of the 64-bit timer.
+TIMER_LOW = 0x7ff8
+TIMER_HI = 0x7ffc
+# Low/high 32-bit halves of the 64-bit timer compare value.
+TIMER_CMP_LOW = 0x4000
+TIMER_CMP_HI = 0x4004
+
+# Platform interrupt controller: two contexts for hart 0 (M-mode and S-mode).
+# Adding contexts in IO_UnitTypes.sv also requires extending this address range.
+[memory_map.regions.plic]
+type = "io"
+name = "PLIC"
+logical_base = 0xc000_0000
+physical_base = 0x01_0000
+# Includes both 0x1000-byte context register windows at offset 0x200000.
+size = 0x20_2000
+translation = "low_bits"
+[memory_map.regions.plic.registers]
+# Priority array: one 32-bit register per source; source 0 is reserved.
+SOURCE_PRIORITY_BASE = 0x0
+# Pending bits: source IDs select bits in successive 32-bit registers.
+PENDING_BASE = 0x1000
+# Per-context enable bitmaps; context stride is 0x80 bytes.
+ENABLE_BASE = 0x2000
+# Context 0 priority threshold; context stride is 0x1000 bytes.
+PRIORITY_THRESHOLD_BASE = 0x200000
+# Read to claim a source ID, write the ID to complete its interrupt.
+# This is context 0's register; context stride is 0x1000 bytes.
+CLAIM_COMPLETE_BASE = 0x200004

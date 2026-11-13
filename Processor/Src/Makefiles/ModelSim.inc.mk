@@ -40,19 +40,11 @@ VLOG_OPTIONS_COMMON = \
 # Commands
 #
 
-default: rtl
-
-all: rtl
-
-# Simulation on a command line mode.
-run: rtl-run
-
-# Simulation on a GUI mode.
-run-gui: rtl-run-gui
+.PHONY: sim/build sim/run sim/gui sim/rtl/clean sim/clean
 
 # Both core and unit tests build RTL before running.
 .PHONY: test
-test: rtl
+test: sim/build
 
 # Core tests supply RUN_TEST and define their recipe in TestCommands.inc.mk.
 # Otherwise, run a self-checking RTL testbench, returning failures to make.
@@ -75,19 +67,19 @@ TARGET_MODULE_RTL = \
 
 DEPS_RTL ?= $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(TEST_MODULES))
 
-rtl: $(LIBRARY_WORK_RTL) $(MAKEFILE_LIST) $(DEPS_RTL)
+sim/build: $(LIBRARY_WORK_RTL) $(MAKEFILE_LIST) $(DEPS_RTL)
 	$(VLOG) -work $(LIBRARY_WORK_RTL) \
 	$(VLOG_OPTIONS) $(VLOG_OPTIONS_COMMON) $(VLOG_OPTIONS_RTL) \
 	$(DEPS_RTL) # compile
 	$(VSIM) $(TARGET_MODULE_RTL) -do "quit" # link check
 
-rtl-run:
+sim/run:
 	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) -do "run -all"
 
-rtl-run-gui:
+sim/gui:
 	$(MODELSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) $(VSIM_OPTIONS_DUMP)
 
-rtl-clean:
+sim/rtl/clean:
 	mkdir $(PROJECT_WORK) -p
 	rm -f -r $(LIBRARY_WORK_RTL)
 	$(VLIB) $(PROJECT_WORK)/$(LIBRARY_NAME_RTL)
@@ -99,6 +91,6 @@ $(LIBRARY_WORK_RTL):
 # -------------------------------
 # Clean
 #
-clean:
+sim/clean:
 	mkdir $(PROJECT_WORK) -p
 	rm -f -r $(LIBRARY_WORK_RTL)

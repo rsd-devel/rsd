@@ -16,9 +16,9 @@ VSIM_OPTIONS_DUMP = +REG_CSV_FILE=$(REG_CSV_FILE)
 
 include Makefiles/ModelSim.inc.mk
 
-kanata: rtl-kanata
-rtl-kanata: rtl-run
+.PHONY: sim/kanata sim/dump
+sim/kanata: sim/run
 	$(KANATA_CONVERTER) $(RSD_LOG_FILE_RTL) $(KANATA_LOG_FILE_RTL)
 
-dump:
+sim/dump:
 	$(VSIM) $(TARGET_MODULE_RTL) $(VSIM_OPTIONS) $(VSIM_OPTIONS_RTL) $(VSIM_OPTIONS_DUMP) -do "run -all"

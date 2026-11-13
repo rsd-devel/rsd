@@ -9,7 +9,9 @@
 * Seiya Akaki
 * Akifumi Fukuda - @clkbug
 * Toru Koizumi
-* Tomohiro Yoshita
+* Tomohiro Yoshita - @momorrowz
+* Kanata Abe - @nananapo
+* Yuichi Sugiyama - @mmxsrup
  
 
 ## Advisers

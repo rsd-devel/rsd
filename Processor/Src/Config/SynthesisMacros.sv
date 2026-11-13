@@ -28,7 +28,7 @@
 /* These macros are for user configuration, so you can change them. */
 /********************************************************************/
 
-// CPU settings include the synthesis overrides from Config/MicroArch.yml.
+// CPU settings include the synthesis overrides from Config/MicroArch.toml.
 `include "Config/MicroArchMacros.svh"
 
 // Enable Microsemi specific optimization

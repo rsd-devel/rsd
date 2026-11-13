@@ -18,7 +18,7 @@ import BasicTypes::*;
 //
 localparam INSN_RESET_VECTOR = {{ INSN_RESET_VECTOR }};
 
-// See Config/MemoryMap.yml for the PC-goal termination semantics.
+// See Config/MemoryMap.toml for the PC-goal termination semantics.
 localparam PC_GOAL = {{ PC_GOAL }};
 
 //

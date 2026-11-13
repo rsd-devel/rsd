@@ -28,7 +28,7 @@ $(VIVADO_PROJECT_FILE): $(SYNPLIFY_NETLIST)
 	$(RSD_VIVADO_BIN)/vivado -mode batch \
 		-source scripts/synthesis/create_project_using_synplify_netlist.tcl
 
-$(SYNPLIFY_NETLIST): $(TYPES) $(TEST_MODULES) $(MODULES)
+$(SYNPLIFY_NETLIST): $(DEPS_RTL)
 	@ echo "(Re-)build board netlist using Synplify!"
 	$(MAKE) -f $(MAKEFILE) vivado-clean
 	@ exit 1

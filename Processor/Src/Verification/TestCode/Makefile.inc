@@ -17,12 +17,9 @@ RSD_GCC_NATIVE = $(shell cygpath -u "$$RSD_GCC_PATH")
 RSD_ROOT_NATIVE = $(shell cygpath -u "$$RSD_ROOT")
 endif
 
-$(call REQUIRE_ENV,RSD_GCC_PATH RSD_GCC_PREFIX)
-
-RSD_GCC_VERSION := $(shell "$(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc" -dumpversion 2>/dev/null)
-ifndef RSD_GCC_VERSION
-$(error Cannot execute $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc.)
-endif
+# Expand this only when a recipe uses a cross-tool. Reading an up-to-date build
+# must not require the compiler or its environment variables.
+RSD_CROSS_TOOL_PREFIX = $(call REQUIRE_ENV,RSD_GCC_PATH RSD_GCC_PREFIX)$(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)
 
 include $(RSD_ROOT_NATIVE)/Processor/Src/Makefiles/CoreSources.inc.mk
 
@@ -34,12 +31,12 @@ RSD_TEST_TOOL_ROOT = $(RSD_ROOT_NATIVE)/Processor/Tools/TestDriver
 #
 # コンパイラの設定
 #
-CC = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc
-AS = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)as
-LD = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)gcc
-OBJDUMP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)objdump
-OBJCOPY = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)objcopy
-STRIP = $(RSD_GCC_NATIVE)/$(RSD_GCC_PREFIX)strip
+CC = $(RSD_CROSS_TOOL_PREFIX)gcc
+AS = $(RSD_CROSS_TOOL_PREFIX)as
+LD = $(RSD_CROSS_TOOL_PREFIX)gcc
+OBJDUMP = $(RSD_CROSS_TOOL_PREFIX)objdump
+OBJCOPY = $(RSD_CROSS_TOOL_PREFIX)objcopy
+STRIP = $(RSD_CROSS_TOOL_PREFIX)strip
 
 
 #
