@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# A helper script for test RSD using QuestaSim/Verilator/VivadoSim.
-# It runs test programs and verify results
+# Run test programs and check cfg.xml limits, register values and UART output.
+# Usage: https://github.com/rsd-devel/rsd/wiki/en-test-driver
+# Driver tests (from the repository root): make -C Processor/Tools/TestDriver test
 
 import os, sys, subprocess
 import re

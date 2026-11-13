@@ -1,6 +1,7 @@
 # Program builds and test targets, included by the main Makefile.
 # RUN_TEST and RUN_TEST_OMIT_MSG use the selected SIM backend.
 # Public test/<subject>/run targets execute tests and check their results.
+# Suite setup, builds and usage: https://github.com/rsd-devel/rsd/wiki/en-test-program
 
 
 # -------------------------------
