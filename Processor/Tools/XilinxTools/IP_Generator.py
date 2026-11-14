@@ -10,19 +10,23 @@ import xml.dom.minidom as md
 def parse_makefile_for_core_sources():
     file_name = os.environ['RSD_ROOT'] + "/Processor/Src/Makefiles/CoreSources.inc.mk"
     sources = []
-    is_header = False
+    section = None
     print("Parsing %s..." % file_name)
     with open(file_name) as fin:
         for line in fin:
             line = line.split("#")[0] # Remove comment
-            m = re.match("HEADERS =", line)
+            m = re.match(r"(\w+)\s*=", line)
             if m:
-                is_header = True
+                section = m.group(1)
                 continue
 
-            m = re.match("\t([^\\s]+.(svh|sv|v|vh)) \\\\", line)
+            # Preserve package order from TYPES; generated-file prerequisites
+            # such as CORE_TEMPLATE_FILES are not a compilation source list.
+            if section not in ("TYPES", "CORE_MODULES", "MODULES", "HEADERS"):
+                continue
+            m = re.match(r"\s+(\S+\.(?:svh|sv|v|vh))\s+\\", line)
             if m:
-                sources.append({"name": m.group(1), "is_header": is_header})
+                sources.append({"name": m.group(1), "is_header": section == "HEADERS"})
 
     return sources
 
