@@ -41,9 +41,6 @@ setx RSD_VIVADO E:/Xilinx/Vivado/2019.2/ids_lite/ISE/
 :: Specify the path where CORE Generator/ngc2edif/xtclsh exists
 setx RSD_VIVADO_BIN E:/Xilinx/Vivado/2019.2/bin
 
-:: Specify the path of a work directory where download or build ZYNQ PS Linux 
-setx RSD_ARM_LINUX C:/Work/rsd-arm-linux
-
 
 :: Specify the root path of RSD-env, which is a closed repository that contains 
 :: external commercial packages/tools for RSD development.

@@ -1,0 +1,28 @@
+// Keep the upstream board description and add only the RSD memory/UIO map.
+#include "xilinx/zynq-zed.dts"
+
+/ {
+    // ZedBoard has 512 MiB: the upper half belongs exclusively to RSD.
+    memory@0 {
+        reg = <0x00000000 0x10000000>;
+    };
+};
+
+// PS physical addresses follow TargetBoards/Zedboard/scripts/synthesis/design_1.tcl.
+&amba {
+    rsd_ram: ram@10000000 {
+        compatible = "generic-uio";
+        linux,uio-name = "rsd-ram";
+        reg = <0x10000000 0x10000000>;
+    };
+    rsd_pl2ps: pl2ps@43c00000 {
+        compatible = "generic-uio";
+        linux,uio-name = "rsd-pl2ps";
+        reg = <0x43c00000 0x1000>;
+    };
+    rsd_ps2pl: ps2pl@43c10000 {
+        compatible = "generic-uio";
+        linux,uio-name = "rsd-ps2pl";
+        reg = <0x43c10000 0x1000>;
+    };
+};

@@ -32,5 +32,5 @@ export RSD_GCC_PREFIX=riscv64-unknown-elf-
 # Optional: Design Compiler (legacy flow).
 # export RSD_DC_SHELL_BIN=/opt/synopsys/bin/dc_shell
 
-# Optional: working directory for Zynq PS Linux image builds (legacy flow).
-# export RSD_ARM_LINUX="$HOME/work/rsd-arm-linux"
+# Optional: Vitis 2019.2 XSCT for the ZedBoard FSBL; otherwise use PATH.
+# export RSD_XSCT=/opt/Xilinx/Vitis/2019.2/bin/xsct

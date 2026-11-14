@@ -134,3 +134,7 @@ hs*.dmp
 /.project
 /.history
 
+
+# ZedBoard Linux sources, downloads and generated images.
+/Processor/Project/Vivado/ARM_Linux/External/
+/Processor/Project/Vivado/ARM_Linux/Build/
