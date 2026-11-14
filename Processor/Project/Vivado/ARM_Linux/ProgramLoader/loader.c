@@ -1,317 +1,157 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// Cross-compiled by Buildroot and installed as /usr/bin/rsd-loader.
+// Usage: rsd-loader code.hex [decoded-byte-size]
 
-// This is a program loader for RSD on a Zynq board.
-// How to use:
-//   1. Send this file to Debian on the Zynq board,
-//   2. Compile this code on Debian on the Zynq board,
-//   3. Send code.hex of the program you want to run to Debian,
-//   4. Run your program on RSD by "./loader <path of code.hex> <byte size of code.hex>".
-
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <fcntl.h>
+#include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <glob.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
-#define RAM_SIZE   0x10000000
-#define PL2PS_SIZE 0x1000
-#define PS2PL_SIZE 0x1000
-
-// PSからRSDに送るプログラムのワード数(メモリの1エントリ単位)
-#define PROGRAM_WORDSIZE 4096
-
-// RSDのメモリ1エントリあたりのバイト数
-#define MEMORY_WORD_BYTE_SIZE 16
-
-// RSDのメモリ1エントリあたりの文字数
-#define MEMORY_WORD_CHAR_SIZE MEMORY_WORD_BYTE_SIZE*2
-
-// AXIバスのバイト幅
-#define AXI_WORD_BYTE_SIZE 4
-
-// 注意: このプログラムはMEMORY_WORD_BYTE_SIZEがAXI_WORD_BYTE_SIZEで割り切れないと正しく動作しない
-
-// RSDの1ワード(AXIバスの1ワード単位)を16進数で表現する場合の文字数
-#define AXI_WORD_CHAR_SIZE AXI_WORD_BYTE_SIZE*2
-
-// PSからRSDに送るプログラムの文字数(programinit関数内に記述したプログラムの文字数)
-#define PROGRAM_CHARSIZE PROGRAM_WORDSIZE*MEMORY_WORD_BYTE_SIZE*2
-
-
-// ------------------------------------------------
-// PS -> PL のメモリマップドレジスタの各データに対応するオフセット
-// PLから対応するデータを受け取る際に使用する
-
-// PL内のデータ受け取り用FIFOのFULL信号
-#define S2L_FULL_OFFSET 0
-
-// 現在PLが受け取ったワード数(メモリの1エントリ単位)
-#define S2L_MEMORY_WORDCOUNT_OFFSET 3
-
-// PL内のデータ受け取り用FIFOのEMPTY信号 (普段は使わない)
-#define S2L_EMPTY_OFFSET 4
-
-// デバッグ用．普段は使わない．
-#define S2L_POPED_DATACOUNT_OFFSET 5
-
-// ------------------------------------------------
-// PS -> PL のメモリマップドレジスタの各データに対応するオフセット
-// PSからPLに対応するデータを送る際に使用する
-
-// このオフセットに書き込むとPL内のデータ受け取り用FIFOにプッシュされる
-#define S2L_PUSHED_DATA_OFFSET 0
-
-// プッシュされたデータを書き込むRSDのメインメモリ上のアドレスをこのオフセットに書き込む
-// Byteアドレスであることに注意
-#define S2L_MEMORY_ADDR_OFFSET 1
-
-// このオフセットにPSからPLに送信するプログラムのデータサイズをメモリの1エントリ単位のワード数で書き込む
-#define S2L_PROGRAM_WORDSIZE_OFFSET 2
-
-// ------------------------------------------------
-// PL -> PS のメモリマップドレジスタの各データに対応するオフセット
-// PSがPL(RSD)から対応するデータを受け取る際に使用する
-
-// PLからのデータを一時的に保存するFIFOのEMPTY信号
+#define RAM_SIZE 0x10000000u
+#define CONTROL_SIZE 0x1000u
+#define DONE_OFFSET 6
 #define L2S_EMPTY_OFFSET 0
-
-// PLからのデータを一時的に保存するFIFOの先頭にあるデータ
-// このオフセットからデータを読むと，自動的にPOPもされたことになる
 #define L2S_DATA_OFFSET 1
 
-// このオフセットにPSからPLに送信するプログラムのデータサイズをメモリの1エントリ単位のワード数で書き込む
-#define L2S_PROGRAM_WORDSIZE_OFFSET 2
-
-#define DONE_OFFSET 6
-
-// ------------------------------------------------
-
-// void programinit();
-
-int ram_open(){
-    int fd = -1;
-    fd = open("/dev/uio0", O_RDWR);
-    return fd;
-}
-
-int pl2ps_open(){
-    int fd = -1;
-    fd = open("/dev/uio1", O_RDWR);
-    return fd;
-}
-
-int ps2pl_open(){
-    int fd = -1;
-    fd = open("/dev/uio2", O_RDWR);
-    return fd;
-}
-
-int main(int argc, char *argv[])
+// UIO numbering depends on probe order. Use the names in rsd-zed.dts instead.
+static volatile uint32_t *map_uio(const char *name, size_t size)
 {
-    int i, j;
-    int ram;
-    int pl2ps;
-    int ps2pl;
-    volatile unsigned int* mem;
-    volatile unsigned int* rsd_pl2ps;
-    volatile unsigned int* rsd_ps2pl;
+    glob_t entries = {0};
+    volatile uint32_t *mapping = MAP_FAILED;
+    if (glob("/sys/class/uio/uio*/name", 0, NULL, &entries) == 0) {
+        for (size_t i = 0; i < entries.gl_pathc; i++) {
+            char actual[64];
+            FILE *fp = fopen(entries.gl_pathv[i], "r");
+            if (!fp)
+                continue;
+            int match = fgets(actual, sizeof(actual), fp) != NULL;
+            fclose(fp);
+            if (!match)
+                continue;
+            actual[strcspn(actual, "\r\n")] = '\0';
+            if (strcmp(name, actual) != 0)
+                continue;
+            // Replace /sys/class/uio/ with /dev/ and remove /name.
+            char device[128];
+            snprintf(device, sizeof(device), "/dev/%s", entries.gl_pathv[i] + strlen("/sys/class/uio/"));
+            *strrchr(device, '/') = '\0';
+            int fd = open(device, O_RDWR | O_SYNC);
+            if (fd >= 0) {
+                mapping = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+                close(fd);
+            }
+            break;
+        }
+    }
+    globfree(&entries);
+    if (mapping == MAP_FAILED)
+        fprintf(stderr, "Cannot map UIO device %s\n", name);
+    return mapping;
+}
 
-    // PSからRSDに送るプログラムの文字数(programinit関数内に記述したプログラムの文字数)
-    int program_bytesize;
-    int program_wordsize;
-    int program_charsize;
+// Each HEX line is one 128-bit word, most significant digits first.
+// Reverse the four 32-bit groups for the little-endian AXI memory interface.
+static int read_word(FILE *fp, uint32_t words[4])
+{
+    char line[36];
+    if (!fgets(line, sizeof(line), fp))
+        return ferror(fp) ? -1 : 0;
+    if (strcspn(line, "\r\n") != 32)
+        return -1;
+    for (size_t i = 32; line[i]; i++)
+        if (line[i] != '\r' && line[i] != '\n')
+            return -1;
+    for (size_t i = 0; i < 32; i++)
+        if (!isxdigit((unsigned char)line[i]))
+            return -1;
+    for (size_t i = 0; i < 4; i++) {
+        char group[9];
+        memcpy(group, line + 8 * i, 8);
+        group[8] = '\0';
+        words[3 - i] = (uint32_t)strtoul(group, NULL, 16);
+    }
+    return 1;
+}
 
-    char line[MEMORY_WORD_CHAR_SIZE];
-    
-//
-// -- オプションチェック
-//
-    if ((argc == 2) && ((argv[1] == "-h") || (argv[1] == "--help"))) {
-        printf("usage: loader <path of code.hex> <byte size of code.hex>\n");
+int main(int argc, char **argv)
+{
+    if (argc == 2 && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))) {
+        puts("Usage: rsd-loader code.hex [decoded-byte-size]");
         return 0;
     }
-    else if (argc != 3) {
-        printf("usage: loader <path of code.hex> <byte size of code.hex>\n");
-        return -1;
+    if (argc < 2 || argc > 3) {
+        fprintf(stderr, "Usage: rsd-loader code.hex [decoded-byte-size]\n");
+        return 1;
     }
-
-//
-// -- プログラムサイズチェック
-//
-    
-    // PSからRSDに送るプログラムのbyte数
-    program_bytesize = atoi(argv[2]);
-
-    if (program_bytesize == 0) {
-        printf("Invalid code.hex size of %c\n", argv[2]);
-        return -1;
+    FILE *fp = fopen(argv[1], "r");
+    if (!fp) {
+        perror(argv[1]);
+        return 1;
     }
-
-    // PSからRSDに送るプログラムのワード数(メモリの1エントリ単位)
-    program_wordsize = program_bytesize/16;
-
-    // PSからRSDに送るプログラムの文字数(code.hex内の文字数)
-    program_charsize = program_bytesize*2;
-
-//
-// -- プログラムファイルを読み込み
-//
-    FILE *fp;
-    if ((fp = fopen(argv[1], "r")) == NULL) {
-        printf("code.hex open error\n");
-        return -1;
+    // Validate before accessing hardware, without a program-sized stack buffer.
+    uint32_t words[4];
+    size_t bytes = 0;
+    int result;
+    while ((result = read_word(fp, words)) == 1) {
+        bytes += sizeof(words);
+        if (bytes > RAM_SIZE)
+            break;
     }
-
-    char prog[program_charsize+3];
-    i = 0;
-    j = 0;
-    while(1) {
-        if (fgets(line, MEMORY_WORD_CHAR_SIZE+3, fp) == NULL) {
-            printf("code.hex size mismatch\n");
+    if (result < 0 || !bytes || bytes > RAM_SIZE) {
+        fprintf(stderr, "Invalid HEX: expected 128-bit lines fitting in RSD RAM\n");
+        fclose(fp);
+        return 1;
+    }
+    if (argc == 3) {
+        char *end;
+        errno = 0;
+        unsigned long expected = strtoul(argv[2], &end, 0);
+        if (errno || end == argv[2] || *end || expected != bytes) {
+            fprintf(stderr, "Decoded size mismatch: HEX contains %zu bytes\n", bytes);
             fclose(fp);
-            return -1;
-        }
-
-        for (j=0;j<MEMORY_WORD_CHAR_SIZE;j++) {
-            prog[j+i*MEMORY_WORD_CHAR_SIZE] = line[j];
-        }        
-
-        i++;
-        if (i>=program_wordsize) {
-            break;
+            return 1;
         }
     }
+    rewind(fp);
+    volatile uint32_t *ram = map_uio("rsd-ram", RAM_SIZE);
+    volatile uint32_t *pl2ps = map_uio("rsd-pl2ps", CONTROL_SIZE);
+    volatile uint32_t *ps2pl = map_uio("rsd-ps2pl", CONTROL_SIZE);
+    if (ram == MAP_FAILED || pl2ps == MAP_FAILED || ps2pl == MAP_FAILED)
+        goto done;
 
-    printf("load finish, %d\n", i);
+    ps2pl[DONE_OFFSET] = 0;
+    __sync_synchronize();
+    for (size_t i = 0; i < RAM_SIZE / sizeof(*ram); i++)
+        ram[i] = 0;
+    for (size_t i = 0; i < bytes / sizeof(words); i++) {
+        if (read_word(fp, words) != 1) {
+            fprintf(stderr, "HEX changed while loading\n");
+            goto done;
+        }
+        for (size_t j = 0; j < 4; j++)
+            ram[4 * i + j] = words[j];
+    }
+    // Publish DDR writes before releasing the core from reset.
+    __sync_synchronize();
+    ps2pl[DONE_OFFSET] = 1;
+    setvbuf(stdout, NULL, _IONBF, 0);
+    // Output is consumed by reading DATA. Interrupt with Ctrl-C when finished.
+    for (;;) {
+        if (pl2ps[L2S_EMPTY_OFFSET] != 1)
+            putchar((unsigned char)pl2ps[L2S_DATA_OFFSET]);
+    }
 
+done:
     fclose(fp);
-
-//
-// -- デバイスファイルをオープンしてアロケート
-//
-    ram = ram_open();
-    if (ram < 0) {
-        printf("Failed to open ram");
-        return -2;
-    }
-    mem = mmap( NULL, RAM_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, ram, 0);
-    if (mem == MAP_FAILED) {
-        printf("Failed to mmap ram");
-        close(ram);
-        return -1;
-    }
-
-    pl2ps = pl2ps_open();
-    if (pl2ps < 0) {
-        printf("Failed to open pl2ps");
-        return -2;
-    }
-    rsd_pl2ps = mmap( NULL, PL2PS_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, pl2ps, 0);
-    if (rsd_pl2ps == MAP_FAILED) {
-        printf("Failed to mmap pl2ps");
-        close(pl2ps);
-        return -1;
-    }
-
-    ps2pl = ps2pl_open();
-    if (pl2ps < 0) {
-        printf("Failed to open ps2pl");
-        return -2;
-    }
-    rsd_ps2pl = mmap( NULL, PS2PL_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, ps2pl, 0);
-    if (rsd_ps2pl == MAP_FAILED) {
-        printf("Failed to mmap ps2pl");
-        close(ps2pl);
-        return -1;
-    }
-
-//
-// -- main
-//
-    rsd_ps2pl[DONE_OFFSET] = 0;
-
-    // プログラムの1文字
-    char rc;
-    // プログラムの1ワード(AXIバスの1ワード単位)
-    char val[AXI_WORD_CHAR_SIZE+2];
-    // valは必ず"0x????????"となる
-    val[0] = '0';
-    val[1] = 'x';
-
-    char *endptr;
-    unsigned long x;
-
-    i = 2;
-    j = 0;
-    int k = 3;
-    int sendword = 0;
-    int offset = 0;
-    int t = 0;
-
-    for (t=0;t<67108864;t++) {
-        mem[t] = 0;
-    }
-
-    for (;;)
-    {
-        // プログラムの全データの送信が終わったらbreak
-        if (j == program_charsize) {
-            break;
-        }
-        rc = prog[j];
-        j++;
-        val[i] = rc;
-        // valに1ワード(AXIバスの1ワード単位)が格納されたら送信する
-        if(i==(AXI_WORD_CHAR_SIZE+1)) {
-            i = 2;
-            x = strtoul(val, &endptr, 16);
-            mem[offset+k] = x;
-            if (k == 0) {
-                k = 3;
-                offset += 4;
-            } else {
-                k--;
-            }
-
-        } else {
-            i++;
-        }
-
-    }
-
-    rsd_ps2pl[DONE_OFFSET] = 1;
-    t = 0;
-    int u = 0;
-
-    // プログラムの転送が終わったら，PL(RSD)からの出力をポーリングして表示する
-    // TODO: 無限ループになっているので，ある特定の出力を受け取ったら終了するとかをしてもいいかもしれない
-    while(1) {
-        // PLからのデータが入っているFIFOが空でなかったらPOPして表示
-        if (rsd_pl2ps[L2S_EMPTY_OFFSET] != 1) {
-            printf("%c", (char)rsd_pl2ps[L2S_DATA_OFFSET]);
-        }
-        if (t == 10000000) {
-            t = 0;
-            printf("%08x, %d, %d, %d\n", rsd_pl2ps[4], rsd_pl2ps[5], rsd_pl2ps[L2S_EMPTY_OFFSET], rsd_pl2ps[2]);
-        } else {
-            t++;
-        }
-    }
-
-
-//
-// -- デバイスファイルをアンマップしてクローズ
-//
-    munmap((void *)mem, RAM_SIZE);
-    munmap((void *)rsd_pl2ps, PL2PS_SIZE);
-    munmap((void *)rsd_ps2pl, PS2PL_SIZE);
-    close(ram);
-    close(pl2ps);
-    close(ps2pl);
- 
-    return 0;
+    if (ram != MAP_FAILED) munmap((void *)ram, RAM_SIZE);
+    if (pl2ps != MAP_FAILED) munmap((void *)pl2ps, CONTROL_SIZE);
+    if (ps2pl != MAP_FAILED) munmap((void *)ps2pl, CONTROL_SIZE);
+    return 1;
 }
