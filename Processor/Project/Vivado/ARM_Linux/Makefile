@@ -7,7 +7,7 @@
 #   make platform/zynq/hardware/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin RSD_XSCT=/path/to/Vitis/2019.2/bin/xsct
 #   make platform/zynq/bootbin/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin
 #   ./RunContainer.sh make platform/zynq/image/build
-# Output: Processor/Project/Vivado/ARM_Linux/Build/images/sdcard.img
+# Output: Processor/Project/Vivado/ARM_Linux/Build/images/rsd-zedboard.img
 # An SSH client key pair (rsd-zedboard_ed25519 and .pub) is generated beside the image
 # on the first build and reused. Only the public key is installed in the image.
 # Connect with ssh -i Processor/Project/Vivado/ARM_Linux/Build/images/rsd-zedboard_ed25519 root@<board-ip>.
