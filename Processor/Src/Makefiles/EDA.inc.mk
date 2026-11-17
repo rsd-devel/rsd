@@ -45,12 +45,15 @@ RSD_ZYNQ_TARGETS := $(addprefix platform/zynq/,fetch build clean)
 $(RSD_ZYNQ_TARGETS): platform/zynq/%:
 	$(MAKE) -C ../Project/Vivado/ARM_Linux $*
 
-.PHONY: platform/zynq/hardware/build platform/zynq/bootbin/build platform/zynq/image/build
+.PHONY: platform/zynq/hardware/build platform/zynq/bootbin/build platform/zynq/image/build platform/zynq/image/write
 platform/zynq/bootbin/build:
 	$(MAKE) -C ../Project/Vivado/ARM_Linux bootbin
 
 platform/zynq/image/build:
 	$(MAKE) -C ../Project/Vivado/ARM_Linux image
+
+platform/zynq/image/write:
+	$(MAKE) -C ../Project/Vivado/ARM_Linux image-write
 
 platform/zynq/hardware/build:
 	$(MAKE) -f Makefiles/Vivado.mk zynq-hardware
