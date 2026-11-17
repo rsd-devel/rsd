@@ -3,11 +3,15 @@
 # image then assembles the SD image in the same environment as build.
 # From the repository root:
 #   ./RunContainer.sh make platform/zynq/fetch
-#   ./RunContainer.sh make platform/zynq/build RSD_SSH_PUBLIC_KEY=/path/in/container/id_ed25519.pub
+#   ./RunContainer.sh make platform/zynq/build
 #   make platform/zynq/hardware/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin RSD_XSCT=/path/to/Vitis/2019.2/bin/xsct
 #   make platform/zynq/bootbin/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin
 #   ./RunContainer.sh make platform/zynq/image/build
 # Output: Processor/Project/Vivado/ARM_Linux/Build/images/sdcard.img
+# An SSH client key pair (rsd-zedboard_ed25519 and .pub) is generated beside the image
+# on the first build and reused. Only the public key is installed in the image.
+# Connect with ssh -i Processor/Project/Vivado/ARM_Linux/Build/images/rsd-zedboard_ed25519 root@<board-ip>.
+# Keep the private key on the client. clean removes it along with Build.
 # Kernel/bootloader source or patch changes require clean, then build.
 include ../../../Src/Makefiles/Environment.inc.mk
 .DEFAULT_GOAL := build
@@ -26,7 +30,7 @@ RSD_ZYNQ_BOARD := $(abspath ../TargetBoards/Zedboard/rsd)
 RSD_ZYNQ_BIT ?= $(RSD_ZYNQ_BOARD)/rsd.runs/impl_1/design_1_wrapper.bit
 RSD_ZYNQ_FSBL ?= $(RSD_ZYNQ_BOARD)/rsd.sdk/fsbl/Release/fsbl.elf
 RSD_BOOTGEN ?= $(if $(RSD_VIVADO_BIN),$(RSD_VIVADO_BIN)/bootgen,bootgen)
-# Public keys only. Omit this for serial-console-only setup; no SSH password.
+# Optional existing public key; otherwise generate/reuse a key pair in images.
 export RSD_SSH_PUBLIC_KEY ?=
 export BR2_DL_DIR := $(CURDIR)/External/downloads
 RSD_BUILDROOT_MAKE = $(MAKE) -C $(RSD_BUILDROOT) O=$(RSD_ZYNQ_BUILD)

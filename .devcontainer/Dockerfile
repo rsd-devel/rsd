@@ -54,6 +54,8 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     unzip \
     wget \
     xz-utils \
+    # Generate the client SSH key used to log in to the ZedBoard image.
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Build the pinned Verilator release with SystemVerilog timing support.

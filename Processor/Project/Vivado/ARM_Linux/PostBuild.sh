@@ -15,10 +15,19 @@ KbdInteractiveAuthentication no
 Subsystem sftp /usr/libexec/sftp-server
 EOF
 install -d -m 0700 "$TARGET_DIR/root/.ssh"
-rm -f "$TARGET_DIR/root/.ssh/authorized_keys"
-if [ -n "${RSD_SSH_PUBLIC_KEY:-}" ]; then
-    test -s "$RSD_SSH_PUBLIC_KEY"
-    install -m 0600 "$RSD_SSH_PUBLIC_KEY" "$TARGET_DIR/root/.ssh/authorized_keys"
-else
-    echo 'No RSD_SSH_PUBLIC_KEY: use the serial console to install authorized_keys.' >&2
+if [ -z "${RSD_SSH_PUBLIC_KEY:-}" ]; then
+    # Keep the client private key beside the images, never inside the rootfs.
+    # Reuse it across builds so existing SSH clients keep working.
+    key="$BINARIES_DIR/rsd-zedboard_ed25519"
+    if [ ! -e "$key" ]; then
+        test ! -e "$key.pub" || { echo "Private key missing for $key.pub" >&2; exit 1; }
+        ssh-keygen -q -t ed25519 -N '' -C rsd-zedboard -f "$key"
+    fi
+    # Recover a missing public file and verify the private key before installing.
+    public_key=$(ssh-keygen -y -P '' -f "$key")
+    printf '%s\n' "$public_key" > "$key.pub"
+    RSD_SSH_PUBLIC_KEY="$key.pub"
+    echo "SSH client key: $key (keep private; only the .pub is installed)"
 fi
+test -s "$RSD_SSH_PUBLIC_KEY"
+install -m 0600 "$RSD_SSH_PUBLIC_KEY" "$TARGET_DIR/root/.ssh/authorized_keys"
