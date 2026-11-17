@@ -12,6 +12,20 @@
 # on the first build and reused. Only the public key is installed in the image.
 # Connect with ssh -i Processor/Project/Vivado/ARM_Linux/Build/images/rsd-zedboard_ed25519 root@<board-ip>.
 # Keep the private key on the client. clean removes it along with Build.
+# Optional initial settings: pass RSD_ROOTFS_OVERLAY=/absolute/path/to/settings
+# to platform/zynq/build, then run platform/zynq/image/build as usual.
+# For static IPv4, place etc/network/interfaces in that directory, e.g.:
+#   auto lo
+#   iface lo inet loopback
+#   auto eth0
+#   iface eth0 inet static
+#       address 192.168.1.50
+#       netmask 255.255.255.0
+#       gateway 192.168.1.1
+# Put DNS servers in etc/resolv.conf (e.g. nameserver 192.168.1.1).
+# Paths must be visible inside the build environment. With no overlay, a fresh
+# build uses DHCP. Buildroot retains overlaid files on incremental builds;
+# removing an overlay or files from it requires clean, then build.
 # Kernel/bootloader source or patch changes require clean, then build.
 include ../../../Src/Makefiles/Environment.inc.mk
 .DEFAULT_GOAL := build
@@ -32,6 +46,8 @@ RSD_ZYNQ_FSBL ?= $(RSD_ZYNQ_BOARD)/rsd.sdk/fsbl/Release/fsbl.elf
 RSD_BOOTGEN ?= $(if $(RSD_VIVADO_BIN),$(RSD_VIVADO_BIN)/bootgen,bootgen)
 # Optional existing public key; otherwise generate/reuse a key pair in images.
 export RSD_SSH_PUBLIC_KEY ?=
+# Standard Buildroot overlay; keep machine-specific settings outside the sources.
+export RSD_ROOTFS_OVERLAY ?=
 export BR2_DL_DIR := $(CURDIR)/External/downloads
 RSD_BUILDROOT_MAKE = $(MAKE) -C $(RSD_BUILDROOT) O=$(RSD_ZYNQ_BUILD)
 
@@ -54,6 +70,8 @@ $(RSD_BUILDROOT)/Makefile: $(RSD_BUILDROOT_ARCHIVE)
 # Read the pinned settings each time. Keep using the same build environment;
 # Buildroot host tools and intermediate files are not relocatable.
 build:
+	@case "$(RSD_ROOTFS_OVERLAY)" in ""|/*) ;; *) echo 'RSD_ROOTFS_OVERLAY must be an absolute directory path.' >&2; exit 1;; esac
+	@test -z "$(RSD_ROOTFS_OVERLAY)" || test -d "$(RSD_ROOTFS_OVERLAY)" || { echo 'RSD_ROOTFS_OVERLAY directory does not exist.' >&2; exit 1; }
 	@test -f $(RSD_BUILDROOT)/Makefile || { echo 'Run make platform/zynq/fetch first.' >&2; exit 1; }
 	$(RSD_BUILDROOT_MAKE) BR2_DEFCONFIG=$(CURDIR)/buildroot.config defconfig
 	$(RSD_BUILDROOT_MAKE)
