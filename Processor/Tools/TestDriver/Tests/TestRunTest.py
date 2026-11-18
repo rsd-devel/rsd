@@ -72,8 +72,8 @@ class RunTestProcessTests(unittest.TestCase):
         self.runner = self.root / 'Processor/Tools/TestDriver/RunTest.py'
         self.runner.parent.mkdir(parents=True)
         shutil.copy2(RUNNER, self.runner)
-        self.bin_dir = self.root / 'simulator-bin'
-        self.bin_dir.mkdir()
+        self.bin_dir = self.root / 'simulator' / 'bin'
+        self.bin_dir.mkdir(parents=True)
         model = self.root / 'Processor/Project/Verilator/obj_dir/VTestMain'
         model.parent.mkdir(parents=True)
         self.vivado_cwd = self.root / 'Processor/Project/VivadoSim/work'
@@ -89,7 +89,7 @@ class RunTestProcessTests(unittest.TestCase):
         self.calls_path = self.root / 'calls.jsonl'
         self.env = os.environ.copy()
         self.env.update(RSD_QUESTASIM_PATH=str(self.bin_dir),
-                        RSD_VIVADO_BIN=str(self.bin_dir),
+                        RSD_VIVADO_ROOT=str(self.bin_dir.parent),
                         FAKE_CALLS_LOG=str(self.calls_path))
 
     def run_runner(self, simulator, *options):
@@ -141,7 +141,7 @@ class RunTestProcessTests(unittest.TestCase):
 
     def test_vcs_checks_termination_uart_and_timing_without_register_dump(self):
         self.env['FAKE_SKIP_REGISTER_DUMP'] = '1'
-        self.env.pop('RSD_VIVADO_BIN', None)
+        self.env.pop('RSD_VIVADO_ROOT', None)
         for reason, serial, violation, expected in [
                 ('pc_goal', b'done\n', '', 0),
                 ('pc_goal', b'wrong\n', '', 1),
@@ -338,9 +338,10 @@ class RunTestProcessTests(unittest.TestCase):
         new_case = self.case.with_name('Case with spaces')
         self.case.rename(new_case)
         self.case = new_case
-        new_bin = self.bin_dir.with_name('simulator bin')
-        self.bin_dir.rename(new_bin)
-        self.env.update(RSD_QUESTASIM_PATH=str(new_bin), RSD_VIVADO_BIN=str(new_bin))
+        new_root = self.bin_dir.parent.with_name('simulator with spaces')
+        self.bin_dir.parent.rename(new_root)
+        new_bin = new_root / 'bin'
+        self.env.update(RSD_QUESTASIM_PATH=str(new_bin), RSD_VIVADO_ROOT=str(new_root))
         for simulator in self.executables:
             with self.subTest(simulator=simulator):
                 result = self.run_runner(simulator, '-q', '-l', 'trace with spaces.log')

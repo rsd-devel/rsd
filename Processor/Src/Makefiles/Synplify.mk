@@ -25,7 +25,7 @@ include Makefiles/Vivado.inc.mk
 
 $(VIVADO_PROJECT_FILE): $(SYNPLIFY_NETLIST)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch \
 		-source scripts/synthesis/create_project_using_synplify_netlist.tcl
 
 $(SYNPLIFY_NETLIST): $(DEPS_RTL)
@@ -44,7 +44,7 @@ POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisSynplify.tcl
 .PHONY: test-post-synthesis post-synthesis-build
 post-synthesis-build: $(CORE_TEMPLATE_FILES)
 	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
-	test -x $(RSD_VIVADO_BIN)/xsim
+	test -x $(RSD_VIVADO_ROOT)/bin/xsim
 	mkdir -p $(POST_SYNTHESIS_WORK)
 	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
 	rm -f $(POST_SYNTHESIS_WORK)/netlist.vm

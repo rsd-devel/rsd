@@ -5,7 +5,7 @@ include Makefiles/Environment.inc.mk
 .DEFAULT_GOAL := test-post-implementation
 
 include Makefiles/Build.inc.mk
-$(call REQUIRE_ENV,RSD_VIVADO_BIN)
+$(call REQUIRE_ENV,RSD_VIVADO_ROOT)
 
 TEST_CODE ?= Verification/TestCode/C/HelloWorld
 POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))
@@ -14,7 +14,7 @@ VCS ?= vcs
 VCS_JOBS ?= 4
 VCS_CORNER ?= slow
 VCS_DELAY ?= max
-VCS_XILINX ?= $(abspath $(RSD_VIVADO_BIN)/../data/verilog/src)
+VCS_XILINX ?= $(abspath $(RSD_VIVADO_ROOT)/data/verilog/src)
 POST_IMPLEMENTATION_CLOCK_NS ?= 32
 VCS_NETLIST = $(POST_SYNTHESIS_WORK)/netlist.v
 VCS_SDF = $(POST_SYNTHESIS_WORK)/$(VCS_CORNER).sdf

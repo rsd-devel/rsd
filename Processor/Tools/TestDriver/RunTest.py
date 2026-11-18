@@ -291,7 +291,7 @@ class VivadoSimulationDriver(object):
         self.projectDirPath  = projectDirPath   # Vivado Simulation project directory
         self.testCodeDirPath = testCodeDirPath  # Test code directory
         self.xsimLogPath     = self.SOURCE_ROOT + os.path.join(testCodeDirPath, self.XSIM_LOG_FILE_NAME)
-        self.xsimPath = os.environ['RSD_VIVADO_BIN'] + '/xsim'
+        self.xsimPath = os.path.join(os.environ['RSD_VIVADO_ROOT'], 'bin', 'xsim')
 
         self.additionalOptionList = []
         for parameter in config.GetSimulationParameters():

@@ -4,7 +4,7 @@
 # From the repository root:
 #   ./RunContainer.sh make platform/zynq/fetch
 #   ./RunContainer.sh make platform/zynq/build
-#   make platform/zynq/boot/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin RSD_XSCT=/path/to/Vitis/2019.2/bin/xsct
+#   make platform/zynq/boot/build RSD_VIVADO_ROOT=/path/to/Vivado/2019.2 RSD_VITIS_ROOT=/path/to/Vitis/2019.2
 #   ./RunContainer.sh make platform/zynq/image/build
 # Write on the Linux host (not in the dev container), after unmounting the card:
 #   make platform/zynq/image/write RSD_SD_DEVICE=/dev/sdX
@@ -45,7 +45,6 @@ RSD_ZYNQ_IMAGES := $(RSD_ZYNQ_BUILD)/images
 RSD_ZYNQ_BOARD := $(abspath ../TargetBoards/Zedboard/rsd)
 RSD_ZYNQ_BIT ?= $(RSD_ZYNQ_BOARD)/rsd.runs/impl_1/design_1_wrapper.bit
 RSD_ZYNQ_FSBL ?= $(RSD_ZYNQ_BOARD)/rsd.sdk/fsbl/Release/fsbl.elf
-RSD_BOOTGEN ?= $(if $(RSD_VIVADO_BIN),$(RSD_VIVADO_BIN)/bootgen,bootgen)
 # Optional existing public key; otherwise generate/reuse a key pair in images.
 export RSD_SSH_PUBLIC_KEY ?=
 # Standard Buildroot overlay; keep machine-specific settings outside the sources.
@@ -85,10 +84,11 @@ build:
 bootbin: $(RSD_ZYNQ_IMAGES)/boot.bin
 
 $(RSD_ZYNQ_IMAGES)/boot.bin: $(RSD_ZYNQ_FSBL) $(RSD_ZYNQ_BIT) $(RSD_ZYNQ_IMAGES)/u-boot boot.bif
+	$(call REQUIRE_ENV,RSD_VIVADO_ROOT)
 	test -s "$(RSD_ZYNQ_FSBL)" && test -s "$(RSD_ZYNQ_BIT)" && test -s $(RSD_ZYNQ_IMAGES)/u-boot
 	cp "$(RSD_ZYNQ_FSBL)" $(RSD_ZYNQ_IMAGES)/fsbl.elf
 	cp "$(RSD_ZYNQ_BIT)" $(RSD_ZYNQ_IMAGES)/boot.bit
-	cd $(RSD_ZYNQ_IMAGES) && "$(RSD_BOOTGEN)" -arch zynq -w -image $(CURDIR)/boot.bif -o boot.bin
+	cd $(RSD_ZYNQ_IMAGES) && "$(RSD_VIVADO_ROOT)/bin/bootgen" -arch zynq -w -image $(CURDIR)/boot.bif -o boot.bin
 
 # Buildroot's host tools require the build environment (normally devcontainer).
 # No mounting, loop device, root access or SD-card write is needed here.

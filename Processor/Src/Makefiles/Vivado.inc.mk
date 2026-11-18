@@ -1,4 +1,4 @@
-$(call REQUIRE_ENV,RSD_VIVADO_BIN)
+$(call REQUIRE_ENV,RSD_VIVADO_ROOT)
 
 
 # Specify the target Zynq board.
@@ -27,7 +27,7 @@ VIVADO_FSBL_FILE = $(VIVADO_BOARD_PROJECT_SDK)/fsbl/Release/fsbl.elf
 
 # vivadoプロジェクトを作成して開く．すでに作成されている場合は開くのみ．
 vivado: $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado $(VIVADO_PROJECT_FILE) &
+	$(RSD_VIVADO_ROOT)/bin/vivado $(VIVADO_PROJECT_FILE) &
 
 # vivadoプロジェクトの削除
 vivado-clean:
@@ -44,23 +44,22 @@ vivado-synthesis: $(VIVADO_BIT_FILE)
 # ビットストリームの生成
 # XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
 $(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
 	
 # $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
-#	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
+#	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
 #	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
 #	@echo "(Re-)build hdf using Vivado!"
 #	exit 1
 
 
 # Build hardware/FSBL outside the dev container using Vivado/Vitis 2019.2.
-RSD_XSCT ?= xsct
 .PHONY: zynq-hardware
 zynq-hardware:
-	@command -v "$(RSD_XSCT)" >/dev/null || { echo "Vitis 2019.2 xsct is required; set RSD_XSCT or PATH." >&2; exit 1; }
+	@$(call REQUIRE_ENV,RSD_VITIS_ROOT)command -v "$(RSD_VITIS_ROOT)/bin/xsct" >/dev/null || { echo "Vitis 2019.2 xsct is required; set RSD_VITIS_ROOT to its installation directory." >&2; exit 1; }
 	$(MAKE) -f $(MAKEFILE) $(VIVADO_FSBL_FILE)
 
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 	rm -rf $(VIVADO_BOARD_PROJECT_SDK)
-	"$(RSD_XSCT)" $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
+	"$(RSD_VITIS_ROOT)/bin/xsct" $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 	test -s $@

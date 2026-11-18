@@ -87,11 +87,12 @@ ModelSim/QuestaSimは`make SIM=modelsim`，XSimは`make SIM=xsim`で選択しま
 テスト用HEXファイルはDev Container内でビルドし，ホスト側にインストールされたVivadoのXSimなどのシミュレータをコンテナの外で実行できます．
 ホスト側にVivado，GNU Make，Python 3.11以上を用意し，同じチェックアウトを使って，ホスト側のリポジトリのルートで次を順に実行します．
 ツールのパスは，環境変数のほか，次のようにmakeの引数でも指定できます．
+`RSD_VIVADO_ROOT` には，`bin` の親にあたるインストール先（例: `/opt/Xilinx/Vivado/2019.2`）を指定します．
 
 ```bash
 ./RunContainer.sh make test/level-1/build  # コンテナ内でテスト用HEXをビルド
-make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN sim/build  # ホスト側でRTL・テストベンチをビルド
-make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN test/level-1/run  # ホスト側でテストを実行
+make SIM=xsim RSD_VIVADO_ROOT=/PATH/TO/VIVADO sim/build  # ホスト側でRTL・テストベンチをビルド
+make SIM=xsim RSD_VIVADO_ROOT=/PATH/TO/VIVADO test/level-1/run  # ホスト側でテストを実行
 ```
 
 

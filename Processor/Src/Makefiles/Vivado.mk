@@ -33,7 +33,7 @@ VIVADO_PROJECT_FILE_DEPS = \
 $(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_FILE_DEPS)
 	python3 $(TOOLS_ROOT)/XilinxTools/IP_Generator.py $(TARGET_BOARD) # Generate Xilinx IP of RSD
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/synthesis/create_project.tcl
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/synthesis/create_project.tcl
 
 # -------------------------------
 # Project-based timing and post-implementation simulation.
@@ -75,7 +75,7 @@ post-implementation-timing: post-implementation-timing-run
 
 # Open post-synthesis project
 post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) &
+	$(RSD_VIVADO_ROOT)/bin/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) &
 
 # Run post-synthesis simulation
 post-synthesis-timing-run: $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
@@ -85,17 +85,17 @@ post-implementation-timing-run: $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING)
 # Run post-synthesis simulation with GUI
 post-synthesis-timing-run-gui: $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-synthesis timing
 
 post-implementation-run-gui: $(POST_IMPLEMENTATION_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-implementation functional
 
 post-implementation-timing-run-gui: $(POST_IMPLEMENTATION_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-implementation timing
 
 
@@ -122,18 +122,18 @@ post-synthesis-create:
 	python3 $(TOOLS_ROOT)/XilinxTools/VivadoProjectCreator.py $(TARGET_BOARD)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivadosim.tcl
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivadosim.tcl
 
 $(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
 	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/run_synthesis.tcl
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/run_synthesis.tcl
 	test -s $(POST_SYNTHESIS_MODULE)
 	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
 
 $(POST_IMPLEMENTATION_MODULE): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/run_implementation.tcl
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/run_implementation.tcl
 	test -s $(POST_IMPLEMENTATION_MODULE)
 	touch $(POST_IMPLEMENTATION_MODULE) # Update timestamp to avoid re-synthesis
 
@@ -142,17 +142,17 @@ $(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
 
 $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING): $(POST_SYNTHESIS_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-synthesis timing
 
 $(RSD_LOG_FILE_POST_IMPLEMENTATION): $(POST_IMPLEMENTATION_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-implementation functional
 
 $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(POST_IMPLEMENTATION_MODULE)
 	@cd $(VIVADO_PROJECT_ROOT); \
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
 		-tclargs post-implementation timing
 
 $(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING): $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
@@ -179,11 +179,11 @@ post-implementation-build: POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthe
 post-implementation-build: POST_SYNTHESIS_MODE = timing
 post-synthesis-build post-implementation-build: $(CORE_TEMPLATE_FILES)
 	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
-	test -x $(RSD_VIVADO_BIN)/vivado
+	test -x $(RSD_VIVADO_ROOT)/bin/vivado
 	mkdir -p $(POST_SYNTHESIS_WORK)
 	rm -f $(POST_SYNTHESIS_WORK)/netlist.v
 	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
-	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_BIN)/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT) \
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT) \
 		-tclargs $(POST_SYNTHESIS_MODE) $(POST_IMPLEMENTATION_CLOCK_NS)
 	test -s $(POST_SYNTHESIS_WORK)/netlist.v
 
