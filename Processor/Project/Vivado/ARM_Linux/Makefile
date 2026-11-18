@@ -4,8 +4,7 @@
 # From the repository root:
 #   ./RunContainer.sh make platform/zynq/fetch
 #   ./RunContainer.sh make platform/zynq/build
-#   make platform/zynq/hardware/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin RSD_XSCT=/path/to/Vitis/2019.2/bin/xsct
-#   make platform/zynq/bootbin/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin
+#   make platform/zynq/boot/build RSD_VIVADO_BIN=/path/to/Vivado/2019.2/bin RSD_XSCT=/path/to/Vitis/2019.2/bin/xsct
 #   ./RunContainer.sh make platform/zynq/image/build
 # Write on the Linux host (not in the dev container), after unmounting the card:
 #   make platform/zynq/image/write RSD_SD_DEVICE=/dev/sdX
