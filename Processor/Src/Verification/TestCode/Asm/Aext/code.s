@@ -1,3 +1,5 @@
+#include "../../rsd-memory-map.h"
+
     .file    "code.s"
     .option nopic
     .text
@@ -78,6 +80,8 @@ main:
     sw a5, 0(a1)
     sw a6, 4(a1)
     sw a5, 8(a1)
+    li t0, RSD_CLINT_TIMER_CMP_LOW
+    sw t0, 16(a1)
     li a7, 0
 
     # Check all three misaligned offsets for a word access.
@@ -182,6 +186,53 @@ after_unmapped_amo_zero_rd:
     li t4, 22
     bne a7, t4, fail
 
+    # Queue uncached stores ahead of MMIO. Check readback without a fence,
+    # first on the same device, then across CLINT and PLIC.
+    li t0, RSD_CLINT_TIMER_CMP_LOW
+    li t1, RSD_PLIC_PRIORITY_THRESHOLD_BASE
+    li t2, 3
+    sw a5, 32(a1)
+    sw a5, 64(a1)
+    sw a6, 0(t0)
+    lw t4, 0(t0)
+    bne t4, a6, fail
+    sw a5, 96(a1)
+    sw a5, 128(a1)
+    sw t2, 0(t1)
+    lw t4, 0(t0)
+    bne t4, a6, fail
+    lw t4, 0(t1)
+    bne t4, t2, fail
+
+    # The handler checks mcause, mepc, mtval and the unmodified destination.
+    # UART output must stay empty; no rejected operation may modify CLINT.
+    .irp addr, RSD_SERIAL_OUTPUT, RSD_CLINT_TIMER_CMP_LOW, RSD_PLIC_CLAIM_COMPLETE_BASE
+        li t1, \addr
+        la t0, 1f
+        la t2, 2f
+        li t3, 5
+1:      lr.w a2, (t1)
+        j fail
+2:      la t0, 3f
+        la t2, 4f
+        li t3, 7
+3:      sc.w a2, a5, (t1)
+        j fail
+4:      la t0, 5f
+        la t2, 6f
+5:      amoswap.w a2, a5, (t1)
+        j fail
+6:
+    .endr
+    li t4, 31
+    bne a7, t4, fail
+    # The MMIO address is available only after an uncached RAM load replays.
+    lw t0, 16(a1)
+    lw t4, 0(t0)
+    bne t4, a6, fail
+    li t1, RSD_PLIC_PRIORITY_THRESHOLD_BASE
+    sw zero, 0(t1)
+
     # Valid cached and uncached AMOs must still succeed after the faults.
     li t4, 1
     amoadd.w a2, t4, (sp)
@@ -194,6 +245,8 @@ after_unmapped_amo_zero_rd:
     bne a2, a5, fail
     lw t4, 0(a1)
     bne t4, t5, fail
+    # The cache flush can start only after all outstanding MSHRs are released.
+    fence.i
     csrw mtvec, a0
     li a0, 0
     li a1, 0

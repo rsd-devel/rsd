@@ -193,15 +193,14 @@ module MemoryTagAccessStage(
             isSerialized[i] = ldIqData[i].serialized;
             isLoadIO[i] = isLoad[i] && ldPipeReg[i].memMapType == MMT_IO;
 
-            // Load store unit
-            // Load only when
-            //  1. inst is load instruction and not non-serialized IO load and not misaligned
-            //  2. inst is Zaamo and AMO cache miss
+            // Record an MMIO load only on its serialized, aligned execution.
+            // For AMOs, only the first (memory read) phase updates the load queue.
             if (isLoadIO[i])
                 loadStoreUnit.executeLoad[i] = ldUpdate[i] && isSerialized[i]
                     && !IsMisalignedAddress(ldPipeReg[i].addrOut, ldIqData[i].memOpInfo.memAccessMode.size);
             else
-                loadStoreUnit.executeLoad[i] = ldUpdate[i] && (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
+                loadStoreUnit.executeLoad[i] = ldUpdate[i] && ldPipeReg[i].memMapType == MMT_MEMORY &&
+                    (isLoad[i] || (isZaamo[i] && !amoCacheHit[i]));
             loadStoreUnit.executedLoadAddr[i] = ldPipeReg[i].phyAddrOut;
             loadStoreUnit.executedLoadMemMapType[i] = ldPipeReg[i].memMapType;
             loadStoreUnit.executedLoadPC[i] = ldIqData[i].pc;
@@ -280,8 +279,9 @@ module MemoryTagAccessStage(
 
 `ifdef RSD_ENABLE_REISSUE_ON_CACHE_MISS
             if (isLoad[i] || isZaamo[i]) begin
-                if (isZaamo[i] && amoCacheHit[i]) begin
-                    // When AMO cache hit, the data comes from AMO cache.
+                if (ldPipeReg[i].memMapType != MMT_MEMORY || (isZaamo[i] && amoCacheHit[i])) begin
+                    // MMIO and unmapped accesses never allocate an MSHR in execution.
+                    // An AMO cache hit already has the value from its memory read phase.
                     ldRegValid[i] = ldPipeReg[i].regValid;
                 end
                 else if (loadStoreUnit.storeLoadForwarded[i]) begin
@@ -362,6 +362,10 @@ module MemoryTagAccessStage(
                     // load instruction which is not serialized will be refetched.
                     ldNextStage[i].execState = EXEC_STATE_REFETCH_THIS_SERIALIZED;
                 end
+                else if (ldPipeReg[i].memMapType != MMT_MEMORY) begin
+                    // The access checks below run before IO_Unit can observe a read.
+                    ldNextStage[i].execState = EXEC_STATE_SUCCESS;
+                end
                 else if ( loadStoreUnit.storeLoadForwarded[i] ) begin
                     // フォワードされた場合
                     // A load instruction that caused a store-load forwarding miss is not replayed but flushed to prevent a deadlock due to replay.
@@ -441,9 +445,8 @@ module MemoryTagAccessStage(
                         (!(ldIqData[i].hasAllocatedMSHR || loadStoreUnit.loadHasAllocatedMSHR[i]) &&
                             loadStoreUnit.dcReadHit[i])));
 
-            // LR reserves the loaded address only after any required IO serialization.
-            if (i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc &&
-                (!isLoadIO[i] || isSerialized[i]) && loadAccessSuccess[i]) begin
+            // An LR establishes its reservation only after a successful memory read.
+            if (i == 0 && isLoad[i] && ldIqData[i].memOpInfo.isZalrsc && loadAccessSuccess[i]) begin
                 updateIsReservedByLR = TRUE;
                 lastIsReserved = TRUE;
                 lastReservedAddr = ldPipeReg[i].phyAddrOut;
@@ -526,7 +529,7 @@ module MemoryTagAccessStage(
             isScFail[i] = isStore[i] && stIqData[i].memOpInfo.isZalrsc && (!prevIsReserved || stPipeReg[i].phyAddrOut != prevReservedAddr);
 
             // Load store unit
-            executeStore[i] = stUpdate[i] && isStore[i];
+            executeStore[i] = stUpdate[i] && isStore[i] && stPipeReg[i].memMapType != MMT_ILLEGAL;
             executedStoreData[i] = stPipeReg[i].dataIn;
             executedStoreVectorData[i] = '0;
             executedStoreAddr[i] = stPipeReg[i].phyAddrOut;
@@ -732,5 +735,16 @@ module MemoryTagAccessStage(
 `endif  // `ifndef RSD_DISABLE_DEBUG_REGISTER
     end
 
+
+`ifndef RSD_SYNTHESIS
+    for (genvar i = 0; i < LOAD_ISSUE_WIDTH; i++) begin : CheckMSHR_Ownership
+        always @(posedge port.clk) begin
+            if (!port.rst && ldUpdate[i] && ldPipeReg[i].regValid && ldPipeReg[i].memMapType != MMT_MEMORY) begin
+                assert (!ldIqData[i].hasAllocatedMSHR && !loadStoreUnit.loadHasAllocatedMSHR[i])
+                    else $fatal(1, "Non-memory access bypassed a newly allocated or replay-owned MSHR");
+            end
+        end
+    end
+`endif
 
 endmodule : MemoryTagAccessStage

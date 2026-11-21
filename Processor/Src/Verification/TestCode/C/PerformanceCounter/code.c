@@ -38,6 +38,5 @@ int main(void)
     // Only successful completion produces the expected serial signature.
     serial_out_hex(0);
     serial_out_char('\n');
-    serial_flush();
     return 0;
 }

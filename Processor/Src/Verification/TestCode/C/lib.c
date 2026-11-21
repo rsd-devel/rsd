@@ -18,13 +18,6 @@ void serial_out_char(char val)
     }
 }
 
-// Wait for prior serial MMIO stores to leave RSD's store queue.
-// Call before returning to the CRT's simulation exit point.
-static inline void serial_flush(void)
-{
-    __asm__ volatile ("fence iorw, iorw" ::: "memory");
-}
-
 void serial_out_dec(int val)
 {
     int i;
