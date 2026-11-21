@@ -15,6 +15,7 @@ import MemoryMapTypes::*;
 interface IO_UnitIF(
     input 
         logic clk, rst, rstStart,
+        logic serialTxFull,
     output
         logic serialWE,
         SerialDataPath serialWriteDataOut
@@ -31,7 +32,7 @@ interface IO_UnitIF(
 
     modport IO_Unit(
     input 
-        clk, rst, rstStart,
+        clk, rst, rstStart, serialTxFull,
         ioWE,
         ioWriteDataIn,
         ioWriteAddrIn,
