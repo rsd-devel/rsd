@@ -1,6 +1,6 @@
 #ifndef RSD_RVMODEL_MACROS_H
 #define RSD_RVMODEL_MACROS_H
-#include "rsd-memory-map.h"
+#include "rsd-serial.h"
 
 // Keep instruction tests in M-mode when U is enabled in the profile.
 // Privileged tests enter S/U-mode explicitly through the ACT4 trap handler.
@@ -67,10 +67,9 @@ _rsd_goal:
 #define RVMODEL_HALT_FAIL RSD_ACT4_HALT(1)
 
 #define RVMODEL_IO_WRITE_STR(_R1, _R2, _R3, _STR_PTR) \
-  li _R2, RSD_SERIAL_OUTPUT; \
 1: lbu _R1, 0(_STR_PTR); \
   beqz _R1, 2f; \
-  sw _R1, 0(_R2); \
+  RSD_SERIAL_PUTC(_R1, _R2); \
   addi _STR_PTR, _STR_PTR, 1; \
   j 1b; \
 2:
