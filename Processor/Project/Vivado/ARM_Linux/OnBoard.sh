@@ -39,6 +39,7 @@ temp=
 mount_dir=
 mounted=
 cleanup() {
+    exec 8<&-
     if [ -n "$temp" ]; then rm -f "$temp"; fi
     if [ -n "$mounted" ]; then umount "$mount_dir"; fi
     if [ -n "$mount_dir" ]; then rmdir "$mount_dir"; fi
@@ -66,11 +67,18 @@ case "$action" in
 esac
 
 # Stage on the destination filesystem. A short upload must never replace the last good file.
+exec 8<"${dest%/*}"
 temp=$(mktemp "${dest%/*}/.rsd-XXXXXX")
-cat > "$temp"
+dd of="$temp" bs=64k conv=fsync status=none
 verify "$temp"
-if [ "$action" = boot/deploy ]; then sync; fi
 mv -f "$temp" "$dest"
 temp=
-sync
+# With no input, BusyBox dd calls fsync on its inherited output descriptor
+# without writing any bytes. This commits the rename on an existing mount too.
+dd if=/dev/null conv=fsync status=none >&8 || {
+    echo "Replaced $dest but could not sync its directory. Check the filesystem before rebooting." >&2
+    exit 1
+}
+trap - EXIT
+cleanup
 printf 'Deployed %s\n' "${dest##*/}"
