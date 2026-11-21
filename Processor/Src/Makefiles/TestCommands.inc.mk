@@ -271,12 +271,21 @@ test/Asm/FP/run test/C/FP/run:
 	@exit 1
 endif
 
-test/C/HelloWorld/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/HelloWorld
+# Register each single-HEX test once for simulation, path lookup and board use.
+define RSD_ZYNQ_TEST
+test/$(1)/run:
+	$$(RUN_TEST_OMIT_MSG) $(2)
+.PHONY: test/$(1)/run test/$(1)/hex-path test/$(1)/zynq/deploy test/$(1)/zynq/run
+test/$(1)/hex-path:
+	@printf '%s\n' "$(CURDIR)/$(2)/code.hex"
+test/$(1)/zynq/deploy test/$(1)/zynq/run:
+	$$(MAKE) -C ../Project/Vivado/ARM_Linux program/$$(notdir $$@) RSD_ZYNQ_HEX="$(CURDIR)/$(2)/code.hex"
+endef
+$(eval $(call RSD_ZYNQ_TEST,C/HelloWorld,Verification/TestCode/C/HelloWorld))
+$(eval $(call RSD_ZYNQ_TEST,External/Coremark,Verification/TestCode/Coremark/Coremark))
+
 test/C/Fibonacci/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Fibonacci
-test/External/Coremark/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark
 test/External/Coremark/Coremark_for_RV32I/run:
 	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark_for_RV32I
 test/C/PerformanceCounter/run:
