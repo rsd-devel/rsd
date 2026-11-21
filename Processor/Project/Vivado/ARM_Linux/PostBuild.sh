@@ -28,6 +28,12 @@ if [ -z "${RSD_SSH_PUBLIC_KEY:-}" ]; then
     printf '%s\n' "$public_key" > "$key.pub"
     RSD_SSH_PUBLIC_KEY="$key.pub"
     echo "SSH client key: $key (keep private; only the .pub is installed)"
+else
+    # Expect one ssh-keygen .pub record. A fingerprint alone can pass for a mixed file.
+    if ! awk 'END { exit (NR != 1) }' "$RSD_SSH_PUBLIC_KEY" ||
+       ! ssh-keygen -lf - < "$RSD_SSH_PUBLIC_KEY" > /dev/null; then
+        echo "Expected one OpenSSH public key in $RSD_SSH_PUBLIC_KEY" >&2
+        exit 1
+    fi
 fi
-test -s "$RSD_SSH_PUBLIC_KEY"
 install -m 0600 "$RSD_SSH_PUBLIC_KEY" "$TARGET_DIR/root/.ssh/authorized_keys"
