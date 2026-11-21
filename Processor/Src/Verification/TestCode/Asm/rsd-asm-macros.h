@@ -6,7 +6,6 @@
 #define RSD_MACROAS_H
 
 #include "../rsd-serial.h"
-#define RSD_SERIAL_ADDR RSD_SERIAL_OUTPUT
 
 #define RSD_STRINGIFY(x) #x
 #define RSD_TOSTRING(x)  RSD_STRINGIFY(x)
@@ -67,12 +66,11 @@
     ;\
     la a0, 10000b ;\
     mv t0, a0; ;\
-    li t1, RSD_SERIAL_ADDR ;\
 10001: ;\
     lbu  a0, (t0) ;\
     addi t0, t0, 1 ;\
     beq  a0, zero, 10002f ;\
-    sw   a0, 0(t1) ;\
+    RSD_SERIAL_PUTC(a0, t1) ;\
     j 10001b ;\
 10002: ;\
 
