@@ -17,6 +17,5 @@ int main(void){
         serial_out_hex(bitcast(s));
         serial_out_char('\n');
     }
-    serial_flush();
     return 0;
 }

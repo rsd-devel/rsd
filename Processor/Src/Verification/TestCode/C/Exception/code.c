@@ -31,7 +31,4 @@ void main(){
             serial_out_char('0');
         }
     }
-
-    //最後のシリアル出力のためのウェイト
-    for(i=0; i<100; i++) sum += i;
 }

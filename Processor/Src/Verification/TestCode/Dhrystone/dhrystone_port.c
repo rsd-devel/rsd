@@ -128,6 +128,5 @@ int main(void)
         serial_out_char('\n');
     }
 #endif
-    serial_flush();
     return failed;
 }

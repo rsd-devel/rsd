@@ -24,6 +24,10 @@ _end:
 
 _call_main:
 	call main
+.Lexit:
+	# PC_GOAL can retire while a committed UART store is still queued.
+	# Drain the store queue so the final byte reaches the FIFO before the test stops.
+	fence iorw, iorw
 	j _end
 
 _init:
@@ -147,7 +151,7 @@ trap_dump_registers:
 	RSD_IO_WRITE_STR("aborting...\n\033[0m")
 
 abort:
-	j _end
+	j .Lexit
 
 	lw x0, 0(sp)								# レジスタ退避
 	lw x1, 4(sp)

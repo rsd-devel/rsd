@@ -5,8 +5,8 @@
 
 #define RSD_SERIAL_TX_FULL 1
 
-// Order the status read before issuing the byte, and drain the store before
-// another sender can observe the same free slot or the test reaches its goal.
+// RSD serializes each MMIO load and drains older stores before reading STATUS.
+// This orders the OUTPUT write between successive polls without a per-byte fence.
 #ifdef __ASSEMBLER__
 // Register-dump tests also expect _TMP to contain OUTPUT on return.
 #define RSD_SERIAL_PUTC(_VALUE, _TMP) \
@@ -14,19 +14,15 @@
     lw _TMP, 0(_TMP); \
     andi _TMP, _TMP, RSD_SERIAL_TX_FULL; \
     bnez _TMP, 900b; \
-    fence i, o; \
     li _TMP, RSD_SERIAL_OUTPUT; \
-    sw _VALUE, 0(_TMP); \
-    fence iorw, iorw
+    sw _VALUE, 0(_TMP)
 #else
 // Callers with concurrent writers must serialize this check and store.
 static inline int rsd_serial_try_write(unsigned char byte)
 {
     if (*(const volatile unsigned int *)RSD_SERIAL_STATUS & RSD_SERIAL_TX_FULL)
         return 0;
-    __asm__ volatile ("fence i, o" ::: "memory");
     *(volatile unsigned char *)RSD_SERIAL_OUTPUT = byte;
-    __asm__ volatile ("fence iorw, iorw" ::: "memory");
     return 1;
 }
 #endif

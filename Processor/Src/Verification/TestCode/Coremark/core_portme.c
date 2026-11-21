@@ -53,5 +53,4 @@ void portable_fini(core_portable *p)
     ee_printf("RSD benchmark: iterations=%u cycles=0x%08x\n",
               (ee_u32)seed4_volatile, measured_cycles);
 #endif
-    serial_flush();
 }
