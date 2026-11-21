@@ -41,6 +41,8 @@ vivado-clean:
 vivado-synthesis: $(VIVADO_BIT_FILE)
 	@echo "==== Build Successful ===="
 
+.DELETE_ON_ERROR:
+
 VIVADO_RTL_INPUTS = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(HEADERS) Config/SynthesisMacros.sv))
 
 # Both frontends use rsd.xpr. Re-import the IP when switching synthesis tools.
@@ -54,17 +56,18 @@ endif
 # These inputs are also used when Vivado implements a Synplify netlist.
 $(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_ROOT)/scripts/synthesis/design_1.tcl $(VIVADO_PROJECT_ROOT)/project_src/zedboard.xdc
 
-# ビットストリームの生成
-# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
-$(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
-	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
-	
-# $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
-#	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
-#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
-#	@echo "(Re-)build hdf using Vivado!"
-#	exit 1
+# Vivado writes the bitstream and XSA together. Use one recipe on GNU make
+# 4.2 as well, and regenerate the pair if either output was removed.
+$(VIVADO_BIT_FILE): | $(VIVADO_XSA_FILE)
+ifeq ($(wildcard $(VIVADO_BIT_FILE)),)
+.PHONY: vivado-missing-bitstream
+$(VIVADO_XSA_FILE): vivado-missing-bitstream
+endif
 
+$(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	@rm -f "$@"
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	test -s $(VIVADO_BIT_FILE) && test -s $@
 
 # Build hardware/FSBL outside the dev container using Vivado/Vitis 2019.2.
 .PHONY: zynq-hardware
