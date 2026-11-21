@@ -88,6 +88,7 @@ $(RSD_ZYNQ_IMAGES)/boot.bin: $(RSD_ZYNQ_FSBL) $(RSD_ZYNQ_BIT) $(RSD_ZYNQ_IMAGES)
 	test -s "$(RSD_ZYNQ_FSBL)" && test -s "$(RSD_ZYNQ_BIT)" && test -s $(RSD_ZYNQ_IMAGES)/u-boot
 	cp "$(RSD_ZYNQ_FSBL)" $(RSD_ZYNQ_IMAGES)/fsbl.elf
 	cp "$(RSD_ZYNQ_BIT)" $(RSD_ZYNQ_IMAGES)/boot.bit
+	ln -sf u-boot $(RSD_ZYNQ_IMAGES)/u-boot.elf
 	cd $(RSD_ZYNQ_IMAGES) && "$(RSD_VIVADO_ROOT)/bin/bootgen" -arch zynq -w -image $(CURDIR)/boot.bif -o boot.bin
 
 # Buildroot's host tools require the build environment (normally devcontainer).

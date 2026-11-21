@@ -2,5 +2,6 @@
 image : {
     [bootloader]fsbl.elf
     boot.bit
-    u-boot
+    // Bootgen 2019.2 uses the .elf suffix to extract the loadable segment and entry point.
+    u-boot.elf
 }
