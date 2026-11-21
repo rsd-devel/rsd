@@ -100,6 +100,12 @@ if { $::argc > 0 } {
 set orig_proj_dir "[file normalize "$origin_dir/rsd"]"
 
 # Create project
+# Imported IP sources resolve to rsd/Src through the relative paths in
+# component.xml. Vivado 2019.2 preserves this generated copy across -force.
+set rsd_project [file join $env(RSD_ROOT) Processor Project Vivado TargetBoards Zedboard rsd]
+if {[file normalize [file join $origin_dir ${_xil_proj_name_}]] eq [file normalize $rsd_project]} {
+  file delete -force [file join $rsd_project Src]
+}
 create_project -force ${_xil_proj_name_} $origin_dir/${_xil_proj_name_} -part xc7z020clg484-1
 
 # Set the directory path for the new project
