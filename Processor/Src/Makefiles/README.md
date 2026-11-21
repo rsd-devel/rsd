@@ -26,8 +26,8 @@ The Makefiles are organized as follows:
 Files ending in `.inc.mk` are included by other Makefiles. The tool-specific
 `.mk` entry points can also be invoked directly from `Processor/Src`.
 
-The detailed reference is maintained in the Wiki:
+See the RSD documentation for the full reference.
 
-- [Build entry points and Makefile structure](https://github.com/rsd-devel/rsd/wiki/en-devel-build)
-- [Test programs and suites](https://github.com/rsd-devel/rsd/wiki/en-test-program)
-- [TestDriver limits and result checking](https://github.com/rsd-devel/rsd/wiki/en-test-driver)
+- [Build entry points and Makefile structure](https://github.com/rsd-devel/rsd-docs/blob/master/en/development/build.md)
+- [Test programs and suites](https://github.com/rsd-devel/rsd-docs/blob/master/en/testing/program.md)
+- [TestDriver limits and result checking](https://github.com/rsd-devel/rsd-docs/blob/master/en/testing/driver.md)

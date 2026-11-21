@@ -97,11 +97,11 @@ make SIM=xsim RSD_VIVADO_ROOT=/PATH/TO/VIVADO test/level-1/run  # Run tests on t
 
 ### Run on a Xilinx Zynq board
 
-* See [this RSD wiki page](https://github.com/rsd-devel/rsd/wiki/en-fpga-zynq-synth-for-linux).
+* [Build the ZedBoard Linux image and run programs on the board](https://github.com/rsd-devel/rsd-docs/blob/master/en/fpga/zynq/synth-for-linux.md)
 
 ## Documents
 
-* See [RSD Wiki](https://github.com/rsd-devel/rsd/wiki).
+* [RSD documentation in English](https://github.com/rsd-devel/rsd-docs/blob/master/en/README.md)
 
 ## License
 

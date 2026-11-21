@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Run test programs and check cfg.xml limits, register values and UART output.
-# Usage: https://github.com/rsd-devel/rsd/wiki/en-test-driver
+# Usage: https://github.com/rsd-devel/rsd-docs/blob/master/en/testing/driver.md
 # Driver tests (from the repository root): make -C Processor/Tools/TestDriver test
 
 import os, sys, subprocess
