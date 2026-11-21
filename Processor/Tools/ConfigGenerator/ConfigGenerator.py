@@ -307,7 +307,7 @@ class Region:
 REQUIRED_REGIONS = (
     ("rom", RegionType.MEMORY, ()),
     ("ram", RegionType.MEMORY, ()),
-    ("serial", RegionType.IO, ("OUTPUT",)),
+    ("serial", RegionType.IO, ("OUTPUT", "STATUS")),
     ("clint", RegionType.IO,
      ("MSIP", "TIMER_LOW", "TIMER_HI", "TIMER_CMP_LOW", "TIMER_CMP_HI")),
     ("plic", RegionType.IO,

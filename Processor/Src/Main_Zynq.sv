@@ -84,6 +84,7 @@ logic clk;
     DebugRegister debugRegister; // RSD_DISABLE_DEBUG_REGISTER時はどこにも繋がない
 `endif
     
+    logic serialTxFull;
     logic programLoaded; // プログラムのロードが済んだらTRUE
 
     //
@@ -248,7 +249,8 @@ logic clk;
                             axi4LitePlToPsControlRegisterIF, 
                             serialWE, 
                             serialWriteData,
-                            lastCommittedPC );
+                            lastCommittedPC,
+                            serialTxFull );
    
     Axi4LitePsToPlControlRegister axi4LitePsToPlControlRegister( 
                             axi4LitePsToPlControlRegisterIF, 
@@ -256,6 +258,9 @@ logic clk;
                             memAccessWriteDataFromProgramLoader,
                             memAccessWE_FromProgramLoader,
                             programLoaded);
+`else
+    // Simulation consumes every serial write immediately.
+    assign serialTxFull = FALSE;
 `endif
     //
     // --- Processor core
@@ -277,6 +282,7 @@ logic clk;
         .memReadSerial( memReadSerial ),
         .memAccessResponse( memAccessResponse ),
         .rstStart( rstStart ),
+        .serialTxFull( serialTxFull ),
         .serialWE( serialWE ),
         .serialWriteData( serialWriteData ),
         .lastCommittedPC( lastCommittedPC ),

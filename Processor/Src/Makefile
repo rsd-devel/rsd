@@ -84,6 +84,7 @@ UNIT_TESTS = \
 	ICache \
 	DCache \
 	DecodeStage \
+	SerialOutput \
 	InterruptController
 ifneq ($(findstring +define+RSD_MARCH_FP_PIPE,$(RSD_SRC_CFG)),)
 UNIT_TESTS += FPDivSqrtUnit

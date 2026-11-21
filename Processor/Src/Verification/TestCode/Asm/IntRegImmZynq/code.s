@@ -1,3 +1,5 @@
+#include "../rsd-asm-macros.h"
+
     .file    "code.s"
     .option nopic
     .text
@@ -49,39 +51,7 @@ main2:
     add     a7, a7, a6           # a7=0x80000001+0x1000=0x80001001
     #auipc   a6, 0                # a6に次のPCをコピー
 output:
-    li      t3, 0x40002000
-    sw      x0, 0(t3)
-    sw      x1, 0(t3)
-    sw      x2, 0(t3)
-    sw      x3, 0(t3)
-    sw      x4, 0(t3)
-    sw      x5, 0(t3)
-    sw      x6, 0(t3)
-    sw      x7, 0(t3)
-    sw      x8, 0(t3)
-    sw      x9, 0(t3)
-    sw      x10, 0(t3)
-    sw      x11, 0(t3)
-    sw      x12, 0(t3)
-    sw      x13, 0(t3)
-    sw      x14, 0(t3)
-    sw      x15, 0(t3)
-    sw      x16, 0(t3)
-    sw      x17, 0(t3)
-    sw      x18, 0(t3)
-    sw      x19, 0(t3)
-    sw      x20, 0(t3)
-    sw      x21, 0(t3)
-    sw      x22, 0(t3)
-    sw      x23, 0(t3)
-    sw      x24, 0(t3)
-    sw      x25, 0(t3)
-    sw      x26, 0(t3)
-    sw      x27, 0(t3)
-    sw      x28, 0(t3)
-    sw      x29, 0(t3)
-    sw      x30, 0(t3)
-    sw      x31, 0(t3)
+    RSD_IO_DUMP_GPRS(t3)
 
 main3:
     ret

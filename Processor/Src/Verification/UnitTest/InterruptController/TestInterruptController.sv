@@ -34,7 +34,7 @@ module TestInterruptController;
     CSR_UnitIF csr(.*);
     PLIC_UnitIF plic(.*);
     IO_UnitIF ioPort(.clk(clk), .rst(rst), .rstStart(rstStart),
-                     .serialWE(), .serialWriteDataOut());
+                     .serialTxFull(1'b0), .serialWE(), .serialWriteDataOut());
     PerformanceCounterIF perf(.*);
     ControllerIF ctrl(.*);
     NextPCStageIF fetchStage(.*);

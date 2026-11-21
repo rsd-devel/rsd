@@ -172,7 +172,7 @@ Build/Generated/F.mk: Makefile External/testplans/F.csv | check-source
 # Preserve unchanged timestamps so ACT4 can reuse its build and Sail results.
 config: $(RSD_MEMORY_MAP_OUTPUTS)
 	mkdir -p "$(BUILD_ROOT)/Config"
-	@for file in rsd-rv32i.yaml sail.json rvmodel_macros.h ../rsd-memory-map.h; do \
+	@for file in rsd-rv32i.yaml sail.json rvmodel_macros.h ../rsd-memory-map.h ../rsd-serial.h; do \
 		cp "$$file" "$(BUILD_ROOT)/Config/$${file##*/}.tmp" || exit 1; \
 		if test -n "$(filter F,$(ACT_EXTENSION_LIST))"; then \
 			case "$$file" in \
@@ -212,7 +212,7 @@ build: $(RSD_ACT_BUILD_STAMP)
 		$(addprefix $(CASE_ROOT)/,$(addsuffix /serial.ref.txt,$(ACT_CASES)))
 
 $(RSD_ACT_BUILD_STAMP): $(ACT_SELECTED_SOURCES) $(RSD_MEMORY_MAP_OUTPUTS) \
-	Makefile test_config.yaml rsd-rv32i.yaml sail.json rvmodel_macros.h link.ld \
+	Makefile test_config.yaml rsd-rv32i.yaml sail.json rvmodel_macros.h ../rsd-serial.h link.ld \
 	| check-source check-selection
 	@rm -f "$@"
 	$(MAKE) check config

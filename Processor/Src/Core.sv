@@ -28,6 +28,7 @@ input
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
     ExternalInterruptRequestPath externalInterruptRequest,
+    logic serialTxFull,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -108,7 +109,7 @@ output
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
     CSR_UnitIF csrUnitIF(clk, rst, rstStart);
-    IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
+    IO_UnitIF ioUnitIF(clk, rst, rstStart, serialTxFull, serialWE, serialWriteData);
     PLIC_UnitIF plicUnitIF(clk, rst, rstStart, externalInterruptRequest);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);

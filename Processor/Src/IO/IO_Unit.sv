@@ -86,8 +86,11 @@ module IO_Unit(
             //$display(tmNext.mtimecmp.raw);
         end
 
+        if (phyRawReadAddr == PHY_ADDR_SERIAL_STATUS) begin
+            port.ioReadDataOut = DataPath'(port.serialTxFull);
+        end
         // clint
-        if (phyRawReadAddr == PHY_ADDR_CLINT_MSIP) begin
+        else if (phyRawReadAddr == PHY_ADDR_CLINT_MSIP) begin
             port.ioReadDataOut = {31'h0, csrUnit.msip}; // zero-extend
         end
         // PLIC
