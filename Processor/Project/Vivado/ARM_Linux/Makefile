@@ -23,6 +23,8 @@
 #       address 192.168.1.50
 #       netmask 255.255.255.0
 #       gateway 192.168.1.1
+# To keep the MAC used on first boot, read /sys/class/net/eth0/address on the
+# board and add "hwaddress ether <that address>" under its eth0 iface line.
 # Put DNS servers in etc/resolv.conf (e.g. nameserver 192.168.1.1).
 # Paths must be visible inside the build environment. With no overlay, a fresh
 # build uses DHCP. Buildroot retains overlaid files on incremental builds;
