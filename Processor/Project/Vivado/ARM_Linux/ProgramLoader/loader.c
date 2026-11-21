@@ -139,6 +139,10 @@ int main(int argc, char **argv)
         for (size_t j = 0; j < 4; j++)
             ram[4 * i + j] = words[j];
     }
+    // The AXI output FIFO survives core reset. Discard unread bytes left by
+    // the previous program while the new one is still held in reset.
+    while (pl2ps[L2S_EMPTY_OFFSET] != 1)
+        (void)pl2ps[L2S_DATA_OFFSET];
     // Publish DDR writes before releasing the core from reset.
     __sync_synchronize();
     ps2pl[DONE_OFFSET] = 1;
