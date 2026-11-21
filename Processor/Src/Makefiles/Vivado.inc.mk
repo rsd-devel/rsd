@@ -43,6 +43,14 @@ vivado-synthesis: $(VIVADO_BIT_FILE)
 
 VIVADO_RTL_INPUTS = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(HEADERS) Config/SynthesisMacros.sv))
 
+# Both frontends use rsd.xpr. Re-import the IP when switching synthesis tools.
+VIVADO_PROJECT_FLOW := $(basename $(notdir $(MAKEFILE)))
+VIVADO_PROJECT_FLOW_FILE := $(VIVADO_BOARD_PROJECT_ROOT)/.synthesis-tool
+ifneq ($(VIVADO_PROJECT_FLOW),$(file <$(VIVADO_PROJECT_FLOW_FILE)))
+.PHONY: vivado-flow-changed
+$(VIVADO_PROJECT_FILE): vivado-flow-changed
+endif
+
 # These inputs are also used when Vivado implements a Synplify netlist.
 $(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_ROOT)/scripts/synthesis/design_1.tcl $(VIVADO_PROJECT_ROOT)/project_src/zedboard.xdc
 

@@ -25,9 +25,10 @@ include Makefiles/Vivado.inc.mk
 
 $(VIVADO_PROJECT_FILE): $(SYNPLIFY_NETLIST) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/create_project_using_synplify_netlist.tcl \
 	$(VIVADO_PROJECT_ROOT)/rsd_ip/Synplify/component.xml $(VIVADO_PROJECT_ROOT)/rsd_ip/Synplify/xgui/RSD_v1_0.tcl
-	@cd $(VIVADO_PROJECT_ROOT); \
+	@cd $(VIVADO_PROJECT_ROOT) && \
 	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch \
 		-source scripts/synthesis/create_project_using_synplify_netlist.tcl
+	@echo $(VIVADO_PROJECT_FLOW) > "$(VIVADO_PROJECT_FLOW_FILE)"
 
 $(SYNPLIFY_NETLIST): $(VIVADO_RTL_INPUTS) Makefiles/CoreSources.inc.mk
 	@ echo "(Re-)build board netlist using Synplify!"

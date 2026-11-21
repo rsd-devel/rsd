@@ -35,8 +35,9 @@ VIVADO_PROJECT_FILE_DEPS = $(VIVADO_RTL_INPUTS) \
 # Create Vivado project file for synthesis
 $(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_FILE_DEPS)
 	python3 $(TOOLS_ROOT)/XilinxTools/IP_Generator.py $(TARGET_BOARD) # Generate Xilinx IP of RSD
-	@cd $(VIVADO_PROJECT_ROOT); \
+	@cd $(VIVADO_PROJECT_ROOT) && \
 	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/synthesis/create_project.tcl
+	@echo $(VIVADO_PROJECT_FLOW) > "$(VIVADO_PROJECT_FLOW_FILE)"
 
 # -------------------------------
 # Project-based timing and post-implementation simulation.
