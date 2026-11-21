@@ -186,6 +186,27 @@ abort:
 	mret
 
 
+# Print the low byte of a0 in hex, preserving a1 for RSD_IO_WRITE_GPR.
+    .global rsd_write_hex_byte
+rsd_write_hex_byte:
+    mv t1, a0
+    srli a0, t1, 4
+    andi a0, a0, 15
+    la t0, rsd_hex_digits
+    add t0, t0, a0
+    lbu a0, 0(t0)
+    RSD_SERIAL_PUTC(a0, t0)
+    andi a0, t1, 15
+    la t0, rsd_hex_digits
+    add t0, t0, a0
+    lbu a0, 0(t0)
+    RSD_SERIAL_PUTC(a0, t0)
+    ret
+
+    .section .rodata
+rsd_hex_digits:
+    .ascii "0123456789abcdef"
+
 # 文字列データ
 	.data
 	.align	4

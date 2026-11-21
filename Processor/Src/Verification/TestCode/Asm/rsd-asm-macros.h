@@ -5,42 +5,17 @@
 #ifndef RSD_MACROAS_H
 #define RSD_MACROAS_H
 
-#include "../rsd-memory-map.h"
+#include "../rsd-serial.h"
 #define RSD_SERIAL_ADDR RSD_SERIAL_OUTPUT
 
 #define RSD_STRINGIFY(x) #x
 #define RSD_TOSTRING(x)  RSD_STRINGIFY(x)
 
-//
-// Print a single byte
-// This function use a0, t0, t1, ra
-//
+// Keep one copy of the hex formatter in the CRT. Assertion-heavy tests
+// emit many register dumps and must fit in the 32 KiB test ROM.
 #define RSD_IO_WRITE_BYTE(_R) \
-    .data ;\
-    .align 4 ;\
-10000: ;\
-    .string "0123456789abcdef" ;\
-    .text ;\
-    ;\
-    mv a0, _R ;\
-    mv t1, a0          /* copy */ ;\
-    /* Print upper nibble*/ ;\
-    srli a0, t1, 4 ;\
-    andi a0, a0, 0x0f ;\
-    la t0, 10000b       /* load a convert table address*/  ;\
-    add a0, a0, t0 ;\
-    lbu  a0, (a0) ;\
-    li t0, RSD_SERIAL_ADDR ;\
-    sw a0, 0(t0) ;\
-    ;\
-    /* Print lower nibble */ ;\
-    andi a0, t1, 0x0f ;\
-    la t0, 10000b ;\
-    add a0, a0, t0 ;\
-    lbu  a0, (a0) ;\
-    li t0, RSD_SERIAL_ADDR ;\
-    sw a0, 0(t0) ;\
-
+    mv a0, _R; \
+    call rsd_write_hex_byte
 
 /* RSD_IO_WRITE_GPR: t0を破壊 */
 #define RSD_IO_WRITE_GPR(_R) \
