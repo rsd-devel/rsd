@@ -59,5 +59,5 @@ platform/zynq/image/build:
 platform/zynq/image/write:
 	$(MAKE) -C ../Project/Vivado/ARM_Linux image-write
 
-platform/zynq/hardware/build:
+platform/zynq/hardware/build: synth/vivado/build
 	$(MAKE) -f Makefiles/Vivado.mk zynq-hardware
