@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 #include <zephyr/init.h>
-#include "../../../rsd-memory-map.h"
+#include <zephyr/irq.h>
 #include <zephyr/sys/libc-hooks.h>
 #include <zephyr/sys/printk-hooks.h>
+#include "../../../rsd-serial.h"
 
-/* RSD has a write-only character register, with no UART status registers. */
 int arch_printk_char_out(int c)
 {
-    __asm__ volatile ("fence iorw, iorw" ::: "memory");
-    *(volatile unsigned char *)RSD_SERIAL_OUTPUT = (unsigned char)c;
-    return c;
+    for (;;) {
+        // On this single hart, an interrupt can print between a poll and a store.
+        unsigned int key = irq_lock();
+        int written = rsd_serial_try_write(c);
+        irq_unlock(key);
+        if (written) {
+            return c;
+        }
+    }
 }
 
 static int rsd_console_init(void)
