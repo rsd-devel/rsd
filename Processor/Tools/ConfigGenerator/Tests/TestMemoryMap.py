@@ -72,10 +72,14 @@ class TestMemoryMap(unittest.TestCase):
             self.render()
 
     def test_single_byte_region(self):
+        self.values['memory_map']['regions']['single'] = {
+            'name': 'Single byte', 'type': 'io', 'size': 1,
+            'logical_base': 0x50000000, 'physical_base': 0x8000, 'translation': 'relative',
+        }
         config = ProcessorConfig.from_mapping(self.values)
-        serial = next(region for region in config.regions if region.key == 'serial')
-        self.assertEqual(serial.logical_base, serial.logical_end)
-        self.assertEqual(serial.physical_range[0], serial.physical_range[1])
+        single = next(region for region in config.regions if region.key == 'single')
+        self.assertEqual(single.logical_base, single.logical_end)
+        self.assertEqual(single.physical_range[0], single.physical_range[1])
 
     def test_required_hardware_constants(self):
         del self.values['memory_map']['regions']['plic']

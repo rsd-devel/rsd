@@ -116,17 +116,19 @@ size = 0x0001_0000
 translation = "low_bits"
 uncachable = true
 
-# Serial output port. Only the output address is decoded; size is not a buffer size.
+# Serial transmit registers. The region size is in bytes.
 [memory_map.regions.serial]
 type = "io"
 name = "Serial IO"
 logical_base = 0x4000_2000
 physical_base = 0x0_2000
-size = 1
+size = 8
 translation = "low_bits"
 [memory_map.regions.serial.registers]
 # Writing this register forwards output data to the serial interface.
 OUTPUT = 0
+# Read bit 0 before writing OUTPUT: 1 means the transmit FIFO is full.
+STATUS = 4
 
 # Core-local software interrupt and timer registers, using RSD's register layout.
 # IO defaults to uncachable even when the field is omitted.

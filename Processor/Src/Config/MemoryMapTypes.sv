@@ -33,7 +33,7 @@ localparam PC_GOAL = 32'h80001004;
 //       0x0000_1000 --0x0000_ffff: Section 0 (ROM)
 //       0x8000_0000 --0x8003_ffff: Section 1 (RAM)
 //       0x8004_0000 --0x8004_ffff: Uncachable section (RAM)
-//       0x4000_2000 --0x4000_2000: Serial IO
+//       0x4000_2000 --0x4000_2007: Serial IO
 //       0x4001_0000 --0x4001_7fff: CLINT
 //       0xc000_0000 --0xc020_1fff: PLIC
 // In this map, instruction access is not performed in the IO area, so
@@ -141,16 +141,18 @@ localparam PHY_ADDR_UNCACHABLE_END   = PHY_RAW_ADDR_WIDTH'('h05_ffff);
 
 //
 // Serial IO
-// logical [0x4000_2000 - 0x4000_2000] -> physical [0x00_2000 - 0x00_2000]
+// logical [0x4000_2000 - 0x4000_2007] -> physical [0x00_2000 - 0x00_2007]
 //
 localparam LOG_ADDR_SERIAL_BASE = ADDR_WIDTH'('h4000_2000);
 localparam LOG_ADDR_SERIAL_OUTPUT  = LOG_ADDR_SERIAL_BASE + 0;
+localparam LOG_ADDR_SERIAL_STATUS  = LOG_ADDR_SERIAL_BASE + 4;
 localparam LOG_ADDR_SERIAL_BEGIN = LOG_ADDR_SERIAL_BASE;
-localparam LOG_ADDR_SERIAL_END   = LOG_ADDR_SERIAL_BASE + (1 - 1);
-localparam LOG_ADDR_SERIAL_ADDR_BIT_WIDTH = 0;
+localparam LOG_ADDR_SERIAL_END   = LOG_ADDR_SERIAL_BASE + (8 - 1);
+localparam LOG_ADDR_SERIAL_ADDR_BIT_WIDTH = 3;
 localparam PHY_ADDR_SERIAL_BASE = PHY_RAW_ADDR_WIDTH'('h00_2000);
-localparam PHY_ADDR_SERIAL_END   = PHY_RAW_ADDR_WIDTH'('h00_2000);
-localparam PHY_ADDR_SERIAL_OUTPUT  = PHY_ADDR_SERIAL_BASE;
+localparam PHY_ADDR_SERIAL_END   = PHY_RAW_ADDR_WIDTH'('h00_2007);
+localparam PHY_ADDR_SERIAL_OUTPUT  = PHY_ADDR_SERIAL_BASE + PhyRawAddrPath'(LOG_ADDR_SERIAL_OUTPUT[LOG_ADDR_SERIAL_ADDR_BIT_WIDTH-1:0]);
+localparam PHY_ADDR_SERIAL_STATUS  = PHY_ADDR_SERIAL_BASE + PhyRawAddrPath'(LOG_ADDR_SERIAL_STATUS[LOG_ADDR_SERIAL_ADDR_BIT_WIDTH-1:0]);
 
 //
 // CLINT
@@ -245,7 +247,7 @@ function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     else if (LOG_ADDR_SERIAL_BEGIN <= logAddr && logAddr <= LOG_ADDR_SERIAL_END) begin
         phyAddr.isUncachable = TRUE;
         phyAddr.isIO = TRUE;
-        phyAddr.addr = PHY_ADDR_SERIAL_BASE;
+        phyAddr.addr = PHY_ADDR_SERIAL_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_SERIAL_ADDR_BIT_WIDTH-1:0]);
     end
     else if (LOG_ADDR_CLINT_BEGIN <= logAddr && logAddr <= LOG_ADDR_CLINT_END) begin
         phyAddr.isUncachable = TRUE;
