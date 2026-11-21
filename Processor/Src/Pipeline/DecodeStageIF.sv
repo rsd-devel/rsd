@@ -16,15 +16,27 @@ interface DecodeStageIF( input logic clk, rst );
     RenameStageRegPath nextStage[ DECODE_WIDTH ];
     logic nextFlush;
     AddrPath nextRecoveredPC;
+
+    ELP_State_Type elpState;
+    logic recoverELP;
+    ELP_State_Type recoveredELP;
+    logic setELP_OnInterrupt;
     
+    logic serializeNextInsn;
+
     modport ThisStage(
     input 
         clk, 
         rst,
+        serializeNextInsn,
+        recoverELP,
+        recoveredELP,
+        setELP_OnInterrupt,
     output 
         nextStage,
         nextFlush,
-        nextRecoveredPC
+        nextRecoveredPC,
+        elpState
     );
     
     modport NextStage(
@@ -32,6 +44,20 @@ interface DecodeStageIF( input logic clk, rst );
         nextStage,
         nextFlush,
         nextRecoveredPC
+    );
+
+    modport InterruptController(
+    input
+        elpState,
+    output
+        setELP_OnInterrupt
+    );
+
+    modport RecoveryManager(
+    output
+        serializeNextInsn,
+        recoverELP,
+        recoveredELP
     );
     
 endinterface : DecodeStageIF

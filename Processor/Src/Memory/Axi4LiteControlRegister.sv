@@ -19,7 +19,8 @@ module Axi4LitePlToPsControlRegister
   input
     logic we,
     SerialDataPath wv,
-    PC_Path lastCommittedPC
+    PC_Path lastCommittedPC,
+  output logic full
 );
 
     // AXI4LITE signals
@@ -45,7 +46,6 @@ module Axi4LitePlToPsControlRegister
 
     logic push;
     logic pop;
-    logic full;
     logic empty;
     logic [`PS_PL_CTRL_REG_DATA_BIT_SIZE-1: 0] headData;
 

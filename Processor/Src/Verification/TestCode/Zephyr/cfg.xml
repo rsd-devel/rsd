@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Config>
+  <MaxTestInstructions>100000</MaxTestInstructions>
+  <MaxNoCommitCycles>500</MaxNoCommitCycles>
+  <EnablePC_Goal>0</EnablePC_Goal>
+  <RegisterValues>
+  </RegisterValues>
+</Config>

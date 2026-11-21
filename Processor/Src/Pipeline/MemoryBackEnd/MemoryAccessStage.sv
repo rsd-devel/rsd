@@ -16,6 +16,7 @@ import DebugTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
 import ActiveListIndexTypes::*;
+import SchedulerTypes::*;
 
 module MemoryAccessStage(
     MemoryAccessStageIF.ThisStage port,
@@ -26,6 +27,7 @@ module MemoryAccessStage(
     IO_UnitIF.MemoryAccessStage ioUnit,
     RecoveryManagerIF.MemoryAccessStage recovery,
     ControllerIF.MemoryAccessStage ctrl,
+    AMOCacheIF.MemoryAccessStage amoCache,
     DebugIF.MemoryAccessStage debug
 );
 
@@ -61,6 +63,9 @@ module MemoryAccessStage(
     logic isDiv   [ MEM_ISSUE_WIDTH ];
     logic isMul   [ MEM_ISSUE_WIDTH ];
 
+    logic isZalrsc[ MEM_ISSUE_WIDTH ];
+    logic isScFail[ MEM_ISSUE_WIDTH ];
+    logic isZaamo [ MEM_ISSUE_WIDTH ];
 
     logic valid   [ MEM_ISSUE_WIDTH ];
     logic update  [ MEM_ISSUE_WIDTH ];
@@ -96,22 +101,45 @@ module MemoryAccessStage(
             isCSR[i]   = pipeReg[i].isCSR;
             isDiv[i]   = pipeReg[i].isDiv;
             isMul[i]   = pipeReg[i].isMul;
+
+            isZalrsc[i]= pipeReg[i].isZalrsc;
+            isScFail[i]= pipeReg[i].isScFail;
+            isZaamo [i]= pipeReg[i].isZaamo;
+
             update[i]  = pipeReg[i].valid && !stall && !clear && !flush[i];
             regValid[i] = pipeReg[i].regValid;
         end
 
+        amoCache.writeEnable = FALSE;
+        amoCache.writeAddr = '0;
+        amoCache.writeData = '0;
+        amoCache.invalidate = FALSE;
+
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             if (i == 0) begin
+                ioUnit.ioRE = isLoad[i] && valid[i] && !flush[i] && !clear &&
+                              pipeReg[i].memMapType == MMT_IO &&
+                              pipeReg[i].execState == EXEC_STATE_SUCCESS;
                 ioUnit.ioReadAddrIn = pipeReg[i].phyAddrOut;
             end
 
-            if (isLoad[i]) begin
+            if (isLoad[i] || (isZaamo[i] && !pipeReg[i].amoCacheHit)) begin
                 if (i == 0 && pipeReg[i].memMapType == MMT_IO) begin
                     ldDataOut[i].data = ioUnit.ioReadDataOut;
                 end
                 else begin
                     ldDataOut[i].data = loadStoreUnit.executedLoadData[i];
                 end
+
+                if (isZaamo[i]) begin
+                    amoCache.writeEnable = update[i] && pipeReg[i].writeAMOCache;
+                    amoCache.writeAddr = pipeReg[i].phyAddrOut;
+                    amoCache.writeData = ldDataOut[i].data;
+                end
+            end
+            else if (isZaamo[i] && pipeReg[i].amoCacheHit) begin
+                ldDataOut[i].data = amoCache.readDataOut;
+                amoCache.invalidate = update[i] && regValid[i]; // Invalidate after use
             end
             else if (isCSR[i])
                 ldDataOut[i].data = pipeReg[i].csrDataOut;
@@ -119,33 +147,24 @@ module MemoryAccessStage(
                 ldDataOut[i].data = pipeReg[i].addrOut;
 
             `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
-                if (isDiv[i])
-                    ldDataOut[i].data = mulDivUnit.divDataOut[i];
-                else if (isMul[i])
+                if (isMul[i])
                     ldDataOut[i].data = mulDivUnit.mulDataOut[i];
-
-                if (mulDivUnit.divFinished[i] &&
-                    update[i] &&
-                    isDiv[i] && 
-                    regValid[i]
-                ) begin 
-                    // Divが除算器から結果を取得できたので，
-                    // IQからのdivの発行を許可する 
-                    mulDivUnit.divRelease[i] = TRUE;
-                end
-                else begin
-                    mulDivUnit.divRelease[i] = FALSE;
-                end
-
             `endif
 
 
-            ldDataOut[i].valid = regValid[i];
+            ldDataOut[i].valid = regValid[i] && !isDiv[i];
         end
         
         for ( int i = 0; i < STORE_ISSUE_WIDTH; i++ ) begin
-            stDataOut[i].data = '0;
-            stDataOut[i].valid = FALSE;
+            // SC
+            if (isStore[i + STORE_ISSUE_LANE_BEGIN] && isZalrsc[i + STORE_ISSUE_LANE_BEGIN]) begin
+                stDataOut[i].data = isScFail[i + STORE_ISSUE_LANE_BEGIN] ? SC_CODE_FAIL : SC_CODE_SUCCESS;
+                stDataOut[i].valid = regValid[i + STORE_ISSUE_LANE_BEGIN];
+            end
+            else begin
+                stDataOut[i].data = '0;
+                stDataOut[i].valid =  FALSE;
+            end
         end
 
 
@@ -181,9 +200,15 @@ module MemoryAccessStage(
             nextStage[i].addrOut = pipeReg[i].addrOut;
             nextStage[i].isStore = pipeReg[i].isStore;
             nextStage[i].isLoad = pipeReg[i].isLoad;
+            nextStage[i].isDiv = pipeReg[i].isDiv;
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+            nextStage[i].divStarted = pipeReg[i].regValid;
+`endif
             nextStage[i].hasAllocatedMSHR = pipeReg[i].hasAllocatedMSHR;
             nextStage[i].mshrID = pipeReg[i].mshrID;
             nextStage[i].storeForwardMiss = pipeReg[i].storeForwardMiss;
+            nextStage[i].zaamoReleaseMSHR = update[i] && isZaamo[i] && pipeReg[i].writeAMOCache;
+            nextStage[i].elp = pipeReg[i].elp;
 
             // リセットorフラッシュ時はNOP
             nextStage[i].valid =

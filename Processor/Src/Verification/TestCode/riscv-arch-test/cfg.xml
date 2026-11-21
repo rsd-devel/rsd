@@ -1,0 +1,10 @@
+<Config>
+  <!-- The RV32I JAL case executes about 16,500 instructions. -->
+  <MaxTestInstructions>20000</MaxTestInstructions>
+  <MaxNoCommitCycles>500</MaxNoCommitCycles>
+  <!-- Check UART results without using the truncated LED PC for termination. -->
+  <EnablePC_Goal>0</EnablePC_Goal>
+  <RegisterValues>
+    <R10>0</R10>
+  </RegisterValues>
+</Config>

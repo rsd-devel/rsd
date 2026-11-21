@@ -121,6 +121,7 @@ module MemoryIssueStage(
                 !clear && valid[i] && !flush[i] && 
                 issuedData[i].memOpInfo.opType == MEM_MOP_TYPE_DIV;
             mulDivUnit.acquireActiveListPtr[i] = issuedData[i].activeListPtr;
+                mulDivUnit.acquireOpDst[i] = issuedData[i].opDst;
         end
 `endif
         port.nextStage = nextStage;

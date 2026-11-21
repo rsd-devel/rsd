@@ -1,0 +1,15 @@
+2K performance run parameters for coremark.
+CoreMark Size    : 666
+Total ticks      : 10
+Total time (secs): 10
+Iterations/Sec   : 0
+Iterations       : 1
+Compiler version : GCC@GCC_VERSION@
+Compiler flags   : @COMPILER_FLAGS@
+Memory location  : STACK
+seedcrc          : 0xe9f5
+[0]crclist       : 0xe714
+[0]crcmatrix     : 0x1fd7
+[0]crcstate      : 0x8e3a
+[0]crcfinal      : 0xe714
+Correct operation validated. See README.md for run and reporting rules.

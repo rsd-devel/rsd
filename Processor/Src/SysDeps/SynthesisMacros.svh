@@ -7,4 +7,4 @@
 // with .vh or .svh extension.
 // Hence, SynthesisMacros.sv cannot treat them as header files.
 //
-`include "../SynthesisMacros.sv"
+`include "../Config/SynthesisMacros.sv"

@@ -49,6 +49,7 @@ output
         PHASE_WAIT_OWN = 2              // 自分自身のコミット待ち
     } Phase;
     Phase regPhase, nextPhase;
+    logic waitForStoreQueue;
 
     always_ff@(posedge clk)   // synchronous rst
     begin
@@ -61,6 +62,11 @@ output
     end
 
     always_comb begin
+        // Ordinary loads are serialized on MMIO refetch. LR is serialized at decode.
+        waitForStoreQueue = opInfo[0].mopType == MOP_TYPE_MEM &&
+            (opInfo[0].mopSubType.memType == MEM_MOP_TYPE_FENCE ||
+             (opInfo[0].mopSubType.memType == MEM_MOP_TYPE_LOAD && !opInfo[0].operand.memOp.isZalrsc));
+
         // multiple serialized ops must not be sent to this stage.
         serialize = FALSE;
         nextPhase = PHASE_NORMAL;
@@ -69,28 +75,11 @@ output
         end
         if (regPhase == PHASE_NORMAL) begin
             if (opInfo[0].serialized && valid[0]) begin
-                if (opInfo[0].operand.miscMemOp.fence) begin // Fence
-                    if (!activeListEmpty || !storeQueueEmpty) begin
-                        // Fence must wait for all previous ops to be committed
-                        // AND all committed stores in SQ to be written back
-                        serialize = TRUE;   
-                        nextPhase = PHASE_NORMAL;
-                    end
-                    else begin
-                        // deassert serialize" for dispatch    
-                        nextPhase = PHASE_WAIT_OWN;
-                    end
-                end 
-                else begin // Non-fence
-                    if (!activeListEmpty) begin
-                        // Wait for all previous ops to be committed
-                        serialize = TRUE;   
-                        nextPhase = PHASE_NORMAL;
-                    end
-                    else begin
-                        // deassert serialize" for dispatch  
-                        nextPhase = PHASE_WAIT_OWN;
-                    end
+                if (!activeListEmpty || (waitForStoreQueue && !storeQueueEmpty)) begin
+                    serialize = TRUE;
+                end
+                else begin
+                    nextPhase = PHASE_WAIT_OWN;
                 end
             end
         end
@@ -174,6 +163,7 @@ module RenameStage(
 
     logic isLoad[RENAME_WIDTH];
     logic isStore[RENAME_WIDTH];
+    logic isZaamo[RENAME_WIDTH];
     logic isBranch[RENAME_WIDTH];
 
     logic activeListEmpty;
@@ -236,6 +226,9 @@ module RenameStage(
             isBranch[i] =
                 (opInfo[i].mopType == MOP_TYPE_INT) &&
                 (opInfo[i].mopSubType.intType inside {INT_MOP_TYPE_BR, INT_MOP_TYPE_RIJ});
+            isZaamo[i] =
+                (opInfo[i].mopType == MOP_TYPE_MEM) &&
+                (opInfo[i].mopSubType.memType == MEM_MOP_TYPE_ZAAMO);
         end
 
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
@@ -263,6 +256,11 @@ module RenameStage(
             renameLogic.watWriteIssueQueuePtrFromPipeReg[i] = scheduler.allocatedPtr[i];
         end
 
+        // elp
+        for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
+            nextStage[i].elp = pipeReg[i].elp;
+            nextStage[i].nextELP = pipeReg[i].nextELP;
+        end
 
         //
         // --- Renamed operands
@@ -308,6 +306,7 @@ module RenameStage(
             alEntry[i].writeReg = opInfo[i].writeReg;
             alEntry[i].isLoad = isLoad[i];
             alEntry[i].isStore = isStore[i];
+            alEntry[i].isZaamo = isZaamo[i];
             alEntry[i].isBranch = isBranch[i];
             alEntry[i].isEnv = opInfo[i].operand.systemOp.isEnv;
             alEntry[i].undefined = opInfo[i].undefined || opInfo[i].unsupported;
@@ -331,8 +330,8 @@ module RenameStage(
         // Load/store unit allocation
         //
         for ( int i = 0; i < RENAME_WIDTH; i++ ) begin
-            loadStoreUnit.allocateLoadQueue[i] = update[i] && isLoad[i];
-            loadStoreUnit.allocateStoreQueue[i] = update[i] && isStore[i];
+            loadStoreUnit.allocateLoadQueue[i] = update[i] && (isLoad[i] || isZaamo[i]);
+            loadStoreUnit.allocateStoreQueue[i] = update[i] && (isStore[i] || isZaamo[i]);
 
             nextStage[i].loadQueuePtr = loadStoreUnit.allocatedLoadQueuePtr[i];
             nextStage[i].storeQueuePtr = loadStoreUnit.allocatedStoreQueuePtr[i];

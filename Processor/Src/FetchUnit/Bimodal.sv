@@ -100,8 +100,8 @@ module Bimodal(
             phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV <= PHT_ENTRY_MAX / 2 + 1;
         end
         else if (pushPhtQueue) begin
-            phtQueue[headPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
-            phtQueue[headPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
+            phtQueue[tailPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
+            phtQueue[tailPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
         end
     end
 
@@ -174,8 +174,8 @@ module Bimodal(
         if (!empty && !updatePht) begin
             popPhtQueue = TRUE;
             phtWE[0] = TRUE;
-            phtWA[0] = phtQueue[tailPtr].phtWA;
-            phtWV[0] = phtQueue[tailPtr].phtWV;
+            phtWA[0] = phtQueue[headPtr].phtWA;
+            phtWV[0] = phtQueue[headPtr].phtWV;
         end 
         else begin
             popPhtQueue = FALSE;

@@ -120,10 +120,17 @@ function automatic void RISCV_EmitOpImm(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    // RV32 shift immediates have a five-bit shamt and fixed upper bits.
+    opInfo.undefined =
+        (opFunct3 == OP_FUNCT3_SLL && isfR.funct7 != '0) ||
+        (opFunct3 == OP_FUNCT3_SRL_SRA &&
+         !(shiftFunct7 inside {SHIFT_FUNCT7_SRL, SHIFT_FUNCT7_SRA}));
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -246,10 +253,16 @@ function automatic void RISCV_EmitOp(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    // Only SUB/SRA use funct7=0x20; extension encodings take separate decode paths.
+    opInfo.undefined = opFunct7 != OP_FUNCT7_ADD &&
+        !(opFunct7 == OP_FUNCT7_SUB &&
+          opFunct3 inside {OP_FUNCT3_ADD_SUB, OP_FUNCT3_SRL_SRA});
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -362,28 +375,114 @@ function automatic void RISCV_EmitUTypeInst(
     // Serialized
     opInfo.serialized = FALSE;
 
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
+
     // Control
     opInfo.valid = TRUE;    // Valid outputs
 endfunction
 
+
+//
+// --- Landing Pad
+//
+function automatic void RISCV_EmitLandingPad(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf
+);
+    RISCV_ISF_U isfU;
+    RISCV_IntOperandImmShift intOperandImmShift;
+    logic undefined;
+
+    isfU = isf;
+
+    // 論理レジスタ番号
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.operand.intOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.intOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.intOp.srcRegNumB.isFP = FALSE;
+`endif
+    opInfo.operand.intOp.dstRegNum.regNum  = '0;
+    opInfo.operand.intOp.srcRegNumA.regNum = 5'h7;
+    opInfo.operand.intOp.srcRegNumB.regNum = '0;
+
+    opInfo.operand.intOp.shiftType = SOT_REG_SHIFT;
+    intOperandImmShift.shift        = '0;
+    intOperandImmShift.shiftType    = ST_LSL;
+    intOperandImmShift.isRegShift   = TRUE;
+    intOperandImmShift.imm          = isfU.imm;
+    intOperandImmShift.immType      = RISCV_IMM_U;
+
+    opInfo.operand.intOp.shiftIn   = intOperandImmShift;
+
+    // ALU
+    opInfo.operand.intOp.aluCode = AC_ADD;
+
+    // レジスタ書き込みを行うかどうか
+    opInfo.writeReg  = FALSE;
+
+    // 論理レジスタを読むかどうか
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_IMM;
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.opTypeC = OOT_IMM;
+`endif
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_INT;
+    opInfo.mopSubType.intType = INT_MOP_TYPE_LPL_CHECK;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // 未定義命令
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = FALSE;
+
+    // Serialized
+    opInfo.serialized = FALSE;
+
+    // LPAD
+    opInfo.nextELP = LP_NOT_EXPECTED;
+
+    // Control
+    opInfo.valid = TRUE;
+endfunction
+
+
 function automatic void RISCV_DecodeUTypeInst(
     output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
     output InsnInfo insnInfo,
-    input RISCV_ISF_Common isf
+    input RISCV_ISF_Common isf,
+    input logic landingPadEnabled
 );
     OpInfo intOp;
     MicroOpIndex mid;
+    logic isLandingPad;
 
-    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+`ifdef RSD_ENABLE_ZICFILP
+    isLandingPad = landingPadEnabled && isf.opCode == RISCV_AUIPC && isf.rd == ZERO_REGISTER;
+`else
+    isLandingPad = FALSE;
+`endif
 
-    RISCV_EmitUTypeInst(
-        .opInfo( intOp ),
-        .isf( isf ),
-        .srcRegNumA( 0 ),
-        .srcRegNumB( 0 ),
-        .dstRegNum( isf.rd ),
-        .unsupported( FALSE )
-    );
+    if (isLandingPad) begin
+        // LandingPad
+        RISCV_EmitLandingPad(
+            .opInfo( intOp ),
+            .isf( isf )
+        );
+    end else begin
+        //RISCVでは複数micro opへの分割は基本的に必要ないはず
+        RISCV_EmitUTypeInst(
+            .opInfo( intOp ),
+            .isf( isf ),
+            .srcRegNumA( 0 ),
+            .srcRegNumB( 0 ),
+            .dstRegNum( isf.rd ),
+            .unsupported( FALSE )
+        );
+    end
 
     mid = 0;
     for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
@@ -454,6 +553,9 @@ function automatic void RISCV_EmitJAL(
     // Serialized
     opInfo.serialized = FALSE;
 
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
+
     // Control
     opInfo.valid = TRUE;    // Valid outputs
 endfunction
@@ -497,7 +599,8 @@ endfunction
 //
 function automatic void RISCV_EmitJALR(
     output OpInfo  opInfo,
-    input RISCV_ISF_Common isf
+    input RISCV_ISF_Common isf,
+    input logic landingPadEnabled
 );
 
     RISCV_ISF_I isfI;
@@ -538,10 +641,17 @@ function automatic void RISCV_EmitJALR(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = isfI.funct3 != '0;
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+`ifdef RSD_ENABLE_ZICFILP
+    opInfo.nextELP = landingPadEnabled && !(isfI.rs1 inside {LINK_REGISTER, TEMPORARY_REGISTER_0, TEMPORARY_REGISTER_2}) ? LP_EXPECTED : LP_NOT_EXPECTED;
+`else
+    opInfo.nextELP = LP_NOT_EXPECTED;
+`endif
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -550,7 +660,8 @@ endfunction
 function automatic void RISCV_DecodeJALR(
     output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
     output InsnInfo insnInfo,
-    input RISCV_ISF_Common isf
+    input RISCV_ISF_Common isf,
+    input logic landingPadEnabled
 );
     OpInfo brOp;
     MicroOpIndex mid;
@@ -559,7 +670,8 @@ function automatic void RISCV_DecodeJALR(
 
     RISCV_EmitJALR(
         .opInfo( brOp ),
-        .isf( isf )
+        .isf( isf ),
+        .landingPadEnabled(landingPadEnabled)
     );
 
     // Initizalize
@@ -633,10 +745,17 @@ function automatic void RISCV_EmitBranch(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(brFunct3 inside {
+        BRANCH_FUNCT3_BEQ, BRANCH_FUNCT3_BNE,
+        BRANCH_FUNCT3_BLT, BRANCH_FUNCT3_BGE,
+        BRANCH_FUNCT3_BLTU, BRANCH_FUNCT3_BGEU
+    });
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -676,7 +795,7 @@ function automatic void RISCV_DecodeBranch(
 endfunction
 
 //
-// --- EISCV MEMORY OP
+// --- RISCV MEMORY OP
 //
 function automatic void RISCV_EmitMemOp(
     output OpInfo  opInfo,
@@ -704,6 +823,8 @@ function automatic void RISCV_EmitMemOp(
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     opInfo.operand.memOp.csrCtrl = '0; // unused
+    opInfo.operand.memOp.isZalrsc = FALSE;
+    opInfo.operand.memOp.amoCode = MEM_ZAAMO_SWAP;
     opInfo.operand.memOp.padding = '0;
 
     // レジスタ書き込みを行うかどうか
@@ -735,10 +856,28 @@ function automatic void RISCV_EmitMemOp(
     opInfo.valid = TRUE;
 
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    if (isLoad) begin
+        opInfo.undefined = !(memFunct3 inside {
+            MEM_FUNCT3_SIGNED_BYTE,
+            MEM_FUNCT3_SIGNED_HALF_WORD,
+            MEM_FUNCT3_WORD,
+            MEM_FUNCT3_UNSIGNED_BYTE,
+            MEM_FUNCT3_UNSIGNED_HALF_WORD
+            });
+    end
+    else begin
+        opInfo.undefined = !(memFunct3 inside {
+            MEM_FUNCT3_SIGNED_BYTE,
+            MEM_FUNCT3_SIGNED_HALF_WORD,
+            MEM_FUNCT3_WORD
+        });
+    end
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 function automatic void RISCV_DecodeMemOp(
@@ -771,6 +910,124 @@ function automatic void RISCV_DecodeMemOp(
     insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
+
+endfunction
+
+
+
+//
+// --- RISCV Aext OP
+//
+function automatic void RISCV_EmitAextOp(
+    output OpInfo  opInfo,
+    input RISCV_ISF_Common isf
+);
+    RISCV_ISF_R_A isfA;
+    RVAFunct5 rvaFunct5;
+    MemFunct3 memFunct3;
+
+    logic isLR;
+    logic isSC;
+    MemZaamo_Code amoCode;
+    MemAccessMode memAccessMode;
+    logic undefined;
+
+    isfA = isf;
+    rvaFunct5 = RVAFunct5'(isfA.funct5);
+    memFunct3 = MemFunct3'(isfA.funct3);
+
+    RISCV_DecodeRVAFunct5(undefined, isLR, isSC, amoCode, rvaFunct5);
+
+    if (isLR && isfA.rs2 != 0) begin
+        undefined = TRUE;
+    end
+
+    // 論理レジスタ番号
+`ifdef RSD_MARCH_FP_PIPE
+    opInfo.operand.memOp.dstRegNum.isFP  = FALSE;
+    opInfo.operand.memOp.srcRegNumA.isFP = FALSE;
+    opInfo.operand.memOp.srcRegNumB.isFP = FALSE;
+`endif
+    opInfo.operand.memOp.dstRegNum.regNum  = isfA.rd;
+    opInfo.operand.memOp.srcRegNumA.regNum = isfA.rs1;
+    opInfo.operand.memOp.srcRegNumB.regNum = isLR ? '0 : isfA.rs2;
+    opInfo.operand.memOp.csrCtrl = '0; // unused
+    opInfo.operand.memOp.isZalrsc = isLR || isSC;
+    opInfo.operand.memOp.amoCode = amoCode;
+    opInfo.operand.memOp.padding = '0;
+
+    // レジスタ書き込みを行うかどうか
+    // ゼロレジスタへの書き込みは書き込みフラグをFALSEとする
+    opInfo.writeReg  = isfA.rd != ZERO_REGISTER;
+
+    // 論理レジスタを読むかどうか
+    // ストア時はBを読む
+    opInfo.opTypeA = OOT_REG;
+    opInfo.opTypeB = OOT_REG;
+`ifdef RSD_MARCH_FP_PIPE 
+    opInfo.opTypeC = OOT_IMM;
+`endif
+
+    // 命令の種類
+    opInfo.mopType = MOP_TYPE_MEM;
+    opInfo.mopSubType.memType = isLR ? MEM_MOP_TYPE_LOAD :
+                                isSC ? MEM_MOP_TYPE_STORE : MEM_MOP_TYPE_ZAAMO;
+
+    // 条件コード
+    opInfo.cond = COND_AL;
+
+    // アドレッシング
+    opInfo.operand.memOp.addrIn    = '0;
+    opInfo.operand.memOp.isAddAddr = FALSE;
+    opInfo.operand.memOp.isRegAddr = TRUE;
+    RISCV_DecodeMemAccessMode( memAccessMode, memFunct3 );
+    opInfo.operand.memOp.memAccessMode = memAccessMode;
+
+    undefined = undefined || !(memAccessMode.isSigned && memAccessMode.size == MEM_ACCESS_SIZE_WORD);
+
+    opInfo.valid = TRUE;
+
+    opInfo.unsupported = FALSE;
+    opInfo.undefined = undefined;
+
+    // Serialized
+    // aq/rlビットに関係なくSerializedとする
+    opInfo.serialized = TRUE;
+
+    opInfo.nextELP = LP_NOT_EXPECTED;
+endfunction
+
+function automatic void RISCV_DecodeAextOp(
+    output OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,
+    output InsnInfo insnInfo,
+    input RISCV_ISF_Common isf
+);
+    OpInfo memOp;
+    MicroOpIndex mid;
+
+    //RISCVでは複数micro opへの分割は基本的に必要ないはず
+
+    RISCV_EmitAextOp(
+        .opInfo( memOp ),
+        .isf( isf )
+    );
+
+    // Initizalize
+    mid = 0;
+    for(int i = 0; i < MICRO_OP_MAX_NUM; i++) begin
+        EmitInvalidOp(microOps[i]);
+    end
+
+    // --- 1
+    // It begins at 1 for aligning outputs to DecodeIntReg.
+    microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
+
+    insnInfo.writePC    = FALSE;
+    insnInfo.isCall     = FALSE;
+    insnInfo.isReturn   = FALSE;
+    insnInfo.isRelBranch = FALSE;
+    // aq/rlビットに関係なくSerializedとする
+    insnInfo.isSerialized = TRUE;
 
 endfunction
 
@@ -854,6 +1111,9 @@ function automatic void RISCV_EmitComplexOp(
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -969,6 +1229,9 @@ function automatic void RISCV_EmitMiscMemOp(
 
     // Serialized
     opInfo.serialized = TRUE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 function automatic void RISCV_DecodeMiscMem(
@@ -1028,6 +1291,8 @@ function automatic void RISCV_EmitCSR_Op(
     memOp.dstRegNum.regNum  = isfSystem.rd;
     memOp.srcRegNumA.regNum = isfSystem.rs1;
     memOp.srcRegNumB.regNum = '0;
+    memOp.isZalrsc = FALSE;
+    memOp.amoCode = MEM_ZAAMO_SWAP;
     memOp.padding = '0;
 
     // Don't care
@@ -1094,6 +1359,9 @@ function automatic void RISCV_EmitCSR_Op(
 
     // Serialized
     opInfo.serialized = TRUE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 
@@ -1124,7 +1392,8 @@ function automatic void RISCV_EmitSystemOp(
     systemOp.padding = '0;
     systemOp.imm = '0;
 
-    undefined = FALSE;
+    // Privileged encodings, including SRET, have fixed zero register fields.
+    undefined = isfSystem.rd != 0 || isfSystem.rs1 != 0;
 
     // コードの設定
     if (opFunct12 == SYSTEM_FUNCT12_WFI) begin
@@ -1137,7 +1406,8 @@ function automatic void RISCV_EmitSystemOp(
         unique case(SystemFunct12'(isfSystem.funct12))
             SYSTEM_FUNCT12_ECALL:  systemOp.envCode = ENV_CALL;
             SYSTEM_FUNCT12_EBREAK: systemOp.envCode = ENV_BREAK;
-            SYSTEM_FUNCT12_MRET:   systemOp.envCode = ENV_MRET;
+            SYSTEM_FUNCT12_SRET: systemOp.envCode = ENV_SRET;
+            SYSTEM_FUNCT12_MRET: systemOp.envCode = ENV_MRET;
             default: begin// Unknown
                 systemOp.envCode = ENV_BREAK;            
                 undefined = TRUE;
@@ -1172,6 +1442,9 @@ function automatic void RISCV_EmitSystemOp(
 
     // Serialized
     opInfo.serialized = TRUE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 
@@ -1238,6 +1511,8 @@ function automatic void RISCV_EmitFPMemOp(
     opInfo.operand.memOp.srcRegNumA.regNum = isfI.rs1;
     opInfo.operand.memOp.srcRegNumB.regNum = isLoad ? '0 : isfS.rs2;
     
+    opInfo.operand.memOp.isZalrsc = FALSE;
+    opInfo.operand.memOp.amoCode = MEM_ZAAMO_SWAP;
     opInfo.operand.memOp.csrCtrl = '0; // unused
     opInfo.operand.memOp.padding = '0;
 
@@ -1268,10 +1543,13 @@ function automatic void RISCV_EmitFPMemOp(
     opInfo.valid = TRUE;
 
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = memFunct3 != MEM_FUNCT3_WORD;
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 function automatic void RISCV_DecodeFPMemOp(
@@ -1324,6 +1602,7 @@ function automatic void RISCV_EmitFPOp(
 
     FPU_Code fpuCode;
     Rounding_Mode rm;
+    logic undefined;
 
     isfR = isf;
     rv32fFunct3 = RV32FFunct3'(isfR.funct3);
@@ -1331,7 +1610,7 @@ function automatic void RISCV_EmitFPOp(
     fcvtfunct5  = FCVTFunct5'(isfR.rs2);
     rm = Rounding_Mode'(isfR.funct3);
 
-    RISCV_DecodeFPOpFunct3( fpuCode, rv32fFunct3, rv32fFunct7, fcvtfunct5);
+    RISCV_DecodeFPOpFunct3( fpuCode, undefined, rv32fFunct3, rv32fFunct7, fcvtfunct5);
     dstFP   = !(fpuCode inside {FC_FCVT_WS, FC_FCVT_WUS, FC_FMV_XW, FC_FEQ, FC_FLT, FC_FLE, FC_FCLASS});
     rs1FP   = !(fpuCode inside {FC_FCVT_SW, FC_FCVT_SWU, FC_FMV_WX});
     readrs2 = !(fpuCode inside {FC_SQRT, FC_FCVT_SW, FC_FCVT_SWU, FC_FCVT_WS, FC_FCVT_WUS, FC_FMV_WX, FC_FMV_XW, FC_FCLASS});
@@ -1374,10 +1653,13 @@ function automatic void RISCV_EmitFPOp(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = undefined;
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -1468,10 +1750,15 @@ function automatic void RISCV_EmitFPFMAOp(
 
     // 未定義命令
     opInfo.unsupported = FALSE;
-    opInfo.undefined = FALSE;
+    // Apply the same reserved static-rounding-mode policy as other FP arithmetic.
+    opInfo.undefined = isfR4.funct2 != '0 ||
+        !(rm inside {RM_RNE, RM_RTZ, RM_RDN, RM_RUP, RM_RMM, RM_DYN});
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -1576,10 +1863,14 @@ function automatic void RISCV_EmitZba(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(zbaFunct3 inside {
+        ZBA_FUCNT3_SH1ADD, ZBA_FUCNT3_SH2ADD, ZBA_FUCNT3_SH3ADD});
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -1684,10 +1975,13 @@ function automatic void RISCV_EmitZicond(
 
     // 未定義命令
     opInfo.unsupported = unsupported;
-    opInfo.undefined = FALSE;
+    opInfo.undefined = !(czeroFunct3 inside {CZERO_FUCNT3_EQZ, CZERO_FUNCT3_NEZ});
 
     // Serialized
     opInfo.serialized = FALSE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 
     // Control
     opInfo.valid = TRUE;    // Valid outputs
@@ -1783,6 +2077,9 @@ function automatic void RISCV_EmitIllegalOp(
 
     // Serialized
     opInfo.serialized = TRUE;
+
+    // Landing Pad
+    opInfo.nextELP = LP_NOT_EXPECTED;
 endfunction
 
 function automatic void RISCV_DecodeIllegal(
@@ -1820,6 +2117,8 @@ module Decoder(
 input
     InsnPath insn,      // Input instruction
     logic illegalPC,
+    logic landingPadEnabled,
+    logic fpStateEnabled,
 output
     OpInfo [MICRO_OP_MAX_NUM-1:0] microOps,  // Outputed micro ops
     InsnInfo insnInfo  // Whether this instruction is branch or not.
@@ -1849,13 +2148,18 @@ output
                 RISCV_DecodeMemOp(microOps, insnInfo, insn);
             end
 
+            // R: A extension
+            RISCV_AMO : begin
+                RISCV_DecodeAextOp(microOps, insnInfo, insn);
+            end
+
             // B: BRANCH
             RISCV_BR : begin
                 RISCV_DecodeBranch(microOps, insnInfo, insn);
             end
             // I: JALR
             RISCV_JALR : begin
-                RISCV_DecodeJALR(microOps, insnInfo, insn);
+                RISCV_DecodeJALR(microOps, insnInfo, insn, landingPadEnabled);
             end
             // J: JAL
             RISCV_JAL : begin
@@ -1889,7 +2193,7 @@ output
 
             // U: AUIPC, LUI
             RISCV_AUIPC, RISCV_LUI : begin
-                RISCV_DecodeUTypeInst(microOps, insnInfo, insn);
+                RISCV_DecodeUTypeInst(microOps, insnInfo, insn, landingPadEnabled);
             end
 
             // I: MISC-MEM (fence/fence.i)
@@ -1925,6 +2229,17 @@ output
                 undefined = TRUE;
             end
         end
+
+`ifdef RSD_MARCH_FP_PIPE
+        // CSR instructions flush younger decoded ops and serialize execution.
+        // A subsequent FP instruction therefore observes the updated FS state.
+        if (!fpStateEnabled && isf.opCode inside {
+            RISCV_F_LD, RISCV_F_ST, RISCV_F_OP,
+            RISCV_F_FMADD, RISCV_F_FMSUB, RISCV_F_FNMSUB, RISCV_F_FNMADD
+        }) begin
+            undefined = TRUE;
+        end
+`endif
 
         if (undefined || illegalPC) begin
             RISCV_DecodeIllegal(microOps, insnInfo, insn, illegalPC);

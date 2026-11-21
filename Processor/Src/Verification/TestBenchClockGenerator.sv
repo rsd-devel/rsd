@@ -47,6 +47,8 @@ module TestBenchClockGenerator #(
         
         // It needs a few cycles to initialize Xilinx primitives like X_FF.
         WaitCycle( INITIALIZATION_CYCLE );
+        // Avoid recovery/removal violations in timing simulation.
+        @(negedge clk);
         rst <= 1'b0;
     end
     

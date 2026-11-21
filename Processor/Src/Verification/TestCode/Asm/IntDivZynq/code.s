@@ -1,3 +1,5 @@
+#include "../rsd-asm-macros.h"
+
     .file    "code.s" 
     .option nopic 
     .text 
@@ -31,23 +33,9 @@ div_check:      # The validity of division is checked by serial output
     divu    x20, x4, x4         # UINT_MIN / UINT_MIN
 
 output:
-    li      x31, 0x40002000
-    sw      x5, 0(x31)
-    sw      x6, 0(x31)
-    sw      x7, 0(x31)
-    sw      x8, 0(x31)
-    sw      x9, 0(x31)
-    sw      x10, 0(x31)
-    sw      x11, 0(x31)
-    sw      x12, 0(x31)
-    sw      x13, 0(x31)
-    sw      x14, 0(x31)
-    sw      x15, 0(x31)
-    sw      x16, 0(x31)
-    sw      x17, 0(x31)
-    sw      x18, 0(x31)
-    sw      x19, 0(x31)
-    sw      x20, 0(x31)
+    .irp reg,x5,x6,x7,x8,x9,x10,x11,x12,x13,x14,x15,x16,x17,x18,x19,x20
+        RSD_SERIAL_PUTC(\reg, x31)
+    .endr
 
 rem_check:     # The validity of remainder is checked by register value
     rem     x5, x1, x1          # INT_MAX % INT_MAX

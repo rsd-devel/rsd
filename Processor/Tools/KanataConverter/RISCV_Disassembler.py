@@ -415,6 +415,12 @@ class RISCV_Disassembler( object ):
             RISCV_Disassembler.InstructionCommon.__init__( self, code )
 
         def __str__( self ):
+            # auipc x0, imm is HINT
+            if self.rd == 'zero':
+                asmStr = 'LPAD'
+                if self.U_Imm != '0x0':
+                    asmStr += ' ' + self.U_Imm[:-3]
+                return asmStr
             opType = 'auipc '
             asmStr = opType + self.rd + ', ' + self.U_Imm
             return asmStr

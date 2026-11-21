@@ -1,0 +1,53 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/dts-v1/;
+#include "../../../rsd-memory-map.h"
+
+/ {
+	model = "RSD simulation";
+	compatible = "rsd";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		zephyr,sram = &ram;
+		zephyr,flash = &rom;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "riscv";
+			reg = <0>;
+			/* Virtual time: 1 MHz shortens RTL simulation of sample sleeps. */
+			clock-frequency = <1000000>;
+			riscv,isa-base = "rv32i";
+			riscv,isa-extensions = "i", "m", "a", "zicsr", "zifencei";
+
+			hlic: interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#address-cells = <0>;
+				#interrupt-cells = <1>;
+				interrupt-controller;
+			};
+		};
+	};
+
+	ram: memory@RSD_RAM_BASE_HEX {
+		compatible = "mmio-sram";
+		reg = <RSD_RAM_BASE RSD_RAM_SIZE>;
+	};
+
+	rom: flash@RSD_ROM_BASE_HEX {
+		compatible = "soc-nv-flash";
+		reg = <RSD_ROM_BASE RSD_ROM_SIZE>;
+	};
+
+	mtimer: timer@RSD_CLINT_TIMER_LOW_HEX {
+		compatible = "riscv,machine-timer";
+		reg = <RSD_CLINT_TIMER_LOW 8 RSD_CLINT_TIMER_CMP_LOW 8>;
+		reg-names = "mtime", "mtimecmp";
+		interrupts-extended = <&hlic 7>;
+	};
+};

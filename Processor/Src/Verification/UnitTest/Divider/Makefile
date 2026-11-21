@@ -1,18 +1,18 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # Specify the name of a module to be tested.
 UNIT_NAME         = Divider
 
 # Library name and top level module (for simulation)
-TOP_MODULE        = $(TEST_BENCH_MODULE)Top
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
 
 SOURCE_ROOT  = ../../../
 TOOLS_ROOT   = ../../../../Tools/
-PROJECT_WORK = ../../../../Project/ModelSim
-ISE_PROJECT_ROOT = ../../../../Project/Synplify/$(UNIT_NAME)/pr_1/
 
 # In TYPES, specify files containing packages that define types.
 # Make sure that a dependency is in front of the dependent source.
 TYPES = \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
 
 # Specify files with module definition.
@@ -27,7 +27,6 @@ TEST_MODULES = \
 MODULES = \
 	Primitives/Divider.sv \
 	Verification/UnitTest/Divider/RefDivider.sv \
-	Verification/UnitTest/Divider/TestDividerTop.sv \
 
 # Hide certain warnings during synthesis
 VLOG_OPTIONS = \
@@ -38,4 +37,4 @@ VSIM_OPTIONS = \
 	-suppress 2605 \
 	-suppress 8233 \
 
-include ../../../Makefile.inc
+include ../../../Makefiles/UnitTest.inc.mk

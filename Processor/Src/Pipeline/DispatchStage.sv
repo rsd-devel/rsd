@@ -119,6 +119,9 @@ module DispatchStage(
             // PC
             intEntry[i].pc = pipeReg[i].pc;
 
+            intEntry[i].elp             = pipeReg[i].elp;
+            intEntry[i].nextELP  = pipeReg[i].nextELP;
+
             intSubInfo[i].operandTypeA  = opInfo[i].opTypeA;
             intSubInfo[i].operandTypeB  = opInfo[i].opTypeB;
             intSubInfo[i].shiftIn       = opInfo[i].operand.intOp.shiftIn;
@@ -183,6 +186,8 @@ module DispatchStage(
             memEntry[i].memOpInfo.isAddAddr     = opInfo[i].operand.memOp.isAddAddr;
             memEntry[i].memOpInfo.isRegAddr     = opInfo[i].operand.memOp.isRegAddr;
             memEntry[i].memOpInfo.memAccessMode = opInfo[i].operand.memOp.memAccessMode;
+            memEntry[i].memOpInfo.isZalrsc      = opInfo[i].operand.memOp.isZalrsc;
+            memEntry[i].memOpInfo.amoCode       = opInfo[i].operand.memOp.amoCode;
 
             memEntry[i].memOpInfo.csrCtrl     = opInfo[i].operand.memOp.csrCtrl;
             memEntry[i].memOpInfo.envCode     = opInfo[i].operand.systemOp.envCode;
@@ -201,6 +206,8 @@ module DispatchStage(
             memEntry[i].hasAllocatedMSHR = 0;
             memEntry[i].mshrID = '0;
 
+            memEntry[i].hasLoadedAMOCache = 0;
+
             // OpSrc
             memEntry[i].opSrc = opSrc[i];
             memEntry[i].opDst = opDst[i];
@@ -214,6 +221,9 @@ module DispatchStage(
 
             // PC
             memEntry[i].pc = pipeReg[i].pc;
+
+            memEntry[i].serialized = pipeReg[i].opInfo.serialized;
+            memEntry[i].elp = pipeReg[i].elp;
 
 `ifdef RSD_MARCH_FP_PIPE
             //

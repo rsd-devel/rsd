@@ -51,7 +51,7 @@ function automatic void GetFinishedOpNum(
     end
 endfunction
 
-// そのInsnと次のInsnの最初のマイクロ命令を指すポインタを得る
+// Insnの最初と最後のマイクロ命令を指すポインタを得る
 function automatic void GetInsnPtr(
     output CommitLaneIndexPath headOfThisInsn[COMMIT_WIDTH],
     output CommitLaneIndexPath tailOfThisInsn[COMMIT_WIDTH],
@@ -130,17 +130,19 @@ function automatic void DecideCommit(
         end
         else if (execState[i] inside {
             EXEC_STATE_REFETCH_THIS,
+            EXEC_STATE_REFETCH_THIS_SERIALIZED,
             EXEC_STATE_STORE_LOAD_FORWARDING_MISS
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = headOfThisInsn[i];
-            opRefetchType[i] = REFETCH_TYPE_THIS_PC;
+            opRefetchType[i] = execState[i] == EXEC_STATE_REFETCH_THIS_SERIALIZED ?
+                REFETCH_TYPE_THIS_PC_SERIALIZED : REFETCH_TYPE_THIS_PC;
         end
         else if (execState[i] inside{
             EXEC_STATE_TRAP_ECALL, 
             EXEC_STATE_TRAP_EBREAK, 
-            EXEC_STATE_TRAP_MRET,
-            EXEC_STATE_FAULT_INSN_MISALIGNED
+            EXEC_STATE_TRAP_SRET,
+            EXEC_STATE_TRAP_MRET
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = tailOfThisInsn[i];
@@ -152,7 +154,9 @@ function automatic void DecideCommit(
             EXEC_STATE_FAULT_STORE_MISALIGNED,
             EXEC_STATE_FAULT_STORE_VIOLATION,
             EXEC_STATE_FAULT_INSN_ILLEGAL,
-            EXEC_STATE_FAULT_INSN_VIOLATION
+            EXEC_STATE_FAULT_INSN_VIOLATION,
+            EXEC_STATE_FAULT_INSN_MISALIGNED,
+            EXEC_STATE_FAULT_LPAD
         }) begin
             recovery[i] = TRUE;
             recoveryPoint[i] = headOfThisInsn[i];
@@ -195,13 +199,16 @@ function automatic void DecideCommit(
                     commit[i] =
                         ( ((execState[i] inside {
                             EXEC_STATE_REFETCH_THIS,
+                            EXEC_STATE_REFETCH_THIS_SERIALIZED,
                             EXEC_STATE_STORE_LOAD_FORWARDING_MISS,
                             EXEC_STATE_FAULT_LOAD_MISALIGNED,
                             EXEC_STATE_FAULT_LOAD_VIOLATION,
                             EXEC_STATE_FAULT_STORE_MISALIGNED,
                             EXEC_STATE_FAULT_STORE_VIOLATION,
                             EXEC_STATE_FAULT_INSN_ILLEGAL,
-                            EXEC_STATE_FAULT_INSN_VIOLATION
+                            EXEC_STATE_FAULT_INSN_VIOLATION,
+                            EXEC_STATE_FAULT_INSN_MISALIGNED,
+                            EXEC_STATE_FAULT_LPAD
                         }) || unableToStartRecovery) ? FALSE : TRUE);
                 end
                 else begin
@@ -232,12 +239,12 @@ module CommitStage(
 
     logic toRecoveryPhase;
 
-    logic commit [ COMMIT_WIDTH ] /*verilator public*/;
+    logic commit [ COMMIT_WIDTH ];
     logic last [ COMMIT_WIDTH ];
     logic isBranch [ COMMIT_WIDTH ];
     logic isStore [ COMMIT_WIDTH ];
 
-    ActiveListEntry alReadData [ COMMIT_WIDTH ] /*verilator public*/;
+    ActiveListEntry alReadData [ COMMIT_WIDTH ];
     ExecutionState execState [ COMMIT_WIDTH ];
 
     CommitLaneIndexPath recoveryOpIndex;
@@ -245,11 +252,13 @@ module CommitStage(
     ExecutionState recoveryCause;
 
     CommitLaneCountPath commitNum;
+    CommitLaneCountPath retireNum;
     CommitLaneCountPath commitLoadNum;
     CommitLaneCountPath commitStoreNum;
 `ifdef RSD_MARCH_FP_PIPE
     logic fflagsWE;
     FFlags_Path fflagsData;
+    logic fpStateDirty;
 `endif
 
     PipelinePhase phase;
@@ -298,16 +307,23 @@ module CommitStage(
             .unableToStartRecovery(recovery.unableToStartRecovery)
        );
 
-        // Count num of commit instructions.
+        // Count released micro-ops separately from retired instructions.
         commitNum = 0;
+        retireNum = 0;
         commitLoadNum = 0;
         commitStoreNum = 0;
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 commitNum++;
-                if (alReadData[i].isLoad)
+                // ECALL/EBREAK release resources but do not retire. xRET does.
+                if (last[i] && !(execState[i] inside {
+                    EXEC_STATE_TRAP_ECALL, EXEC_STATE_TRAP_EBREAK
+                })) begin
+                    retireNum++;
+                end
+                if (alReadData[i].isLoad || alReadData[i].isZaamo)
                     commitLoadNum++;
-                if (alReadData[i].isStore)
+                if (alReadData[i].isStore || alReadData[i].isZaamo)
                     commitStoreNum++;
             end
         end
@@ -349,20 +365,25 @@ module CommitStage(
         end
 
         // CSR Update
-        csrUnit.commitNum = commitNum;
+        csrUnit.retireNum = retireNum;
     
 `ifdef RSD_MARCH_FP_PIPE
         // CSR FFLAGS Update
         fflagsWE = FALSE;
         fflagsData = csrUnit.fflags;
+        fpStateDirty = FALSE;
         for (int i = 0; i < COMMIT_WIDTH; i++) begin
             if (commit[i]) begin
                 fflagsWE = TRUE;
                 fflagsData |= activeList.fflagsData[i];
+                if (alReadData[i].writeReg && alReadData[i].logDstRegNum.isFP)
+                    fpStateDirty = TRUE;
             end
         end
         csrUnit.fflagsWE = fflagsWE;
         csrUnit.fflagsData = fflagsData;
+        // Integer destinations (including x0) may still change accrued FP flags.
+        csrUnit.fpStateDirty = fpStateDirty || fflagsData != csrUnit.fflags;
 `endif
 
         // Debug Register
@@ -392,28 +413,8 @@ module CommitStage(
             );
         end
     endgenerate
-`ifdef RSD_FUNCTIONAL_SIMULATION
-    localparam DEADLOCK_DETECT_CYCLES = 500;
-    integer cycles;
-    always_ff @(posedge port.clk) begin
-        if (port.rst || commit[0]) begin
-            cycles <= 0;
-        end
-        else begin
-            cycles <= cycles + 1;
-        end
-    end
+    // The test benches monitor commit progress using per-test limits.
 
-
-    generate
-        `RSD_ASSERT_CLK(
-            port.clk,
-            !(cycles > DEADLOCK_DETECT_CYCLES),
-            "Deadlock detected"
-        );
-    endgenerate
-
-`endif
 
 endmodule : CommitStage
 

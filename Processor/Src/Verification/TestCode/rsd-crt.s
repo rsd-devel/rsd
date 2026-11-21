@@ -13,7 +13,7 @@
 	.extern main
 	.extern _load
 
-	stack_top = 0x80020000
+	stack_top = (RSD_RAM_BASE + 0x20000)
 
 	# entry point: 0x1000
 _start:
@@ -24,6 +24,10 @@ _end:
 
 _call_main:
 	call main
+.Lexit:
+	# PC_GOAL can retire while a committed UART store is still queued.
+	# Drain the store queue so the final byte reaches the FIFO before the test stops.
+	fence iorw, iorw
 	j _end
 
 _init:
@@ -31,7 +35,15 @@ _init:
 	la a0, trap_vector
 	csrw mtvec, a0
 
-	li	sp,0x80020000
+	# Enable FP before the loader or a library can access floating-point state.
+	# Check misa at runtime so the same startup also works on cores without F.
+	csrr a0, misa
+	andi a0, a0, 0x20
+	beqz a0, 1f
+	li a0, 0x2000             # mstatus.FS = Initial
+	csrs mstatus, a0
+1:
+	li	sp,(RSD_RAM_BASE + 0x20000)
 	call _load
 
 	# clear registers
@@ -66,7 +78,7 @@ _init:
 	li	x29,0
 	li	x30,0
 	li	x31,0
-	li	sp,0x80020000
+	li	sp,(RSD_RAM_BASE + 0x20000)
 
 	j _call_main
 
@@ -119,8 +131,8 @@ trap_vector:
 	csrr a0, mepc
 	RSD_IO_WRITE_GPR(a0)
 
-	RSD_IO_WRITE_STR(" mbadaddr:")
-	csrr a0, mbadaddr
+	RSD_IO_WRITE_STR(" mtval:")
+	csrr a0, mtval
 	RSD_IO_WRITE_GPR(a0)
 	RSD_IO_WRITE_STR("\n")
 
@@ -139,7 +151,7 @@ trap_dump_registers:
 	RSD_IO_WRITE_STR("aborting...\n\033[0m")
 
 abort:
-	j _end
+	j .Lexit
 
 	lw x0, 0(sp)								# レジスタ退避
 	lw x1, 4(sp)
@@ -177,6 +189,27 @@ abort:
 
 	mret
 
+
+# Print the low byte of a0 in hex, preserving a1 for RSD_IO_WRITE_GPR.
+    .global rsd_write_hex_byte
+rsd_write_hex_byte:
+    mv t1, a0
+    srli a0, t1, 4
+    andi a0, a0, 15
+    la t0, rsd_hex_digits
+    add t0, t0, a0
+    lbu a0, 0(t0)
+    RSD_SERIAL_PUTC(a0, t0)
+    andi a0, t1, 15
+    la t0, rsd_hex_digits
+    add t0, t0, a0
+    lbu a0, 0(t0)
+    RSD_SERIAL_PUTC(a0, t0)
+    ret
+
+    .section .rodata
+rsd_hex_digits:
+    .ascii "0123456789abcdef"
 
 # 文字列データ
 	.data

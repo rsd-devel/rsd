@@ -260,7 +260,7 @@ module ICache(
     logic hit;
     logic[ICACHE_WAY_NUM-1:0] hitArray;
     ICacheWayPath hitWay;
-    logic we[ICACHE_WAY_NUM];
+    logic [ICACHE_WAY_NUM-1:0] we;
     ICacheIndexPath readIndex, writeIndex, nextReadIndex;
     ICacheTagPath readTag, writeTag;
     ICacheLineInsnPath readLineInsnList[ICACHE_WAY_NUM];

@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "../lib.c"
 
 #define WAY_NUM              8

@@ -16,6 +16,14 @@ import OpFormatTypes::*;
 localparam LINK_REGISTER = 5'h 1;
 localparam MICRO_OP_TMP_REGISTER = 4'h f;
 localparam ZERO_REGISTER = 5'h 0;
+localparam TEMPORARY_REGISTER_0 = 5'h5;
+localparam TEMPORARY_REGISTER_2 = 5'h7;
+
+typedef enum logic
+{
+    LP_NOT_EXPECTED = 1'b0,
+    LP_EXPECTED     = 1'b1
+} ELP_State_Type;
 
 localparam MICRO_OP_MAX_NUM = 3;     // An instruction is decoded to up to 3 micro ops.
 localparam MICRO_OP_INDEX_BITS = 2;  
@@ -37,6 +45,10 @@ localparam MICRO_OP_SOURCE_REG_NUM = 3;
 localparam MICRO_OP_SOURCE_REG_NUM = 2;
 `endif
 
+// Aext
+localparam SC_CODE_SUCCESS = 0;
+localparam SC_CODE_FAIL = 1;
+
 typedef enum logic [1:0]
 {
     MOP_TYPE_INT     = 2'b00,
@@ -55,7 +67,9 @@ typedef enum logic [2:0]
     INT_MOP_TYPE_SHIFT     = 3'b001,
 
     INT_MOP_TYPE_BR        = 3'b010,
-    INT_MOP_TYPE_RIJ       = 3'b011
+    INT_MOP_TYPE_RIJ       = 3'b011,
+
+    INT_MOP_TYPE_LPL_CHECK = 3'b100
 } IntMicroOpSubType;
 
 typedef enum logic [2:0]
@@ -75,8 +89,9 @@ typedef enum logic [2:0]
 
     MEM_MOP_TYPE_CSR       = 3'b100, // CSR access
     MEM_MOP_TYPE_FENCE     = 3'b101, // fence
-    MEM_MOP_TYPE_ENV       = 3'b110  // env
-
+    MEM_MOP_TYPE_ENV       = 3'b110, // env
+    
+    MEM_MOP_TYPE_ZAAMO     = 3'b111  // Zaamo
 } MemMicroOpSubType;
 
 typedef enum logic [2:0]
@@ -137,7 +152,7 @@ typedef struct packed // IntMicroOpOperand
     ShifterPath shiftIn;
 } IntMicroOpOperand;
 
-// Mem: 6+6+6 +1+1+3 +8 +15 +12 = 18+5+8+10+12 = 53 bits
+// Mem: 6+6+6 +1+1+3 +8 +1+4 +5 +12 = 18+5+8+5+5+12 = 53 bits
 typedef struct packed // MemMicroOpOperand
 {
     // 論理レジスタ番号
@@ -150,7 +165,11 @@ typedef struct packed // MemMicroOpOperand
     MemAccessMode memAccessMode; // signed/unsigned and access size
 
     CSR_CtrlPath csrCtrl;
-    logic [9:0] padding; //　padding
+
+    logic           isZalrsc;
+    MemZaamo_Code   amoCode;
+
+    logic [4:0] padding; //　padding
 
     // Address offset or CSR number
     AddrOperandImm addrIn;
@@ -287,6 +306,9 @@ typedef struct packed // OpInfo
     // * Already fetched succeeding instructions are flushed when this 
     // instruction is decoded.
     logic serialized;    
+
+    // landing pad
+    ELP_State_Type nextELP;
 } OpInfo;
 
 typedef struct packed { // InsnInfo

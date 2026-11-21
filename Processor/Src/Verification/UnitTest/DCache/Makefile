@@ -1,25 +1,29 @@
+include ../../../Makefiles/Environment.inc.mk
+
 # テスト対象となるモジュールの名前を指定．
 UNIT_NAME         = DCache
 
 # ライブラリ名とトップレベルモジュール（シミュレーション対象）
 TEST_BENCH_MODULE = Test$(UNIT_NAME)
-TOP_MODULE        = $(TEST_BENCH_MODULE)Top
 
 SOURCE_ROOT  = ../../../
 TOOLS_ROOT   = ../../../../Tools/
-PROJECT_WORK = ../../../../Project/ModelSim
-ISE_PROJECT_ROOT = ../../../../Project/Synplify/$(UNIT_NAME)/pr_1/
 
 # TYPES には型定義を含む package を含んだファイルを指定する．
 # ファイルごとの依存関係に気をつけて，依存先が依存元より前にくるようにならべること．
 TYPES = \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
+	Config/MemoryMapTypes.sv \
+	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
+	FloatingPointUnit/FPUTypes.sv \
 	Decoder/OpFormat.sv \
 	Decoder/MicroOp.sv \
 	RegisterFile/BypassTypes.sv \
-	RenameLogic/RenameLogicTypes.sv \
+	FetchUnit/FetchUnitTypes.sv \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
+	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \
 	Pipeline/PipelineTypes.sv \
 
@@ -32,22 +36,23 @@ TEST_MODULES = \
 # それ以外の module, interface の定義があるファイルを指定する．
 # ここの順番は適当でも大丈夫．
 MODULES = \
-	ResetController.sv \
-	Primitives/LRU_Counter.sv \
 	Primitives/RAM.sv \
 	LoadStoreUnit/LoadStoreUnitIF.sv \
 	Cache/CacheSystemIF.sv \
+	Cache/DCacheIF.sv \
+	ControllerIF.sv \
+	Recovery/RecoveryManagerIF.sv \
 	Cache/DCache.sv \
-	Cache/CachePrimitives.sv \
-	Verification/UnitTest/DCache/TestDCacheTop.sv \
 
 # 合成時に、特定の警告を非表示にする
+# また，マクロの定義をインクルードするためにインクルード・パスを追加する
 VLOG_OPTIONS = \
 	-suppress 2605 \
+	+incdir+$(SOURCE_ROOT) \
 
 # シミュレーション時に、特定の警告を非表示にする
 VSIM_OPTIONS = \
 	-suppress 2605 \
 	-suppress 8233 \
 
-include ../../../Makefile.inc
+include ../../../Makefiles/UnitTest.inc.mk

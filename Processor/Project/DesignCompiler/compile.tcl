@@ -21,9 +21,11 @@ define_design_lib WORK -path "./work"
 
 # Specify source files
 set file_names $env(RSD_DC_SOURCE_FILES)
+# Use the generated synthesis settings for CPU features and performance counters.
+set defines [concat {RSD_SYNTHESIS RSD_SYNTHESIS_DESIGN_COMPILER} $env(RSD_DC_DEFINES)]
 
 foreach file_name $file_names {
-	analyze -format sverilog -define RSD_SYNTHESIS,RSD_SYNTHESIS_DESIGN_COMPILER $file_name
+	analyze -format sverilog -define [join $defines ,] $file_name
 }
 
 

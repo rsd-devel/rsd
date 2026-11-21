@@ -23,6 +23,8 @@ module Main_Zynq #(
     parameter MEM_INIT_HEX_FILE = ""
 `endif
 )(
+input
+    ExternalInterruptRequestPath externalInterruptRequest,
 
 `ifdef RSD_SYNTHESIS_ZEDBOARD
 input
@@ -82,6 +84,7 @@ logic clk;
     DebugRegister debugRegister; // RSD_DISABLE_DEBUG_REGISTER時はどこにも繋がない
 `endif
     
+    logic serialTxFull;
     logic programLoaded; // プログラムのロードが済んだらTRUE
 
     //
@@ -246,7 +249,8 @@ logic clk;
                             axi4LitePlToPsControlRegisterIF, 
                             serialWE, 
                             serialWriteData,
-                            lastCommittedPC );
+                            lastCommittedPC,
+                            serialTxFull );
    
     Axi4LitePsToPlControlRegister axi4LitePsToPlControlRegister( 
                             axi4LitePsToPlControlRegisterIF, 
@@ -254,14 +258,10 @@ logic clk;
                             memAccessWriteDataFromProgramLoader,
                             memAccessWE_FromProgramLoader,
                             programLoaded);
+`else
+    // Simulation consumes every serial write immediately.
+    assign serialTxFull = FALSE;
 `endif
-    logic reqExternalInterrupt;
-    ExternalInterruptCodePath externalInterruptCode; 
-    always_comb begin
-        reqExternalInterrupt = FALSE;
-        externalInterruptCode = 0;
-    end
-
     //
     // --- Processor core
     //
@@ -274,8 +274,7 @@ logic clk;
         .memAccessWE( memAccessWE_FromCore ),
         .memAccessReadBusy( memAccessReadBusy ),
         .memAccessWriteBusy( memAccessWriteBusy ),
-        .reqExternalInterrupt( reqExternalInterrupt ),
-        .externalInterruptCode( externalInterruptCode ),
+        .externalInterruptRequest( externalInterruptRequest ),
         .nextMemReadSerial( nextMemReadSerial ),
         .nextMemWriteSerial( nextMemWriteSerial ),
         .memReadDataReady( memReadDataReady ),
@@ -283,6 +282,7 @@ logic clk;
         .memReadSerial( memReadSerial ),
         .memAccessResponse( memAccessResponse ),
         .rstStart( rstStart ),
+        .serialTxFull( serialTxFull ),
         .serialWE( serialWE ),
         .serialWriteData( serialWriteData ),
         .lastCommittedPC( lastCommittedPC ),

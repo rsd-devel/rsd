@@ -97,8 +97,8 @@ module BTB(
             btbQueue[resetIndex % BTB_QUEUE_SIZE].btbWV <= '0;
         end
         else if (pushBtbQueue) begin
-            btbQueue[headPtr].btbWA <= btbWA[INT_ISSUE_WIDTH-1];
-            btbQueue[headPtr].btbWV <= btbWV[INT_ISSUE_WIDTH-1];
+            btbQueue[tailPtr].btbWA <= btbWA[INT_ISSUE_WIDTH-1];
+            btbQueue[tailPtr].btbWV <= btbWV[INT_ISSUE_WIDTH-1];
         end 
     end
 
@@ -148,8 +148,8 @@ module BTB(
         if (!empty && !updateBtb) begin
             popBtbQueue = TRUE;
             btbWE[0] = TRUE;
-            btbWA[0] = btbQueue[tailPtr].btbWA;
-            btbWV[0] = btbQueue[tailPtr].btbWV;
+            btbWA[0] = btbQueue[headPtr].btbWA;
+            btbWV[0] = btbQueue[headPtr].btbWV;
         end 
         else begin
             popBtbQueue = FALSE;

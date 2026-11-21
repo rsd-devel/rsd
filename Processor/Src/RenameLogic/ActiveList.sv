@@ -36,7 +36,7 @@ module ActiveList(
     //
     // --- Pointers
     //
-    ActiveListIndexPath headPtr/*verilator public*/;   // Set it public from a test bench for verilator.
+    ActiveListIndexPath headPtr;
     ActiveListIndexPath headPtrList[COMMIT_WIDTH];
     ActiveListIndexPath tailPtr; // 次に割り当てを行うエントリを指す
     ActiveListIndexPath tailPtrList[COMMIT_WIDTH];
@@ -183,10 +183,14 @@ module ActiveList(
         StoreQueueIndexPath storeQueuePtr;
         logic valid;
         ExecutionState state;
+        ELP_State_Type elp;
+        ELP_State_Type nextELP;
     } RecoveryRegPath;
 
-    ActiveListCountPath oldestAge;
+    ActiveListCountPath recoveryAge;
     ActiveListCountPath writeAge[ISSUE_WIDTH];
+    logic writeRecovery[ISSUE_WIDTH];
+    logic writeOldest[ISSUE_WIDTH];
     logic exceptionDetected;
     RefetchType refetchType;
     IssueLaneIndexPath exceptionIndex;
@@ -223,54 +227,69 @@ module ActiveList(
 
     always_comb begin
         nextRecoveryReg = recoveryReg;
-        oldestAge = ActiveListPtrToAge(recoveryReg.ptr, headPtr);
-        
+        recoveryAge = ActiveListPtrToAge(recoveryReg.ptr, headPtr);
+        for (int i = 0; i < ISSUE_WIDTH; i++) begin
+            writeAge[i] = ActiveListPtrToAge(writeData[i].ptr, headPtr);
+            writeRecovery[i] = we[i] &&
+                !(writeData[i].state inside {EXEC_STATE_NOT_FINISHED, EXEC_STATE_SUCCESS});
+        end
+
+        // Compare against earlier candidates in parallel instead of chaining
+        // the selected age through the lanes. Ties keep the earlier candidate.
+        for (int i = 0; i < ISSUE_WIDTH; i++) begin
+            writeOldest[i] = writeRecovery[i] &&
+                (!recoveryReg.valid || writeAge[i] < recoveryAge);
+            for (int j = 0; j < i; j++) begin
+                writeOldest[i] &= !writeRecovery[j] || writeAge[i] < writeAge[j];
+            end
+        end
+
         exceptionIndex = '0;
         exceptionDetected = FALSE;
         refetchType = REFETCH_TYPE_THIS_PC;
         startRecoveryAtCommit = FALSE;
 
+        // Preserve intermediate winners: a commit-time fault keeps
+        // startRecoveryAtCommit set even if a later lane selects an older refetch.
         for (int i = 0; i < ISSUE_WIDTH; i++) begin
-            writeAge[i] = ActiveListPtrToAge(writeData[i].ptr, headPtr);
+            if (writeOldest[i]) begin
+                nextRecoveryReg.valid = TRUE;
+                nextRecoveryReg.ptr = writeData[i].ptr;
+                nextRecoveryReg.loadQueuePtr = writeData[i].loadQueuePtr;
+                nextRecoveryReg.storeQueuePtr = writeData[i].storeQueuePtr;
+                nextRecoveryReg.pc = writeData[i].pc;
+                nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
+                nextRecoveryReg.state = writeData[i].state;
 
-            if (we[i] && 
-                !(writeData[i].state inside {EXEC_STATE_NOT_FINISHED, EXEC_STATE_SUCCESS})
-            ) begin
-                // Record the oldest recovery point.
-                if (!nextRecoveryReg.valid || writeAge[i] < oldestAge) begin
-                    oldestAge = writeAge[i];
-                    nextRecoveryReg.valid = TRUE;
-                    nextRecoveryReg.ptr = writeData[i].ptr;
-                    nextRecoveryReg.loadQueuePtr = writeData[i].loadQueuePtr;
-                    nextRecoveryReg.storeQueuePtr = writeData[i].storeQueuePtr;
-                    nextRecoveryReg.pc = writeData[i].pc;
-                    nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
-                    nextRecoveryReg.state = writeData[i].state;
+                nextRecoveryReg.elp = writeData[i].elp;
+                nextRecoveryReg.nextELP = writeData[i].nextELP;
 
-                    // Rwステージで例外が検出された時点でリカバリを開始する(詳細はRecoveryManager)
-                    // EXEC_STATE_TRAP や例外は必ずコミット時に処理する（CSR の操作が伴うため）
-                    exceptionDetected = writeData[i].state inside {
-                        EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS
-                    };
-                    exceptionIndex = i;
-                    if (!(writeData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS})) begin
-                        // Need to update the recovery register when handling exceptions at commit time
-                        startRecoveryAtCommit = TRUE;
-                    end
+                // Rwステージで例外が検出された時点でリカバリを開始する(詳細はRecoveryManager)
+                // EXEC_STATE_TRAP や例外は必ずコミット時に処理する（CSR の操作が伴うため）
+                exceptionDetected = writeData[i].state inside {
+                    EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS, EXEC_STATE_REFETCH_THIS_SERIALIZED
+                };
+                exceptionIndex = i;
+                if (!(writeData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_REFETCH_THIS, EXEC_STATE_REFETCH_THIS_SERIALIZED})) begin
+                    // Need to update the recovery register when handling exceptions at commit time
+                    startRecoveryAtCommit = TRUE;
+                end
 
-                    // refetchTypeはflushOpのheadPtrを決めるためとrecoveredPCを確定するために使う
-                    // Int命令の例外は分岐命令なので分岐ターゲットに飛ぶ
-                    // Mem命令のREFETCH_NEXTは順序違反検出なので次のPCに飛ぶ
-                    if(writeData[i].state == EXEC_STATE_REFETCH_NEXT) begin
-                        refetchType = ( 
-                            writeData[i].isBranch ? REFETCH_TYPE_BRANCH_TARGET : 
-                            writeData[i].isStore ?  REFETCH_TYPE_STORE_NEXT_PC : 
-                                                    REFETCH_TYPE_NEXT_PC 
-                        );
-                    end
-                    else begin
-                        refetchType = REFETCH_TYPE_THIS_PC;
-                    end
+                // refetchTypeはflushOpのheadPtrを決めるためとrecoveredPCを確定するために使う
+                // Int命令の例外は分岐命令なので分岐ターゲットに飛ぶ
+                // Mem命令のREFETCH_NEXTは順序違反検出なので次のPCに飛ぶ
+                if(writeData[i].state == EXEC_STATE_REFETCH_NEXT) begin
+                    refetchType = (
+                        writeData[i].isBranch ? REFETCH_TYPE_BRANCH_TARGET :
+                        writeData[i].isStore ?  REFETCH_TYPE_STORE_NEXT_PC :
+                                                REFETCH_TYPE_NEXT_PC
+                    );
+                end
+                else if (writeData[i].state == EXEC_STATE_REFETCH_THIS_SERIALIZED) begin
+                    refetchType = REFETCH_TYPE_THIS_PC_SERIALIZED;
+                end
+                else begin
+                    refetchType = REFETCH_TYPE_THIS_PC;
                 end
             end
 
@@ -286,6 +305,12 @@ module ActiveList(
 
         // Fault handling
         recovery.faultingDataAddr = recoveryReg.faultingDataAddr;
+
+        // Keep both sides of the recovery point with its PC and cause.
+        recovery.elp_FromCommitStage = recoveryReg.elp;
+        recovery.nextELP_FromCommitStage = recoveryReg.nextELP;
+        recovery.elp_FromRwStage = nextRecoveryReg.elp;
+        recovery.nextELP_FromRwStage = nextRecoveryReg.nextELP;
 
         //LSQのリカバリに用いる
         port.loadQueueRecoveryTailPtr = recoveryReg.loadQueuePtr;

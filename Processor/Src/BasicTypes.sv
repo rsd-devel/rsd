@@ -218,12 +218,14 @@ typedef logic [ RISCV_SHIFTER_WIDTH-1:0 ] ShifterPath;
 localparam SHIFT_AMOUNT_BIT_SIZE = 5;
 typedef logic [SHIFT_AMOUNT_BIT_SIZE-1:0] ShiftAmountPath;
 
-//
-// --- Interrupt
-//
-localparam RSD_EXTERNAL_INTERRUPT_CODE_WIDTH = 5;
-typedef logic [RSD_EXTERNAL_INTERRUPT_CODE_WIDTH-1:0] ExternalInterruptCodePath;
-
+// XLEN
+typedef enum logic [1:0]
+{
+    ENCODED_XLEN_UNKNOWN = 2'b00,
+    ENCODED_XLEN_32 = 2'b01,
+    ENCODED_XLEN_64 = 2'b10,
+    ENCODED_XLEN_128  = 2'b11
+} EncodedXLENSizeType;
 
 endpackage
 

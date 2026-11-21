@@ -1,0 +1,196 @@
+include Makefiles/Environment.inc.mk
+
+# Vivado synthesis, implementation, and post-synthesis simulation.
+# RTL simulation is selected by make SIM=xsim.
+.DEFAULT_GOAL := vivado-synthesis
+
+SOURCE_ROOT = $(RSD_ROOT)/Processor/Src/
+TOOLS_ROOT = ../Tools/
+TEST_CODE = $(SOURCE_ROOT)Verification/TestCode/C/Fibonacci
+MAKEFILE = Makefiles/Vivado.mk
+KANATA_CONVERTER = python3 ../Tools/KanataConverter/KanataConverter.py
+
+include Makefiles/Build.inc.mk
+
+# -------------------------------
+# Synthesis
+# This procedure uses Vivado only.
+#   1. Create Vivado Custom IP of RSD by using our script
+#   2. Synthesize RSD using Vivado
+#
+
+# -------------------------------
+# Vivado synthesis related items are defined in this file
+include Makefiles/Vivado.inc.mk
+
+# Vivado imports the packaged IP into the block design. Recreate the project
+# when a source changes so the IP's out-of-context run sees the new copy.
+VIVADO_PROJECT_FILE_DEPS = $(VIVADO_RTL_INPUTS) \
+	Makefiles/CoreSources.inc.mk \
+	$(TOOLS_ROOT)/XilinxTools/IP_Generator.py \
+	$(TOOLS_ROOT)/XilinxTools/ip_template.xml \
+	$(VIVADO_PROJECT_ROOT)/rsd_ip/Vivado/xgui/RSD_v1_0.tcl \
+	$(VIVADO_PROJECT_ROOT)/scripts/synthesis/create_project.tcl
+
+# Create Vivado project file for synthesis
+$(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_FILE_DEPS)
+	python3 $(TOOLS_ROOT)/XilinxTools/IP_Generator.py $(TARGET_BOARD) # Generate Xilinx IP of RSD
+	@cd $(VIVADO_PROJECT_ROOT) && \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/synthesis/create_project.tcl
+	@echo $(VIVADO_PROJECT_FLOW) > "$(VIVADO_PROJECT_FLOW_FILE)"
+
+# -------------------------------
+# Project-based timing and post-implementation simulation.
+# Functional post-synthesis tests use the XSim flow below.
+VIVADO_PROJECT_ROOT = ../Project/Vivado/TargetBoards/Zedboard
+VIVADO_POST_SYNTHESIS_PROJECT_ROOT = $(VIVADO_PROJECT_ROOT)/rsd_post_synthesis
+VIVADO_POST_SYNTHESIS_PROJECT_FILE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.xpr
+
+POST_SYNTHESIS_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/synth_1/Main_Zynq_Wrapper.dcp
+POST_IMPLEMENTATION_MODULE = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.runs/impl_1/Main_Zynq_Wrapper_routed.dcp
+
+export RSD_POST_SYNTHESIS_DEFINES = $(patsubst +define+%,%,$(RSD_SYNTHESIS_SRC_CFG))
+
+POST_SYNTHESIS_SIMULATION_ROOT = $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)/rsd_post_synthesis.sim/sim_1
+POST_SYNTHESIS_TIMING_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/synth/timing/xsim
+POST_IMPLEMENTATION_FUNCTIONAL_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/impl/func/xsim
+POST_IMPLEMENTATION_TIMING_WORK = $(POST_SYNTHESIS_SIMULATION_ROOT)/impl/timing/xsim
+
+RSD_LOG_FILE_POST_SYNTHESIS_TIMING      = $(POST_SYNTHESIS_TIMING_WORK)/RSD-post-synthesis.log
+RSD_LOG_FILE_POST_IMPLEMENTATION        = $(POST_IMPLEMENTATION_FUNCTIONAL_WORK)/RSD-post-synthesis.log
+RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING = $(POST_IMPLEMENTATION_TIMING_WORK)/RSD-post-synthesis.log
+
+KANATA_LOG_FILE_POST_SYNTHESIS_TIMING      = $(POST_SYNTHESIS_TIMING_WORK)/Kanata-post-synthesis.log
+KANATA_LOG_FILE_POST_IMPLEMENTATION        = $(POST_IMPLEMENTATION_FUNCTIONAL_WORK)/Kanata-post-synthesis.log
+KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING = $(POST_IMPLEMENTATION_TIMING_WORK)/Kanata-post-synthesis.log
+
+# Run and verify timing and post-implementation simulation.
+post-synthesis-timing: post-synthesis-timing-run
+	diff $(POST_SYNTHESIS_TIMING_WORK)/serial.out.txt $(TEST_CODE)/serial.ref.txt
+	@echo "==== Post Synthesis Timing Simulation Successful ===="
+
+post-implementation: post-implementation-run
+	diff $(POST_IMPLEMENTATION_FUNCTIONAL_WORK)/serial.out.txt $(TEST_CODE)/serial.ref.txt
+	@echo "==== Post Implementation Functional Simulation Successful ===="
+
+post-implementation-timing: post-implementation-timing-run
+	diff $(POST_IMPLEMENTATION_TIMING_WORK)/serial.out.txt $(TEST_CODE)/serial.ref.txt
+	@echo "==== Post Implementation Timing Simulation Successful ===="
+
+# Open post-synthesis project
+post-synthesis-open: $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
+	$(RSD_VIVADO_ROOT)/bin/vivado $(VIVADO_POST_SYNTHESIS_PROJECT_FILE) &
+
+# Run post-synthesis simulation
+post-synthesis-timing-run: $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
+post-implementation-run: $(RSD_LOG_FILE_POST_IMPLEMENTATION)
+post-implementation-timing-run: $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING)
+
+# Run post-synthesis simulation with GUI
+post-synthesis-timing-run-gui: $(POST_SYNTHESIS_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-synthesis timing
+
+post-implementation-run-gui: $(POST_IMPLEMENTATION_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-implementation functional
+
+post-implementation-timing-run-gui: $(POST_IMPLEMENTATION_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode gui -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-implementation timing
+
+
+# Generate post-synthesis Kanata log file
+post-synthesis-timing-kanata: $(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING)
+post-implementation-kanata: $(KANATA_LOG_FILE_POST_IMPLEMENTATION)
+post-implementation-timing-kanata: $(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING)
+
+
+# Remove post-synthesis simulation related files
+.PHONY: post-synthesis-clean
+post-synthesis-clean:
+	rm -rf ../Project/PostSynthesis/vivado
+	rm -rf ../Project/PostSynthesis/vivado-timing
+	rm -f -r $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT)
+	rm -f vivado*.jou
+	rm -f vivado*.log
+	rm -f vivado*.zip
+	rm -f vivado*.str
+
+# Do NOT use these commands.
+# These commands are called automatically if needed.
+post-synthesis-create:
+	python3 $(TOOLS_ROOT)/XilinxTools/VivadoProjectCreator.py $(TARGET_BOARD)
+	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/create_project_for_vivadosim.tcl
+
+$(POST_SYNTHESIS_MODULE): $(VIVADO_POST_SYNTHESIS_PROJECT_FILE)
+	cp $(TEST_CODE)/code.hex $(VIVADO_PROJECT_ROOT)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/run_synthesis.tcl
+	test -s $(POST_SYNTHESIS_MODULE)
+	touch $(POST_SYNTHESIS_MODULE) # Update timestamp to avoid re-synthesis
+
+$(POST_IMPLEMENTATION_MODULE): $(POST_SYNTHESIS_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/run_implementation.tcl
+	test -s $(POST_IMPLEMENTATION_MODULE)
+	touch $(POST_IMPLEMENTATION_MODULE) # Update timestamp to avoid re-synthesis
+
+$(VIVADO_POST_SYNTHESIS_PROJECT_FILE):
+	$(MAKE) -f $(MAKEFILE) post-synthesis-create || { rm -rf $(VIVADO_POST_SYNTHESIS_PROJECT_ROOT); exit 1; }
+
+$(RSD_LOG_FILE_POST_SYNTHESIS_TIMING): $(POST_SYNTHESIS_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-synthesis timing
+
+$(RSD_LOG_FILE_POST_IMPLEMENTATION): $(POST_IMPLEMENTATION_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-implementation functional
+
+$(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(POST_IMPLEMENTATION_MODULE)
+	@cd $(VIVADO_PROJECT_ROOT); \
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source scripts/post_synthesis/sim_post_synthesis.tcl \
+		-tclargs post-implementation timing
+
+$(KANATA_LOG_FILE_POST_SYNTHESIS_TIMING): $(RSD_LOG_FILE_POST_SYNTHESIS_TIMING)
+	$(KANATA_CONVERTER) $< $@
+
+$(KANATA_LOG_FILE_POST_IMPLEMENTATION): $(RSD_LOG_FILE_POST_IMPLEMENTATION)
+	$(KANATA_CONVERTER) $< $@
+
+$(KANATA_LOG_FILE_POST_IMPLEMENTATION_TIMING): $(RSD_LOG_FILE_POST_IMPLEMENTATION_TIMING)
+	$(KANATA_CONVERTER) $< $@
+
+# Build a Zedboard netlist for XSim functional tests or VCS timing tests.
+# Build TEST_CODE first; each invocation synthesizes its HEX into internal RAM.
+POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado/$(notdir $(TEST_CODE)))
+POST_SYNTHESIS_MODE = functional
+POST_IMPLEMENTATION_CLOCK_NS ?= 32
+
+export RSD_POST_SYNTHESIS_SOURCES = $(abspath $(filter-out $(TEST_MODULES),$(TYPES)) $(MODULES))
+POST_SYNTHESIS_SCRIPT = $(abspath ../Tools/XilinxTools/PostSynthesisVivado.tcl)
+
+.PHONY: test-post-synthesis post-synthesis-build post-implementation-build
+post-implementation-build: TEST_CODE = Verification/TestCode/C/HelloWorld
+post-implementation-build: POST_SYNTHESIS_WORK = $(abspath ../Project/PostSynthesis/vivado-timing/$(notdir $(TEST_CODE)))
+post-implementation-build: POST_SYNTHESIS_MODE = timing
+post-synthesis-build post-implementation-build: $(CORE_TEMPLATE_FILES)
+	test -s $(TEST_CODE)/code.hex && test -s $(TEST_CODE)/serial.ref.txt
+	test -x $(RSD_VIVADO_ROOT)/bin/vivado
+	mkdir -p $(POST_SYNTHESIS_WORK)
+	rm -f $(POST_SYNTHESIS_WORK)/netlist.v
+	cp $(TEST_CODE)/code.hex $(TEST_CODE)/cfg.xml $(TEST_CODE)/serial.ref.txt $(POST_SYNTHESIS_WORK)/
+	cd $(POST_SYNTHESIS_WORK) && $(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(POST_SYNTHESIS_SCRIPT) \
+		-tclargs $(POST_SYNTHESIS_MODE) $(POST_IMPLEMENTATION_CLOCK_NS)
+	test -s $(POST_SYNTHESIS_WORK)/netlist.v
+
+POST_SYNTHESIS_NETLIST = netlist.v
+POST_SYNTHESIS_DEFINES = RSD_SYNTHESIS_VIVADO
+include Makefiles/PostSynthesis.inc.mk

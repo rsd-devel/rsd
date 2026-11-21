@@ -16,10 +16,10 @@ import ActiveListIndexTypes::*;
 import CSR_UnitTypes::*;
 
 interface CSR_UnitIF(
-    input logic clk, rst, rstStart, reqExternalInterrupt, 
-    ExternalInterruptCodePath externalInterruptCode
+    input logic clk, rst, rstStart
 );
 
+    logic csrRE;  // CSR read enable
     logic csrWE;  // CSR write enable
     CSR_NumberPath csrNumber;   // CSR number
     CSR_Code csrCode;           // CSR operation code (ex. set, clear...)
@@ -32,35 +32,48 @@ interface CSR_UnitIF(
     logic   triggerExcpt;
     ExecutionState excptCause;
     PC_Path excptCauseAddr;     // EBREAK/ECALL 時の mepc
-    AddrPath excptTargetAddr;   // Trap vector or MRET return target
+    AddrPath excptTargetAddr;   // Trap vector or xRET return target
     AddrPath excptCauseDataAddr;     // fault 発生時のデータアドレス
+    logic csrUnitTriggerExcpt; // CSRへのアクセスが例外を発生させるかどうか
+    ELP_State_Type excptELP; // ELP before the selected trapping instruction.
+    ELP_State_Type recoverELP_FromCSR;
 
     // Interrupt
     logic triggerInterrupt;
     CSR_CAUSE_InterruptCodePath interruptCode;
     PC_Path interruptRetAddr;
+    logic msip;
+    ELP_State_Type interruptELP;
 
     // Timer interrupt request
     logic reqTimerInterrupt;
 
-    // Latched code, see the cooments in the CSR.
-    ExternalInterruptCodePath externalInterruptCodeInCSR;
+    // Architectural instructions retired, excluding synchronous exceptions.
+    CommitLaneCountPath retireNum;
 
-    // Used in updating minstret
-    CommitLaneCountPath commitNum;
+    PrivilegeLevelType privilegeLevel;
+    logic xLPE;
+    logic fpStateEnabled;
+
+    modport PreDecodeStage(input xLPE, fpStateEnabled);
 
 `ifdef RSD_MARCH_FP_PIPE
     FFlags_Path fflags;
     Rounding_Mode frm;
     logic fflagsWE;
     FFlags_Path fflagsData;
+    logic fpStateDirty;
 `endif
 
     modport MemoryExecutionStage(
     input
         clk, rst, rstStart,
+        csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
+        privilegeLevel,
     output 
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,
@@ -81,7 +94,8 @@ interface CSR_UnitIF(
     // FetchStage and CSR_Unit
     modport IO_Unit(
     output 
-        reqTimerInterrupt
+        reqTimerInterrupt,
+        msip
     );
 
     // For counter update
@@ -91,11 +105,12 @@ interface CSR_UnitIF(
         fflags,
 `endif
     output
-        commitNum
+        retireNum
 `ifdef RSD_MARCH_FP_PIPE
         ,
         fflagsWE,
-        fflagsData
+        fflagsData,
+        fpStateDirty
 `endif
     );
 
@@ -103,16 +118,19 @@ interface CSR_UnitIF(
     modport RecoveryManager(
     input
         excptTargetAddr,
+        recoverELP_FromCSR,
     output
         triggerExcpt,
         excptCauseAddr,
         excptCause,
-        excptCauseDataAddr
+        excptCauseDataAddr,
+        excptELP
     );
 
     modport CSR_Unit(
     input
         clk, rst, rstStart,
+        csrRE,
         csrWE,
         csrNumber,
         csrCode,
@@ -121,16 +139,18 @@ interface CSR_UnitIF(
         excptCauseAddr,
         excptCause,
         excptCauseDataAddr,
-        commitNum,
+        excptELP,
+        retireNum,
         reqTimerInterrupt,
-        reqExternalInterrupt,
-        externalInterruptCode,
+        msip,
         triggerInterrupt,
         interruptCode,
         interruptRetAddr,
+        interruptELP,
 `ifdef RSD_MARCH_FP_PIPE
         fflagsWE,
         fflagsData,
+        fpStateDirty,
 `endif
     output 
 `ifdef RSD_MARCH_FP_PIPE
@@ -139,19 +159,24 @@ interface CSR_UnitIF(
 `endif
         csrWholeOut,
         csrReadOut,
+        csrUnitTriggerExcpt,
         excptTargetAddr,
-        externalInterruptCodeInCSR
+        privilegeLevel,
+        xLPE,
+        fpStateEnabled,
+        recoverELP_FromCSR
     );
 
     modport InterruptController(
     input
         clk, rst, rstStart,
         csrWholeOut,
-        externalInterruptCodeInCSR,
+        privilegeLevel,
     output
         triggerInterrupt,
         interruptRetAddr,
-        interruptCode
+        interruptCode,
+        interruptELP
     );
 
 endinterface

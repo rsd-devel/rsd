@@ -1,9 +1,9 @@
+$(call REQUIRE_ENV,RSD_VIVADO_ROOT)
+
 
 # Specify the target Zynq board.
 # Supported Zynq boards: Zedboard
 TARGET_BOARD = Zedboard
-
-ARM_BUILD_CPUS = $(shell nproc)
 
 # -------------------------------
 
@@ -21,56 +21,13 @@ VIVADO_XSA_FILE = $(VIVADO_BOARD_PROJECT_ROOT)/design_1_wrapper.xsa
 VIVADO_BIT_FILE = $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.bit
 VIVADO_FSBL_FILE = $(VIVADO_BOARD_PROJECT_SDK)/fsbl/Release/fsbl.elf
 
-# Linux(ARM)用
-
-# ターゲットボードを追加したらここも追加
-ifeq ($(TARGET_BOARD),Zedboard)
-	UBOOT_CONFIG = zynq_zed_config
-	DEVICETREE_CONFIG = zynq-zed
-else
-	ifeq ($(TARGET_BOARD),ZC706)
-		UBOOT_CONFIG = zynq_zc706_config
-		DEVICETREE_CONFIG = zynq-zc706
-	else
-		UBOOT_CONFIG = none
-		DEVICETREE_CONFIG = none
-	endif
-endif
-
-KERNEL_CONFIG = xilinx_zynq_defconfig
-ARM_CROSSCOMPILE = arm-linux-gnueabihf-
-
-ARM_LINUX_ROOT = $(RSD_ARM_LINUX)
-KERNEL_ROOT = $(RSD_ARM_LINUX)/linux-xlnx
-UBOOT_ROOT = $(RSD_ARM_LINUX)/u-boot-xlnx
-DTC_ROOT = $(RSD_ARM_LINUX)/dtc
-INITRD = $(RSD_ARM_LINUX)/arm_ramdisk.image.gz
-ARM_LINUX_BOOT = $(ARM_LINUX_ROOT)/boot
-
-ARM_LINUX_SRC_ROOT = $(RSD_ROOT)/Processor/Project/Vivado/ARM_Linux
-KERNEL_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/linux-xlnx
-UBOOT_SRC_ROOT = $(ARM_LINUX_SRC_ROOT)/u-boot-xlnx
-BIF_FILE = $(ARM_LINUX_SRC_ROOT)/boot.bif
-UINITRD_FILE = $(ARM_LINUX_BOOT)/uramdisk.image.gz
-BIT_FILE = $(ARM_LINUX_BOOT)/boot.bit
-DEVICETREE_FILE = $(ARM_LINUX_BOOT)/devicetree.dtb
-FSBL_FILE = $(ARM_LINUX_BOOT)/fsbl.elf
-UBOOT_FILE = $(ARM_LINUX_BOOT)/u-boot.elf
-UKERNEL_FILE = $(ARM_LINUX_BOOT)/uImage
-ROOTFS_FILE = $(ARM_LINUX_ROOT)/ROOTFS.tar.gz
-
-KERNEL_BRANCH = v2019.2.01
-UBOOT_BRANCH = v2019.2
-KERNEL_TAG = xilinx-v2019.2.01
-UBOOT_TAG = xilinx-v2019.2
-
 # -------------------------------
 # Vivado : Make RSD project, run synthesis and run implementation for TARGET_BOARD.
 #
 
 # vivadoプロジェクトを作成して開く．すでに作成されている場合は開くのみ．
 vivado: $(VIVADO_PROJECT_FILE)
-	$(RSD_VIVADO_BIN)/vivado $(VIVADO_PROJECT_FILE) &
+	$(RSD_VIVADO_ROOT)/bin/vivado $(VIVADO_PROJECT_FILE) &
 
 # vivadoプロジェクトの削除
 vivado-clean:
@@ -84,177 +41,40 @@ vivado-clean:
 vivado-synthesis: $(VIVADO_BIT_FILE)
 	@echo "==== Build Successful ===="
 
-# ビットストリームの生成
-# XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
-$(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
-	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
-	
-# $(VIVADO_XSA_FILE): $(VIVADO_BIT_FILE)
-#	$(RSD_VIVADO_BIN)/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/export_xsa.tcl
-#	cp $(VIVADO_BOARD_PROJECT_IMPL)/design_1_wrapper.sysdef $(VIVADO_XSA_FILE)
-#	@echo "(Re-)build hdf using Vivado!"
-#	exit 1
+.DELETE_ON_ERROR:
 
+VIVADO_RTL_INPUTS = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(HEADERS) Config/SynthesisMacros.sv))
 
-# -------------------------------
-# ARM-Linux : Make fsbl, initrd, u-boot, kernel, device-tree and boot.bin for TARGET_BOARD.
-#
+# Both frontends use rsd.xpr. Re-import the IP when switching synthesis tools.
+VIVADO_PROJECT_FLOW := $(basename $(notdir $(MAKEFILE)))
+VIVADO_PROJECT_FLOW_FILE := $(VIVADO_BOARD_PROJECT_ROOT)/.synthesis-tool
+ifneq ($(VIVADO_PROJECT_FLOW),$(file <$(VIVADO_PROJECT_FLOW_FILE)))
+.PHONY: vivado-flow-changed
+$(VIVADO_PROJECT_FILE): vivado-flow-changed
+endif
 
-xilinx-arm-linux: $(ARM_LINUX_BOOT) $(FSBL_FILE) $(BIT_FILE)
-	$(MAKE) xilinx-arm-linux-u-boot
-	$(MAKE) xilinx-arm-linux-kernel
-	$(MAKE) xilinx-arm-linux-device-tree
-	$(MAKE) xilinx-arm-linux-bootbin
-	$(MAKE) xilinx-arm-linux-download-rootfs
-	@echo "==== Build Successful ===="
+# These inputs are also used when Vivado implements a Synplify netlist.
+$(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_ROOT)/scripts/synthesis/design_1.tcl $(VIVADO_PROJECT_ROOT)/project_src/zedboard.xdc
 
-xilinx-arm-linux-clean:
-	$(MAKE) xilinx-arm-linux-kernel-clean
-	$(MAKE) xilinx-arm-linux-u-boot-clean
-	$(MAKE) xilinx-arm-linux-initrd-clean
-	$(MAKE) xilinx-arm-linux-bootbin-clean
-	$(MAKE) xilinx-arm-linux-rootfs-clean
+# Vivado writes the bitstream and XSA together. Use one recipe on GNU make
+# 4.2 as well, and regenerate the pair if either output was removed.
+$(VIVADO_BIT_FILE): | $(VIVADO_XSA_FILE)
+ifeq ($(wildcard $(VIVADO_BIT_FILE)),)
+.PHONY: vivado-missing-bitstream
+$(VIVADO_XSA_FILE): vivado-missing-bitstream
+endif
 
-# Do NOT use this command.
-xilinx-arm-linux-clone-all: $(ARM_LINUX_ROOT) $(KERNEL_ROOT) $(UBOOT_ROOT) $(DTC_ROOT)/dtc $(INITRD) $(ARM_LINUX_BOOT)
-	@echo "All repos have been already cloned."
+$(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	@rm -f "$@"
+	$(RSD_VIVADO_ROOT)/bin/vivado -mode batch -source $(VIVADO_PROJECT_ROOT)/scripts/synthesis/generate_bitstream.tcl
+	test -s $(VIVADO_BIT_FILE) && test -s $@
 
-$(ARM_LINUX_ROOT):
-	mkdir $(ARM_LINUX_ROOT)
+# Build hardware/FSBL outside the dev container using Vivado/Vitis 2019.2.
+.PHONY: zynq-hardware
+zynq-hardware: $(VIVADO_FSBL_FILE)
 
-$(KERNEL_ROOT):
-	$(MAKE) xilinx-arm-linux-kernel-fetch; \
-	cd $(KERNEL_ROOT); \
-	patch -p1 < $(KERNEL_SRC_ROOT)/linux-xlnx.rsd.diff
-
-# Do NOT use this command.
-xilinx-arm-linux-kernel-fetch:
-	git clone https://github.com/Xilinx/linux-xlnx.git $(KERNEL_ROOT)
-	@cd $(KERNEL_ROOT); \
-	git checkout -b $(KERNEL_BRANCH) refs/tags/$(KERNEL_TAG)
-
-# Do NOT use this command.
-xilinx-arm-linux-kernel-clean:
-	rm -f -r $(KERNEL_ROOT)
-
-$(UBOOT_ROOT):
-	$(MAKE) xilinx-arm-linux-u-boot-fetch; \
-	cd $(UBOOT_ROOT); \
-	patch -p1 < $(UBOOT_SRC_ROOT)/u-boot-xlnx.rsd.diff
-
-# Do NOT use this command.
-xilinx-arm-linux-u-boot-fetch:
-	git clone https://github.com/Xilinx/u-boot-xlnx.git $(UBOOT_ROOT)
-	@cd $(UBOOT_ROOT); \
-	git checkout -b $(UBOOT_BRANCH) refs/tags/$(UBOOT_TAG)
-
-# Do NOT use this command.
-xilinx-arm-linux-u-boot-clean:
-	rm -f -r $(UBOOT_ROOT)
-
-$(DTC_ROOT)/dtc:
-	$(MAKE) xilinx-arm-linux-dtc || $(MAKE) xilinx-arm-linux-dtc-clean
-
-# Do NOT use this command.
-xilinx-arm-linux-dtc:
-	git clone https://git.kernel.org/pub/scm/utils/dtc/dtc.git $(DTC_ROOT)
-	@cd $(DTC_ROOT); \
-	make CC=gcc CXX=g++
-
-# Do NOT use this command.
-xilinx-arm-linux-dtc-clean:
-	rm -f -r $(DTC_ROOT)
-
-$(INITRD):
-	wget -N -P $(ARM_LINUX_ROOT) http://www.wiki.xilinx.com/file/view/arm_ramdisk.image.gz/419243558/arm_ramdisk.image.gz
-
-$(ARM_LINUX_BOOT):
-	mkdir $(ARM_LINUX_BOOT)
-
-# Do NOT use this command.
-xilinx-arm-linux-all:
-	$(MAKE) xilinx-arm-linux-fsbl
-	$(MAKE) xilinx-arm-linux-u-boot
-	$(MAKE) xilinx-arm-linux-initrd
-	$(MAKE) xilinx-arm-linux-kernel
-	$(MAKE) xilinx-arm-linux-bitstream
-	$(MAKE) xilinx-arm-linux-bootbin
-	$(MAKE) xilinx-arm-linux-download-rootfs
-
-# First Stage Boot Loader
-$(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE)
-	rm -f -r $(VIVADO_BOARD_PROJECT_ROOT)/rsd.sdk
-	xsct $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
-
-$(FSBL_FILE): $(VIVADO_FSBL_FILE)
-	cp $(VIVADO_FSBL_FILE) $(ARM_LINUX_BOOT)/fsbl.elf
-
-$(UBOOT_FILE): $(UBOOT_ROOT)
-	$(MAKE) xilinx-arm-linux-u-boot
-
-# Do NOT use this command.
-xilinx-arm-linux-u-boot: $(UBOOT_ROOT)
-	cd $(UBOOT_ROOT); \
-	make $(UBOOT_CONFIG) CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
-	make CROSS_COMPILE=$(ARM_CROSSCOMPILE) -j$(ARM_BUILD_CPUS); \
-	cp $(UBOOT_ROOT)/u-boot $(ARM_LINUX_BOOT)/u-boot.elf
-
-$(UINITRD_FILE): $(UBOOT_FILE) $(INITRD)
-	$(MAKE) xilinx-arm-linux-initrd
-
-# Do NOT use this command.
-xilinx-arm-linux-initrd: $(INITRD)
-	$(UBOOT_ROOT)/tools/mkimage -A arm -T ramdisk -C gzip -d $(INITRD) $(ARM_LINUX_BOOT)/uramdisk.image.gz
-
-# Do NOT use this command.
-xilinx-arm-linux-initrd-clean:
-	rm -f $(ARM_LINUX_BOOT)/uramdisk.image.gz
-	rm -f $(INITRD)
-
-$(UKERNEL_FILE):
-	$(MAKE) xilinx-arm-linux-kernel
-
-# Do NOT use this command.
-xilinx-arm-linux-kernel: $(KERNEL_ROOT)
-	cd $(KERNEL_ROOT); \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(KERNEL_CONFIG) -j$(ARM_BUILD_CPUS); \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) UIMAGE_LOADADDR=0x8000 uImage -j$(ARM_BUILD_CPUS)
-	cp $(KERNEL_ROOT)/arch/arm/boot/uImage $(ARM_LINUX_BOOT)
-	cp $(ARM_LINUX_BOOT)/uImage $(ARM_LINUX_BOOT)/uImage.bin
-
-$(DEVICETREE_FILE): $(UKERNEL_FILE)
-	$(MAKE) xilinx-arm-linux-device-tree
-
-# Do NOT use this command.
-xilinx-arm-linux-device-tree: $(UKERNEL_FILE)
-	cd $(KERNEL_ROOT); \
-	make ARCH=arm CROSS_COMPILE=$(ARM_CROSSCOMPILE) $(DEVICETREE_CONFIG).dtb
-	cp $(KERNEL_ROOT)/arch/arm/boot/dts/zynq-zed.dtb $(ARM_LINUX_BOOT)/devicetree.dtb
-
-$(BIT_FILE): $(VIVADO_BIT_FILE)
-	cp -p $(VIVADO_BIT_FILE) $(BIT_FILE)
-
-# Do NOT use this command.
-xilinx-arm-linux-bootbin:
-	cd $(ARM_LINUX_BOOT); \
-	bootgen -w -image $(BIF_FILE) -o i boot.bin
-
-# Do NOT use this command.
-xilinx-arm-linux-bootbin-clean:
-	rm -r -f $(ARM_LINUX_BOOT)
-
-# This command downloads the rootfs for ARM Linux (ROOTFS.tar.gz) from Google Drive.
-# This long command is required because Google Drive requires two steps below to download a large file:
-# 1. Get a code for downloading the file,
-# 2. Download the file using the code.
-# If ROOTFS.tar.gz is not downloaded successfully, please download it from the following link using a web browser.
-# https://drive.google.com/open?id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B
-$(ROOTFS_FILE):
-	wget --load-cookies /tmp/cookie "https://docs.google.com/uc?export=download&confirm=$(shell wget --quiet --save-cookies /tmp/cookie --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1mmk7WDH1OZPpwxO0jdu9cWamLYID__2B" -O $(ROOTFS_FILE)
-
-# Do NOT use this command.
-xilinx-arm-linux-download-rootfs: $(ROOTFS_FILE)
-
-# Do NOT use this command.
-xilinx-arm-linux-rootfs-clean:
-	rm -f $(ROOTFS_FILE)
+$(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
+	@$(call REQUIRE_ENV,RSD_VITIS_ROOT)test -x "$(RSD_VITIS_ROOT)/bin/xsct"
+	rm -rf $(VIVADO_BOARD_PROJECT_SDK)
+	"$(RSD_VITIS_ROOT)/bin/xsct" $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
+	test -s $@

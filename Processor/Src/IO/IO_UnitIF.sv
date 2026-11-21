@@ -15,6 +15,7 @@ import MemoryMapTypes::*;
 interface IO_UnitIF(
     input 
         logic clk, rst, rstStart,
+        logic serialTxFull,
     output
         logic serialWE,
         SerialDataPath serialWriteDataOut
@@ -25,15 +26,17 @@ interface IO_UnitIF(
     PhyAddrPath ioWriteAddrIn;
 
     // Read request from a load pipeline
+    logic ioRE;
     DataPath ioReadDataOut;
     PhyAddrPath ioReadAddrIn;
 
     modport IO_Unit(
     input 
-        clk, rst, rstStart,
+        clk, rst, rstStart, serialTxFull,
         ioWE,
         ioWriteDataIn,
         ioWriteAddrIn,
+        ioRE,
         ioReadAddrIn,
     output
         ioReadDataOut,
@@ -45,6 +48,7 @@ interface IO_UnitIF(
     input 
         ioReadDataOut,
     output
+        ioRE,
         ioReadAddrIn
     );
 

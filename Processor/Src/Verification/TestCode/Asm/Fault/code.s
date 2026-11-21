@@ -1,3 +1,5 @@
+#include "../rsd-asm-macros.h"
+
     .file    "code.s"
     .option nopic
     .text
@@ -31,57 +33,8 @@ end:
     nop
 
 trap_vector:
-    li a0, 0x40002000   # UART
-    
-    # "access vilation"
-    li t0, 'a'
-    sb t0, (a0)
+    RSD_IO_WRITE_STR("access violation")
 
-    li t0, 'c'
-    sb t0, (a0)
-
-    li t0, 'c'
-    sb t0, (a0)
-
-    li t0, 'e'
-    sb t0, (a0)
-
-    li t0, 's'
-    sb t0, (a0)
-
-    li t0, 's'
-    sb t0, (a0)
-
-    li t0, ' '
-    sb t0, (a0)
-
-    li t0, 'v'
-    sb t0, (a0)
-
-    li t0, 'i'
-    sb t0, (a0)
-
-    li t0, 'o'
-    sb t0, (a0)
-
-    li t0, 'l'
-    sb t0, (a0)
-
-    li t0, 'a'
-    sb t0, (a0)
-
-    li t0, 't'
-    sb t0, (a0)
-
-    li t0, 'i'
-    sb t0, (a0)
-
-    li t0, 'o'
-    sb t0, (a0)
-
-    li t0, 'n'
-    sb t0, (a0)
-    
     nop
     nop
     nop

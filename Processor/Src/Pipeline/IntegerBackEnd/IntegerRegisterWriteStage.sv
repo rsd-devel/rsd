@@ -102,6 +102,8 @@ module IntegerRegisterWriteStage(
             alWriteData[i].dataAddr = '0;
             alWriteData[i].isBranch = (iqData[i].opType inside { INT_MOP_TYPE_BR, INT_MOP_TYPE_RIJ });
             alWriteData[i].isStore = FALSE;
+            alWriteData[i].elp = iqData[i].elp;
+            alWriteData[i].nextELP = iqData[i].nextELP;
 
             // Branch results.
             brResult[i] = pipeReg[i].brResult;
@@ -111,8 +113,14 @@ module IntegerRegisterWriteStage(
             // ExecState
             if ( update[i] ) begin
                 if (regValid[i]) begin
-                    alWriteData[i].state =
-                        pipeReg[i].brMissPred ? EXEC_STATE_REFETCH_NEXT : EXEC_STATE_SUCCESS;
+                    if (pipeReg[i].lplCheckFail) begin
+                        alWriteData[i].state = EXEC_STATE_FAULT_LPAD;
+                        alWriteData[i].pc = iqData[i].pc;
+                    end
+                    else begin
+                        alWriteData[i].state =
+                            pipeReg[i].brMissPred ? EXEC_STATE_REFETCH_NEXT : EXEC_STATE_SUCCESS;
+                    end
                 end
                 else begin
                     alWriteData[i].state = EXEC_STATE_NOT_FINISHED;
@@ -127,6 +135,8 @@ module IntegerRegisterWriteStage(
             if (alWriteData[i].state inside {EXEC_STATE_REFETCH_NEXT, EXEC_STATE_SUCCESS}) begin
                 if (brResult[i].nextAddr[INSN_ADDR_BIT_WIDTH-1:0] != 0 && brResult[i].valid) begin
                     alWriteData[i].state = EXEC_STATE_FAULT_INSN_MISALIGNED;
+                    // Save the source PC for fault recovery and the target for mtval.
+                    alWriteData[i].pc = iqData[i].pc;
                     alWriteData[i].dataAddr = brResult[i].nextAddr;
                 end
             end

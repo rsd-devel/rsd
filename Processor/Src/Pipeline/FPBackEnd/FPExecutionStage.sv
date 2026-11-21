@@ -137,7 +137,7 @@ module FPExecutionStage(
 
     FFlags_Path   addFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   mulFFlagsOut [ FP_ISSUE_WIDTH ];
-    FFlags_Path   fmaFFlagsOut [ FP_ISSUE_WIDTH ];
+    FPUTypes::FFlags fmaFFlagsOut [ FP_ISSUE_WIDTH ];
     FFlags_Path   otherFFlagsOut [ FP_ISSUE_WIDTH ];
 
 
@@ -153,9 +153,9 @@ module FPExecutionStage(
             .mullhs (fmaMulLHS[i]),
             .mulrhs (fmaMulRHS[i]),
             .addend (fmaAddend[i]),
-            //.rm (rm[i]),
-            .result ( fmaDataOut[i] )
-            //.fflags ( fmaFFlagsOut[i])
+            .rm (rm[i]),
+            .result ( fmaDataOut[i] ),
+            .fflags ( fmaFFlagsOut[i])
         );
         
         FP32PipelinedOther #(
@@ -172,12 +172,14 @@ module FPExecutionStage(
     end
 
     always_comb begin
+        fpDivSqrtUnit.stall = stall;
         // FMA Unit
         for (int i = 0; i < FP_ISSUE_WIDTH; i++) begin
             fmaMulLHS[i] = fpuCode[i] inside {FC_FNMSUB, FC_FNMADD} ? {~fuOpA[i].data[31], fuOpA[i].data[30:0]} : fuOpA[i].data;
             fmaMulRHS[i] = fpuCode[i] inside {FC_ADD, FC_SUB} ? 32'h3f800000 : fuOpB[i].data;
             if(fpuCode[i] == FC_MUL) begin
-                fmaAddend[i] = 32'h00000000;
+                // A same-sign zero addend preserves the sign of an exact product.
+                fmaAddend[i] = {fuOpA[i].data[31] ^ fuOpB[i].data[31], 31'b0};
             end
             else if (fpuCode[i] == FC_ADD) begin
                 fmaAddend[i] = fuOpB[i].data;
@@ -203,28 +205,13 @@ module FPExecutionStage(
             isDivSqrt[i] =  
                 pipeReg[i].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT};
 
-            // Request to the divider/sqrter
-            // NOT make a request when below situation
-            // 1) When any operands of inst. are invalid
-            // 2) When the divider/sqrter is waiting for the instruction
-            //    to receive the result of the divider/sqrter
+            // Start only the reserved operation with its used operands valid.
+            // SQRT does not depend on the unused B operand.
             fpDivSqrtUnit.Req[i] = 
                 fpDivSqrtUnit.Reserved[i] && 
+                !port.rst && !stall && !clear && !flush[i][0] &&
                 pipeReg[i].valid && isDivSqrt[i] && 
-                fuOpA[i].valid && fuOpB[i].valid;
-
-            if (fpDivSqrtUnit.Finished[i] &&
-                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid &&
-                (localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType inside {FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT})&& 
-                localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid
-            ) begin 
-                // Div/Sqrt Unitから結果を取得できたので，
-                // IQからの発行を許可する 
-                fpDivSqrtUnit.Release[i] = TRUE;
-            end
-            else begin
-                fpDivSqrtUnit.Release[i] = FALSE;
-            end
+                regValid[i];
         end
     end
 
@@ -294,12 +281,11 @@ module FPExecutionStage(
             unique case ( localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].fpQueueData.fpOpInfo.opType )
                 FP_MOP_TYPE_ADD, FP_MOP_TYPE_MUL, FP_MOP_TYPE_FMA: begin
                     dataOut[i].data = fmaDataOut[i];
-                    //fflagsData[i] = fmaFFlagsOut[i];
-                    fflagsOut[i] = '0;
+                    fflagsOut[i] = fmaFFlagsOut[i];
                 end
                 FP_MOP_TYPE_DIV, FP_MOP_TYPE_SQRT: begin
-                    dataOut[i].data = fpDivSqrtUnit.DataOut[i];
-                    //fflagsData[i] = fpDivSqrtUnit.FFlagsOut[i];
+                    // Completion uses an idle RW cycle, not this bypass path.
+                    dataOut[i] = '0;
                     fflagsOut[i] = '0;
                 end 
                 default: begin /* FP_MOP_TYPE_OTHER */
@@ -350,14 +336,8 @@ module FPExecutionStage(
             nextLocalPipeReg[i][0].valid = flush[i][0] ? FALSE : pipeReg[i].valid;
             nextLocalPipeReg[i][0].fpQueueData = pipeReg[i].fpQueueData;
 
-            // Reg valid of local pipeline 
-            if (isDivSqrt[i]) begin
-                nextLocalPipeReg[i][0].regValid = 
-                    pipeReg[i].replay && (fpDivSqrtUnit.Finished[i]);
-            end
-            else begin
-                nextLocalPipeReg[i][0].regValid = regValid[i];
-            end
+            // Replay only missing operands; the unit completes independently.
+            nextLocalPipeReg[i][0].regValid = regValid[i];
             
 
             for (int j = 1; j < FP_EXEC_STAGE_DEPTH-1; j++) begin
@@ -387,6 +367,7 @@ module FPExecutionStage(
                 (stall || clear || port.rst || flush[i][FP_EXEC_STAGE_DEPTH-1]) ? FALSE : localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].valid;
 
             nextStage[i].dataOut = dataOut[i];
+            nextStage[i].divSqrtStarted = localPipeReg[i][FP_EXEC_STAGE_DEPTH-2].regValid;
         end
 
         port.nextStage = nextStage;
@@ -411,6 +392,18 @@ module FPExecutionStage(
         end
 `endif
     end
+
+`ifndef RSD_SYNTHESIS
+    for (genvar i = 0; i < FP_DIVSQRT_ISSUE_WIDTH; i++) begin : CheckDivSqrtReservation
+        always @(posedge port.clk) begin
+            if (!port.rst && !stall && !clear && !flush[i][0] &&
+                pipeReg[i].valid && isDivSqrt[i] && regValid[i]) begin
+                assert (fpDivSqrtUnit.Reserved[i])
+                    else $fatal(1, "FP DIV/SQRT reached execution without a reservation");
+            end
+        end
+    end
+`endif
 
 endmodule : FPExecutionStage
 

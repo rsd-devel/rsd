@@ -1,3 +1,5 @@
+#include "../rsd-asm-macros.h"
+
     .file    "code.s"
     .option nopic
     .text
@@ -33,39 +35,7 @@ main2:
     mulhu   x29, x11, x11        # (u*u) UINT_MIN*UINT_MIN = 0x0000 0000 0000 0000
     nop
 output:
-    li      x31, 0x40002000
-    sw      x0, 0(x31)
-    sw      x1, 0(x31)
-    sw      x2, 0(x31)
-    sw      x3, 0(x31)
-    sw      x4, 0(x31)
-    sw      x5, 0(x31)
-    sw      x6, 0(x31)
-    sw      x7, 0(x31)
-    sw      x8, 0(x31)
-    sw      x9, 0(x31)
-    sw      x10, 0(x31)
-    sw      x11, 0(x31)
-    sw      x12, 0(x31)
-    sw      x13, 0(x31)
-    sw      x14, 0(x31)
-    sw      x15, 0(x31)
-    sw      x16, 0(x31)
-    sw      x17, 0(x31)
-    sw      x18, 0(x31)
-    sw      x19, 0(x31)
-    sw      x20, 0(x31)
-    sw      x21, 0(x31)
-    sw      x22, 0(x31)
-    sw      x23, 0(x31)
-    sw      x24, 0(x31)
-    sw      x25, 0(x31)
-    sw      x26, 0(x31)
-    sw      x27, 0(x31)
-    sw      x28, 0(x31)
-    sw      x29, 0(x31)
-    sw      x30, 0(x31)
-    sw      x31, 0(x31)
+    RSD_IO_DUMP_GPRS(x31)
 main3:
     ret
     #j       main3                # ここでループして終了

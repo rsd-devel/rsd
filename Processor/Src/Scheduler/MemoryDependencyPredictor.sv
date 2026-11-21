@@ -23,6 +23,19 @@ module MemoryDependencyPredictor(
 
     logic prediction[RENAME_WIDTH];
 
+    logic learnValid[STORE_ISSUE_WIDTH];
+    MDT_IndexPath learnIndex[STORE_ISSUE_WIDTH];
+
+    // Pipeline training to separate the LoadQueue search from the RAM write path.
+    // Violation detection and recovery are not delayed. Preserve accepted training
+    // across pipeline flushes; only reset discards a pending request.
+    always_ff @(posedge port.clk) begin
+        for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
+            learnValid[i] <= !port.rst && loadStoreUnit.memAccessOrderViolation[i];
+            learnIndex[i] <= ToMDT_Index(loadStoreUnit.conflictLoadPC[i]);
+        end
+    end
+
     generate
         // NOTE: Need to implement write request queue when increase STORE_ISSUE_WIDTH
         BlockMultiBankRAM #(
@@ -77,12 +90,11 @@ module MemoryDependencyPredictor(
 
         // Process write request
         for (int i = 0; i < STORE_ISSUE_WIDTH; i++) begin
-            // Make write request when store detect conflict with load
-            mdtWE[i] = 
-                loadStoreUnit.memAccessOrderViolation[i];
+            // Apply the training request accepted in the previous cycle.
+            mdtWE[i] = learnValid[i];
 
             // Learn memory order violation
-            mdtWA[i] = ToMDT_Index(loadStoreUnit.conflictLoadPC[i]);
+            mdtWA[i] = learnIndex[i];
             mdtWV[i].counter = TRUE;
         end
 

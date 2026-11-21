@@ -1,149 +1,94 @@
 // Copyright 2019- RSD contributors.
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 
-
 `timescale 1ns/1ps
 import BasicTypes::*;
 
-parameter STEP = 20;
-parameter HOLD = 4;
-parameter SETUP = 1;
-parameter WAIT = STEP*2-HOLD-SETUP;
-
 module TestMultiWidthQueuePointer;
-    //
-    // Clock and Reset
-    //
+    localparam STEP = 20;
+    localparam HOLD = 4;
+    localparam SIZE = 8;
+    localparam DELTA_WIDTH = 2;
+
+    typedef logic [$clog2(SIZE)-1:0] IndexPath;
+    typedef logic [$clog2(SIZE):0] CountPath;
+    typedef logic [$clog2(DELTA_WIDTH):0] WidthPath;
+
     logic clk, rst;
     TestBenchClockGenerator #( .STEP(STEP) ) clkgen ( .rstOut(FALSE), .* );
-    
-    //
-    // Top Module
-    //
 
-    parameter SIZE = 8;
-    parameter INDEX_BIT_WIDTH = $clog2( SIZE );
-    parameter DELTA_WIDTH = 2;
-    parameter WIDTH_BIT_WIDTH = $clog2( DELTA_WIDTH );
-    
-    typedef logic [INDEX_BIT_WIDTH-1:0] IndexPath;
-    typedef logic [INDEX_BIT_WIDTH:0] CountPath;
-    typedef logic [WIDTH_BIT_WIDTH:0] WidthPath;
-
-    logic push;
-    logic pop;
-    logic full;
-    logic empty;
-    IndexPath headPtr;
-    IndexPath tailPtr;
-    WidthPath pushCount;
-    WidthPath popCount;
+    logic push, pop;
+    IndexPath headPtr, tailPtr;
+    WidthPath pushCount, popCount;
     CountPath count;
-    
-    TestMultiWidthQueuePointerTop top(
-        .clk_p( clk ),
-        .clk_n( ~clk ),
-        .*
-    );
+
+    MultiWidthQueuePointer #(
+        .SIZE(SIZE), .PUSH_WIDTH(DELTA_WIDTH), .POP_WIDTH(DELTA_WIDTH)
+    ) queuePointer (.*);
+
+    task Check(input CountPath expectedCount,
+               input IndexPath expectedHead, expectedTail);
+        assert ({count, headPtr, tailPtr} === {expectedCount, expectedHead, expectedTail})
+            else $fatal(1, "count/head/tail: expected %0d/%0d/%0d, got %0d/%0d/%0d",
+                        expectedCount, expectedHead, expectedTail, count, headPtr, tailPtr);
+    endtask
+
+    task Step(input logic nextPush, input WidthPath nextPushCount,
+              input logic nextPop, input WidthPath nextPopCount,
+              input CountPath expectedCount, input IndexPath expectedHead, expectedTail);
+        // Drive away from the active edge and check after register updates settle.
+        @(negedge clk);
+        push = nextPush;
+        pushCount = nextPushCount;
+        pop = nextPop;
+        popCount = nextPopCount;
+        @(posedge clk);
+        #HOLD;
+        Check(expectedCount, expectedHead, expectedTail);
+    endtask
 
     initial begin
-        `ifndef RSD_POST_SYNTHESIS_SIMULATION
-            assert( top.SIZE == 8 );
-            assert( top.PUSH_WIDTH == 2 );
-            assert( top.POP_WIDTH == 2 );
-        `endif
-        
-        push = 0;
-        pop = 0;
-        pushCount = 0;
-        popCount = 0;
-        
-        // Wait during reset sequence
-        #WAIT;
-        while(rst) @(posedge clk);
-        $display( "========== Test Start ==========" );
-        
-        #HOLD;
-        push = TRUE;
-        pushCount = 2;
-        #WAIT;
-        assert( count == 0 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        #WAIT;
-        assert( count == 2 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        #WAIT;
-        assert( count == 4 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        #WAIT;
-        assert( count == 6 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        push = FALSE;
-        #WAIT;
-        assert( count == 8 );
-        assert( full );
-        @(posedge clk);
-
-
-        #HOLD;
-        pop = TRUE;
-        popCount = 1;
-        #WAIT;
-        assert( count == 8 );
-        assert( full );
-        @(posedge clk);
-
-        #HOLD;
-        pop = TRUE;
-        popCount = 2;
-        #WAIT;
-        assert( count == 7 );
-        assert( full );
-        @(posedge clk);
-
-        #HOLD;
-        pop = TRUE;
-        popCount = 2;
-        push = TRUE;
-        pushCount = 1;
-        #WAIT;
-        assert( count == 5 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        pop = TRUE;
-        popCount = 1;
-        push = TRUE;
-        pushCount = 2;
-        #WAIT;
-        assert( count == 4 );
-        assert( !full );
-        @(posedge clk);
-
-        #HOLD;
-        pop = FALSE;
-        push = FALSE;
-        #WAIT;
-        assert( count == 5 );
-        assert( !full );
-        @(posedge clk);
-
-        $display( "==========  Test End  ==========" );
-        $finish(0);
+        #(STEP * 2 * 100);
+        $fatal(1, "MultiWidthQueuePointer test timed out");
     end
 
-endmodule
+    initial begin
+        push = FALSE;
+        pop = FALSE;
+        pushCount = 0;
+        popCount = 0;
+        @(negedge rst);
+        #HOLD;
+        $display("========== Test Start ==========");
+        Check(0, 0, 0);
 
+        // Fill the queue and wrap the tail pointer.
+        Step(TRUE, 2, FALSE, 0, 2, 0, 2);
+        Step(TRUE, 2, FALSE, 0, 4, 0, 4);
+        Step(TRUE, 2, FALSE, 0, 6, 0, 6);
+        Step(TRUE, 2, FALSE, 0, 8, 0, 0);
+        Step(FALSE, 2, FALSE, 2, 8, 0, 0);
+
+        // Mix push/pop widths, wrap the head pointer, and drain the queue.
+        Step(FALSE, 0, TRUE, 1, 7, 1, 0);
+        Step(FALSE, 0, TRUE, 2, 5, 3, 0);
+        Step(TRUE, 1, TRUE, 2, 4, 5, 1);
+        Step(TRUE, 2, TRUE, 1, 5, 6, 3);
+        Step(FALSE, 0, TRUE, 2, 3, 0, 3);
+        Step(FALSE, 0, TRUE, 2, 1, 2, 3);
+        Step(FALSE, 0, TRUE, 1, 0, 3, 3);
+
+        // Equal pushes/pops preserve the count while advancing both pointers.
+        Step(TRUE, 2, FALSE, 0, 2, 3, 5);
+        Step(TRUE, 2, TRUE, 2, 2, 5, 7);
+        Step(TRUE, 2, TRUE, 2, 2, 7, 1);
+        Step(TRUE, 2, TRUE, 2, 2, 1, 3);
+        // Disabled operations and zero widths must leave all state unchanged.
+        Step(FALSE, 2, FALSE, 2, 2, 1, 3);
+        Step(TRUE, 0, TRUE, 0, 2, 1, 3);
+        Step(FALSE, 0, TRUE, 2, 0, 3, 3);
+
+        $display("========== Test Passed ==========");
+        $finish;
+    end
+endmodule

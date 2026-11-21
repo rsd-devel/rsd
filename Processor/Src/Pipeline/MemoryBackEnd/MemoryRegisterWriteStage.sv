@@ -24,6 +24,7 @@ module MemoryRegisterWriteStage(
     LoadStoreUnitIF.MemoryRegisterWriteStage loadStoreUnit,
     RegisterFileIF.MemoryRegisterWriteStage registerFile,
     ActiveListIF.MemoryRegisterWriteStage activeList,
+    MulDivUnitIF.MemoryRegisterWriteStage mulDivUnit,
     RecoveryManagerIF.MemoryRegisterWriteStage recovery,
     ControllerIF.MemoryRegisterWriteStage ctrl,
     DebugIF.MemoryRegisterWriteStage debug
@@ -73,13 +74,15 @@ module MemoryRegisterWriteStage(
         // 1. MSHR を確保した命令がライトバックまで達した場合
         // 2. MSHR を確保した命令が後から SQ からのフォワードミスが発生した場合
         //      フォワード元のストアがミスしていた場合，MSHR をてばなさいとデッドロックする
+        // 3. Zaamo拡張の命令でロードが完了したとき (ストア時はMSHRをつかんでいない)
         for (int j = 0; j < MSHR_NUM; j++) begin
             loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = FALSE;
             for (int i = 0; i < LOAD_ISSUE_WIDTH; i++) begin
-                if (j == pipeReg[i].mshrID && 
-                    ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) &&
-                    pipeReg[i].valid && 
-                    pipeReg[i].isLoad
+                if (j == pipeReg[i].mshrID && pipeReg[i].valid &&
+                    (
+                        ((pipeReg[i].dataOut.valid && pipeReg[i].hasAllocatedMSHR) || pipeReg[i].storeForwardMiss) && pipeReg[i].isLoad ||
+                        pipeReg[i].zaamoReleaseMSHR
+                    )
                 ) begin
                     loadStoreUnit.makeMSHRCanBeInvalidDirect[j] = TRUE;
                 end
@@ -106,6 +109,8 @@ module MemoryRegisterWriteStage(
 
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = pipeReg[i].isStore;
+            alWriteData[i].elp = pipeReg[i].elp;
+            alWriteData[i].nextELP = LP_NOT_EXPECTED;
 
             // ExecState
             if ( update[i] ) begin
@@ -119,7 +124,7 @@ module MemoryRegisterWriteStage(
             alWriteData[i].pc = pipeReg[i].pc;
             alWriteData[i].dataAddr = pipeReg[i].addrOut;
 
-            activeList.memWrite[i] = update[i];
+            activeList.memWrite[i] = update[i] && !pipeReg[i].isDiv;
             activeList.memWriteData[i] = alWriteData[i];
         end
 
@@ -127,7 +132,7 @@ module MemoryRegisterWriteStage(
         //
         // Register file
         //
-        for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
+        for ( int i = 0; i < MEM_ISSUE_WIDTH; i++ ) begin
 
             registerFile.memDstRegWE[i] =
                 update[i] && pipeReg[i].opDst.writeReg;
@@ -135,6 +140,24 @@ module MemoryRegisterWriteStage(
             registerFile.memDstRegNum[i] = pipeReg[i].opDst.phyDstRegNum;
             registerFile.memDstRegData[i] = pipeReg[i].dataOut;
         end
+
+`ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
+        for (int i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin
+            // Also reserve the port for AL-only operations such as stores.
+            mulDivUnit.divWriteReady[i] = !stall && !clear && !update[i];
+            mulDivUnit.divPassedRW[i] = update[i] && pipeReg[i].isDiv && pipeReg[i].divStarted;
+            if (mulDivUnit.divWriteValid[i] && mulDivUnit.divWriteReady[i]) begin
+                registerFile.memDstRegWE[i] = mulDivUnit.divPendingDst[i].writeReg;
+                registerFile.memDstRegNum[i] = mulDivUnit.divPendingDst[i].phyDstRegNum;
+                registerFile.memDstRegData[i].valid = TRUE;
+                registerFile.memDstRegData[i].data = mulDivUnit.divWriteData[i];
+                activeList.memWrite[i] = TRUE;
+                activeList.memWriteData[i] = '0;
+                activeList.memWriteData[i].ptr = mulDivUnit.divWritePtr[i];
+                activeList.memWriteData[i].state = EXEC_STATE_SUCCESS;
+            end
+        end
+`endif
 
 
         // Debug Register

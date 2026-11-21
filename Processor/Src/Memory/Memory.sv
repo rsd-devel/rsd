@@ -186,7 +186,8 @@ output
         nextMemPipeReg.data = ramReadData;
         nextMemPipeReg.serial = requestDataReg.nextMemReadSerial;
         nextMemPipeReg.wserial = requestDataReg.nextMemWriteSerial;
-        nextMemPipeReg.wr = requestDataReg.wr;
+        // Only a dequeued request may generate a write completion.
+        nextMemPipeReg.wr = hasRequestReg && requestDataReg.wr;
 
         pushRequestQueue = memReadAccessAck || memWriteAccessAck;
         pushedData.isRead = memAccessRE;

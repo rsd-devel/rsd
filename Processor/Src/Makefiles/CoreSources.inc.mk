@@ -1,35 +1,31 @@
 
-# CAUTION! The following macros must be defined in SynthesisMacros.sv on synthesis.
-#
-# Definitions related to microarchitecture configuration:
-# * RSD_MARCH_UNIFIED_LDST_MEM_PIPE:  Use unified LS/ST pipeline
-# * RSD_MARCH_INT_ISSUE_WIDTH=N: Set issue width to N
-# * RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE: Integrate mul/div to a memory pipe
-RSD_SRC_CFG = \
-	+define+RSD_MARCH_INT_ISSUE_WIDTH=2 \
-	+define+RSD_MARCH_FP_PIPE \
-	+define+RSD_ENABLE_ZBA \
-	+define+RSD_ENABLE_ZICOND \
+# Defaults are generated from Processor/Config/MicroArch.toml.
+# Keep the literal source lists below for sv-tests and Xilinx tools.
+include $(abspath $(dir $(lastword $(MAKEFILE_LIST)))MicroArch.inc.mk)
 
-#	+define+RSD_MARCH_UNIFIED_LDST_MEM_PIPE \
-#	+define+RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE \
-
+# Keep test selection and compiler flags consistent with the RTL configuration.
+RSD_HAS_FP = $(if $(filter +define+RSD_MARCH_FP_PIPE +define+RSD_MARCH_FP_PIPE=%,$(RSD_SRC_CFG)),1,0)
+RSD_HAS_ZICFILP = $(if $(filter +define+RSD_ENABLE_ZICFILP +define+RSD_ENABLE_ZICFILP=%,$(RSD_SRC_CFG)),1,0)
 
 # TYPES specifies files that include packages that contain type definitions.
 # Be careful about the order of these files.
 # A file containing a imported package should be placed first.
+CORE_TEMPLATE_FILES = \
+    Config/MicroArchConf.sv \
+	Config/MemoryMapTypes.sv \
+
 TYPES = \
-	MicroArchConf.sv \
+	Config/MicroArchConf.sv \
 	BasicTypes.sv \
-	Memory/MemoryMapTypes.sv \
+	Config/MemoryMapTypes.sv \
 	RenameLogic/ActiveListIndexTypes.sv \
 	Cache/CacheSystemTypes.sv \
 	Memory/MemoryTypes.sv \
+	FloatingPointUnit/FPUTypes.sv \
 	Decoder/OpFormat.sv \
 	Decoder/MicroOp.sv \
 	RegisterFile/BypassTypes.sv \
 	FetchUnit/FetchUnitTypes.sv \
-	FloatingPointUnit/FPUTypes.sv \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
 	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \
@@ -111,6 +107,8 @@ CORE_MODULES = \
 	LoadStoreUnit/LoadQueue.sv \
 	LoadStoreUnit/StoreQueue.sv \
 	LoadStoreUnit/StoreCommitter.sv \
+	LoadStoreUnit/AMOCache.sv \
+	LoadStoreUnit/AMOCacheIF.sv \
 	FloatingPointUnit/FP32PipelinedAdder.sv \
 	FloatingPointUnit/FP32PipelinedMultiplier.sv \
 	FloatingPointUnit/FP32PipelinedFMA.sv \
@@ -139,7 +137,6 @@ CORE_MODULES = \
 	Scheduler/ReadyBitTable.sv \
 	Scheduler/Scheduler.sv \
 	Scheduler/SelectLogic.sv \
-	Scheduler/SourceCAM.sv \
 	Scheduler/WakeupLogic.sv \
 	Scheduler/WakeupPipelineRegister.sv \
 	Scheduler/ProducerMatrix.sv \
@@ -162,11 +159,12 @@ CORE_MODULES = \
 	Privileged/CSR_UnitIF.sv \
 	IO/IO_Unit.sv \
 	IO/IO_UnitIF.sv \
+	IO/PLIC_Unit.sv \
+	IO/PLIC_UnitIF.sv \
 	Primitives/FlipFlop.sv \
 	Primitives/FreeList.sv \
 	Primitives/Queue.sv \
 	Primitives/RAM.sv \
-	Primitives/LRU_Counter.sv \
 	Primitives/Picker.sv \
 	Primitives/Multiplier.sv \
 	Primitives/Divider.sv \
@@ -201,4 +199,5 @@ TEST_MODULES = \
 HEADERS = \
 	BasicMacros.sv \
 	SysDeps/SynthesisMacros.svh \
+	Config/MicroArchMacros.svh \
 	SysDeps/XilinxMacros.vh \

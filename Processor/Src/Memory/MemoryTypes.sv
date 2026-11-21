@@ -16,27 +16,23 @@ import MemoryMapTypes::*;
     `ifdef RSD_USE_EXTERNAL_MEMORY
         localparam MEMORY_ADDR_BIT_SIZE = 32;
     `else
-        localparam MEMORY_ADDR_BIT_SIZE = 18; // 256KB
+        // Cover every mapped RAM/ROM address without aliasing the upper region.
+        localparam MEMORY_ADDR_BIT_SIZE = $clog2(MEMORY_MAP_BYTE_SIZE);
     `endif
 `else
-        localparam MEMORY_ADDR_BIT_SIZE = 25; // 512KB
+    localparam MEMORY_ADDR_BIT_SIZE = ($clog2(MEMORY_MAP_BYTE_SIZE) > 25) ?
+        $clog2(MEMORY_MAP_BYTE_SIZE) : 25; // At least 32 MiB for simulation.
 `endif
 
 localparam MEMORY_BYTE_SIZE = 1 << MEMORY_ADDR_BIT_SIZE;
 
-// Specify the number of rows of the dummy data (one row corresponds to one entry in the memory) 
-// for initializing the memory. 
-// If the memory entry is larger than this value, the dummy data is repeatedly read and initialized.
-localparam DUMMY_HEX_ENTRY_NUM = 256;
-
-
 // Memory Entry Size
-localparam MEMORY_ENTRY_BIT_NUM /*verilator public*/ = 64; // Bit width of each memory entry
+localparam MEMORY_ENTRY_BIT_NUM = 64; // Bit width of each memory entry
 localparam MEMORY_ENTRY_BYTE_NUM = MEMORY_ENTRY_BIT_NUM / BYTE_WIDTH;
 localparam MEMORY_ADDR_MSB = MEMORY_ADDR_BIT_SIZE - 1;
 localparam MEMORY_ADDR_LSB = $clog2( MEMORY_ENTRY_BYTE_NUM );
 localparam MEMORY_INDEX_BIT_WIDTH = MEMORY_ADDR_MSB - MEMORY_ADDR_LSB + 1;
-localparam MEMORY_ENTRY_NUM /*verilator public*/ = (1 << MEMORY_INDEX_BIT_WIDTH);
+localparam MEMORY_ENTRY_NUM = (1 << MEMORY_INDEX_BIT_WIDTH);
 typedef logic [ MEMORY_ENTRY_BIT_NUM-1:0 ] MemoryEntryDataPath;
 
 // Latency

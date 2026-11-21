@@ -19,13 +19,15 @@ import IO_UnitTypes::*;
 import DebugTypes::*;
 
 
-parameter STEP = 8; // 62.5Mhz
+module TestMain #(
+    parameter real CLOCK_PERIOD_NS = 16 // 62.5 MHz by default.
+);
+
+localparam STEP = CLOCK_PERIOD_NS / 2.0;
 parameter HOLD = 2;
 parameter SETUP = 2;
 parameter WAIT = STEP*2-HOLD-SETUP;
 parameter HOLD_PLUS_WAIT = HOLD + WAIT;
-
-module TestMain;
 
     //
     // Check compiler directives.
@@ -94,19 +96,32 @@ module TestMain;
     `endif
 
     // These parameters are passed as command line arguments.
-    int MAX_TEST_CYCLES;
+    longint MAX_TEST_CYCLES;
+    longint MAX_TEST_INSTRUCTIONS;
+    longint MAX_NO_COMMIT_CYCLES;
     int SHOW_SERIAL_OUT;
     int ENABLE_PC_GOAL;
+    int ENABLE_UART_INTERRUPTS;
     string TEST_CODE;
     string RSD_LOG_FILE;
     string REG_CSV_FILE;
-    string DUMMY_DATA_FILE;
+
+`ifdef VERILATOR
+    // Other simulators configure waveform recording through their run scripts.
+    initial begin
+        string waveLogFile;
+        if ($value$plusargs("WAVE_LOG_FILE=%s", waveLogFile)) begin
+            $dumpfile(waveLogFile);
+            $dumpvars;
+        end
+    end
+`endif
 
     string codeFileName;
     string regOutFileName;
     string serialDumpFileName;
 
-    integer cycle;
+    longint cycle;
     integer entry;
 
     integer dumpFlush; // A flag used for avoiding to dump flush more than once.
@@ -116,8 +131,13 @@ module TestMain;
     DataPath regData[ LREG_NUM ];
 
     integer commitNumInLastCycle;
-    integer numCommittedRISCV_Op;
-    integer numCommittedMicroOp;
+    longint numCommittedRISCV_Op;
+    longint numCommittedMicroOp;
+    longint elapsedCycles;
+    longint noCommitCycles;
+    longint maxNoCommitCycles;
+    logic committedThisCycle;
+    string terminationReason;
     real realTmp;
 
     //
@@ -151,6 +171,14 @@ module TestMain;
         .*
     );
 
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+    // Simulation-only source controlled by UART DC1/DC3 when explicitly enabled.
+    // The real PLIC handles delivery and claim/complete; no pending CSR is forced.
+    ExternalInterruptRequestPath externalInterruptRequest = '0;
+`endif
+`endif
+
 `ifdef RSD_SYNTHESIS_VIVADO
     always_comb begin
         debugRegister = main.debugRegister;
@@ -177,16 +205,28 @@ module TestMain;
         dumpFlush = FALSE;
         numCommittedRISCV_Op = 0;
         numCommittedMicroOp = 0;
+        elapsedCycles = 0;
+        noCommitCycles = 0;
+        maxNoCommitCycles = 0;
+        terminationReason = "unexpected_finish";
 
         // settings
         if( !$value$plusargs( "MAX_TEST_CYCLES=%d", MAX_TEST_CYCLES ) ) begin
             MAX_TEST_CYCLES = 100;
         end
-        if( !$value$plusargs( "TEST_CODE=%s", TEST_CODE ) ) begin
-            TEST_CODE = "Verification/TestCode/Fibonacci";
+        if( !$value$plusargs( "MAX_TEST_INSTRUCTIONS=%d", MAX_TEST_INSTRUCTIONS ) ) begin
+            MAX_TEST_INSTRUCTIONS = 0;
         end
-        if( !$value$plusargs( "DUMMY_DATA_FILE=%s", DUMMY_DATA_FILE ) ) begin
-            DUMMY_DATA_FILE = "Verification/DummyData.hex";
+        if( !$value$plusargs( "MAX_NO_COMMIT_CYCLES=%d", MAX_NO_COMMIT_CYCLES ) ) begin
+            MAX_NO_COMMIT_CYCLES = 500;
+        end
+        if (MAX_TEST_CYCLES < 0 || MAX_TEST_INSTRUCTIONS < 0 ||
+            MAX_NO_COMMIT_CYCLES <= 0 ||
+            (MAX_TEST_CYCLES == 0 && MAX_TEST_INSTRUCTIONS == 0)) begin
+            $fatal(1, "Invalid simulation limits.");
+        end
+        if( !$value$plusargs( "TEST_CODE=%s", TEST_CODE ) ) begin
+            TEST_CODE = "Verification/TestCode/C/Fibonacci";
         end
         if( !$value$plusargs( "SHOW_SERIAL_OUT=%d", SHOW_SERIAL_OUT ) ) begin
             SHOW_SERIAL_OUT = 0;
@@ -194,6 +234,14 @@ module TestMain;
         if( !$value$plusargs( "ENABLE_PC_GOAL=%d", ENABLE_PC_GOAL ) ) begin
             ENABLE_PC_GOAL = 1;
         end
+        if (!$value$plusargs("ENABLE_UART_INTERRUPTS=%d", ENABLE_UART_INTERRUPTS))
+            ENABLE_UART_INTERRUPTS = 0;
+        if (ENABLE_UART_INTERRUPTS != 0 && ENABLE_UART_INTERRUPTS != 1)
+            $fatal(1, "ENABLE_UART_INTERRUPTS must be 0 or 1.");
+`ifdef RSD_POST_SYNTHESIS_SIMULATION
+        if (ENABLE_UART_INTERRUPTS)
+            $fatal(1, "UART interrupt stimulus requires RTL simulation.");
+`endif
 
         enableDumpKanata = FALSE;
         if( $value$plusargs( "RSD_LOG_FILE=%s", RSD_LOG_FILE ) ) begin
@@ -222,7 +270,7 @@ module TestMain;
             `ifndef RSD_POST_SYNTHESIS_SIMULATION
                 // Fill memory with dummy data 
                 // see InitializedBlockRAM module in Primitives/RAM.sv in details
-                main.main.memory.body.FillDummyData(DUMMY_DATA_FILE, DUMMY_HEX_ENTRY_NUM);
+                main.main.memory.body.FillDummyData();
 
 
                 // ファイル内容は物理メモリ空間の先頭から連続して展開される
@@ -240,7 +288,7 @@ module TestMain;
         // Simulation body
         //
         @(negedge rstOut);
-        for( cycle = 0; cycle < MAX_TEST_CYCLES; cycle++ ) begin
+        for( cycle = 0; ; cycle++ ) begin
             if (SHOW_SERIAL_OUT == 0 && (clkgen.kanataCycle < 10000 || clkgen.kanataCycle % 10000 == 0)) begin
                 $display( "%d cycle %d KanataCycle %tps", clkgen.cycle, clkgen.kanataCycle, $time );
             end
@@ -248,7 +296,17 @@ module TestMain;
             @(posedge clk);
             #HOLD_PLUS_WAIT;
 
-            serialDumper.CheckSignal( serialWE, serialWriteData, SHOW_SERIAL_OUT );
+`ifdef RSD_FUNCTIONAL_SIMULATION
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+            // DC1 (0x11) asserts source 1; DC3 (0x13) deasserts it. Consume
+            // these commands only in opted-in tests; otherwise preserve all bytes.
+            if (ENABLE_UART_INTERRUPTS && serialWE &&
+                (serialWriteData[7:0] == 8'h11 || serialWriteData[7:0] == 8'h13))
+                externalInterruptRequest[0] = serialWriteData[7:0] == 8'h11;
+            else
+`endif
+`endif
+                serialDumper.CheckSignal( serialWE, serialWriteData, SHOW_SERIAL_OUT );
 
             // Dump RSD.log for Kanata
             if ( enableDumpKanata ) begin
@@ -271,21 +329,51 @@ module TestMain;
                 `endif
             `endif
             
-            // Count number of committed Ops.
+            elapsedCycles++;
+            committedThisCycle = FALSE;
+            // Use the same commit signals as lastCommittedPC and the register
+            // dump. DebugRegister is delayed by one clock. Count an instruction
+            // when its last micro-op commits.
             for ( int i = 0; i < COMMIT_WIDTH; i++ ) begin
+`ifdef RSD_POST_SYNTHESIS_SIMULATION
                 if ( debugRegister.cmReg[i].commit ) begin
+                    committedThisCycle = TRUE;
                     numCommittedMicroOp += 1;
                     if ( debugRegister.cmReg[i].opId.mid == 0 ) begin
+`else
+                if ( main.main.core.cmStage.commit[i] ) begin
+                    committedThisCycle = TRUE;
+                    numCommittedMicroOp += 1;
+                    if ( main.main.core.cmStage.alReadData[i].last ) begin
+`endif
                         numCommittedRISCV_Op += 1;
                     end
                 end
             end
             
-            // Check end of simulation.
+            // Start monitoring at reset release, including the first fetch.
+            noCommitCycles = committedThisCycle ? 0 : noCommitCycles + 1;
+            if (noCommitCycles > maxNoCommitCycles)
+                maxNoCommitCycles = noCommitCycles;
+            if (noCommitCycles > MAX_NO_COMMIT_CYCLES) begin
+                terminationReason = "no_commit_limit";
+                break;
+            end
+
+            // A goal reached on the budget boundary still completes the test.
             lastCommittedPC = ledOut;
             if ( ENABLE_PC_GOAL != 0 && lastCommittedPC == PC_GOAL[LED_WIDTH-1:0] ) begin
                 // lastCommittedPC は 16bit 分しか外に出てきていないので，下位で判定しておく
+                terminationReason = "pc_goal";
                 $display( "PC reached PC_GOAL: %08x", PC_GOAL );
+                break;
+            end
+            if (MAX_TEST_INSTRUCTIONS > 0 && numCommittedRISCV_Op >= MAX_TEST_INSTRUCTIONS) begin
+                terminationReason = "instruction_limit";
+                break;
+            end
+            if (MAX_TEST_CYCLES > 0 && elapsedCycles >= MAX_TEST_CYCLES) begin
+                terminationReason = "cycle_limit";
                 break;
             end
 
@@ -300,19 +388,21 @@ module TestMain;
         $display("Num of I$ misses: %d", debugRegister.perfCounter.numIC_Miss);
         $display("Num of D$ load misses: %d", debugRegister.perfCounter.numLoadMiss);
         $display("Num of D$ store misses: %d", debugRegister.perfCounter.numStoreMiss);
-        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
-        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of memory dependency prediction misses: %d", debugRegister.perfCounter.numMemDepPredMiss);
+        $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
         $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
         $display("Num of branch prediction misses detected on decode: %d", debugRegister.perfCounter.numBranchPredMissDetectedOnDecode);
 
         $display( "Num of committed RISC-V-ops: %d", numCommittedRISCV_Op );
         $display( "Num of committed micro-ops: %d", numCommittedMicroOp );
-        if ( cycle != 0 ) begin
-            realTmp = cycle;
+        if ( elapsedCycles != 0 ) begin
+            realTmp = elapsedCycles;
             $display( "IPC (RISC-V instruction): %f", numCommittedRISCV_Op / realTmp );
             $display( "IPC (micro-op): %f", numCommittedMicroOp / realTmp );
         end
-        $display("Elapsed cycles: %d", cycle);
+        $display("Elapsed cycles: %0d", elapsedCycles);
+        $display("Max consecutive no-commit cycles: %0d", maxNoCommitCycles);
+        $display("Simulation result: %s", terminationReason);
 
 
         `ifdef RSD_FUNCTIONAL_SIMULATION
@@ -333,9 +423,14 @@ module TestMain;
             `endif
         `endif
 
+        // Cycle-only settings remain supported for unmigrated external tests.
+        if (!(terminationReason == "pc_goal" ||
+            (ENABLE_PC_GOAL == 0 && (terminationReason == "instruction_limit" ||
+                (MAX_TEST_INSTRUCTIONS == 0 && terminationReason == "cycle_limit"))))) begin
+            $fatal(1, "Simulation failed: %s", terminationReason);
+        end
         $finish;
 
     end
 
 endmodule
-

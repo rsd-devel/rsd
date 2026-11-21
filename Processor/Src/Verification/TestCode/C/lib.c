@@ -1,13 +1,9 @@
+#include "../rsd-serial.h"
+
 #define DIGIT_DEC (256)
 #define DIGIT_HEX (8)
 
-// シリアル出力のウェイト
-#define UART_WAIT 10
-
-// シリアル出力の memory-mapped address
-#define SERIAL_ADDRESS 0x40002000
-
-#include <sys/types.h>
+#include <stddef.h>
 void* __attribute((weak)) memcpy(void* dest_, const void* src_, size_t n)
 {
   char* dest = dest_;
@@ -16,19 +12,14 @@ void* __attribute((weak)) memcpy(void* dest_, const void* src_, size_t n)
   return dest;
 }
 
-void serial_wait()
+void serial_out_char(char val)
 {
-#ifdef FPGA
-    volatile int sum = 0;
-    int i;
-    for(i=0; i<UART_WAIT; i++) sum += i;
-#endif
+    while (!rsd_serial_try_write(val)) {
+    }
 }
 
 void serial_out_dec(int val)
 {
-    volatile int *e_txd = (int*)SERIAL_ADDRESS; // memory mapped I/O
-
     int i;
     int c[DIGIT_DEC];
     int cnt = 0;
@@ -53,14 +44,12 @@ void serial_out_dec(int val)
     }
 
     for (i = cnt - 1; i >= 0; i--) {
-        serial_wait(); *e_txd = c[i];
+        serial_out_char(c[i]);
     }
 }
 
 void serial_out_hex(int val)
 {
-    volatile int *e_txd = (int*)SERIAL_ADDRESS; // memory mapped I/O
-
     int i;
     int c[DIGIT_HEX];
     int cnt = 0;
@@ -86,12 +75,6 @@ void serial_out_hex(int val)
     }
 
     for (i = cnt - 1; i >= 0; i--) {
-        serial_wait(); *e_txd = c[i];
+        serial_out_char(c[i]);
     }
-}
-
-void serial_out_char(char val)
-{
-    volatile char *e_txd = (char*)SERIAL_ADDRESS; // memory mapped I/O
-    serial_wait(); *e_txd = val;
 }

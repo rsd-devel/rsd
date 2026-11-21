@@ -27,8 +27,8 @@ input
     MemAccessResponse memAccessResponse, // メモリ書き込み完了通知
     logic memAccessReadBusy,
     logic memAccessWriteBusy,
-    logic reqExternalInterrupt,
-    ExternalInterruptCodePath externalInterruptCode,
+    ExternalInterruptRequestPath externalInterruptRequest,
+    logic serialTxFull,
 output
     DebugRegister debugRegister,
     PC_Path lastCommittedPC,
@@ -108,10 +108,12 @@ output
     BypassNetworkIF bypassNetworkIF( clk, rst, rstStart );
     LoadStoreUnitIF loadStoreUnitIF( clk, rst, rstStart );
     RecoveryManagerIF recoveryManagerIF( clk, rst );
-    CSR_UnitIF csrUnitIF(clk, rst, rstStart, reqExternalInterrupt, externalInterruptCode);
-    IO_UnitIF ioUnitIF(clk, rst, rstStart, serialWE, serialWriteData);
+    CSR_UnitIF csrUnitIF(clk, rst, rstStart);
+    IO_UnitIF ioUnitIF(clk, rst, rstStart, serialTxFull, serialWE, serialWriteData);
+    PLIC_UnitIF plicUnitIF(clk, rst, rstStart, externalInterruptRequest);
     MulDivUnitIF mulDivUnitIF(clk, rst);
     CacheFlushManagerIF cacheFlushManagerIF(clk, rst);
+    AMOCacheIF amoCacheIF(clk, rst);
 
     //
     // --- Modules
@@ -141,7 +143,7 @@ output
     FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF, perfCounterIF );
         ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
     
-    PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF );
+    PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF, csrUnitIF );
     DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF, perfCounterIF );
 
     RenameStage rnStage( rnStageIF, idStageIF, renameLogicIF, activeListIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, debugIF );
@@ -172,27 +174,28 @@ output
     ComplexIntegerIssueStage complexIsStage( complexIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     ComplexIntegerRegisterReadStage complexRrStage( complexRrStageIF, complexIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     ComplexIntegerExecutionStage complexExStage( complexExStageIF, complexRrStageIF, mulDivUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+    ComplexIntegerRegisterWriteStage complexRwStage( complexExStageIF, registerFileIF, activeListIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF );
 `endif
         MulDivUnit mulDivUnit(mulDivUnitIF, recoveryManagerIF);
 
     MemoryIssueStage memIsStage( memIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
     MemoryRegisterReadStage memRrStage( memRrStageIF, memIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, debugIF );
-    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF, perfCounterIF );
-    MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, debugIF );
+    MemoryExecutionStage memExStage( memExStageIF, memRrStageIF, loadStoreUnitIF, cacheFlushManagerIF, mulDivUnitIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, csrUnitIF, amoCacheIF, debugIF );
+    MemoryTagAccessStage mtStage( mtStageIF, memExStageIF, schedulerIF, loadStoreUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF, perfCounterIF );
+    MemoryAccessStage maStage( maStageIF, mtStageIF, loadStoreUnitIF, mulDivUnitIF, bypassNetworkIF, ioUnitIF, recoveryManagerIF, ctrlIF, amoCacheIF, debugIF );
         LoadStoreUnit loadStoreUnit( loadStoreUnitIF, ctrlIF );
         LoadQueue loadQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreQueue storeQueue( loadStoreUnitIF, recoveryManagerIF );
         StoreCommitter storeCommitter(loadStoreUnitIF, recoveryManagerIF, ioUnitIF, debugIF, perfCounterIF);
         DCache dCache( loadStoreUnitIF, cacheSystemIF, ctrlIF, recoveryManagerIF);
-    MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, loadStoreUnitIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+        AMOCache amocache(amoCacheIF);
+    MemoryRegisterWriteStage memRwStage( /*memRwStageIF,*/ maStageIF, loadStoreUnitIF, registerFileIF, activeListIF, mulDivUnitIF, recoveryManagerIF, ctrlIF, debugIF );
 
 `ifdef RSD_MARCH_FP_PIPE
     FPIssueStage fpIsStage( fpIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, fpDivSqrtUnitIF, ctrlIF, debugIF );
     FPRegisterReadStage fpRrStage( fpRrStageIF, fpIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     FPExecutionStage fpExStage( fpExStageIF, fpRrStageIF, fpDivSqrtUnitIF, schedulerIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF, csrUnitIF);
-    FPRegisterWriteStage fpRwStage( fpExStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+    FPRegisterWriteStage fpRwStage( fpExStageIF, registerFileIF, activeListIF, fpDivSqrtUnitIF, recoveryManagerIF, ctrlIF, debugIF );
     FPDivSqrtUnit fpDivSqrtUnit(fpDivSqrtUnitIF, recoveryManagerIF);
 `endif
 
@@ -202,11 +205,12 @@ output
     
     // A commitment stage generates a flush signal and this is send to scheduler.
     CommitStage cmStage( cmStageIF, renameLogicIF, activeListIF, loadStoreUnitIF, recoveryManagerIF, csrUnitIF, debugIF );
-        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, ctrlIF, perfCounterIF );
+        RecoveryManager recoveryManager( recoveryManagerIF, activeListIF, csrUnitIF, idStageIF, ctrlIF, perfCounterIF );
 
-    CSR_Unit csrUnit(csrUnitIF, perfCounterIF);
+    CSR_Unit csrUnit(csrUnitIF, plicUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
-    InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, recoveryManagerIF);
-    IO_Unit ioUnit(ioUnitIF, csrUnitIF);
+    InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, idStageIF, recoveryManagerIF);
+    IO_Unit ioUnit(ioUnitIF, plicUnitIF, csrUnitIF);
+    PLIC_Unit plicUnit(plicUnitIF, csrUnitIF, ioUnitIF);
 
 endmodule : Core

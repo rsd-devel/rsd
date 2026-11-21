@@ -100,6 +100,12 @@ if { $::argc > 0 } {
 set orig_proj_dir "[file normalize "$origin_dir/rsd"]"
 
 # Create project
+# Imported IP sources resolve to rsd/Src through the relative paths in
+# component.xml. Vivado 2019.2 preserves this generated copy across -force.
+set rsd_project [file join $env(RSD_ROOT) Processor Project Vivado TargetBoards Zedboard rsd]
+if {[file normalize [file join $origin_dir ${_xil_proj_name_}]] eq [file normalize $rsd_project]} {
+  file delete -force [file join $rsd_project Src]
+}
 create_project -force ${_xil_proj_name_} $origin_dir/${_xil_proj_name_} -part xc7z020clg484-1
 
 # Set the directory path for the new project
@@ -144,7 +150,8 @@ set_property -name "is_global_include" -value "1" -objects $file_obj
 set obj [get_filesets sources_1]
 set_property -name "top" -value "RSD" -objects $obj
 set_property -name "top_auto_set" -value "0" -objects $obj
-set_property -name "verilog_define" -value "RSD_SYNTHESIS RSD_SYNTHESIS_VIVADO RSD_SYNTHESIS_ZEDBOARD RSD_USE_EXTERNAL_MEMORY RSD_DISABLE_DEBUG_REGISTER RSD_MARCH_FP_PIPE" -objects $obj
+# CPU feature macros come from Config/MicroArchMacros.svh through the global header.
+set_property -name "verilog_define" -value "RSD_SYNTHESIS RSD_SYNTHESIS_VIVADO RSD_SYNTHESIS_ZEDBOARD RSD_USE_EXTERNAL_MEMORY RSD_DISABLE_DEBUG_REGISTER" -objects $obj
 
 # Create 'constrs_1' fileset (if not found)
 if {[string equal [get_filesets -quiet constrs_1] ""]} {
@@ -489,5 +496,23 @@ make_wrapper -files [get_files $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoa
 add_files -norecurse $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/hdl/design_1_wrapper.v
 set_property top design_1_wrapper [current_fileset]
 update_compile_order -fileset sources_1
+
+# Configure the processor's out-of-context run as well as the top-level run.
+create_ip_run [get_files $env(RSD_ROOT)/Processor/Project/Vivado/TargetBoards/Zedboard/rsd/rsd.srcs/sources_1/bd/design_1/design_1.bd]
+set_property STEPS.SYNTH_DESIGN.ARGS.RETIMING true [get_runs {synth_1 design_1_RSD_0_0_synth_1}]
+# Optimize RSD at 100 MHz without changing the board's PS-generated clock.
+set timing_file "$proj_dir/rsd_ooc.xdc"
+set timing [open $timing_file w]
+puts $timing {create_clock -name core_clk -period 10.000 [get_ports clk]}
+close $timing
+# Adding files directly to an IP's BlockSrcs fileset suppresses Vivado's
+# checkpoint/stub export. Read the OOC-only constraint through a synthesis hook.
+set timing_script "$proj_dir/rsd_ooc.tcl"
+set timing [open $timing_script w]
+puts $timing {read_xdc -mode out_of_context [file join [file dirname [info script]] rsd_ooc.xdc]}
+puts $timing {set_property USED_IN_IMPLEMENTATION false [get_files */rsd_ooc.xdc]}
+close $timing
+add_files -fileset utils_1 $timing_script
+set_property STEPS.SYNTH_DESIGN.TCL.PRE $timing_script [get_runs design_1_RSD_0_0_synth_1]
 
 close_project

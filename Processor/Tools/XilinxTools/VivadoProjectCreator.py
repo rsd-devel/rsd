@@ -18,7 +18,7 @@ def parse_makefile_for_core_sources():
                 is_header = True
                 continue
 
-            m = re.match("\t([^\s]+.(svh|sv|v|vh)) \\\\", line)
+            m = re.match("\t([^\\s]+.(svh|sv|v|vh)) \\\\", line)
             if m:
                 sources.append({"name": m.group(1), "is_header": is_header})
 
