@@ -55,11 +55,10 @@ $(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
 
 # Build hardware/FSBL outside the dev container using Vivado/Vitis 2019.2.
 .PHONY: zynq-hardware
-zynq-hardware:
-	@$(call REQUIRE_ENV,RSD_VITIS_ROOT)command -v "$(RSD_VITIS_ROOT)/bin/xsct" >/dev/null || { echo "Vitis 2019.2 xsct is required; set RSD_VITIS_ROOT to its installation directory." >&2; exit 1; }
-	$(MAKE) -f $(MAKEFILE) $(VIVADO_FSBL_FILE)
+zynq-hardware: $(VIVADO_FSBL_FILE)
 
 $(VIVADO_FSBL_FILE): $(VIVADO_XSA_FILE) $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
+	@$(call REQUIRE_ENV,RSD_VITIS_ROOT)test -x "$(RSD_VITIS_ROOT)/bin/xsct"
 	rm -rf $(VIVADO_BOARD_PROJECT_SDK)
 	"$(RSD_VITIS_ROOT)/bin/xsct" $(VIVADO_PROJECT_ROOT)/scripts/synthesis/make_fsbl.tcl
 	test -s $@
