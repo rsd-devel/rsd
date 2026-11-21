@@ -30,7 +30,6 @@ $(VIVADO_PROJECT_FILE): $(SYNPLIFY_NETLIST)
 
 $(SYNPLIFY_NETLIST): $(DEPS_RTL)
 	@ echo "(Re-)build board netlist using Synplify!"
-	$(MAKE) -f $(MAKEFILE) vivado-clean
 	@ exit 1
 
 
