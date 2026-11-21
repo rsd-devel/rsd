@@ -20,8 +20,8 @@ export RSD_GCC_PREFIX=riscv64-unknown-elf-
 # ModelSim/Questa: directory containing vlog, vlib and vsim.
 # export RSD_QUESTASIM_PATH=/opt/questa/bin
 
-# Vivado/XSim: directory containing vivado, xvlog, xelab and xsim.
-# export RSD_VIVADO_BIN=/opt/Xilinx/Vivado/2019.2/bin
+# Vivado/XSim: versioned installation directory (containing bin and data).
+# export RSD_VIVADO_ROOT=/opt/Xilinx/Vivado/2019.2
 
 # Optional Synplify command override; otherwise use PATH.
 # export SYNPLIFY=/opt/synplify/bin/synplify_premier_dp
@@ -32,5 +32,5 @@ export RSD_GCC_PREFIX=riscv64-unknown-elf-
 # Optional: Design Compiler (legacy flow).
 # export RSD_DC_SHELL_BIN=/opt/synopsys/bin/dc_shell
 
-# Optional: working directory for Zynq PS Linux image builds (legacy flow).
-# export RSD_ARM_LINUX="$HOME/work/rsd-arm-linux"
+# Vitis: versioned installation directory, needed only for the ZedBoard FSBL.
+# export RSD_VITIS_ROOT=/opt/Xilinx/Vitis/2019.2

@@ -1,0 +1,17 @@
+From: RSD contributors
+Subject: [PATCH] zynq: reserve upper 256 MiB of ZedBoard DDR for RSD
+
+Keep U-Boot relocation and allocations out of the memory owned by RSD.
+The Linux device tree uses the same split.
+
+--- a/arch/arm/dts/zynq-zed.dts
++++ b/arch/arm/dts/zynq-zed.dts
+@@ -19,7 +19,7 @@
+ 
+ 	memory@0 {
+ 		device_type = "memory";
+-		reg = <0x0 0x20000000>;
++		reg = <0x0 0x10000000>;
+ 	};
+ 
+ 	chosen {

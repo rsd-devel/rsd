@@ -1,7 +1,7 @@
+// Kernel and DTB are loaded from the SD FAT partition by U-Boot.
 image : {
-        [bootloader]fsbl.elf
-        boot.bit
-        u-boot.elf
-        [load=0x2a00000]devicetree.dtb
-        [load=0x3000000]uImage.bin
+    [bootloader]fsbl.elf
+    boot.bit
+    // Bootgen 2019.2 uses the .elf suffix to extract the loadable segment and entry point.
+    u-boot.elf
 }

@@ -100,6 +100,12 @@ if { $::argc > 0 } {
 set orig_proj_dir "[file normalize "$origin_dir/rsd"]"
 
 # Create project
+# Imported IP sources resolve to rsd/Src through the relative paths in
+# component.xml. Vivado 2019.2 preserves this generated copy across -force.
+set rsd_project [file join $env(RSD_ROOT) Processor Project Vivado TargetBoards Zedboard rsd]
+if {[file normalize [file join $origin_dir ${_xil_proj_name_}]] eq [file normalize $rsd_project]} {
+  file delete -force [file join $rsd_project Src]
+}
 create_project -force ${_xil_proj_name_} $origin_dir/${_xil_proj_name_} -part xc7z020clg484-1
 
 # Set the directory path for the new project
@@ -499,7 +505,14 @@ set timing_file "$proj_dir/rsd_ooc.xdc"
 set timing [open $timing_file w]
 puts $timing {create_clock -name core_clk -period 10.000 [get_ports clk]}
 close $timing
-add_files -fileset [get_property CONSTRSET [get_runs design_1_RSD_0_0_synth_1]] $timing_file
-set_property USED_IN {synthesis out_of_context} [get_files $timing_file]
+# Adding files directly to an IP's BlockSrcs fileset suppresses Vivado's
+# checkpoint/stub export. Read the OOC-only constraint through a synthesis hook.
+set timing_script "$proj_dir/rsd_ooc.tcl"
+set timing [open $timing_script w]
+puts $timing {read_xdc -mode out_of_context [file join [file dirname [info script]] rsd_ooc.xdc]}
+puts $timing {set_property USED_IN_IMPLEMENTATION false [get_files */rsd_ooc.xdc]}
+close $timing
+add_files -fileset utils_1 $timing_script
+set_property STEPS.SYNTH_DESIGN.TCL.PRE $timing_script [get_runs design_1_RSD_0_0_synth_1]
 
 close_project

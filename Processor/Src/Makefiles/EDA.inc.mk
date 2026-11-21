@@ -22,25 +22,6 @@ RSD_EDA_TARGETS := \
 	synth/vivado/post-implementation/timing/run:Vivado:post-implementation-timing-run \
 	synth/vivado/post-implementation/timing/gui:Vivado:post-implementation-timing-run-gui \
 	synth/vivado/post-implementation/timing/kanata:Vivado:post-implementation-timing-kanata \
-	platform/zynq/build:Vivado:xilinx-arm-linux \
-	platform/zynq/all:Vivado:xilinx-arm-linux-all \
-	platform/zynq/clean:Vivado:xilinx-arm-linux-clean \
-	platform/zynq/fetch:Vivado:xilinx-arm-linux-clone-all \
-	platform/zynq/kernel/build:Vivado:xilinx-arm-linux-kernel \
-	platform/zynq/kernel/fetch:Vivado:xilinx-arm-linux-kernel-fetch \
-	platform/zynq/kernel/clean:Vivado:xilinx-arm-linux-kernel-clean \
-	platform/zynq/u-boot/build:Vivado:xilinx-arm-linux-u-boot \
-	platform/zynq/u-boot/fetch:Vivado:xilinx-arm-linux-u-boot-fetch \
-	platform/zynq/u-boot/clean:Vivado:xilinx-arm-linux-u-boot-clean \
-	platform/zynq/dtc/build:Vivado:xilinx-arm-linux-dtc \
-	platform/zynq/dtc/clean:Vivado:xilinx-arm-linux-dtc-clean \
-	platform/zynq/initrd/build:Vivado:xilinx-arm-linux-initrd \
-	platform/zynq/initrd/clean:Vivado:xilinx-arm-linux-initrd-clean \
-	platform/zynq/device-tree/build:Vivado:xilinx-arm-linux-device-tree \
-	platform/zynq/bootbin/build:Vivado:xilinx-arm-linux-bootbin \
-	platform/zynq/bootbin/clean:Vivado:xilinx-arm-linux-bootbin-clean \
-	platform/zynq/rootfs/fetch:Vivado:xilinx-arm-linux-download-rootfs \
-	platform/zynq/rootfs/clean:Vivado:xilinx-arm-linux-rootfs-clean \
 	synth/synplify/build:Synplify:vivado-synthesis \
 	synth/synplify/open:Synplify:vivado \
 	synth/synplify/clean:Synplify:vivado-clean \
@@ -57,3 +38,26 @@ $(word 1,$(1)):
 	$$(MAKE) -f Makefiles/$(word 2,$(1)).mk $(word 3,$(1))
 endef
 $(foreach target,$(RSD_EDA_TARGETS),$(eval $(call RSD_EDA_FORWARD,$(subst :, ,$(target)))))
+
+# Linux builds do not require Vivado, a simulator or a RISC-V compiler.
+RSD_ZYNQ_TARGETS := $(addprefix platform/zynq/,fetch build clean program/deploy program/run boot/deploy reboot)
+.PHONY: $(RSD_ZYNQ_TARGETS)
+$(RSD_ZYNQ_TARGETS): platform/zynq/%:
+	$(MAKE) -C ../Project/Vivado/ARM_Linux $*
+
+.PHONY: platform/zynq/boot/build platform/zynq/hardware/build platform/zynq/bootbin/build platform/zynq/image/build platform/zynq/image/write
+# Finish hardware/FSBL before packaging boot.bin, including under make -j.
+platform/zynq/boot/build: platform/zynq/hardware/build
+	$(MAKE) -C ../Project/Vivado/ARM_Linux bootbin
+
+platform/zynq/bootbin/build:
+	$(MAKE) -C ../Project/Vivado/ARM_Linux bootbin
+
+platform/zynq/image/build:
+	$(MAKE) -C ../Project/Vivado/ARM_Linux image
+
+platform/zynq/image/write:
+	$(MAKE) -C ../Project/Vivado/ARM_Linux image-write
+
+platform/zynq/hardware/build: synth/vivado/build
+	$(MAKE) -f Makefiles/Vivado.mk zynq-hardware

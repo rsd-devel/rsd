@@ -44,6 +44,18 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
     clang-22 \
     lld-22 \
     llvm-22 \
+    # Buildroot host prerequisites for ZedBoard Linux and SD images.
+    # Buildroot builds its ARM toolchain, OpenSSH and image tools itself.
+    bc \
+    cpio \
+    file \
+    patch \
+    rsync \
+    unzip \
+    wget \
+    xz-utils \
+    # Generate the client SSH key used to log in to the ZedBoard image.
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Build the pinned Verilator release with SystemVerilog timing support.

@@ -87,20 +87,21 @@ Select ModelSim/QuestaSim with `make SIM=modelsim`, or XSim with `make SIM=xsim`
 You can build test HEX files inside the dev container and run simulations outside it using tools installed on the host, such as Vivado's XSim.
 Install Vivado, GNU Make, and Python 3.11 or newer on the host, then run these commands in order from the host repository root, using the same checkout.
 Tool paths can be set through environment variables or passed as make arguments, as shown below.
+Set `RSD_VIVADO_ROOT` to the installation directory containing `bin` (e.g. `/opt/Xilinx/Vivado/2019.2`).
 
 ```bash
 ./RunContainer.sh make test/level-1/build  # Build test HEX files inside the container
-make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN sim/build  # Build the RTL and testbench on the host
-make SIM=xsim RSD_VIVADO_BIN=/PATH/TO/VIVADO/BIN test/level-1/run  # Run tests on the host
+make SIM=xsim RSD_VIVADO_ROOT=/PATH/TO/VIVADO sim/build  # Build the RTL and testbench on the host
+make SIM=xsim RSD_VIVADO_ROOT=/PATH/TO/VIVADO test/level-1/run  # Run tests on the host
 ```
 
 ### Run on a Xilinx Zynq board
 
-* See [this RSD wiki page](https://github.com/rsd-devel/rsd/wiki/en-fpga-zynq-synth-for-linux).
+* [Build the ZedBoard Linux image and run programs on the board](https://github.com/rsd-devel/rsd-docs/blob/master/en/fpga/zynq/synth-for-linux.md)
 
 ## Documents
 
-* See [RSD Wiki](https://github.com/rsd-devel/rsd/wiki).
+* [RSD documentation in English](https://github.com/rsd-devel/rsd-docs/blob/master/en/README.md)
 
 ## License
 
