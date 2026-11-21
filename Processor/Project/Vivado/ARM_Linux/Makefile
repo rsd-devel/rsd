@@ -41,6 +41,9 @@ RSD_BUILDROOT_ARCHIVE := External/buildroot-$(RSD_BUILDROOT_VERSION).tar.xz
 RSD_BUILDROOT := $(CURDIR)/External/buildroot-$(RSD_BUILDROOT_VERSION)
 RSD_ZYNQ_BUILD := $(CURDIR)/Build
 export RSD_ZYNQ_IMAGES := $(RSD_ZYNQ_BUILD)/images
+export RSD_ZYNQ_CLIENT_DIR ?= $(CURDIR)
+export RSD_ZYNQ_SSH_KEY ?= $(RSD_ZYNQ_IMAGES)/rsd-zedboard_ed25519
+export RSD_ZYNQ_HOST RSD_ZYNQ_HEX
 RSD_ZYNQ_BOARD := $(abspath ../TargetBoards/Zedboard/rsd)
 RSD_ZYNQ_BIT ?= $(RSD_ZYNQ_BOARD)/rsd.runs/impl_1/design_1_wrapper.bit
 RSD_ZYNQ_FSBL ?= $(RSD_ZYNQ_BOARD)/rsd.sdk/fsbl/Release/fsbl.elf
@@ -126,6 +129,11 @@ image-write:
 	echo 'After dd succeeds, reinsert the card. Check its path with lsblk and update it in the command below if it changed.'; \
 	printf 'sudo cmp -n %s -- %q %q && echo "SD image verified."\n' "$$imageSize" "$$image" "$$device"; \
 	printf '==============================================================\n\n'
+
+# These operations use existing artifacts and the host's OpenSSH client.
+.PHONY: program/deploy program/run boot/deploy reboot
+program/deploy program/run boot/deploy reboot:
+	@sh BoardClient.sh $@
 
 clean:
 	rm -rf $(RSD_ZYNQ_BUILD)

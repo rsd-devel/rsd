@@ -40,7 +40,7 @@ endef
 $(foreach target,$(RSD_EDA_TARGETS),$(eval $(call RSD_EDA_FORWARD,$(subst :, ,$(target)))))
 
 # Linux builds do not require Vivado, a simulator or a RISC-V compiler.
-RSD_ZYNQ_TARGETS := $(addprefix platform/zynq/,fetch build clean)
+RSD_ZYNQ_TARGETS := $(addprefix platform/zynq/,fetch build clean program/deploy program/run boot/deploy reboot)
 .PHONY: $(RSD_ZYNQ_TARGETS)
 $(RSD_ZYNQ_TARGETS): platform/zynq/%:
 	$(MAKE) -C ../Project/Vivado/ARM_Linux $*

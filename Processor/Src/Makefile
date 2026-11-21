@@ -2,6 +2,8 @@
 .DEFAULT_GOAL := all
 SOURCE_DIRECTORY := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 include $(SOURCE_DIRECTORY)Makefiles/Environment.inc.mk
+# Keep command-line HEX and SSH key paths relative to the caller across submakes.
+export RSD_ZYNQ_CLIENT_DIR ?= $(CURDIR)
 
 # Resolve the root symlink and keep all existing paths relative to Src.
 ifneq ($(realpath $(CURDIR))/,$(SOURCE_DIRECTORY))
