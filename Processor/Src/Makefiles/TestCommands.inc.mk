@@ -44,10 +44,20 @@ LEVEL1_TESTS = \
 
 ifeq ($(RSD_HAS_FP),1)
 LEVEL1_TESTS += test/Asm/FP/run test/C/FP/run
+else
+.PHONY: test/Asm/FP/run test/C/FP/run
+test/Asm/FP/run test/C/FP/run:
+	@echo "FP tests require RSD_MARCH_FP_PIPE in RSD_SRC_CFG" >&2
+	@exit 1
 endif
 
 ifeq ($(RSD_HAS_ZICFILP),1)
 LEVEL1_TESTS += test/Asm/LandingPad/run
+else
+.PHONY: test/Asm/LandingPad/run
+test/Asm/LandingPad/run:
+	@echo "LandingPad tests require RSD_ENABLE_ZICFILP in RSD_SRC_CFG" >&2
+	@exit 1
 endif
 
 LEVEL2_TESTS = \
@@ -192,129 +202,46 @@ test/level-2/run: $(LEVEL2_TESTS)
 test/ex/run: $(EX_TESTS)
 	@echo "==== Test Successful (test/ex/run) ===="
 
-test/Asm/ControlTransfer/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransfer
-test/Asm/IntRegImm/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegImm
-test/Asm/IntRegReg/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegReg
-test/Asm/LoadAndStore/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LoadAndStore
-test/Asm/ControlTransferZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ControlTransferZynq
-test/Asm/IntRegImmZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegImmZynq
-test/Asm/IntRegRegZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntRegRegZynq
-test/Asm/LoadAndStoreZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LoadAndStoreZynq
-test/Asm/UncachableLoadAndStore/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/UncachableLoadAndStore
-test/Asm/ICacheFlush/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ICacheFlush
-test/Asm/DCacheFlush/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DCacheFlush
-test/Asm/ZeroRegister/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ZeroRegister
-test/Asm/MemoryAccessZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MemoryAccessZynq
-test/Asm/ReplayQueueTest/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ReplayQueueTest
-test/Asm/DynamicRecovery/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DynamicRecovery
-test/Asm/MemoryDependencyPrediction/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MemoryDependencyPrediction
-test/Asm/Fence/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fence
-test/Asm/CSR/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/CSR
-test/Asm/ENV/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/ENV
-
-test/Asm/MSWI/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MSWI
-test/Asm/Timer/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Timer
-test/Asm/Fault/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Fault
-test/Asm/MisalignedMemAccess/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/MisalignedMemAccess
-.PHONY: test/Asm/LandingPad/run
-ifeq ($(RSD_HAS_ZICFILP),1)
-test/Asm/LandingPad/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/LandingPad
-else
-test/Asm/LandingPad/run:
-	@echo "LandingPad tests require RSD_ENABLE_ZICFILP in RSD_SRC_CFG" >&2
-	@exit 1
-endif
-
-test/Asm/IntMulZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntMulZynq
-test/Asm/IntDivZynq/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/IntDivZynq
-test/Asm/DividerTest/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/DividerTest
-
-test/Asm/Aext/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/Aext
-
-ifeq ($(RSD_HAS_FP),1)
-test/Asm/FP/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Asm/FP
-test/C/FP/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/FP
-else
-.PHONY: test/Asm/FP/run test/C/FP/run
-test/Asm/FP/run test/C/FP/run:
-	@echo "FP tests require RSD_MARCH_FP_PIPE in RSD_SRC_CFG" >&2
-	@exit 1
-endif
-
-# Register each single-HEX test once for simulation, path lookup and board use.
+# A single HEX directory serves both the simulator and manual ZedBoard runs.
+# Board targets use an already built HEX; only simulator runs depend on builds.
 define RSD_ZYNQ_TEST
-test/$(1)/run:
-	$$(RUN_TEST_OMIT_MSG) $(2)
-.PHONY: test/$(1)/run test/$(1)/hex-path test/$(1)/zynq/deploy test/$(1)/zynq/run
+$(addprefix test/$(1)/,run hex-path zynq/deploy zynq/run): private RSD_TEST_DIR := Verification/TestCode/$(2)
+.PHONY: test/$(1)/hex-path test/$(1)/zynq/deploy test/$(1)/zynq/run
 test/$(1)/hex-path:
-	@printf '%s\n' "$(CURDIR)/$(2)/code.hex"
+	@printf '%s\n' "$(CURDIR)/$$(RSD_TEST_DIR)/code.hex"
 test/$(1)/zynq/deploy test/$(1)/zynq/run:
-	$$(MAKE) -C ../Project/Vivado/ARM_Linux program/$$(notdir $$@) RSD_ZYNQ_HEX="$(CURDIR)/$(2)/code.hex"
+	$$(MAKE) -C ../Project/Vivado/ARM_Linux program/$$(notdir $$@) RSD_ZYNQ_HEX="$(CURDIR)/$$(RSD_TEST_DIR)/code.hex"
 endef
-$(eval $(call RSD_ZYNQ_TEST,C/HelloWorld,Verification/TestCode/C/HelloWorld))
-$(eval $(call RSD_ZYNQ_TEST,External/Coremark,Verification/TestCode/Coremark/Coremark))
 
-test/C/Fibonacci/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Fibonacci
-test/External/Coremark/Coremark_for_RV32I/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Coremark/Coremark_for_RV32I
-test/C/PerformanceCounter/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/PerformanceCounter
-test/External/Dhrystone/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Dhrystone/Dhrystone
-test/C/Exception/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/Exception
-test/C/DCache/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/C/DCache
+# Asm and C directory names match their public test names.
+RSD_LEVEL1_CASES := $(patsubst test/%,%,$(LEVEL1_TESTS:%/run=%))
+$(foreach name,$(RSD_LEVEL1_CASES),$(eval $(call RSD_ZYNQ_TEST,$(name),$(name))))
 
+$(eval $(call RSD_ZYNQ_TEST,External/Coremark,Coremark/Coremark))
+$(eval $(call RSD_ZYNQ_TEST,External/Coremark/Coremark_for_RV32I,Coremark/Coremark_for_RV32I))
+$(eval $(call RSD_ZYNQ_TEST,External/Dhrystone,Dhrystone/Dhrystone))
+
+$(LEVEL1_TESTS) $(LEVEL2_TESTS):
+	$(RUN_TEST_OMIT_MSG) $(RSD_TEST_DIR)
 
 # Build and run the current upstream Zephyr samples.
 ZEPHYR_TESTS = HelloWorld Philosophers Synchronization
 ZEPHYR_TEST_TARGETS = $(ZEPHYR_TESTS:%=test/External/Zephyr/%/run)
+$(foreach name,$(ZEPHYR_TESTS),$(eval $(call RSD_ZYNQ_TEST,External/Zephyr/$(name),Zephyr/Build/$(name))))
 
 # Zephyr samples continue running until the instruction budget is reached.
 .PHONY: test/External/Zephyr/run $(ZEPHYR_TEST_TARGETS)
 $(ZEPHYR_TEST_TARGETS): test/External/Zephyr/build
 
 test/External/Zephyr/HelloWorld/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/HelloWorld
+	$(RUN_TEST_OMIT_MSG) $(RSD_TEST_DIR)
 
 test/External/Zephyr/Synchronization/run:
-	$(RUN_TEST_OMIT_MSG) --serial-prefix Verification/TestCode/Zephyr/Build/Synchronization
+	$(RUN_TEST_OMIT_MSG) --serial-prefix $(RSD_TEST_DIR)
 
 test/External/Zephyr/Philosophers/run:
-	$(RUN_TEST_OMIT_MSG) Verification/TestCode/Zephyr/Build/Philosophers
-	python3 Verification/TestCode/Zephyr/CheckOutput.py Verification/TestCode/Zephyr/Build/Philosophers/serial.out.txt
+	$(RUN_TEST_OMIT_MSG) $(RSD_TEST_DIR)
+	python3 Verification/TestCode/Zephyr/CheckOutput.py $(RSD_TEST_DIR)/serial.out.txt
 
 test/External/Zephyr/run: $(ZEPHYR_TEST_TARGETS)
 	@echo "==== Test Successful (test/External/Zephyr/run) ===="
