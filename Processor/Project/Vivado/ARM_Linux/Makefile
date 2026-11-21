@@ -6,9 +6,8 @@
 #   ./RunContainer.sh make platform/zynq/build
 #   make platform/zynq/boot/build RSD_VIVADO_ROOT=/path/to/Vivado/2019.2 RSD_VITIS_ROOT=/path/to/Vitis/2019.2
 #   ./RunContainer.sh make platform/zynq/image/build
-# Write on the Linux host (not in the dev container), after unmounting the card:
+# On the Linux host, unmount the card and print the write and verification commands:
 #   make platform/zynq/image/write RSD_SD_DEVICE=/dev/sdX
-# This erases the selected disk and asks you to type its device path to confirm.
 # Output: Processor/Project/Vivado/ARM_Linux/Build/images/rsd-zedboard.img
 # An SSH client key pair (rsd-zedboard_ed25519 and .pub) is generated beside the image
 # on the first build and reused. Only the public key is installed in the image.
@@ -41,7 +40,7 @@ RSD_BUILDROOT_SHA256 := e5e58bff1da91f022f60cefdfe280140c08023cd0aeec1e5f6f9da0e
 RSD_BUILDROOT_ARCHIVE := External/buildroot-$(RSD_BUILDROOT_VERSION).tar.xz
 RSD_BUILDROOT := $(CURDIR)/External/buildroot-$(RSD_BUILDROOT_VERSION)
 RSD_ZYNQ_BUILD := $(CURDIR)/Build
-RSD_ZYNQ_IMAGES := $(RSD_ZYNQ_BUILD)/images
+export RSD_ZYNQ_IMAGES := $(RSD_ZYNQ_BUILD)/images
 RSD_ZYNQ_BOARD := $(abspath ../TargetBoards/Zedboard/rsd)
 RSD_ZYNQ_BIT ?= $(RSD_ZYNQ_BOARD)/rsd.runs/impl_1/design_1_wrapper.bit
 RSD_ZYNQ_FSBL ?= $(RSD_ZYNQ_BOARD)/rsd.sdk/fsbl/Release/fsbl.elf
@@ -50,7 +49,7 @@ export RSD_SSH_PUBLIC_KEY ?=
 # Standard Buildroot overlay; keep machine-specific settings outside the sources.
 export RSD_ROOTFS_OVERLAY ?=
 # No default device: selecting the disk is always an explicit user action.
-RSD_SD_DEVICE ?=
+export RSD_SD_DEVICE ?=
 export BR2_DL_DIR := $(CURDIR)/External/downloads
 RSD_BUILDROOT_MAKE = $(MAKE) -C $(RSD_BUILDROOT) O=$(RSD_ZYNQ_BUILD)
 
@@ -100,36 +99,33 @@ image:
 		BUILD_DIR=$(RSD_ZYNQ_BUILD)/build BINARIES_DIR=$(RSD_ZYNQ_IMAGES) BR2_CONFIG=$(RSD_ZYNQ_BUILD)/.config \
 		bash $(RSD_BUILDROOT)/support/scripts/genimage.sh -c $(CURDIR)/genimage.cfg
 
-# Write an existing image only. Recheck after confirmation in case the desktop
-# automounted a partition while the user was inspecting the selected disk.
+# Bash printf %q quotes each path for the commands the user runs on the host.
+image-write: SHELL := /bin/bash
 image-write:
 	@set -eu; \
-	image="$(RSD_ZYNQ_IMAGES)/rsd-zedboard.img"; \
+	image="$$RSD_ZYNQ_IMAGES/rsd-zedboard.img"; \
 	test -s "$$image" || { echo 'Build platform/zynq/image/build first.' >&2; exit 1; }; \
-	test -n "$(RSD_SD_DEVICE)" || { echo 'Specify RSD_SD_DEVICE=/dev/sdX (the whole disk).' >&2; exit 1; }; \
-	device=$$(readlink -f -- "$(RSD_SD_DEVICE)"); \
+	image=$$(realpath -- "$$image"); \
+	test -n "$$RSD_SD_DEVICE" || { echo 'Specify RSD_SD_DEVICE=/dev/sdX (the whole disk).' >&2; exit 1; }; \
+	device=$$(readlink -f -- "$$RSD_SD_DEVICE"); \
 	imageSize=$$(stat -c %s -- "$$image"); \
-	check_device() { \
-		test -b "$$device" || { echo 'Not a block device.' >&2; exit 1; }; \
-		deviceType=$$(lsblk -dn -o TYPE -- "$$device"); \
-		test "$$deviceType" = disk || { echo 'Select a whole disk, not a partition or mapped device.' >&2; exit 1; }; \
-		readOnly=$$(lsblk -dn -o RO -- "$$device"); \
-		test "$$readOnly" = 0 || { echo 'The device is read-only.' >&2; exit 1; }; \
-		deviceSize=$$(lsblk -bdn -o SIZE -- "$$device"); \
-		test "$$deviceSize" -ge "$$imageSize" || { echo 'The device is smaller than the image.' >&2; exit 1; }; \
-		mounts=$$(lsblk -nr -o MOUNTPOINTS -- "$$device"); \
-		test -z "$$mounts" || { echo 'Unmount all partitions and disable any swap on this device first.' >&2; exit 1; }; \
-	}; \
-	check_device; \
+	test -b "$$device" || { echo 'Not a block device.' >&2; exit 1; }; \
+	deviceType=$$(lsblk -dnr -o TYPE -- "$$device"); \
+	test "$$deviceType" = disk || { echo 'Select a whole disk, not a partition or mapped device.' >&2; exit 1; }; \
+	readOnly=$$(lsblk -dnr -o RO -- "$$device"); \
+	test "$$readOnly" = 0 || { echo 'The device is read-only.' >&2; exit 1; }; \
+	deviceSize=$$(lsblk -bdnr -o SIZE -- "$$device"); \
+	test "$$deviceSize" -ge "$$imageSize" || { echo 'The device is smaller than the image.' >&2; exit 1; }; \
+	mounts=$$(lsblk -nr -o MOUNTPOINTS -- "$$device"); \
+	test -z "$$mounts" || { echo 'Unmount all partitions and disable any swap on this device first.' >&2; exit 1; }; \
+	printf '\n==================== 1. Write the SD card ====================\n'; \
 	lsblk -d -o NAME,SIZE,MODEL,TRAN -- "$$device"; \
-	printf 'Image: %s\nAll data on %s will be overwritten.\n' "$$image" "$$device"; \
-	test -t 0 || { echo 'Run from an interactive terminal to confirm the device.' >&2; exit 1; }; \
-	printf 'Type %s to write: ' "$$device"; \
-	IFS= read -r confirmation; \
-	test "$$confirmation" = "$$device" || { echo 'Cancelled.' >&2; exit 1; }; \
-	check_device; \
-	sudo dd if="$$image" of="$$device" bs=4M status=progress conv=fsync; \
-	echo 'SD image written and synchronized.'
+	printf 'Check the device above, then run this command to overwrite %s.\n' "$$device"; \
+	printf 'sudo dd if=%q of=%q bs=4M status=progress conv=fsync\n' "$$image" "$$device"; \
+	printf '\n==================== 2. Verify the SD card ===================\n'; \
+	echo 'After dd succeeds, reinsert the card. Check its path with lsblk and update it in the command below if it changed.'; \
+	printf 'sudo cmp -n %s -- %q %q && echo "SD image verified."\n' "$$imageSize" "$$image" "$$device"; \
+	printf '==============================================================\n\n'
 
 clean:
 	rm -rf $(RSD_ZYNQ_BUILD)
