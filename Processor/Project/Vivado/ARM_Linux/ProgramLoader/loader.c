@@ -60,14 +60,15 @@ static volatile uint32_t *map_uio(const char *name, size_t size)
 // Reverse the four 32-bit groups for the little-endian AXI memory interface.
 static int read_word(FILE *fp, uint32_t words[4])
 {
-    char line[36];
-    if (!fgets(line, sizeof(line), fp))
-        return ferror(fp) ? -1 : 0;
-    if (strcspn(line, "\r\n") != 32)
+    char line[32];
+    size_t n = fread(line, 1, sizeof(line), fp);
+    if (n != sizeof(line))
+        return n == 0 && !ferror(fp) ? 0 : -1;
+    int end = fgetc(fp);
+    if (end == '\r')
+        end = fgetc(fp);
+    if ((end != '\n' && end != EOF) || ferror(fp))
         return -1;
-    for (size_t i = 32; line[i]; i++)
-        if (line[i] != '\r' && line[i] != '\n')
-            return -1;
     for (size_t i = 0; i < 32; i++)
         if (!isxdigit((unsigned char)line[i]))
             return -1;
