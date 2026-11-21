@@ -23,10 +23,13 @@ include Makefiles/Build.inc.mk
 # Vivado synthesis related items are defined in this file
 include Makefiles/Vivado.inc.mk
 
-VIVADO_PROJECT_FILE_DEPS = \
+# Vivado imports the packaged IP into the block design. Recreate the project
+# when a source changes so the IP's out-of-context run sees the new copy.
+VIVADO_PROJECT_FILE_DEPS = $(VIVADO_RTL_INPUTS) \
 	Makefiles/CoreSources.inc.mk \
 	$(TOOLS_ROOT)/XilinxTools/IP_Generator.py \
 	$(TOOLS_ROOT)/XilinxTools/ip_template.xml \
+	$(VIVADO_PROJECT_ROOT)/rsd_ip/Vivado/xgui/RSD_v1_0.tcl \
 	$(VIVADO_PROJECT_ROOT)/scripts/synthesis/create_project.tcl
 
 # Create Vivado project file for synthesis

@@ -41,6 +41,11 @@ vivado-clean:
 vivado-synthesis: $(VIVADO_BIT_FILE)
 	@echo "==== Build Successful ===="
 
+VIVADO_RTL_INPUTS = $(abspath $(addprefix $(SOURCE_ROOT),$(TYPES) $(MODULES) $(HEADERS) Config/SynthesisMacros.sv))
+
+# These inputs are also used when Vivado implements a Synplify netlist.
+$(VIVADO_PROJECT_FILE): $(VIVADO_PROJECT_ROOT)/scripts/synthesis/design_1.tcl $(VIVADO_PROJECT_ROOT)/project_src/zedboard.xdc
+
 # ビットストリームの生成
 # XSA ファイルは generate_bitstream.tcl 内で bit と同時に生成される
 $(VIVADO_BIT_FILE) $(VIVADO_XSA_FILE): $(VIVADO_PROJECT_FILE) $(DEPS_RTL)
