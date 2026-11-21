@@ -48,6 +48,8 @@ width = 19
 # LOG_ADDR_K / PHY_ADDR_K and the software prefix RSD_K (e.g. ram -> RAM).
 # Shared fields:
 #   type: memory uses backing storage; io is decoded by IO_Unit/PLIC_Unit.
+#         Ordinary accesses by a hart to all io regions are ordered with respect
+#         to each other. LR/SC and AMOs to io regions raise access faults.
 #   name: descriptive label used in generated comments.
 #   logical_base: first visible RV32 byte address; logical ranges must not overlap.
 #   physical_base: additive base in the internal raw address space (without flags).

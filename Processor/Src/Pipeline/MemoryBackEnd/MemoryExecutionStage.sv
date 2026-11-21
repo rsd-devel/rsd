@@ -148,11 +148,13 @@ module MemoryExecutionStage(
 
         for ( int i = 0; i < LOAD_ISSUE_WIDTH; i++ ) begin
             // --- DCache access
-            // TODO: メモリマップが MMT_MEMORY じゃなかったとしても，一度 MSHR を確保して
-            // しまった場合にはデータを受け取らないと行けないので，とりあえずどんな
-            // 領域にアクセスをするとしても DC からデータを拾うようにしておく
+            // A load that allocates an MSHR must release it on completion or flush.
+            // Request only mapped memory, including uncached RAM, with valid operands.
+            // MMIO and unmapped loads then own no MSHR when the tag stage skips
+            // the cache response.
             loadStoreUnit.dcReadReq[i] =
                 !stall && !clear && pipeReg[i].valid && regValid[i] && !flush[i] &&
+                memMapType[i] == MMT_MEMORY &&
                 (
                     (memOpInfo[i].opType inside { MEM_MOP_TYPE_LOAD }) ||
                     (memOpInfo[i].opType inside { MEM_MOP_TYPE_ZAAMO } && !iqData[i].hasLoadedAMOCache)
@@ -303,6 +305,13 @@ module MemoryExecutionStage(
             nextStage[i].addrOut = addrOut[i];
             nextStage[i].regValid = regValid[i];
             nextStage[i].memMapType = memMapType[i];
+            // MMIO supports ordinary loads and stores only (RsrvNone, AMONone).
+            // The tag stage reports the access fault before the device sees a request.
+            if (memMapType[i] == MMT_IO &&
+                (memOpInfo[i].opType == MEM_MOP_TYPE_ZAAMO ||
+                 (memOpInfo[i].opType inside {MEM_MOP_TYPE_LOAD, MEM_MOP_TYPE_STORE} && memOpInfo[i].isZalrsc))) begin
+                nextStage[i].memMapType = MMT_ILLEGAL;
+            end
             nextStage[i].phyAddrOut = phyAddrOut[i];
 `ifndef RSD_DISABLE_DEBUG_REGISTER
             nextStage[i].opId = pipeReg[i].opId;
@@ -352,6 +361,15 @@ module MemoryExecutionStage(
 
 
 `ifndef RSD_SYNTHESIS
+    for (genvar i = 0; i < LOAD_ISSUE_WIDTH; i++) begin : CheckDCacheReadRequest
+        always @(posedge port.clk) begin
+            if (!port.rst && loadStoreUnit.dcReadReq[i]) begin
+                assert (memMapType[i] == MMT_MEMORY)
+                    else $fatal(1, "DCache read request for non-memory address %h on lane %0d", addrOut[i], i);
+            end
+        end
+    end
+
 `ifdef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     for (genvar i = 0; i < MULDIV_ISSUE_WIDTH; i++) begin : CheckDivReservation
         always @(posedge port.clk) begin
