@@ -59,6 +59,66 @@ module BlockDualPortRAM #(
 endmodule : BlockDualPortRAM
 
 
+// Simple Dual Port RAM with independent write enables for fixed-width slices.
+// Reads return the whole entry after one cycle, including the old value on
+// a same-address read/write. Slice boundaries must match the target RAM.
+module BlockDualPortMaskedRAM #(
+    parameter ENTRY_NUM = 128,
+    parameter ENTRY_BIT_SIZE = 64,
+    parameter WRITE_SLICE_BIT_SIZE = 8
+)(
+    input logic clk,
+    input logic [ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE-1:0] we,
+    input logic [$clog2(ENTRY_NUM)-1: 0] wa,
+    input logic [ENTRY_BIT_SIZE-1: 0] wv,
+    input logic [$clog2(ENTRY_NUM)-1: 0] ra,
+    output logic [ENTRY_BIT_SIZE-1: 0] rv
+);
+    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
+
+    `RSD_STATIC_ASSERT(
+        ENTRY_BIT_SIZE > 0 && WRITE_SLICE_BIT_SIZE > 0 &&
+        ENTRY_BIT_SIZE % WRITE_SLICE_BIT_SIZE == 0,
+        "The entry width must be a positive multiple of the write slice width"
+    );
+
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "lsram"
+`elsif RSD_SYNTHESIS_VIVADO
+    (* ram_style = "block" *) Value array[ENTRY_NUM];
+`else
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "block_ram"
+`endif
+
+    always_ff @(posedge clk) begin
+        rv <= array[ra];
+        // Fixed slices infer native write enables without a read-modify-write.
+        // Use a supported write granularity (e.g. 8 or 9 bits) for block RAM.
+        for (int i = 0; i < ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE; i++) begin
+            if (we[i])
+                array[wa][i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE] <=
+                    wv[i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE];
+        end
+    end
+
+
+    generate
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !((|we) && wa >= ENTRY_NUM),
+            ("Write to the outside of the RAM array.")
+        );
+
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !(ra >= ENTRY_NUM),
+            ("Read from the outside of the RAM array.")
+        );
+    endgenerate
+
+endmodule : BlockDualPortMaskedRAM
+
+
 // True Dual Port RAM ( 2-read/write )
 module BlockTrueDualPortRAM #( 
     parameter ENTRY_NUM = 16, 
