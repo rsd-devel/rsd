@@ -117,8 +117,7 @@ module FetchStage(
 
         // The result of branch prediction
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            brPred[i].predAddr = port.brPredTaken[i] ? 
-                port.btbOut[i] : pipeReg[i].pc + INSN_BYTE_WIDTH;
+            brPred[i].takenAddr = port.btbOut[i];
             brPred[i].predTaken = port.brPredTaken[i];
             brPred[i].globalHistory = port.brGlobalHistory[i];
             brPred[i].phtPrevValue = port.phtPrevValue[i];

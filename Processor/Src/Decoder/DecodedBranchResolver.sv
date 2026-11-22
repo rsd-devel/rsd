@@ -59,13 +59,13 @@ output
             rasPtr <= nextRAS_Ptr;
         end
         // if (pushRAS) begin
-        //     $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+        //     $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].takenAddr, decodedPC[addrCheckLane]);
         // end 
         // else if (popRAS) begin
-        //     $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+        //     $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].takenAddr, decodedPC[addrCheckLane]);
         // end
         // if (flushTriggered) begin
-        //     $display("flushTriggered @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+        //     $display("flushTriggered @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].takenAddr, decodedPC[addrCheckLane]);
         // end
     end
 
@@ -87,7 +87,6 @@ output
         BTT_SERIALIZED  = 3 
     } BranchTargetType;
     BranchTargetType brTargetType[DECODE_WIDTH];
-    logic addrMismatch[DECODE_WIDTH];
 
     always_comb begin
         
@@ -206,14 +205,15 @@ output
         end
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
-            addrMismatch[i] = brPredIn[i].predAddr != decodedPC[i];
-        end
-        
-        for (int i = 0; i < DECODE_WIDTH; i++) begin
-            if (((addrMismatch[i] && addrCheck) || addrIncorrect) && addrCheckLane == i) begin
+            logic takenPredictionMiss;
+            // A direction miss redirects even when the target equals the fall-through PC.
+            takenPredictionMiss = !brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i];
+            if (addrCheckLane == i && (addrIncorrect || (addrCheck && takenPredictionMiss))) begin
                 flushTriggered = TRUE;
-                brPredOut[i].predAddr = decodedPC[i];
-                brPredOut[i].predTaken = TRUE;
+                brPredOut[i].predTaken = insnInfo[i].writePC;
+                if (insnInfo[i].writePC) begin
+                    brPredOut[i].takenAddr = decodedPC[i];
+                end
                 break;
             end
         end
@@ -222,11 +222,11 @@ output
         // Update the RAS.
         nextRAS = nextPC[addrCheckLane];
         if (pushRAS) begin
-            // $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+            // $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].takenAddr, decodedPC[addrCheckLane]);
             nextRAS_Ptr = rasPtr + 1;
         end 
         else if (popRAS) begin
-            // $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
+            // $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].takenAddr, decodedPC[addrCheckLane]);
             nextRAS_Ptr = rasPtr - 1;
         end
         else begin

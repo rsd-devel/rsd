@@ -124,12 +124,15 @@ module TestDecodeStage;
               "recovery respects the configured extension");
     endtask
 
-    task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid);
+    task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid,
+                    input logic predTaken = FALSE, input PC_Path takenAddr = '0);
         ClearInput();
         inputValid[0] = TRUE;
         inputValid[1] = secondValid;
         insn[0] = first;
         insn[1] = second;
+        prediction[0].predTaken = predTaken;
+        prediction[0].takenAddr = takenAddr;
         Tick();
         ClearInput();
         #1;
@@ -308,6 +311,28 @@ module TestDecodeStage;
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
+        Reset();
+        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4); // jal ra, +4
+        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
+              port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4,
+              "JAL direction miss redirects even when the predicted target equals fall-through");
+        LoadBundle(32'h00008067, NOP, TRUE, FALSE, START_PC + 4); // ret, RAS holds call PC + 4
+        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4,
+              "return direction miss redirects even when the BTB and RAS targets agree");
+
+        Reset();
+        LoadBundle(32'h00000863, NOP, TRUE, FALSE, START_PC + 8); // beq x0, x0, +16
+        Check(!port.nextFlush && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
+              port.nextStage[0].bPred.takenAddr == START_PC + 8,
+              "not-taken conditional prediction keeps its target for execution");
+        LoadBundle(32'h00000863, NOP, TRUE, TRUE, START_PC + 8);
+        Check(port.nextFlush && port.nextRecoveredPC == START_PC + 16 &&
+              port.nextStage[0].bPred.takenAddr == START_PC + 16,
+              "taken conditional prediction with the wrong target redirects");
+        LoadBundle(NOP, NOP, TRUE, TRUE, START_PC + 8);
+        Check(port.nextFlush && port.nextRecoveredPC == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
+              "non-branch predicted taken recovers to fall-through");
+
         // If that prediction was correct, the second instruction is live.
         Reset();
         inputValid[0] = TRUE;
@@ -316,7 +341,7 @@ module TestDecodeStage;
         insn[1] = JALR;
         pc[1] = START_PC + 16;
         prediction[0].predTaken = TRUE;
-        prediction[0].predAddr = START_PC + 16;
+        prediction[0].takenAddr = START_PC + 16;
         Tick();
         ClearInput();
         #1;

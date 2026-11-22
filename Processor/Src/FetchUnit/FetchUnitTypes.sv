@@ -135,7 +135,7 @@ typedef struct packed // struct BranchResult
 
 typedef struct packed // struct BranchPred
 {
-    PC_Path predAddr;            // Predicted address
+    PC_Path takenAddr;            // Predicted taken target, independent of the predicted direction.
     logic predTaken;                        // result of bpred
     
     BranchGlobalHistoryPath globalHistory;  // The global history of branches.

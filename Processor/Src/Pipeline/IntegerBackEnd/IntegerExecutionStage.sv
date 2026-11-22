@@ -243,7 +243,7 @@ module IntegerExecutionStage(
                 (
                      (bPred[i].predTaken != brTaken[i]) ||
                      (brTaken[i] == TRUE &&
-                      bPred[i].predAddr != brResult[i].nextAddr)
+                      bPred[i].takenAddr != brResult[i].nextAddr)
                 );
 
             brResult[i].mispred = predMiss[i];
