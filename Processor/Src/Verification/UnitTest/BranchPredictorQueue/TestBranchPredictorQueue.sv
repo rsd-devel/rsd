@@ -88,7 +88,7 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         ClearResults();
         ReadBTB(miss.brAddr);
-        CheckBTB(0, miss);
+        CheckBTB(ToFetchGroupOffset(miss.brAddr), miss);
     endtask
 
     // The PHTs defer the second result while the first lane keeps training.
@@ -123,10 +123,12 @@ module TestBranchPredictorQueue;
             else $fatal(1, "PHT update queues did not drain");
         // Check the resulting table contents through the normal read ports.
         for (int i = 0; i < count; i++) begin
+            int slot;
             expected = MakeResult(firstIndex + i);
+            slot = (firstIndex + i) % FETCH_WIDTH;
             ReadBTB(expected.brAddr);
-            assert (next.phtPrevValue[0] === PHT_EntryPath'(expected.phtPrevValue + 1) &&
-                    bimodalNext.phtPrevValue[0] === PHT_EntryPath'(expected.phtPrevValue + 1))
+            assert (next.phtPrevValue[slot] === PHT_EntryPath'(expected.phtPrevValue + 1) &&
+                    bimodalNext.phtPrevValue[slot] === PHT_EntryPath'(expected.phtPrevValue + 1))
                 else $fatal(1, "PHT readback mismatch at %0d", firstIndex + i);
         end
     endtask
@@ -201,6 +203,8 @@ module TestBranchPredictorQueue;
         last = MakeResult(FIRST + FETCH_WIDTH - 1);
         neighbor = MakeResult(FIRST + FETCH_WIDTH);
         aliasBranch = MakeResult(FIRST + ALIAS_STRIDE);
+        first.phtPrevValue = PHT_ENTRY_MAX;
+        last.phtPrevValue = PHT_ENTRY_MAX;
         last.isCondBr = FALSE;
 
         // Both reset entries match this PC's zero block tag and offset.
@@ -229,8 +233,21 @@ module TestBranchPredictorQueue;
             CheckBTB(0, neighbor);
         end
         ReadBTB(last.brAddr);
-        CheckBTB(0, last);
-        CheckBTB(1, '0); // The next aligned group is outside this lookup.
+        // A request starting at the last word still returns the same complete group.
+        CheckBTB(0, first);
+        CheckBTB(FETCH_WIDTH-1, last);
+        // The skipped conditional branch predicts taken but must not shift history.
+        next.updateBrHistory[FETCH_WIDTH-1] = TRUE;
+        bimodalNext.btbHit[0] = TRUE;
+        bimodalNext.btbHit[FETCH_WIDTH-1] = TRUE;
+        #1;
+        assert (next.brPredTaken[0] && next.brPredTaken[FETCH_WIDTH-1] &&
+                bimodalNext.brPredTaken[0] && bimodalNext.brPredTaken[FETCH_WIDTH-1] &&
+                gshare.nextBrGlobalHistory === gshare.regBrGlobalHistory)
+            else $fatal(1, "A skipped slot changed the history or hid the later prediction");
+        next.updateBrHistory[FETCH_WIDTH-1] = FALSE;
+        bimodalNext.btbHit[0] = FALSE;
+        bimodalNext.btbHit[FETCH_WIDTH-1] = FALSE;
 
         // On a same-row read/write the old target and branch kind are visible
         // for one cycle. Updating the first branch makes its way the newest.

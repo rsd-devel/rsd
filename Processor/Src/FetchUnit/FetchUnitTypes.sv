@@ -48,6 +48,14 @@ function automatic PC_Path ToBTB_Group(PC_Path addr);
     return addr / (FETCH_WIDTH * INSN_BYTE_WIDTH);
 endfunction
 
+function automatic PC_Path ToFetchGroupBase(PC_Path addr);
+    return ToBTB_Group(addr) * (FETCH_WIDTH * INSN_BYTE_WIDTH);
+endfunction
+
+function automatic BTB_OffsetPath ToFetchGroupOffset(PC_Path addr);
+    return BTB_OffsetPath'((addr >> INSN_ADDR_BIT_WIDTH) % FETCH_WIDTH);
+endfunction
+
 function automatic BTB_SetIndexPath ToBTB_Set(PC_Path addr);
     return BTB_SetIndexPath'(ToBTB_Group(addr) % BTB_SET_NUM);
 endfunction
@@ -55,7 +63,7 @@ endfunction
 function automatic BTB_Tag ToBTB_Tag(PC_Path addr);
     BTB_Tag tag;
     tag.block = BTB_TAG_WIDTH'(ToBTB_Group(addr) >> $clog2(BTB_SET_NUM));
-    tag.offset = BTB_OffsetPath'((addr >> INSN_ADDR_BIT_WIDTH) % FETCH_WIDTH);
+    tag.offset = ToFetchGroupOffset(addr);
     return tag;
 endfunction
 

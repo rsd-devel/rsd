@@ -89,6 +89,16 @@ module FetchStage(
 
 
     BranchPred brPred[FETCH_WIDTH];
+    wire BTB_OffsetPath firstSlot = ToFetchGroupOffset(pipeReg[0].pc);
+
+    always_comb begin
+        logic [FETCH_WIDTH-1:0] laneValid;
+        for (int i = 0; i < FETCH_WIDTH; i++)
+            laneValid[i] = pipeReg[i].valid;
+        port.fetchSlotValid = laneValid << firstSlot;
+        for (int i = 0; i < FETCH_WIDTH; i++)
+            port.updateBrHistory[i] = !regStall && port.fetchSlotValid[i];
+    end
 
     // Record the result of branch prediction.
     //
@@ -115,15 +125,18 @@ module FetchStage(
     //
     always_comb begin
 
-        // The result of branch prediction
+        // Align prediction metadata in parallel with the I-cache word selection.
+        // A lane beyond the end of this group is already invalid in pipeReg.
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            brPred[i].takenAddr = port.btbOut[i];
-            brPred[i].btbHit = port.btbHit[i];
-            brPred[i].btbHitWay = port.btbHitWay[i];
+            BTB_OffsetPath slot;
+            slot = BTB_OffsetPath'((firstSlot + i) % FETCH_WIDTH);
+            brPred[i].takenAddr = port.btbOut[slot];
+            brPred[i].btbHit = port.btbHit[slot];
+            brPred[i].btbHitWay = port.btbHitWay[slot];
             brPred[i].takenAddrChangedAtDecode = FALSE;
-            brPred[i].predTaken = port.brPredTaken[i];
-            brPred[i].globalHistory = port.brGlobalHistory[i];
-            brPred[i].phtPrevValue = port.phtPrevValue[i];
+            brPred[i].predTaken = port.brPredTaken[slot];
+            brPred[i].globalHistory = port.brGlobalHistory[slot];
+            brPred[i].phtPrevValue = port.phtPrevValue[slot];
         end
 
         // Initialize every lane before the loop with break to avoid latch inference.
@@ -142,10 +155,6 @@ module FetchStage(
             end
         end
 
-        // Update the branch history
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            port.updateBrHistory[i] = !regStall && pipeReg[i].valid;
-        end
     end
 
 
@@ -159,14 +168,6 @@ module FetchStage(
         fetchAddrOut = ToAddrFromPC(pipeReg[0].pc);
         // Address for comparing tag
         port.icReadAddrIn = ToPhyAddrFromLogical(fetchAddrOut);
-
-
-        // Send information about this stage to the previous stage for
-        // deciding the next fetch address
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            port.fetchStageIsValid[i] = pipeReg[i].valid;
-            port.fetchStagePC[i] = pipeReg[i].pc;
-        end
     end
 
 

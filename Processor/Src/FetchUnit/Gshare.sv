@@ -28,7 +28,7 @@ module Gshare(
 );
 
     logic stall, clear;
-    PC_Path pcIn;
+    PC_Path groupBase;
 
     // Use combinational logic
     logic brPredTaken[FETCH_WIDTH];
@@ -131,22 +131,18 @@ module Gshare(
         stall = ctrl.ifStage.stall;
         clear = ctrl.ifStage.clear;
     
-        pcIn = port.predNextPC;
+        groupBase = ToFetchGroupBase(port.predNextPC);
 
         nextBrGlobalHistory = regBrGlobalHistory;
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            brPredTaken[i] = FALSE;
+            brPredTaken[i] = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
             // Output global history to pipeline for recovery.
             brGlobalHistory[i] = regBrGlobalHistory;
             updateHistory[i] = FALSE;
         end
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            // Predict directions (Check the MSB).
-            brPredTaken[i] =
-                phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
-
             // Assert BTB is hit, ICache line is valid, and conditional branch.
             updateHistory[i] = next.btbHit[i] && next.readIsCondBr[i] && 
                 next.updateBrHistory[i];
@@ -220,7 +216,7 @@ module Gshare(
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Read PHT entry for next cycle (use PC ^ brGlobalHistory).
             phtRA[i] = ToPHT_Index_Global(
-                pcIn + i*INSN_BYTE_WIDTH,
+                groupBase + i*INSN_BYTE_WIDTH,
                 nextBrGlobalHistory
             );
         end

@@ -79,7 +79,7 @@ module BTB(
         BTB_Tag lookupTag;
         BTB_Entry wayEntry[BTB_WAY_NUM];
         logic [BTB_WAY_NUM-1:0] blockHit;
-        logic [FETCH_WIDTH-1:0] hitByOffset, slotHit;
+        logic [FETCH_WIDTH-1:0] hitByOffset;
         lookupTag = ToBTB_Tag(lookupPC);
         hitByOffset = '0;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
@@ -89,21 +89,17 @@ module BTB(
                 hitByOffset[wayEntry[w].tag.offset] = TRUE;
         end
 
-        // Slot zero is the first fetched instruction, which can be mid-group.
-        slotHit = hitByOffset >> lookupTag.offset;
-
+        // Each slot describes a fixed instruction position in the aligned group.
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            BTB_OffsetPath offset;
-            offset = lookupTag.offset + BTB_OffsetPath'(i);
             next.btbHit[i] = FALSE;
             next.btbHitWay[i] = '0;
             next.btbOut[i] = '0;
             next.readIsCondBr[i] = FALSE;
-            if (slotHit[i]) begin
+            if (hitByOffset[i]) begin
                 next.btbHit[i] = TRUE;
                 // A later way wins if two entries match both the block and the offset.
                 for (int w = 0; w < BTB_WAY_NUM; w++) begin
-                    if (blockHit[w] && wayEntry[w].tag.offset == offset) begin
+                    if (blockHit[w] && wayEntry[w].tag.offset == BTB_OffsetPath'(i)) begin
                         next.btbHitWay[i] = BTB_WayIndexPath'(w);
                         next.btbOut[i] = ToRawAddrFromBTB_Addr(wayEntry[w].data, lookupPC);
                         next.readIsCondBr[i] = wayEntry[w].isCondBr;

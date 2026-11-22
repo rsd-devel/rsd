@@ -13,9 +13,8 @@ import MemoryMapTypes::*;
 
 interface FetchStageIF( input logic clk, rst, rstStart );
 
-    // This Stage
-    logic  fetchStageIsValid[FETCH_WIDTH];
-    PC_Path fetchStagePC[FETCH_WIDTH];
+    // Predictions and their valid mask are indexed from the aligned fetch-group base.
+    logic [FETCH_WIDTH-1:0] fetchSlotValid;
 
     // BTB
     PC_Path btbOut[FETCH_WIDTH];
@@ -51,8 +50,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         brGlobalHistory,
         phtPrevValue,
     output
-        fetchStageIsValid,
-        fetchStagePC,
+        fetchSlotValid,
         updateBrHistory,
         nextStage,
         icRE,
@@ -61,8 +59,9 @@ interface FetchStageIF( input logic clk, rst, rstStart );
 
     modport NextPCStage(
     input
-        fetchStageIsValid,
-        fetchStagePC,
+        fetchSlotValid,
+        icRE,
+        icReadAddrIn,
         btbOut,
         btbHit,
         brPredTaken

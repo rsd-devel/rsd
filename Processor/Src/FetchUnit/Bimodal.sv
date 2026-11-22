@@ -23,9 +23,7 @@ module Bimodal(
     FetchStageIF.BranchPredictor next
 );
 
-    PC_Path pcIn;
-
-    logic brPredTaken;
+    PC_Path groupBase;
 
     // PHT control logic
     logic phtWE[INT_ISSUE_WIDTH];
@@ -108,20 +106,13 @@ module Bimodal(
 
     always_comb begin
     
-        pcIn = port.predNextPC;
+        groupBase = ToFetchGroupBase(port.predNextPC);
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             next.phtPrevValue[i] = phtRV[i];
 
             // Predict directions (Check the MSB).
-            brPredTaken =
-                phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
-            next.brPredTaken[i] = brPredTaken;
-
-            if (brPredTaken) begin
-                // If brPred is taken, next instruction don't be executed.
-                break;
-            end
+            next.brPredTaken[i] = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
         end
 
         // Negate first. (to discard the result of previous cycle)
@@ -166,7 +157,7 @@ module Bimodal(
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             // Read PHT entry for next cycle (use PC).
-            phtRA[i] = ToPHT_Index_Local(pcIn + i*INSN_BYTE_WIDTH);
+            phtRA[i] = ToPHT_Index_Local(groupBase + i*INSN_BYTE_WIDTH);
         end
 
 

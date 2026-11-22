@@ -158,7 +158,7 @@ module NextPCStage(
                 // If BTB is hit, the instruction is predicted to be a branch. 
                 // In addition, if the branch is predicted as Taken, 
                 // the address read from BTB is used as next PC.
-                if (!regStall && next.fetchStageIsValid[i] && 
+                if (!regStall && next.fetchSlotValid[i] &&
                         next.btbHit[i] && next.brPredTaken[i]) begin
                     // Use PC from BTB
                     predNextPC = next.btbOut[i];
@@ -224,17 +224,16 @@ module NextPCStage(
     //
     // I-cache Access
     //
-    PhyAddrPath fetchStagePhyAddr, predNextPhyAddr;
+    PhyAddrPath predNextPhyAddr;
     always_comb begin
         // Translate both candidates before selection so the late stall signal
         // does not feed the address-range decoding.
-        fetchStagePhyAddr = ToPhyAddrFromLogical(ToAddrFromPC(next.fetchStagePC[0]));
         predNextPhyAddr = ToPhyAddrFromLogical(ToAddrFromPC(predNextPC));
 
         // Decide input address of I-cache
-        if (next.fetchStageIsValid[0] && stall) begin
+        if (next.icRE && stall) begin
             // Use the PC of the IF stage
-            port.icNextReadAddrIn = fetchStagePhyAddr;
+            port.icNextReadAddrIn = next.icReadAddrIn;
         end
         else begin
             // Use the PC of this stage
