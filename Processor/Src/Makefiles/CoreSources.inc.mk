@@ -42,7 +42,6 @@ CORE_MODULES = \
 	Pipeline/FetchStage/NextPCStageIF.sv \
 	Pipeline/FetchStage/FetchStage.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
-	Pipeline/FetchStage/PC.sv \
 	Pipeline/PreDecodeStage.sv \
 	Pipeline/PreDecodeStageIF.sv \
 	Pipeline/DecodeStage.sv \
@@ -161,7 +160,6 @@ CORE_MODULES = \
 	IO/IO_UnitIF.sv \
 	IO/PLIC_Unit.sv \
 	IO/PLIC_UnitIF.sv \
-	Primitives/FlipFlop.sv \
 	Primitives/FreeList.sv \
 	Primitives/Queue.sv \
 	Primitives/RAM.sv \

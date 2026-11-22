@@ -13,10 +13,8 @@ import MemoryMapTypes::*;
 
 interface NextPCStageIF( input logic clk, rst, rstStart );
     
-    // PC
-    logic    pcWE;
+    // Registered PC used as the interrupt return address.
     PC_Path  pcOut;
-    PC_Path  pcIn;
 
     PC_Path  predNextPC;
 
@@ -34,24 +32,15 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
     // Pipeline register
     FetchStageRegPath nextStage[ FETCH_WIDTH ];
 
-    modport PC(
-    input
-        clk, rst, pcWE, pcIn,
-    output
-        pcOut
-    );
-
     modport ThisStage(
     input
         clk,
         rst,
-        pcOut,
         brResult,
         interruptAddrIn,
         interruptAddrWE,
     output
-        pcWE,
-        pcIn,
+        pcOut,
         predNextPC,
         icNextReadAddrIn,
         nextStage

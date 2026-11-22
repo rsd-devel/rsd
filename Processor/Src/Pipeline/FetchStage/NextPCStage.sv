@@ -73,19 +73,21 @@ module NextPCStage(
     end
 `endif
 
-    // デバッグ用SID
-    // 内部事情により，1 からはじめる
 `ifndef RSD_DISABLE_DEBUG_REGISTER
+    // Debug serial IDs start at one.
     OpSerial curSID, nextSID;
-    FlipFlop#( .FF_WIDTH(OP_SERIAL_WIDTH), .RESET_VALUE(1) )
-        sidFF(
-            .out( curSID ),
-            .in ( nextSID ),
-            .clk( port.clk ),
-            .rst( port.rst )
-        );
+    always_ff @(posedge port.clk) begin
+        if (port.rst) begin
+            curSID <= 1;
+        end
+        else begin
+            curSID <= nextSID;
+        end
+    end
 `endif
 
+    logic pcWE;
+    PC_Path pc, pcIn;
     PC_Path predNextPC;
     FetchStageRegPath nextStage[ FETCH_WIDTH ];
 
@@ -129,7 +131,7 @@ module NextPCStage(
         //   1) if PC is written from outside
         //   2) if it is beginning of stall
         //   (see the comment of regBrPred in FetchStage.sv)
-        port.pcWE = 
+        pcWE =
             (writePC_FromOuter || !stall || beginStall) && !port.rst;
     end
 
@@ -151,7 +153,7 @@ module NextPCStage(
         end
         else begin
             // Use current PC
-            predNextPC = port.pcOut;
+            predNextPC = pc;
 
             for (int i = 0; i < FETCH_WIDTH; i++) begin
                 // Process of branch prediction:
@@ -174,29 +176,38 @@ module NextPCStage(
     //
     //  Updating PC
     //
-    always_comb begin
+    always_ff @(posedge port.clk) begin
+        if (port.rst) begin
+            pc <= PC_Path'(INSN_RESET_VECTOR);
+        end
+        else if (pcWE) begin
+            pc <= pcIn;
+        end
+    end
 
+    always_comb begin
         // --- PC
+        port.pcOut = pc;
         if (port.interruptAddrWE) begin
             // When an interrupt occurs, use interrupt address.
             // NOTE: This input can be a critical path.
             // Hence, interrupt address is input to PC first rather than 
             // input to the branch predictor directly.
-            port.pcIn = port.interruptAddrIn;
+            pcIn = port.interruptAddrIn;
         end
         else if (beginStall) begin
             // Update PC based on the branch prediction result accessed
             // immediately before the stall if it is beginning of stall.
             // (see the comment of regBrPred in FetchStage.sv)
-            port.pcIn = predNextPC;
+            pcIn = predNextPC;
         end
         else begin
             // Increment PC
-            port.pcIn = predNextPC + FETCH_WIDTH*INSN_BYTE_WIDTH;
+            pcIn = predNextPC + FETCH_WIDTH*INSN_BYTE_WIDTH;
             for (int i = 1; i < FETCH_WIDTH; i++) begin
                 if (StepOverFetchBoundary(predNextPC, predNextPC+i*INSN_BYTE_WIDTH)) begin
                     // Resume at the first instruction outside this fetch.
-                    port.pcIn = predNextPC+i*INSN_BYTE_WIDTH;
+                    pcIn = predNextPC+i*INSN_BYTE_WIDTH;
                     break;
                 end
             end

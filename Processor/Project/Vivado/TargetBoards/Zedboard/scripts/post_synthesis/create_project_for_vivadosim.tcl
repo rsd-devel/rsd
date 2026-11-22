@@ -79,7 +79,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/DividerUnit.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/FetchStage.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/FetchStageIF.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/FlipFlop.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/FreeList.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/FetchUnit/Gshare.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Debug/HardwareCounter.sv"
@@ -122,7 +121,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/MultiplierUnit.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/NextPCStage.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/NextPCStageIF.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/PC.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/Picker.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStage.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStageIF.sv"
@@ -298,7 +296,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/NextPCStageIF.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/FetchStage.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/FetchStageIF.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/PC.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/PreDecodeStage.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/PreDecodeStageIF.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/DecodeStage.sv"] \
@@ -417,7 +414,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/IO/IO_UnitIF.sv"] \
  [file normalize "${origin_dir}/../../../../Src/IO/PLIC_Unit.sv"] \
  [file normalize "${origin_dir}/../../../../Src/IO/PLIC_UnitIF.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Primitives/FlipFlop.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/FreeList.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/Queue.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Primitives/RAM.sv"] \
@@ -565,11 +561,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/Pipeline/FetchStage/FetchStageIF.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
-set file "$origin_dir/../../../../Src/Pipeline/FetchStage/PC.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
@@ -1160,11 +1151,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/IO/PLIC_UnitIF.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
-set file "$origin_dir/../../../../Src/Primitives/FlipFlop.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
