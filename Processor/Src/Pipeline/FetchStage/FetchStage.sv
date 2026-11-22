@@ -118,6 +118,9 @@ module FetchStage(
         // The result of branch prediction
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             brPred[i].takenAddr = port.btbOut[i];
+            brPred[i].btbHit = port.btbHit[i];
+            brPred[i].btbHitWay = port.btbHitWay[i];
+            brPred[i].takenAddrChangedAtDecode = FALSE;
             brPred[i].predTaken = port.brPredTaken[i];
             brPred[i].globalHistory = port.brGlobalHistory[i];
             brPred[i].phtPrevValue = port.phtPrevValue[i];

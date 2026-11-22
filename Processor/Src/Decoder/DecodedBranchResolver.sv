@@ -205,13 +205,16 @@ output
         end
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
-            logic takenPredictionMiss;
+            logic targetMatch;
+            targetMatch = brPredIn[i].takenAddr == decodedPC[i];
             // A direction miss redirects even when the target equals the fall-through PC.
-            takenPredictionMiss = !brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i];
-            if (addrCheckLane == i && (addrIncorrect || (addrCheck && takenPredictionMiss))) begin
+            if (addrCheckLane == i &&
+                (addrIncorrect || (addrCheck && (!brPredIn[i].predTaken || !targetMatch)))) begin
                 flushTriggered = TRUE;
                 brPredOut[i].predTaken = insnInfo[i].writePC;
                 if (insnInfo[i].writePC) begin
+                    // Keep the Fetch hit and way for training even if Decode replaces the target.
+                    brPredOut[i].takenAddrChangedAtDecode = !targetMatch;
                     brPredOut[i].takenAddr = decodedPC[i];
                 end
                 break;

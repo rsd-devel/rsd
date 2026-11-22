@@ -18,52 +18,45 @@ import MemoryMapTypes::*;
 
 localparam BTB_ENTRY_NUM = CONF_BTB_ENTRY_NUM;
 
-// Entry: 1(valid)+4(BTB_TAG_WIDTH)+13(BTB_TAG_WIDTH) = 18 bits
-// The width of a block ram is 18bits, thus the sum of these parameters is set to 18 bits.
+// The two-way replacement policy allocates the way opposite the last write to the set.
+localparam BTB_WAY_NUM = 2;
+localparam BTB_SET_NUM = BTB_ENTRY_NUM / BTB_WAY_NUM;
+localparam BTB_TAG_WIDTH = 4;
+localparam BTB_CONTENTS_ADDR_WIDTH = 13;
 
-// Tag width, only lower bits are checked and the results of the BTB may incorrect.
-localparam BTB_TAG_WIDTH = 4;                
-
-// BTB have bits with BTB_CONTENTS_ADDR_WIDTH. The remaining address bits are made from the PC.
-localparam BTB_CONTENTS_ADDR_WIDTH = 13;     
-
-
-localparam BTB_ENTRY_NUM_BIT_WIDTH = $clog2(BTB_ENTRY_NUM);
-typedef logic [BTB_ENTRY_NUM_BIT_WIDTH-1:0] BTB_IndexPath;
+typedef logic [(BTB_SET_NUM > 1 ? $clog2(BTB_SET_NUM) : 1)-1:0] BTB_SetIndexPath;
+typedef logic [$clog2(BTB_WAY_NUM)-1:0] BTB_WayIndexPath;
+typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] BTB_OffsetPath;
 typedef logic [BTB_CONTENTS_ADDR_WIDTH-1:0] BTB_AddrPath;
-typedef logic [BTB_TAG_WIDTH-1:0] BTB_TagPath;
 
+typedef struct packed {
+    logic [BTB_TAG_WIDTH-1:0] block; // Partial tag of the aligned fetch group.
+    BTB_OffsetPath offset;            // Instruction position within that group.
+} BTB_Tag;
 
-localparam BTB_QUEUE_SIZE = 32;
+localparam BTB_QUEUE_SIZE = 4;
 localparam BTB_QUEUE_SIZE_BIT_WIDTH = $clog2(BTB_QUEUE_SIZE);
 typedef logic [BTB_QUEUE_SIZE_BIT_WIDTH-1:0] BTBQueuePointerPath;
 
-typedef struct packed // struct BTB_Entry
-{
-    logic valid;
-    logic [BTB_TAG_WIDTH-1:0] tag;
+typedef struct packed {
+    BTB_Tag tag;
     BTB_AddrPath data;
     logic isCondBr;
 } BTB_Entry;
 
-typedef struct packed // struct PhtQueueEntry
-{
-    AddrPath btbWA;            // Write Address
-    BTB_Entry btbWV;                        // result of bpred
-} BTBQueueEntry;
-
-function automatic BTB_IndexPath ToBTB_Index(PC_Path addr);
-    return addr[
-        BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
-        INSN_ADDR_BIT_WIDTH
-    ];
+function automatic PC_Path ToBTB_Group(PC_Path addr);
+    return addr / (FETCH_WIDTH * INSN_BYTE_WIDTH);
 endfunction
 
-function automatic BTB_TagPath ToBTB_Tag(PC_Path addr);
-    return addr[
-        BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH + BTB_TAG_WIDTH - 1:
-        BTB_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH
-    ];
+function automatic BTB_SetIndexPath ToBTB_Set(PC_Path addr);
+    return BTB_SetIndexPath'(ToBTB_Group(addr) % BTB_SET_NUM);
+endfunction
+
+function automatic BTB_Tag ToBTB_Tag(PC_Path addr);
+    BTB_Tag tag;
+    tag.block = BTB_TAG_WIDTH'(ToBTB_Group(addr) >> $clog2(BTB_SET_NUM));
+    tag.offset = BTB_OffsetPath'((addr >> INSN_ADDR_BIT_WIDTH) % FETCH_WIDTH);
+    return tag;
 endfunction
 
 function automatic BTB_AddrPath ToBTB_Addr(PC_Path addr);
@@ -127,6 +120,9 @@ typedef struct packed // struct BranchResult
     logic predTaken;    // The prediction result of a branch's direction.
     logic isCondBr;     // Whether this branch is conditional one or not.
     logic mispred;      // Whether the prediction result of this branch is incorrect.
+    logic btbHit;       // Tag hit at Fetch, even if Decode changed the target.
+    BTB_WayIndexPath btbHitWay;
+    logic btbTargetCorrect; // A BTB hit supplied the resolved target.
     logic valid;        // Whether this result is valid or not.
 
     BranchGlobalHistoryPath globalHistory;  // The global history of branches.
@@ -136,6 +132,9 @@ typedef struct packed // struct BranchResult
 typedef struct packed // struct BranchPred
 {
     PC_Path takenAddr;            // Predicted taken target, independent of the predicted direction.
+    logic btbHit;
+    BTB_WayIndexPath btbHitWay;
+    logic takenAddrChangedAtDecode; // Decode replaced the taken address supplied by Fetch.
     logic predTaken;                        // result of bpred
     
     BranchGlobalHistoryPath globalHistory;  // The global history of branches.

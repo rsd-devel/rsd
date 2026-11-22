@@ -674,6 +674,8 @@ def validate_micro_arch(parameters: ConfigMapping) -> tuple[dict[str, int], dict
         raise ConfigError("pscalar_num and pscalar_fp_num must match")
     if params["PSCALAR_NUM"] <= 32:
         raise ConfigError("pscalar_num must exceed the 32 architectural registers")
+    if params["BTB_ENTRY_NUM"] < 2:
+        raise ConfigError("btb_entry_num must be at least 2 for the two-way BTB")
     if params["ICACHE_WAY_NUM"] < 2:
         raise ConfigError("icache_way_num must be at least 2")
     if params["BRANCH_GLOBAL_HISTORY_BIT_WIDTH"] > params["PHT_ENTRY_NUM"].bit_length() - 1:

@@ -20,6 +20,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     // BTB
     PC_Path btbOut[FETCH_WIDTH];
     logic btbHit[FETCH_WIDTH];
+    BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
     logic readIsCondBr[FETCH_WIDTH];
     
     // BranchPredictor
@@ -44,6 +45,8 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         icReadHit,
         icReadDataOut,
         btbOut,
+        btbHit,
+        btbHitWay,
         brPredTaken,
         brGlobalHistory,
         phtPrevValue,
@@ -83,6 +86,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     output
         btbOut,
         btbHit,
+        btbHitWay,
         readIsCondBr
     );
 

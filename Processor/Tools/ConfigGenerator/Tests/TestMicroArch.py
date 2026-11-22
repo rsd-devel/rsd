@@ -104,6 +104,7 @@ class TestMicroArch(unittest.TestCase):
             ("pscalar_fp_num", 128),
             ("replay_queue_entry_num", 0),
             ("load_queue_entry_num", 17),
+            ("btb_entry_num", 1),
             ("icache_way_num", 1),
             ("branch_global_history_bit_width", 12),
             ("dcache_index_bit_width_base", 32),

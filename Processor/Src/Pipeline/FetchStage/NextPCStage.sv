@@ -14,9 +14,11 @@ import FetchUnitTypes::*;
 
 //`define RSD_STOP_FETCH_ON_PRED_MISS
 
-// Detect the cache line boundary in sequential access
-function automatic logic StepOverCacheLine (PC_Path pc1, PC_Path pc2);
-    return pc1[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] != pc2[ICACHE_LINE_BYTE_NUM_BIT_WIDTH];
+// One fetch can use one I-cache line and one aligned BTB group.
+function automatic logic StepOverFetchBoundary (PC_Path pc1, PC_Path pc2);
+    return pc1[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] != pc2[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] ||
+           (FETCH_WIDTH * INSN_BYTE_WIDTH != ICACHE_LINE_BYTE_NUM &&
+            ToBTB_Group(pc1) != ToBTB_Group(pc2));
 endfunction
 
 module NextPCStage(
@@ -192,9 +194,8 @@ module NextPCStage(
             // Increment PC
             port.pcIn = predNextPC + FETCH_WIDTH*INSN_BYTE_WIDTH;
             for (int i = 1; i < FETCH_WIDTH; i++) begin
-                if (StepOverCacheLine(predNextPC, 
-                                     predNextPC+i*INSN_BYTE_WIDTH)) begin
-                    // When PC stepped over the border of cache line, stop there
+                if (StepOverFetchBoundary(predNextPC, predNextPC+i*INSN_BYTE_WIDTH)) begin
+                    // Resume at the first instruction outside this fetch.
                     port.pcIn = predNextPC+i*INSN_BYTE_WIDTH;
                     break;
                 end
@@ -208,7 +209,7 @@ module NextPCStage(
 `endif
             nextStage[i].pc = predNextPC + i * INSN_BYTE_WIDTH;
             if (port.interruptAddrWE || clear ||
-                StepOverCacheLine(predNextPC, nextStage[i].pc)) begin
+                StepOverFetchBoundary(predNextPC, nextStage[i].pc)) begin
                 nextStage[i].valid = FALSE;
             end
             else begin

@@ -40,8 +40,9 @@ enable_unified_ldst_mem_pipe = false
 load_queue_entry_num = 16
 store_queue_entry_num = 16
 
-# Branch target buffer and pattern history table entries (powers of two).
+# Total entries in the two-way BTB (a power of two, at least 2).
 btb_entry_num = 1024
+# Pattern history table entries (a power of two).
 pht_entry_num = 2048
 
 # Global history length in bits for gshare. Must not exceed log2(pht_entry_num).

@@ -149,6 +149,7 @@ module IntegerExecutionStage(
         clear = ctrl.backEnd.clear;
 
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
+            logic targetMatch;
             iqData[i] = pipeReg[i].intQueueData;
             intOpInfo[i] = iqData[i].intOpInfo;
             intSubInfo[i] = intOpInfo[i].intSubInfo;
@@ -231,6 +232,11 @@ module IntegerExecutionStage(
             else begin
                 brResult[i].nextAddr = ToPC_FromAddr(pc[i] + INSN_BYTE_WIDTH);
             end
+            targetMatch = bPred[i].takenAddr == brResult[i].nextAddr;
+            brResult[i].btbHit = bPred[i].btbHit;
+            brResult[i].btbHitWay = bPred[i].btbHitWay;
+            brResult[i].btbTargetCorrect =
+                bPred[i].btbHit && !bPred[i].takenAddrChangedAtDecode && targetMatch;
             brResult[i].execTaken = brTaken[i];
             brResult[i].predTaken = bPred[i].predTaken;
             brResult[i].valid = isBranch[i] && pipeReg[i].valid && regValid[i];
@@ -242,8 +248,7 @@ module IntegerExecutionStage(
                 brResult[i].valid &&
                 (
                      (bPred[i].predTaken != brTaken[i]) ||
-                     (brTaken[i] == TRUE &&
-                      bPred[i].takenAddr != brResult[i].nextAddr)
+                     (brTaken[i] && !targetMatch)
                 );
 
             brResult[i].mispred = predMiss[i];

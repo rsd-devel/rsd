@@ -125,7 +125,7 @@ module TestDecodeStage;
     endtask
 
     task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid,
-                    input logic predTaken = FALSE, input PC_Path takenAddr = '0);
+                    input logic predTaken = FALSE, input PC_Path takenAddr = '0, input logic btbHit = FALSE);
         ClearInput();
         inputValid[0] = TRUE;
         inputValid[1] = secondValid;
@@ -133,6 +133,8 @@ module TestDecodeStage;
         insn[1] = second;
         prediction[0].predTaken = predTaken;
         prediction[0].takenAddr = takenAddr;
+        prediction[0].btbHit = btbHit;
+        prediction[0].btbHitWay = btbHit ? '1 : '0; // Exercise a hit in the upper way.
         Tick();
         ClearInput();
         #1;
@@ -312,22 +314,35 @@ module TestDecodeStage;
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
         Reset();
-        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4); // jal ra, +4
+        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4, TRUE); // jal ra, +4
         Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
-              port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4,
-              "JAL direction miss redirects even when the predicted target equals fall-through");
-        LoadBundle(32'h00008067, NOP, TRUE, FALSE, START_PC + 4); // ret, RAS holds call PC + 4
-        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4,
-              "return direction miss redirects even when the BTB and RAS targets agree");
+              port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode, "JAL direction correction preserves a correct BTB target");
+        LoadBundle(32'h00008067, NOP, TRUE, FALSE, START_PC + 4, TRUE); // ret, RAS holds call PC + 4
+        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode, "return direction correction preserves a matching BTB target");
 
         Reset();
-        LoadBundle(32'h00000863, NOP, TRUE, FALSE, START_PC + 8); // beq x0, x0, +16
+        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4); // No BTB hit.
+        Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && !port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "a direction correction on a BTB miss keeps the target and the miss");
+        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 8);
+        Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
+              port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode records a target change even on a BTB miss");
+        LoadBundle(32'h00008067, NOP, TRUE, TRUE, START_PC + 8, TRUE);
+        Check(port.nextFlush && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
+              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHit &&
+              port.nextStage[0].bPred.btbHitWay == '1,
+              "a different RAS target still trains the Fetch hit way");
+
+        Reset();
+        LoadBundle(32'h00000863, NOP, TRUE, FALSE, START_PC + 8, TRUE); // beq x0, x0, +16
         Check(!port.nextFlush && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
-              port.nextStage[0].bPred.takenAddr == START_PC + 8,
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 8,
               "not-taken conditional prediction keeps its target for execution");
-        LoadBundle(32'h00000863, NOP, TRUE, TRUE, START_PC + 8);
+        LoadBundle(32'h00000863, NOP, TRUE, TRUE, START_PC + 8, TRUE);
         Check(port.nextFlush && port.nextRecoveredPC == START_PC + 16 &&
-              port.nextStage[0].bPred.takenAddr == START_PC + 16,
+              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 16,
               "taken conditional prediction with the wrong target redirects");
         LoadBundle(NOP, NOP, TRUE, TRUE, START_PC + 8);
         Check(port.nextFlush && port.nextRecoveredPC == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
