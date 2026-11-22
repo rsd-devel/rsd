@@ -46,6 +46,9 @@ if name != 'xelab':
                       'instruction_limit' if int(parameters['MAX_TEST_INSTRUCTIONS']) else 'cycle_limit')
     reason = os.environ.get('FAKE_RESULT', default_reason)
     prefix = '# ' if name == 'vsim' else ''
+    print(prefix + 'IPC (RISC-V instruction): 0.750000')
+    if not os.environ.get('FAKE_NO_PREDICTION_STATS'):
+        print(prefix + 'Branch prediction misses: 18 (6 decode, 12 backend, 3.0000 MPKI)')
     if reason != 'missing':
         print(prefix + 'Simulation result: ' + reason, flush=True)
         if os.environ.get('FAKE_DUPLICATE_RESULT'):
@@ -170,6 +173,13 @@ class RunTestProcessTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                     self.assertIn(expected, result.stdout)
                     self.assertIn('100 iterations, 200000 cycles', result.stdout)
+                    self.assertIn('Full simulation: IPC 0.750000, branch prediction misses '
+                                  '18 (6 decode, 12 backend, 3.0000 MPKI)', result.stdout)
+
+        self.env['FAKE_NO_PREDICTION_STATS'] = '1'
+        result = self.run_runner('verilator', '--benchmark=coremark', '-o')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Full simulation: IPC 0.750000, branch prediction misses unavailable', result.stdout)
 
     def test_benchmark_rejects_invalid_measurements(self):
         record = b'RSD benchmark: iterations=1 cycles=0x00000001\n'
@@ -182,6 +192,7 @@ class RunTestProcessTests(unittest.TestCase):
                 result = self.run_runner('verilator', '--benchmark=coremark')
                 self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
                 self.assertNotIn('CoreMark/MHz:', result.stdout)
+                self.assertNotIn('Full simulation:', result.stdout)
 
     def test_dhrystone_cycle_and_instruction_report(self):
         report = b'done\nRSD measured cycles : 474383\nRSD measured instructions : 656036\n'
