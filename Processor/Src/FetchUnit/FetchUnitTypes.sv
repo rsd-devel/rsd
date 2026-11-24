@@ -45,10 +45,12 @@ typedef struct packed {
     logic isCondBr;
 } BTB_Entry;
 
-function automatic PC_Path ToBTB_Group(PC_Path addr);
+// The BTB takes its set and partial tag from the fetch group number.
+function automatic PC_Path ToFetchGroupNumber(PC_Path addr);
     return addr / FETCH_GROUP_BYTE_NUM;
 endfunction
 
+// Byte address of the first instruction in the fetch group.
 function automatic PC_Path ToFetchGroupBase(PC_Path addr);
     return addr & ~PC_Path'(FETCH_GROUP_BYTE_NUM - 1);
 endfunction
@@ -58,12 +60,12 @@ function automatic BTB_OffsetPath ToFetchGroupOffset(PC_Path addr);
 endfunction
 
 function automatic BTB_SetIndexPath ToBTB_Set(PC_Path addr);
-    return BTB_SetIndexPath'(ToBTB_Group(addr) % BTB_SET_NUM);
+    return BTB_SetIndexPath'(ToFetchGroupNumber(addr) % BTB_SET_NUM);
 endfunction
 
 function automatic BTB_Tag ToBTB_Tag(PC_Path addr);
     BTB_Tag tag;
-    tag.block = BTB_TAG_WIDTH'(ToBTB_Group(addr) >> $clog2(BTB_SET_NUM));
+    tag.block = BTB_TAG_WIDTH'(ToFetchGroupNumber(addr) >> $clog2(BTB_SET_NUM));
     tag.offset = ToFetchGroupOffset(addr);
     return tag;
 endfunction
