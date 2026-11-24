@@ -201,20 +201,13 @@ module NextPCStage(
     //
     // I-cache Access
     //
-    PhyAddrPath fetchRequestPhyAddr;
     always_comb begin
-        // Translate both candidates before selection so the late stall signal
-        // does not feed the address-range decoding.
-        fetchRequestPhyAddr = ToPhyAddrFromLogical(ToAddrFromPC(fetchRequestPC));
-
-        // Decide input address of I-cache
+        // A stalled IF keeps reading the same cache set.
         if (next.icRE && stall) begin
-            // Use the PC of the IF stage
             port.icNextReadAddrIn = next.icReadAddrIn;
         end
         else begin
-            // Use the PC of this stage
-            port.icNextReadAddrIn = fetchRequestPhyAddr;
+            port.icNextReadAddrIn = ToAddrFromPC(fetchRequestPC);
         end
     end
 

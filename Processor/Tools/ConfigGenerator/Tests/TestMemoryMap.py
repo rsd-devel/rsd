@@ -81,6 +81,28 @@ class TestMemoryMap(unittest.TestCase):
         self.assertEqual(single.logical_base, single.logical_end)
         self.assertEqual(single.physical_range[0], single.physical_range[1])
 
+    def test_common_address_offset_bits(self):
+        regions = self.values['memory_map']['regions']
+        self.assertEqual(ProcessorConfig.from_mapping(self.values).address_offset_width, 16)
+        # The low_bits region starts four bytes into its translation window.
+        regions['extra'] = {
+            'type': 'memory', 'size': 16, 'logical_base': 0x50001004,
+            'physical_base': 0x2008, 'translation': 'low_bits', 'addr_bit_width': 8,
+        }
+        self.assertEqual(ProcessorConfig.from_mapping(self.values).address_offset_width, 3)
+        regions['extra']['translation'] = 'relative'
+        self.assertEqual(ProcessorConfig.from_mapping(self.values).address_offset_width, 2)
+        regions['extra']['physical_base'] += 1
+        self.assertEqual(ProcessorConfig.from_mapping(self.values).address_offset_width, 0)
+        self.assertNotIn('phyAddr.addr[PHY_ADDR_OFFSET_WIDTH-1:0]', self.render())
+
+    def test_identity_map_passes_through_all_raw_bits(self):
+        width = self.values['memory_map']['physical_address_width'] - 2
+        for region in self.values['memory_map']['regions'].values():
+            region['translation'] = 'relative'
+            region['physical_base'] = region['logical_base'] % (1 << width)
+        self.assertEqual(ProcessorConfig.from_mapping(self.values).address_offset_width, width)
+
     def test_required_hardware_constants(self):
         del self.values['memory_map']['regions']['plic']
         with self.assertRaisesRegex(ConfigError, 'plic.*required'):

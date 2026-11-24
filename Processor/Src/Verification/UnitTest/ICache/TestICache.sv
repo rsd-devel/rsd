@@ -10,10 +10,10 @@ module TestICache;
     localparam STEP = 20;
     localparam HOLD = 4;
     localparam SET_STRIDE = ICACHE_INDEX_NUM * ICACHE_LINE_BYTE_NUM;
-    localparam PhyAddrPath ADDR_A = PhyAddrPath'('h4000);
-    localparam PhyAddrPath ADDR_B = PhyAddrPath'(ADDR_A + SET_STRIDE - ICACHE_LINE_BYTE_NUM);
-    localparam PhyAddrPath ADDR_C = PhyAddrPath'(ADDR_A + SET_STRIDE);
-    localparam PhyAddrPath ADDR_D = PhyAddrPath'(ADDR_A + 2 * SET_STRIDE);
+    localparam AddrPath ADDR_A = LOG_ADDR_RAM_BEGIN;
+    localparam AddrPath ADDR_B = ADDR_A + SET_STRIDE - ICACHE_LINE_BYTE_NUM;
+    localparam AddrPath ADDR_C = ADDR_A + SET_STRIDE;
+    localparam AddrPath ADDR_D = ADDR_A + 2 * SET_STRIDE;
     localparam ICacheLinePath LINE_A = 64'h01234567_89abcdef;
     localparam ICacheLinePath LINE_B = 64'hfedcba98_76543210;
     localparam ICacheLinePath LINE_C = 64'h11223344_55667788;
@@ -63,7 +63,7 @@ module TestICache;
         end
     endtask
 
-    task Read(input PhyAddrPath addr, input logic expectedHit,
+    task Read(input AddrPath addr, input logic expectedHit,
               input ICacheLinePath expectedLine = '0, input logic enable = TRUE);
         @(negedge clk);
         nextPCStageIF.icNextReadAddrIn = addr;
@@ -81,12 +81,12 @@ module TestICache;
             CheckRequest(FALSE);
     endtask
 
-    task Fill(input PhyAddrPath addr, input ICacheLinePath lineData);
+    task Fill(input AddrPath addr, input ICacheLinePath lineData);
         MemAccessSerial serial;
         serial = MemAccessSerial'(fillCount + 1);
         // The line request must remain stable until the memory accepts it.
         repeat (3) begin
-            CheckRequest(TRUE, addr);
+            CheckRequest(TRUE, ToPhyAddrFromLogical(addr));
             @(posedge clk);
             #HOLD;
         end
@@ -152,16 +152,30 @@ module TestICache;
         $display("========== Test Start ==========");
 
         // A miss in the middle of a line must request the aligned line address.
-        Read(PhyAddrPath'(ADDR_A + INSN_BYTE_WIDTH), FALSE);
+        Read(ADDR_A + INSN_BYTE_WIDTH, FALSE);
         Fill(ADDR_A, LINE_A);
         Read(ADDR_A, TRUE, LINE_A);
-        Read(PhyAddrPath'(ADDR_A + INSN_BYTE_WIDTH), TRUE, LINE_A);
+        Read(ADDR_A + INSN_BYTE_WIDTH, TRUE, LINE_A);
         // The first and last sets must retain their data independently.
         Read(ADDR_B, FALSE);
         Fill(ADDR_B, LINE_B);
         Read(ADDR_A, TRUE, LINE_A);
         Read(ADDR_C, FALSE);
         Fill(ADDR_C, LINE_C);
+
+        // Request C while checking A. Both hit the same set with different physical tags.
+        @(negedge clk);
+        nextPCStageIF.icNextReadAddrIn = ADDR_A;
+        @(posedge clk);
+        #HOLD;
+        fetchStageIF.icRE = TRUE;
+        nextPCStageIF.icNextReadAddrIn = ADDR_C;
+        #HOLD;
+        CheckRead(TRUE, LINE_A);
+        @(posedge clk);
+        #HOLD;
+        CheckRead(TRUE, LINE_C);
+        fetchStageIF.icRE = FALSE;
 
         // Touch A, then fill D into the same set: C must be evicted and A retained.
         Read(ADDR_A, TRUE, LINE_A);

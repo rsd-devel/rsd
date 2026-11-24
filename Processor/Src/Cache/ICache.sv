@@ -262,6 +262,7 @@ module ICache(
     ICacheWayPath hitWay;
     logic [ICACHE_WAY_NUM-1:0] we;
     ICacheIndexPath readIndex, writeIndex, nextReadIndex;
+    PhyAddrPath readPhyAddr;
     ICacheTagPath readTag, writeTag;
     ICacheLineInsnPath readLineInsnList[ICACHE_WAY_NUM];
 
@@ -285,11 +286,12 @@ module ICache(
     endgenerate
     
     always_comb begin
-        // Set signal about read address.
-        readIndex  = GetICacheIndex( next.icReadAddrIn );
-        readTag = GetICacheTag( next.icReadAddrIn );
-        
-        nextReadIndex = GetICacheIndex( port.icNextReadAddrIn );
+        // Translate the current fetch for the physical tag comparison and miss request.
+        readPhyAddr = ToPhyAddrFromLogical(next.icReadAddrIn);
+        readIndex = GetICacheIndex(readPhyAddr);
+        readTag = GetICacheTag(readPhyAddr);
+
+        nextReadIndex = GetICacheIndex(ToPhyAddrFromLogical(port.icNextReadAddrIn));
 
         // Check cache hit 
         hit = |hitArray;
@@ -353,7 +355,7 @@ module ICache(
     //
     
     always_comb begin
-        wordPtr[0] = GetICacheLineInsnIndex( next.icReadAddrIn );
+        wordPtr[0] = GetICacheLineInsnIndex( readPhyAddr );
         for ( int i = 1; i < FETCH_WIDTH; i++ ) begin
             wordPtr[i] = wordPtr[0] + i;
         end

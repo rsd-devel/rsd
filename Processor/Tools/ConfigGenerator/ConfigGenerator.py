@@ -7,6 +7,7 @@ import argparse
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from enum import Enum
+from math import gcd
 from pathlib import Path
 import re
 import sys
@@ -387,6 +388,16 @@ class ProcessorConfig:
         return self.physical_address_width - 2
 
     @property
+    def address_offset_width(self) -> int:
+        # Within a region, logical and physical addresses advance by the same amount.
+        # A displacement divisible by 2**n preserves the low n bits at every address.
+        alignment = 1 << self.raw_address_width
+        for region in self.regions:
+            physical_start, _ = region.physical_range
+            alignment = gcd(alignment, physical_start - region.logical_base)
+        return alignment.bit_length() - 1
+
+    @property
     def memory_byte_size(self) -> int:
         # IO has a separate address space and consumes no backing RAM.
         return max(region.physical_range[1] + 1 for region in self.regions if not region.is_io)
@@ -457,6 +468,7 @@ class MemoryMapRenderer:
             ),
             "PC_WIDTH": str(self.config.pc_width),
             "PHY_ADDR_WIDTH": str(self.config.physical_address_width),
+            "PHY_ADDR_OFFSET_WIDTH": str(self.config.address_offset_width),
             "MEMORY_MAP_DOC": self.render_memory_map_doc(),
             "MEMORY_MAP_CONSTANTS": self.render_region_constants(),
             "GET_MEMORY_MAP_TYPE_BODY": self.render_get_memory_map_type(),
@@ -607,6 +619,12 @@ class MemoryMapRenderer:
                     "    end",
                 ]
             )
+        if self.config.address_offset_width:
+            lines.extend([
+                "",
+                "    // These bits pass through independently of region decoding.",
+                "    phyAddr.addr[PHY_ADDR_OFFSET_WIDTH-1:0] = logAddr[PHY_ADDR_OFFSET_WIDTH-1:0];",
+            ])
         return "\n".join(lines)
 
     @staticmethod

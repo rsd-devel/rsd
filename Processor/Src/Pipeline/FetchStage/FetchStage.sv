@@ -161,13 +161,10 @@ module FetchStage(
     //
     // I-cache Access
     //
-    AddrPath fetchAddrOut;
     always_comb begin
         // --- I-cache read
         port.icRE = pipeReg[0].valid; // read enable: whether check hit/miss
-        fetchAddrOut = ToAddrFromPC(pipeReg[0].pc);
-        // Address for comparing tag
-        port.icReadAddrIn = ToPhyAddrFromLogical(fetchAddrOut);
+        port.icReadAddrIn = ToAddrFromPC(pipeReg[0].pc);
     end
 
 

@@ -28,7 +28,7 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
     logic interruptAddrWE;
 
     // I-cache
-    PhyAddrPath   icNextReadAddrIn; // Value of icReadAddrIn in next cycle.
+    AddrPath  icNextReadAddrIn; // Logical address for the next I-cache lookup.
 
     // Pipeline register
     FetchStageRegPath nextStage[ FETCH_WIDTH ];

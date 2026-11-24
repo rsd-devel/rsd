@@ -32,7 +32,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     logic     icReadHit [ FETCH_WIDTH ];
     logic     icRE;
     InsnPath  icReadDataOut[ FETCH_WIDTH ];
-    PhyAddrPath   icReadAddrIn; // Head addr to fetch
+    AddrPath  icReadAddrIn; // Logical address of the current fetch.
 
     // Pipeline register
     PreDecodeStageRegPath nextStage[ FETCH_WIDTH ];
