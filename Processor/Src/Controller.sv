@@ -11,7 +11,6 @@ module Controller(
     DebugIF.Controller debug
 );
 
-    PipelineControll bpStage;
     PipelineControll ifStage;
     PipelineControll pdStage;
     PipelineControll idStage;
@@ -23,6 +22,7 @@ module Controller(
     PipelineControll backEnd;
     PipelineControll cmStage;
     logic stallByDecodeStage;
+    logic drainFetchForInterrupt;
 
     always_comb begin
 
@@ -31,6 +31,7 @@ module Controller(
         //
 
         stallByDecodeStage = FALSE;
+        drainFetchForInterrupt = FALSE;
 
         //
         // --- Front-end control
@@ -38,7 +39,6 @@ module Controller(
         if( port.rst ) begin
             // リセット時にパイプラインラッチに無効化フラグを書くため，stall はFALSE に
             //              stall/ clear
-            bpStage = { FALSE, TRUE };
             ifStage = { FALSE, TRUE };
             pdStage = { FALSE, TRUE };
             idStage = { FALSE, TRUE };
@@ -50,7 +50,6 @@ module Controller(
             //
             // 通常時
             //              stall/ clear
-            bpStage = { FALSE, FALSE };
             ifStage = { FALSE, FALSE };
             pdStage = { FALSE, FALSE };
             idStage = { FALSE, FALSE };
@@ -63,7 +62,6 @@ module Controller(
             if( port.cmStageFlushUpper ) begin
                 // Clear ops not in the active list when branch misprediction is detected.
                 //              stall/ clear
-                bpStage = { FALSE, FALSE };
                 ifStage = { FALSE, TRUE };
                 pdStage = { FALSE, TRUE };
                 idStage = { FALSE, TRUE };
@@ -76,7 +74,6 @@ module Controller(
                 // Stall and send a bubble to lower stages because there are not enough
                 // physical registers
                 //              stall/ clear
-                bpStage = { TRUE,  FALSE };
                 ifStage = { TRUE,  FALSE };
                 pdStage = { TRUE,  FALSE };
                 idStage = { TRUE,  FALSE };
@@ -86,7 +83,6 @@ module Controller(
                 //
                 // リネーマより上流をフラッシュ
                 //              stall/ clear
-                bpStage = { FALSE, FALSE };
                 ifStage = { FALSE, TRUE };
                 pdStage = { FALSE, TRUE };
                 idStage = { FALSE, TRUE };
@@ -98,7 +94,6 @@ module Controller(
                 // マイクロOp デコードを行うためにとめているため，
                 // バブルは不要
                 //              stall/ clear
-                bpStage = { TRUE,  FALSE };
                 ifStage = { TRUE,  FALSE };
                 pdStage = { TRUE,  FALSE };
                 idStage = { TRUE,  FALSE };
@@ -112,19 +107,16 @@ module Controller(
                 // I-Cache miss.
                 // Stop PC update and Send NOPs to the lower stages.
                 //          stall/ clear
-                bpStage = { TRUE, TRUE };
-                ifStage = { TRUE, TRUE };  
+                ifStage = { TRUE, TRUE };
             end
             else if( port.stopFetchForInterrupt ) begin
-                //
-                // Interrupt
-                //
-                bpStage = { TRUE, TRUE };
+                // Let the current response advance while stopping new requests.
+                drainFetchForInterrupt = TRUE;
             end
         end
 
 
-        port.bpStage = bpStage;
+        port.drainFetchForInterrupt = drainFetchForInterrupt;
         port.ifStage = ifStage;
         port.pdStage = pdStage;
         port.idStage = idStage;
@@ -174,7 +166,7 @@ module Controller(
 
         // パイプライン全体で生きている命令がいるかどうか
         port.wholePipelineEmpty = 
-            bpStage.clear &&            // IF は clear されない限り何か有効な命令をフェッチする
+            (port.rst || (ifStage.stall && ifStage.clear) || drainFetchForInterrupt) &&
             port.ifStageEmpty &&
             port.pdStageEmpty &&
             port.idStageEmpty && 
@@ -183,7 +175,6 @@ module Controller(
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         // Debug Register
-        debug.bpStagePipeCtrl = bpStage;
         debug.ifStagePipeCtrl = ifStage;
         debug.pdStagePipeCtrl = pdStage;
         debug.idStagePipeCtrl = idStage;

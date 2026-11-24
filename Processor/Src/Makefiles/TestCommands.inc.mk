@@ -182,14 +182,13 @@ test:
 	$(RUN_TEST) $(TEST_CODE)
 	@echo "==== Test Successful ===="
 
-# Test the test infrastructure itself: TestDriver and the DevContainer launcher.
-# Each suite uses stubs; TestDriver also checks an existing Verilator model when available.
+# Exercise the test infrastructure itself, including trace conversion.
 PYTHON ?= python3
-.PHONY: test/tools/run test/tools/TestDriver/run test/tools/DevContainer/run
-test/tools/run: test/tools/TestDriver/run test/tools/DevContainer/run test/tools/Config/run
+.PHONY: test/tools/run test/tools/TestDriver/run test/tools/DevContainer/run test/tools/KanataConverter/run
+test/tools/run: test/tools/TestDriver/run test/tools/DevContainer/run test/tools/KanataConverter/run test/tools/Config/run
 	@echo "==== Test Successful (test/tools/run) ===="
 
-test/tools/TestDriver/run test/tools/DevContainer/run: test/tools/%/run:
+test/tools/TestDriver/run test/tools/DevContainer/run test/tools/KanataConverter/run: test/tools/%/run:
 	$(PYTHON) -B -m unittest discover -s ../Tools/$*/Tests -p 'Test*.py' -v
 
 .PHONY: test/all/run test/level-1/run test/level-2/run test/ex/run

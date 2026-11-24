@@ -23,7 +23,6 @@ interface DebugIF( input logic clk, rst );
     
     // debugRegisterの入力となる信号群
     // 各ステージからデータを集める
-    BrPredStageDebugRegister bpReg [ FETCH_WIDTH ];
     FetchStageDebugRegister   ifReg [ FETCH_WIDTH ];
     PreDecodeStageDebugRegister pdReg [ DECODE_WIDTH ];
     DecodeStageDebugRegister    idReg [ DECODE_WIDTH ];
@@ -68,7 +67,6 @@ interface DebugIF( input logic clk, rst );
     
     // debugRegisterの入力となる信号群
     // パイプラインコントローラからデータを集める
-    PipelineControll bpStagePipeCtrl;
     PipelineControll ifStagePipeCtrl;
     PipelineControll pdStagePipeCtrl;
     PipelineControll idStagePipeCtrl;
@@ -90,7 +88,6 @@ interface DebugIF( input logic clk, rst );
     input 
         clk,
         rst,
-        bpReg,
         ifReg,
         pdReg,
         idReg,
@@ -126,7 +123,6 @@ interface DebugIF( input logic clk, rst );
         activeListHeadPtr,
         activeListCount,
         lastCommittedPC,
-        bpStagePipeCtrl,
         ifStagePipeCtrl,
         pdStagePipeCtrl,
         idStagePipeCtrl,
@@ -156,7 +152,6 @@ interface DebugIF( input logic clk, rst );
     
     modport Controller (
     output
-        bpStagePipeCtrl,
         ifStagePipeCtrl,
         pdStagePipeCtrl,
         idStagePipeCtrl,
@@ -181,11 +176,6 @@ interface DebugIF( input logic clk, rst );
     modport IssueQueue (
     output
         issueQueue
-    );
-
-    modport BrPredStage (
-    output
-        bpReg
     );
 
     modport FetchStage (
@@ -353,10 +343,6 @@ interface DebugIF( input logic clk, rst );
     );
     
     modport FetchStage (
-        input clk
-    );
-
-    modport BrPredStage (
         input clk
     );
 

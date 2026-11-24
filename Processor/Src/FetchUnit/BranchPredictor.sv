@@ -12,15 +12,14 @@ import FetchUnitTypes::*;
 `define USE_GSHARE
 
 module BranchPredictor(
-    BrPredStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next,
+    FetchStageIF.BranchPredictor port,
     ControllerIF.BranchPredictor ctrl
 );
 
 `ifdef USE_GSHARE
-    Gshare predictor( port, next, ctrl );
+    Gshare predictor( port, ctrl );
 `else
-    Bimodal predictor( port, next );
+    Bimodal predictor( port );
 `endif
 
 endmodule : BranchPredictor

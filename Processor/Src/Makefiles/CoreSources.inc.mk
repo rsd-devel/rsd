@@ -38,8 +38,6 @@ TYPES = \
 # The order of the files in this section is arbitrary.
 CORE_MODULES = \
 	Core.sv \
-	Pipeline/FetchStage/BrPredStage.sv \
-	Pipeline/FetchStage/BrPredStageIF.sv \
 	Pipeline/FetchStage/FetchStage.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
 	Pipeline/PreDecodeStage.sv \

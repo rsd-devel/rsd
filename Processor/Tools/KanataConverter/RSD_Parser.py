@@ -250,6 +250,9 @@ class RSD_Parser(object):
                     self.AddEvent_(current + 1, gid, RSD_Event.STAGE_END, op.stageID, "")
                     self.AddEvent_(current + 1, gid, RSD_Event.RETIRE, op.stageID, "")
         else:
+            # An instruction first seen at Fetch may already be flushed.
+            if flush:
+                return
             # Initialize/Begin a stage
             self.AddEvent_(current, gid, RSD_Event.INIT, op.stageID, "")
             self.AddEvent_(current, gid, RSD_Event.STAGE_BEGIN, op.stageID, comment)
@@ -261,8 +264,6 @@ class RSD_Parser(object):
         if flush:
             prevOp = self.ops_[ gid ]
             if prevOp.stageID == 0:
-                # When an instruction was flushed in BrPredStage,
-                # delete the op from self.ops_ so that the instruction is not dumped
                 del self.ops_[ gid ]
                 return
             else:
@@ -329,7 +330,6 @@ class RSD_Parser(object):
         events = self.events_
         for cycle in sorted(events.keys()):
             # イベント投入された後のサイクルで一部取り消されるものがあるためバッファする
-            # 基本的に Bp ステージでの命令取り消しのみのはず
             if not dispose and cycle > self.currentCycle_ - 3:
                 break
             self.generator.OnCycle(cycle)

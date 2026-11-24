@@ -13,58 +13,62 @@ import MemoryMapTypes::*;
 
 interface FetchStageIF( input logic clk, rst, rstStart );
 
-    // Predictions and their valid mask are indexed from the aligned fetch-group base.
-    logic [FETCH_WIDTH-1:0] fetchSlotValid;
+    // Registered PC used as the interrupt return address.
+    PC_Path  pcOut;
 
-    // BTB
+    // Address for the next predictor lookup, including redirects and repeated requests.
+    PC_Path  fetchRequestPC;
+
+    // Executed branch results for updating a branch predictor.
+    // This signal is written back from a write back stage.
+    BranchResult brResult[ INT_ISSUE_WIDTH ];
+
+    // Interrupt
+    PC_Path interruptAddrIn;
+    logic interruptAddrWE;
+
+    // BTB/PHT results and updateBrHistory use groupOffset, in instructions from the aligned group base.
     PC_Path btbOut[FETCH_WIDTH];
     logic btbHit[FETCH_WIDTH];
     BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
     logic readIsCondBr[FETCH_WIDTH];
-    
-    // BranchPredictor
-    logic updateBrHistory[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
     BranchGlobalHistoryPath brGlobalHistory[FETCH_WIDTH];
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
 
-    // I-Cache
-    logic     icReadHit [ FETCH_WIDTH ];
-    logic     icRE;
-    InsnPath  icReadDataOut[ FETCH_WIDTH ];
-    AddrPath  icReadAddrIn; // Logical address of the current fetch.
+    logic updateBrHistory[FETCH_WIDTH];
 
-    // Pipeline register
-    PreDecodeStageRegPath nextStage[ FETCH_WIDTH ];
+    // Addresses for the next cache lookup and the response currently in Fetch.
+    AddrPath icNextReadAddrIn, icReadAddrIn;
+    logic icRE;
+    // I-cache responses and nextStage use fetchLane. Lane 0 is the instruction at icReadAddrIn.
+    logic icReadHit[FETCH_WIDTH];
+    InsnPath icReadDataOut[FETCH_WIDTH];
+
+    PreDecodeStageRegPath nextStage[FETCH_WIDTH];
 
     modport ThisStage(
     input
         clk,
         rst,
-        icReadHit,
-        icReadDataOut,
-        btbOut,
+        interruptAddrIn,
+        interruptAddrWE,
         btbHit,
         btbHitWay,
+        btbOut,
         brPredTaken,
         brGlobalHistory,
         phtPrevValue,
+        icReadHit,
+        icReadDataOut,
     output
-        fetchSlotValid,
+        pcOut,
+        fetchRequestPC,
         updateBrHistory,
-        nextStage,
-        icRE,
-        icReadAddrIn
-    );
-
-    modport BrPredStage(
-    input
-        fetchSlotValid,
-        icRE,
+        icNextReadAddrIn,
         icReadAddrIn,
-        btbOut,
-        btbHit,
-        brPredTaken
+        icRE,
+        nextStage
     );
 
     modport NextStage(
@@ -72,16 +76,18 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         nextStage
     );
 
-    modport ICache(
-    input
-        icRE, // Read Enable
-        icReadAddrIn,
+    modport IntegerRegisterWriteStage(
     output
-        icReadHit,
-        icReadDataOut
+        brResult
     );
 
     modport BTB(
+    input
+        clk,
+        rst,
+        rstStart,
+        fetchRequestPC,
+        brResult,
     output
         btbOut,
         btbHit,
@@ -91,8 +97,12 @@ interface FetchStageIF( input logic clk, rst, rstStart );
 
     modport BranchPredictor(
     input
+        clk,
+        rst,
+        rstStart,
+        fetchRequestPC,
+        brResult,
         updateBrHistory,
-        btbOut,
         btbHit,
         readIsCondBr,
     output
@@ -100,5 +110,27 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         brGlobalHistory,
         phtPrevValue
     );
+
+    modport ICache(
+    input
+        clk,
+        rst,
+        rstStart,
+        icNextReadAddrIn,
+        icRE,
+        icReadAddrIn,
+    output
+        icReadHit,
+        icReadDataOut
+    );
+
+    modport InterruptController(
+    input
+        pcOut,
+    output
+        interruptAddrIn,
+        interruptAddrWE
+    );
+
 
 endinterface : FetchStageIF

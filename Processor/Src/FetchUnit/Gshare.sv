@@ -22,8 +22,7 @@ function automatic PHT_IndexPath ToPHT_Index_Global(AddrPath addr, BranchGlobalH
 endfunction
 
 module Gshare(
-    BrPredStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next,
+    FetchStageIF.BranchPredictor port,
     ControllerIF.BranchPredictor ctrl
 );
 
@@ -135,34 +134,34 @@ module Gshare(
 
         nextBrGlobalHistory = regBrGlobalHistory;
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            brPredTaken[i] = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            brPredTaken[groupOffset] = phtRV[groupOffset][PHT_ENTRY_WIDTH - 1] && port.btbHit[groupOffset];
             // Output global history to pipeline for recovery.
-            brGlobalHistory[i] = regBrGlobalHistory;
-            updateHistory[i] = FALSE;
+            brGlobalHistory[groupOffset] = regBrGlobalHistory;
+            updateHistory[groupOffset] = FALSE;
         end
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            // Assert BTB is hit, ICache line is valid, and conditional branch.
-            updateHistory[i] = next.btbHit[i] && next.readIsCondBr[i] && 
-                next.updateBrHistory[i];
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            // Advance history only for valid conditional branches in this fetch group.
+            updateHistory[groupOffset] = port.btbHit[groupOffset] && port.readIsCondBr[groupOffset] &&
+                port.updateBrHistory[groupOffset];
 
             // Generate next brGlobalHistory.
-            if (updateHistory[i]) begin
+            if (updateHistory[groupOffset]) begin
                 // Shift history 1 bit to the left and reflect prediction direction in LSB.
                 nextBrGlobalHistory = 
-                    (nextBrGlobalHistory << 1) | brPredTaken[i];
+                    (nextBrGlobalHistory << 1) | brPredTaken[groupOffset];
                 
-                if (brPredTaken[i]) begin
+                if (brPredTaken[groupOffset]) begin
                     // If brPred is taken, next instruction don't be executed.
                     break;
                 end
             end
         end
         
-        next.phtPrevValue = phtRV;
-        next.brPredTaken = brPredTaken;
-        next.brGlobalHistory = brGlobalHistory;
+        port.phtPrevValue = phtRV;
+        port.brPredTaken = brPredTaken;
+        port.brGlobalHistory = brGlobalHistory;
 
         // Discard the result of previous cycle
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
@@ -213,10 +212,10 @@ module Gshare(
             end
         end
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             // Read PHT entry for next cycle (use PC ^ brGlobalHistory).
-            phtRA[i] = ToPHT_Index_Global(
-                groupBase + i*INSN_BYTE_WIDTH,
+            phtRA[groupOffset] = ToPHT_Index_Global(
+                groupBase + groupOffset*INSN_BYTE_WIDTH,
                 nextBrGlobalHistory
             );
         end

@@ -24,7 +24,6 @@ MODULES = \
 	Primitives/RAM.sv \
 	Primitives/Queue.sv \
 	ControllerIF.sv \
-	Pipeline/FetchStage/BrPredStageIF.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
 	FetchUnit/BTB.sv \
 	FetchUnit/Gshare.sv \

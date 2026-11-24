@@ -15,7 +15,7 @@ import MemoryMapTypes::*;
 module InterruptController(
     CSR_UnitIF.InterruptController csrUnit,
     ControllerIF.InterruptController ctrl,
-    BrPredStageIF.InterruptController bpStage,
+    FetchStageIF.InterruptController fetchStage,
     DecodeStageIF.InterruptController decodeStage,
     RecoveryManagerIF.InterruptController recoveryManager
 );
@@ -118,7 +118,7 @@ module InterruptController(
             reqInterrupt;
 
         csrUnit.triggerInterrupt = triggerInterrupt;
-        csrUnit.interruptRetAddr = bpStage.pcOut;
+        csrUnit.interruptRetAddr = fetchStage.pcOut;
         csrUnit.interruptCode = interruptCode;
         csrUnit.interruptELP = decodeStage.elpState;
 
@@ -129,8 +129,8 @@ module InterruptController(
             CSR_XTVEC_BASE_PADDING
         });
 
-        bpStage.interruptAddrWE = triggerInterrupt;
-        bpStage.interruptAddrIn = interruptTargetAddr;
+        fetchStage.interruptAddrWE = triggerInterrupt;
+        fetchStage.interruptAddrIn = interruptTargetAddr;
         decodeStage.setELP_OnInterrupt = triggerInterrupt;
     end
 

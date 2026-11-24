@@ -12,12 +12,17 @@ module TestBranchPredictorQueue;
     logic rstStart = TRUE;
     always #5 clk = ~clk;
 
-    BrPredStageIF port(.*);
-    FetchStageIF next(.*), bimodalNext(.*);
+    FetchStageIF port(.*), bimodalPort(.*);
     ControllerIF ctrl(.*);
-    BTB btb(.port(port), .next(next));
-    Gshare gshare(.port(port), .next(next), .ctrl(ctrl));
-    Bimodal bimodal(.port(port), .next(bimodalNext));
+    BTB btb(.port(port));
+    Gshare gshare(.port(port), .ctrl(ctrl));
+    Bimodal bimodal(.port(bimodalPort));
+
+    // Exercise both predictors with the same fetch addresses and training results.
+    always_comb begin
+        bimodalPort.fetchRequestPC = port.fetchRequestPC;
+        bimodalPort.brResult = port.brResult;
+    end
 
     function automatic BranchResult MakeResult(input int index);
         BranchResult result;
@@ -53,12 +58,12 @@ module TestBranchPredictorQueue;
         if (second.valid) @(negedge clk);
     endtask
 
-    task CheckBTB(input int lane, input BranchResult expected);
-        assert (next.btbHit[lane] === expected.valid &&
-                (!expected.valid || (next.btbOut[lane] === expected.nextAddr &&
-                                     next.readIsCondBr[lane] === expected.isCondBr)))
-            else $fatal(1, "BTB PC %h lane %0d expected hit %b target %h conditional %b",
-                        port.fetchRequestPC, lane, expected.valid, expected.nextAddr, expected.isCondBr);
+    task CheckBTB(input int groupOffset, input BranchResult expected);
+        assert (port.btbHit[groupOffset] === expected.valid &&
+                (!expected.valid || (port.btbOut[groupOffset] === expected.nextAddr &&
+                                     port.readIsCondBr[groupOffset] === expected.isCondBr)))
+            else $fatal(1, "BTB PC %h group offset %0d expected hit %b target %h conditional %b",
+                        port.fetchRequestPC, groupOffset, expected.valid, expected.nextAddr, expected.isCondBr);
     endtask
 
     task CheckBTBTraining;
@@ -121,14 +126,14 @@ module TestBranchPredictorQueue;
         #1;
         assert (gshare.empty && bimodal.empty && !gshare.phtWE[0] && !bimodal.phtWE[0])
             else $fatal(1, "PHT update queues did not drain");
-        // Check the resulting table contents through the normal read ports.
+        // A predictor read returns the whole group in order from its aligned base.
         for (int i = 0; i < count; i++) begin
-            int slot;
+            int groupOffset;
             expected = MakeResult(firstIndex + i);
-            slot = (firstIndex + i) % FETCH_WIDTH;
+            groupOffset = (firstIndex + i) % FETCH_WIDTH;
             ReadBTB(expected.brAddr);
-            assert (next.phtPrevValue[slot] === PHT_EntryPath'(expected.phtPrevValue + 1) &&
-                    bimodalNext.phtPrevValue[slot] === PHT_EntryPath'(expected.phtPrevValue + 1))
+            assert (port.phtPrevValue[groupOffset] === PHT_EntryPath'(expected.phtPrevValue + 1) &&
+                    bimodalPort.phtPrevValue[groupOffset] === PHT_EntryPath'(expected.phtPrevValue + 1))
                 else $fatal(1, "PHT readback mismatch at %0d", firstIndex + i);
         end
     endtask
@@ -213,7 +218,7 @@ module TestBranchPredictorQueue;
         cold.isCondBr = FALSE;
         ReadBTB(cold.brAddr);
         CheckBTB(0, cold);
-        assert (next.btbHitWay[0] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
+        assert (port.btbHitWay[0] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
             else $fatal(1, "Expected the highest way on a duplicate reset tag");
         CheckBTB(FETCH_WIDTH-1, '0);
         ReadBTB(first.brAddr);
@@ -223,31 +228,31 @@ module TestBranchPredictorQueue;
         ReadBTB(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
-        first.btbHit = next.btbHit[0];
-        first.btbHitWay = next.btbHitWay[0];
-        last.btbHit = next.btbHit[FETCH_WIDTH-1];
-        last.btbHitWay = next.btbHitWay[FETCH_WIDTH-1];
+        first.btbHit = port.btbHit[0];
+        first.btbHitWay = port.btbHitWay[0];
+        last.btbHit = port.btbHit[FETCH_WIDTH-1];
+        last.btbHitWay = port.btbHitWay[FETCH_WIDTH-1];
         assert (first.btbHitWay != last.btbHitWay) else $fatal(1, "Expected hits in distinct ways");
         if (BTB_SET_NUM > 1) begin
             ReadBTB(neighbor.brAddr);
             CheckBTB(0, neighbor);
         end
         ReadBTB(last.brAddr);
-        // A request starting at the last word still returns the same complete group.
+        // Both predictions keep their group offsets when fetch lane zero starts at the last instruction.
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
         // The skipped conditional branch predicts taken but must not shift history.
-        next.updateBrHistory[FETCH_WIDTH-1] = TRUE;
-        bimodalNext.btbHit[0] = TRUE;
-        bimodalNext.btbHit[FETCH_WIDTH-1] = TRUE;
+        port.updateBrHistory[FETCH_WIDTH-1] = TRUE;
+        bimodalPort.btbHit[0] = TRUE;
+        bimodalPort.btbHit[FETCH_WIDTH-1] = TRUE;
         #1;
-        assert (next.brPredTaken[0] && next.brPredTaken[FETCH_WIDTH-1] &&
-                bimodalNext.brPredTaken[0] && bimodalNext.brPredTaken[FETCH_WIDTH-1] &&
+        assert (port.brPredTaken[0] && port.brPredTaken[FETCH_WIDTH-1] &&
+                bimodalPort.brPredTaken[0] && bimodalPort.brPredTaken[FETCH_WIDTH-1] &&
                 gshare.nextBrGlobalHistory === gshare.regBrGlobalHistory)
-            else $fatal(1, "A skipped slot changed the history or hid the later prediction");
-        next.updateBrHistory[FETCH_WIDTH-1] = FALSE;
-        bimodalNext.btbHit[0] = FALSE;
-        bimodalNext.btbHit[FETCH_WIDTH-1] = FALSE;
+            else $fatal(1, "The branch before the fetch start changed the history or hid the later prediction");
+        port.updateBrHistory[FETCH_WIDTH-1] = FALSE;
+        bimodalPort.btbHit[0] = FALSE;
+        bimodalPort.btbHit[FETCH_WIDTH-1] = FALSE;
 
         // On a same-row read/write the old target and branch kind are visible
         // for one cycle. Updating the first branch makes its way the newest.
@@ -279,8 +284,8 @@ module TestBranchPredictorQueue;
         // The delayed hit for last still uses its Fetch way, now occupied by aliasBranch.
         // The earlier queued write uses that way first, leaving the other way as the miss victim.
         ReadBTB(aliasBranch.brAddr);
-        aliasBranch.btbHit = next.btbHit[0];
-        aliasBranch.btbHitWay = next.btbHitWay[0];
+        aliasBranch.btbHit = port.btbHit[0];
+        aliasBranch.btbHitWay = port.btbHitWay[0];
         assert (aliasBranch.btbHit && aliasBranch.btbHitWay == last.btbHitWay)
             else $fatal(1, "Alias did not evict the saved hit");
         aliasBranch.nextAddr += INSN_BYTE_WIDTH;
@@ -310,8 +315,8 @@ module TestBranchPredictorQueue;
         WriteBTB(first, second); // The two requests allocate ways 0 then 1 after reset.
         ReadBTB(first.brAddr);
         CheckBTB(0, second);
-        second.btbHit = next.btbHit[0];
-        second.btbHitWay = next.btbHitWay[0];
+        second.btbHit = port.btbHit[0];
+        second.btbHitWay = port.btbHitWay[0];
         assert (second.btbHitWay) else $fatal(1, "Duplicate tag must report the way that supplied the target");
         second.nextAddr += INSN_BYTE_WIDTH;
         WriteBTB(second);
@@ -328,12 +333,12 @@ module TestBranchPredictorQueue;
         ClearResults();
         port.fetchRequestPC = '0;
         ctrl.ifStage = '0;
-        foreach (next.updateBrHistory[i]) begin
-            next.updateBrHistory[i] = FALSE;
-            bimodalNext.btbHit[i] = FALSE;
-            bimodalNext.readIsCondBr[i] = FALSE;
-            bimodalNext.updateBrHistory[i] = FALSE;
-            bimodalNext.btbOut[i] = '0;
+        foreach (port.updateBrHistory[groupOffset]) begin
+            port.updateBrHistory[groupOffset] = FALSE;
+            bimodalPort.btbHit[groupOffset] = FALSE;
+            bimodalPort.readIsCondBr[groupOffset] = FALSE;
+            bimodalPort.updateBrHistory[groupOffset] = FALSE;
+            bimodalPort.btbOut[groupOffset] = '0;
         end
         ResetTables();
         if (FETCH_WIDTH >= 2) CheckBTBWays();

@@ -21,15 +21,13 @@ input
     // Pipeline
     //
     // PipelineControll::stall は，そのステージの頭にあるパイプラインレジスタの
-    // 書き込み制御を行う．たとえば ifStage であれば PC の，idStage であれば，
-    // if/id ステージ間のパイプラインレジスタの WE に接続される．
+    // 書き込み制御を行う．
     //
     // PipelineControll::clear は，有効な場合，そのステージの次のステージに送り
     // 込む命令の valid を強制的に落とす（次のステージにNOPを送る）．
     // これは，そのサイクルにそのステージにいる命令を無効化し，
     // 次のステージにNOP を送り込むことを意味する．
     //
-    PipelineControll bpStage;
     PipelineControll ifStage;
     PipelineControll pdStage;
     PipelineControll idStage;
@@ -64,6 +62,8 @@ input
     // --- Special signals
     //
     logic stallByDecodeStage;
+    // Asserted when the interrupt request wins front-end arbitration.
+    logic drainFetchForInterrupt;
 
     modport Controller(
     input
@@ -82,7 +82,7 @@ input
         rnStageEmpty,
         activeListEmpty,
     output
-        bpStage,
+        drainFetchForInterrupt,
         ifStage,
         pdStage,
         idStage,
@@ -96,13 +96,9 @@ input
         wholePipelineEmpty
     );
 
-    modport BrPredStage(
-    input
-        bpStage
-    );
-
     modport FetchStage(
     input
+        drainFetchForInterrupt,
         ifStage,
     output
         ifStageSendBubbleLower,

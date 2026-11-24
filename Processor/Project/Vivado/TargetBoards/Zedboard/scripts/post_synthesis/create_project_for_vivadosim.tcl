@@ -119,8 +119,6 @@
 #    "/home/matsuo/workspace/rsd/Processor/Src/MulDivUnit/MulDivUnitIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/Multiplier.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/ExecUnit/MultiplierUnit.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/BrPredStage.sv"
-#    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/FetchStage/BrPredStageIF.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Primitives/Picker.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStage.sv"
 #    "/home/matsuo/workspace/rsd/Processor/Src/Pipeline/PreDecodeStageIF.sv"
@@ -292,8 +290,6 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Privileged/CSR_UnitTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Debug/DebugTypes.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Core.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/BrPredStage.sv"] \
- [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/BrPredStageIF.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/FetchStage.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/FetchStage/FetchStageIF.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Pipeline/PreDecodeStage.sv"] \
@@ -541,16 +537,6 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/Core.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
-set file "$origin_dir/../../../../Src/Pipeline/FetchStage/BrPredStage.sv"
-set file [file normalize $file]
-set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
-set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
-
-set file "$origin_dir/../../../../Src/Pipeline/FetchStage/BrPredStageIF.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"

@@ -8,8 +8,7 @@ import MemoryMapTypes::*;
 import FetchUnitTypes::*;
 
 module BTB(
-    BrPredStageIF.BTB port,
-    FetchStageIF.BTB next
+    FetchStageIF.BTB port
 );
     `RSD_STATIC_ASSERT(BTB_WAY_NUM == 2, "BTB replacement requires two ways.");
 
@@ -75,11 +74,14 @@ module BTB(
             resetIndex <= BTB_SetIndexPath'((resetIndex + 1) % BTB_SET_NUM);
     end
 
+    BTB_Tag lookupTag;
+    BTB_Entry wayEntry[BTB_WAY_NUM];
+    logic [BTB_WAY_NUM-1:0] blockHit;
+    logic [FETCH_WIDTH-1:0] hitByOffset;
+    BTB_WayIndexPath hitWay[FETCH_WIDTH];
+    PC_Path target[FETCH_WIDTH];
+    logic isCondBr[FETCH_WIDTH];
     always_comb begin
-        BTB_Tag lookupTag;
-        BTB_Entry wayEntry[BTB_WAY_NUM];
-        logic [BTB_WAY_NUM-1:0] blockHit;
-        logic [FETCH_WIDTH-1:0] hitByOffset;
         lookupTag = ToBTB_Tag(lookupPC);
         hitByOffset = '0;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
@@ -89,23 +91,24 @@ module BTB(
                 hitByOffset[wayEntry[w].tag.offset] = TRUE;
         end
 
-        // Each slot describes a fixed instruction position in the aligned group.
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            next.btbHit[i] = FALSE;
-            next.btbHitWay[i] = '0;
-            next.btbOut[i] = '0;
-            next.readIsCondBr[i] = FALSE;
-            if (hitByOffset[i]) begin
-                next.btbHit[i] = TRUE;
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            hitWay[groupOffset] = '0;
+            target[groupOffset] = '0;
+            isCondBr[groupOffset] = FALSE;
+            if (hitByOffset[groupOffset]) begin
                 // A later way wins if two entries match both the block and the offset.
                 for (int w = 0; w < BTB_WAY_NUM; w++) begin
-                    if (blockHit[w] && wayEntry[w].tag.offset == BTB_OffsetPath'(i)) begin
-                        next.btbHitWay[i] = BTB_WayIndexPath'(w);
-                        next.btbOut[i] = ToRawAddrFromBTB_Addr(wayEntry[w].data, lookupPC);
-                        next.readIsCondBr[i] = wayEntry[w].isCondBr;
+                    if (blockHit[w] && wayEntry[w].tag.offset == BTB_OffsetPath'(groupOffset)) begin
+                        hitWay[groupOffset] = BTB_WayIndexPath'(w);
+                        target[groupOffset] = ToRawAddrFromBTB_Addr(wayEntry[w].data, lookupPC);
+                        isCondBr[groupOffset] = wayEntry[w].isCondBr;
                     end
                 end
             end
+            port.btbHit[groupOffset] = hitByOffset[groupOffset];
+            port.btbHitWay[groupOffset] = hitWay[groupOffset];
+            port.btbOut[groupOffset] = target[groupOffset];
+            port.readIsCondBr[groupOffset] = isCondBr[groupOffset];
         end
     end
 
@@ -127,8 +130,8 @@ module BTB(
         end
     end
 
+    Update update;
     always_comb begin
-        Update update;
         update = queue[headPtr];
         writeEnable = !port.rst && count != 0;
         writeSet = port.rst ? resetIndex : update.setIndex;

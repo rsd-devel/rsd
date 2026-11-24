@@ -158,7 +158,7 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveryCauseFromCommitStage
     );
 
-    modport BrPredStage(
+    modport FetchStage(
     input
         toRecoveryPhase,
         recoveredPC_FromRwCommit,

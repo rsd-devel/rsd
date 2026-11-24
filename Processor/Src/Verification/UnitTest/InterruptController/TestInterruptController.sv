@@ -37,12 +37,12 @@ module TestInterruptController;
                      .serialTxFull(1'b0), .serialWE(), .serialWriteDataOut());
     PerformanceCounterIF perf(.*);
     ControllerIF ctrl(.*);
-    BrPredStageIF bpStage(.*);
+    FetchStageIF fetchStage(.*);
     DecodeStageIF decodeStage(.*);
     RecoveryManagerIF recovery(.*);
     PLIC_Unit plicUnit(plic, csr, ioPort);
     CSR_Unit csrUnit(csr, plic, perf);
-    InterruptController interruptCtrl(csr, ctrl, bpStage, decodeStage, recovery);
+    InterruptController interruptCtrl(csr, ctrl, fetchStage, decodeStage, recovery);
 
     int cases = 0;
     int aliasCases = 0;
@@ -156,7 +156,7 @@ module TestInterruptController;
     task automatic Reset;
         ctrl.wholePipelineEmpty = 0;
         recovery.unableToStartRecovery = 0;
-        bpStage.pcOut = ToPC_FromAddr(RETURN_PC);
+        fetchStage.pcOut = ToPC_FromAddr(RETURN_PC);
         csr.csrRE = 0;
         csr.csrWE = 0;
         csr.csrNumber = CSR_NUM_MSCRATCH;
@@ -802,7 +802,7 @@ module TestInterruptController;
             ctrl.wholePipelineEmpty = (blocked == 1);
             recovery.unableToStartRecovery = (blocked == 1);
             #1;
-            assert (csr.triggerInterrupt === 1'b0 && bpStage.interruptAddrWE === 1'b0)
+            assert (csr.triggerInterrupt === 1'b0 && fetchStage.interruptAddrWE === 1'b0)
                 else $fatal(1, "Interrupt entered before recovery was safe (%s)", caseName);
             Tick();
             CheckTrapState(beforeTrap);
@@ -813,14 +813,14 @@ module TestInterruptController;
         recovery.unableToStartRecovery = 0;
         #1;
         assert (csr.triggerInterrupt === expectedRequest &&
-                bpStage.interruptAddrWE === expectedRequest)
+                fetchStage.interruptAddrWE === expectedRequest)
             else $fatal(1, "Wrong interrupt trigger (%s)", caseName);
         if (expectedRequest) begin
             assert (csr.interruptCode === CSR_CAUSE_InterruptCodePath'(expectedCode) &&
-                    ToAddrFromPC(bpStage.interruptAddrIn) === expectedTarget)
+                    ToAddrFromPC(fetchStage.interruptAddrIn) === expectedTarget)
                 else $fatal(1, "Expected interrupt %0d at %08x, got %0d at %08x (%s)",
                             expectedCode, expectedTarget, csr.interruptCode,
-                            ToAddrFromPC(bpStage.interruptAddrIn), caseName);
+                            ToAddrFromPC(fetchStage.interruptAddrIn), caseName);
         end
         Tick();
         if (expectedRequest) begin
@@ -883,7 +883,7 @@ module TestInterruptController;
                     ctrl.stopFetchForInterrupt === 1'b1 &&
                     (csr.csrWholeOut.mip & ALL_INTERRUPTS) === pending &&
                     csr.interruptCode === CSR_CAUSE_InterruptCodePath'(expectedCode) &&
-                    ToAddrFromPC(bpStage.interruptAddrIn) === expectedTarget)
+                    ToAddrFromPC(fetchStage.interruptAddrIn) === expectedTarget)
                 else $fatal(1, "xRET did not restore privilege/enables/pending request (%s)", caseName);
             if (toSupervisor)
                 assert (csr.csrWholeOut.mstatus.SPIE === 1'b1 && csr.csrWholeOut.mstatus.SPP === 1'b0)

@@ -19,8 +19,7 @@ function automatic PHT_IndexPath ToPHT_Index_Local(PC_Path addr);
 endfunction
 
 module Bimodal(
-    BrPredStageIF.BranchPredictor port,
-    FetchStageIF.BranchPredictor next
+    FetchStageIF.BranchPredictor port
 );
 
     PC_Path groupBase;
@@ -108,11 +107,11 @@ module Bimodal(
     
         groupBase = ToFetchGroupBase(port.fetchRequestPC);
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            next.phtPrevValue[i] = phtRV[i];
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            port.phtPrevValue[groupOffset] = phtRV[groupOffset];
 
             // Predict directions (Check the MSB).
-            next.brPredTaken[i] = phtRV[i][PHT_ENTRY_WIDTH - 1] && next.btbHit[i];
+            port.brPredTaken[groupOffset] = phtRV[groupOffset][PHT_ENTRY_WIDTH - 1] && port.btbHit[groupOffset];
         end
 
         // Negate first. (to discard the result of previous cycle)
@@ -155,9 +154,9 @@ module Bimodal(
             end
         end
 
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             // Read PHT entry for next cycle (use PC).
-            phtRA[i] = ToPHT_Index_Local(groupBase + i*INSN_BYTE_WIDTH);
+            phtRA[groupOffset] = ToPHT_Index_Local(groupBase + groupOffset*INSN_BYTE_WIDTH);
         end
 
 

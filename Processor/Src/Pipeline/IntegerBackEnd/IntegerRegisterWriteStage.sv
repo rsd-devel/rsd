@@ -23,7 +23,7 @@ module IntegerRegisterWriteStage(
     //IntegerRegisterWriteStageIF.ThisStage port,
     IntegerExecutionStageIF.NextStage prev,
     SchedulerIF.IntegerRegisterWriteStage scheduler,
-    BrPredStageIF.IntegerRegisterWriteStage bpStage,
+    FetchStageIF.IntegerRegisterWriteStage fetchStage,
     RegisterFileIF.IntegerRegisterWriteStage registerFile,
     ActiveListIF.IntegerRegisterWriteStage activeList,
     RecoveryManagerIF.IntegerRegisterWriteStage recovery,
@@ -108,7 +108,7 @@ module IntegerRegisterWriteStage(
             // Branch results.
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
-            bpStage.brResult = brResult;
+            fetchStage.brResult = brResult;
 
             // ExecState
             if ( update[i] ) begin
