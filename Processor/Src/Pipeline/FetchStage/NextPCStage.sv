@@ -9,17 +9,9 @@
 import BasicTypes::*;
 import PipelineTypes::*;
 import MemoryMapTypes::*;
-import CacheSystemTypes::*;
 import FetchUnitTypes::*;
 
 //`define RSD_STOP_FETCH_ON_PRED_MISS
-
-// One fetch can use one I-cache line and one aligned BTB group.
-function automatic logic StepOverFetchBoundary (PC_Path pc1, PC_Path pc2);
-    return pc1[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] != pc2[ICACHE_LINE_BYTE_NUM_BIT_WIDTH] ||
-           (FETCH_WIDTH * INSN_BYTE_WIDTH != ICACHE_LINE_BYTE_NUM &&
-            ToBTB_Group(pc1) != ToBTB_Group(pc2));
-endfunction
 
 module NextPCStage(
     NextPCStageIF.ThisStage port,
@@ -87,8 +79,7 @@ module NextPCStage(
 `endif
 
     logic pcWE;
-    PC_Path pc, pcIn;
-    PC_Path predNextPC;
+    PC_Path pc, pcIn, sequentialPC, predNextPC;
     FetchStageRegPath nextStage[ FETCH_WIDTH ];
 
     // Pipeline Control
@@ -131,8 +122,7 @@ module NextPCStage(
         //   1) if PC is written from outside
         //   2) if it is beginning of stall
         //   (see the comment of regBrPred in FetchStage.sv)
-        pcWE =
-            (writePC_FromOuter || !stall || beginStall) && !port.rst;
+        pcWE = writePC_FromOuter || !stall || beginStall;
     end
 
 
@@ -140,6 +130,8 @@ module NextPCStage(
     // Branch Prediction
     //
     always_comb begin
+        // Form the fall-through from the registered request in parallel with prediction.
+        sequentialPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
 
         // Decide the address to input to the branch predictor
         if (recovery.toRecoveryPhase) begin
@@ -152,8 +144,9 @@ module NextPCStage(
             predNextPC = recovery.recoveredPC_FromRename;
         end
         else begin
-            // Use current PC
-            predNextPC = pc;
+            // IF holds a valid group when icRE is set. After a stall, pc holds
+            // the pending request; after reset or interrupt entry, IF is empty.
+            predNextPC = (!regStall && next.icRE) ? sequentialPC : pc;
 
             for (int i = 0; i < FETCH_WIDTH; i++) begin
                 // Process of branch prediction:
@@ -177,41 +170,20 @@ module NextPCStage(
     //  Updating PC
     //
     always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            pc <= PC_Path'(INSN_RESET_VECTOR);
-        end
-        else if (pcWE) begin
-            pc <= pcIn;
-        end
+        pc <= pcIn;
     end
 
     always_comb begin
-        // --- PC
+        pcIn = pc;
+        if (port.rst) begin
+            pcIn = PC_Path'(INSN_RESET_VECTOR);
+        end
+        else if (pcWE) begin
+            // Register the interrupt vector before it reaches the predictor.
+            pcIn = port.interruptAddrWE ? port.interruptAddrIn : predNextPC;
+        end
+        // Interrupt entry samples the pending PC after the pipeline has drained.
         port.pcOut = pc;
-        if (port.interruptAddrWE) begin
-            // When an interrupt occurs, use interrupt address.
-            // NOTE: This input can be a critical path.
-            // Hence, interrupt address is input to PC first rather than 
-            // input to the branch predictor directly.
-            pcIn = port.interruptAddrIn;
-        end
-        else if (beginStall) begin
-            // Update PC based on the branch prediction result accessed
-            // immediately before the stall if it is beginning of stall.
-            // (see the comment of regBrPred in FetchStage.sv)
-            pcIn = predNextPC;
-        end
-        else begin
-            // Increment PC
-            pcIn = predNextPC + FETCH_WIDTH*INSN_BYTE_WIDTH;
-            for (int i = 1; i < FETCH_WIDTH; i++) begin
-                if (StepOverFetchBoundary(predNextPC, predNextPC+i*INSN_BYTE_WIDTH)) begin
-                    // Resume at the first instruction outside this fetch.
-                    pcIn = predNextPC+i*INSN_BYTE_WIDTH;
-                    break;
-                end
-            end
-        end
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -220,7 +192,7 @@ module NextPCStage(
 `endif
             nextStage[i].pc = predNextPC + i * INSN_BYTE_WIDTH;
             if (port.interruptAddrWE || clear ||
-                StepOverFetchBoundary(predNextPC, nextStage[i].pc)) begin
+                int'(ToFetchGroupOffset(predNextPC)) >= FETCH_WIDTH - i) begin
                 nextStage[i].valid = FALSE;
             end
             else begin

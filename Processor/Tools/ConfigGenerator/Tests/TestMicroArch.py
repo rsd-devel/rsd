@@ -106,6 +106,7 @@ class TestMicroArch(unittest.TestCase):
             ("load_queue_entry_num", 17),
             ("btb_entry_num", 1),
             ("icache_way_num", 1),
+            ("icache_line_byte_num", 4),
             ("branch_global_history_bit_width", 12),
             ("dcache_index_bit_width_base", 32),
             ("dcache_index_bit_width_base", 1),

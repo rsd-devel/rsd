@@ -71,7 +71,7 @@ icache_way_num = 2
 # the set index width. Total capacity = 2^this value * icache_line_byte_num.
 icache_index_bit_width_base = 9
 
-# I-cache line size in bytes. Must be a power of two.
+# I-cache line size in bytes. Must be a power of two and hold whole fetch groups.
 icache_line_byte_num = 8
 
 # Enable the Zba address-generation instructions.

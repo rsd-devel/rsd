@@ -16,6 +16,7 @@ import MemoryMapTypes::*;
 // BTB
 //
 
+localparam FETCH_GROUP_BYTE_NUM = FETCH_WIDTH * INSN_BYTE_WIDTH;
 localparam BTB_ENTRY_NUM = CONF_BTB_ENTRY_NUM;
 
 // The two-way replacement policy allocates the way opposite the last write to the set.
@@ -45,11 +46,11 @@ typedef struct packed {
 } BTB_Entry;
 
 function automatic PC_Path ToBTB_Group(PC_Path addr);
-    return addr / (FETCH_WIDTH * INSN_BYTE_WIDTH);
+    return addr / FETCH_GROUP_BYTE_NUM;
 endfunction
 
 function automatic PC_Path ToFetchGroupBase(PC_Path addr);
-    return ToBTB_Group(addr) * (FETCH_WIDTH * INSN_BYTE_WIDTH);
+    return addr & ~PC_Path'(FETCH_GROUP_BYTE_NUM - 1);
 endfunction
 
 function automatic BTB_OffsetPath ToFetchGroupOffset(PC_Path addr);

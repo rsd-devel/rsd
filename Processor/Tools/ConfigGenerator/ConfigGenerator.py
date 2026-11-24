@@ -670,6 +670,8 @@ def validate_micro_arch(parameters: ConfigMapping) -> tuple[dict[str, int], dict
             raise ConfigError(f"parameters.{name.lower()} must be a power of two")
     if params["COMMIT_WIDTH"] < params["FETCH_WIDTH"]:
         raise ConfigError("commit_width must be at least fetch_width for recovery")
+    if params["ICACHE_LINE_BYTE_NUM"] % (4 * params["FETCH_WIDTH"]):
+        raise ConfigError("icache_line_byte_num must be a multiple of the fetch group size (4 * fetch_width)")
     if params["PSCALAR_NUM"] != params["PSCALAR_FP_NUM"]:
         raise ConfigError("pscalar_num and pscalar_fp_num must match")
     if params["PSCALAR_NUM"] <= 32:
