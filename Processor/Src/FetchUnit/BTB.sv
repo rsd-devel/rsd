@@ -52,7 +52,7 @@ module BTB(
         .ENTRY_BIT_SIZE($bits(writeRow))
     ) btbEntryArray (
         .clk(port.clk), .we(writeMask), .wa(writeSet), .wv(writeRow),
-        .ra(ToBTB_Set(port.predNextPC)), .rv(readRow)
+        .ra(ToBTB_Set(port.fetchRequestPC)), .rv(readRow)
     );
 
     MultiWidthQueuePointer #(.SIZE(BTB_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) btbQueuePointer (
@@ -68,7 +68,7 @@ module BTB(
     end
 
     always_ff @(posedge port.clk) begin
-        lookupPC <= port.predNextPC;
+        lookupPC <= port.fetchRequestPC;
         if (port.rstStart)
             resetIndex <= '0;
         else if (port.rst)

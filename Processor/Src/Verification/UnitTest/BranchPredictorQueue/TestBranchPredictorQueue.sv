@@ -37,7 +37,7 @@ module TestBranchPredictorQueue;
 
     task ReadBTB(input MemoryMapTypes::PC_Path pc);
         @(negedge clk);
-        port.predNextPC = pc;
+        port.fetchRequestPC = pc;
         @(posedge clk);
         #1;
     endtask
@@ -58,7 +58,7 @@ module TestBranchPredictorQueue;
                 (!expected.valid || (next.btbOut[lane] === expected.nextAddr &&
                                      next.readIsCondBr[lane] === expected.isCondBr)))
             else $fatal(1, "BTB PC %h lane %0d expected hit %b target %h conditional %b",
-                        port.predNextPC, lane, expected.valid, expected.nextAddr, expected.isCondBr);
+                        port.fetchRequestPC, lane, expected.valid, expected.nextAddr, expected.isCondBr);
     endtask
 
     task CheckBTBTraining;
@@ -106,7 +106,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         for (int i = 0; i < count; i++) begin
             expected = MakeResult(firstIndex + i);
-            port.predNextPC = expected.brAddr;
+            port.fetchRequestPC = expected.brAddr;
             #1;
             assert (gshare.phtWE[0] &&
                     gshare.phtWA[0] === PHT_IndexPath'(firstIndex + i) &&
@@ -326,7 +326,7 @@ module TestBranchPredictorQueue;
 
     initial begin
         ClearResults();
-        port.predNextPC = '0;
+        port.fetchRequestPC = '0;
         ctrl.ifStage = '0;
         foreach (next.updateBrHistory[i]) begin
             next.updateBrHistory[i] = FALSE;

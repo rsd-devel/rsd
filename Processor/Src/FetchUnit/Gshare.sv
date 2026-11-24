@@ -131,7 +131,7 @@ module Gshare(
         stall = ctrl.ifStage.stall;
         clear = ctrl.ifStage.clear;
     
-        groupBase = ToFetchGroupBase(port.predNextPC);
+        groupBase = ToFetchGroupBase(port.fetchRequestPC);
 
         nextBrGlobalHistory = regBrGlobalHistory;
 

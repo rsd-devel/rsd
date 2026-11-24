@@ -106,7 +106,7 @@ module Bimodal(
 
     always_comb begin
     
-        groupBase = ToFetchGroupBase(port.predNextPC);
+        groupBase = ToFetchGroupBase(port.fetchRequestPC);
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             next.phtPrevValue[i] = phtRV[i];

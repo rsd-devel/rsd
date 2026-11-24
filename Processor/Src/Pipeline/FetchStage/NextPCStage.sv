@@ -79,7 +79,8 @@ module NextPCStage(
 `endif
 
     logic pcWE;
-    PC_Path pc, pcIn, sequentialPC, predNextPC;
+    PC_Path pc, pcIn;
+    PC_Path fallThroughPC, predictedPC, fetchRequestPC;
     FetchStageRegPath nextStage[ FETCH_WIDTH ];
 
     // Pipeline Control
@@ -130,39 +131,32 @@ module NextPCStage(
     // Branch Prediction
     //
     always_comb begin
-        // Form the fall-through from the registered request in parallel with prediction.
-        sequentialPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
-
-        // Decide the address to input to the branch predictor
-        if (recovery.toRecoveryPhase) begin
-            // Branch misprediction or an exception etc. is detected
-            // Refetch instruction specified by Rw, Cm stage
-            predNextPC = recovery.recoveredPC_FromRwCommit;
-        end
-        else if (recovery.recoverFromRename) begin
-            // Detect branch misprediction in decode stage
-            predNextPC = recovery.recoveredPC_FromRename;
-        end
-        else begin
-            // IF holds a valid group when icRE is set. After a stall, pc holds
-            // the pending request; after reset or interrupt entry, IF is empty.
-            predNextPC = (!regStall && next.icRE) ? sequentialPC : pc;
-
-            for (int i = 0; i < FETCH_WIDTH; i++) begin
-                // Process of branch prediction:
-                // If BTB is hit, the instruction is predicted to be a branch. 
-                // In addition, if the branch is predicted as Taken, 
-                // the address read from BTB is used as next PC.
-                if (!regStall && next.fetchSlotValid[i] &&
-                        next.btbHit[i] && next.brPredTaken[i]) begin
-                    // Use PC from BTB
-                    predNextPC = next.btbOut[i];
-                    break;
-                end
+        // If no valid slot is predicted taken, advance to the next fetch group.
+        fallThroughPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
+        predictedPC = fallThroughPC;
+        for (int i = 0; i < FETCH_WIDTH; i++) begin
+            if (next.fetchSlotValid[i] && next.btbHit[i] && next.brPredTaken[i]) begin
+                predictedPC = next.btbOut[i];
+                break;
             end
         end
-        // To Branch predictor
-        port.predNextPC = predNextPC;
+    end
+
+    always_comb begin
+        if (recovery.toRecoveryPhase) begin
+            fetchRequestPC = recovery.recoveredPC_FromRwCommit;
+        end
+        else if (recovery.recoverFromRename) begin
+            fetchRequestPC = recovery.recoveredPC_FromRename;
+        end
+        else if (regStall || !next.icRE) begin
+            // Stall entry saved the pending request. An empty IF also starts at pc.
+            fetchRequestPC = pc;
+        end
+        else begin
+            fetchRequestPC = predictedPC;
+        end
+        port.fetchRequestPC = fetchRequestPC;
     end
 
 
@@ -180,7 +174,7 @@ module NextPCStage(
         end
         else if (pcWE) begin
             // Register the interrupt vector before it reaches the predictor.
-            pcIn = port.interruptAddrWE ? port.interruptAddrIn : predNextPC;
+            pcIn = port.interruptAddrWE ? port.interruptAddrIn : fetchRequestPC;
         end
         // Interrupt entry samples the pending PC after the pipeline has drained.
         port.pcOut = pc;
@@ -190,9 +184,9 @@ module NextPCStage(
             // Generate serial id for dumping
             nextStage[i].sid = curSID + i;
 `endif
-            nextStage[i].pc = predNextPC + i * INSN_BYTE_WIDTH;
+            nextStage[i].pc = fetchRequestPC + i * INSN_BYTE_WIDTH;
             if (port.interruptAddrWE || clear ||
-                int'(ToFetchGroupOffset(predNextPC)) >= FETCH_WIDTH - i) begin
+                int'(ToFetchGroupOffset(fetchRequestPC)) >= FETCH_WIDTH - i) begin
                 nextStage[i].valid = FALSE;
             end
             else begin
@@ -207,11 +201,11 @@ module NextPCStage(
     //
     // I-cache Access
     //
-    PhyAddrPath predNextPhyAddr;
+    PhyAddrPath fetchRequestPhyAddr;
     always_comb begin
         // Translate both candidates before selection so the late stall signal
         // does not feed the address-range decoding.
-        predNextPhyAddr = ToPhyAddrFromLogical(ToAddrFromPC(predNextPC));
+        fetchRequestPhyAddr = ToPhyAddrFromLogical(ToAddrFromPC(fetchRequestPC));
 
         // Decide input address of I-cache
         if (next.icRE && stall) begin
@@ -220,7 +214,7 @@ module NextPCStage(
         end
         else begin
             // Use the PC of this stage
-            port.icNextReadAddrIn = predNextPhyAddr;
+            port.icNextReadAddrIn = fetchRequestPhyAddr;
         end
     end
 

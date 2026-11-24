@@ -16,7 +16,8 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
     // Registered PC used as the interrupt return address.
     PC_Path  pcOut;
 
-    PC_Path  predNextPC;
+    // Address for the next predictor lookup, including redirects and repeated requests.
+    PC_Path  fetchRequestPC;
 
     // Executed branch results for updating a branch predictor.
     // This signal is written back from a write back stage.
@@ -41,14 +42,14 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
         interruptAddrWE,
     output
         pcOut,
-        predNextPC,
+        fetchRequestPC,
         icNextReadAddrIn,
         nextStage
     );
 
     modport NextStage(
     input
-        predNextPC,
+        fetchRequestPC,
         nextStage
     );
 
@@ -62,7 +63,7 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
         clk,
         rst,
         rstStart,
-        predNextPC,
+        fetchRequestPC,
         brResult
     );
 
@@ -71,7 +72,7 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
         clk,
         rst,
         rstStart,
-        predNextPC,
+        fetchRequestPC,
         brResult
     );
 
