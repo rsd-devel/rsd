@@ -41,11 +41,12 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     // Addresses for the next cache lookup and the response currently in Fetch.
     AddrPath icNextReadAddrIn, icReadAddrIn;
     logic icRE;
-    // I-cache responses and nextStage use fetchLane. Lane 0 is the instruction at icReadAddrIn.
-    logic icReadHit[FETCH_WIDTH];
+    // A hit covers the cache line containing icReadAddrIn.
+    logic icReadHit;
+    // Lane 0 of the I-cache response and the group sent to PreDecode start at icReadAddrIn.
     InsnPath icReadDataOut[FETCH_WIDTH];
 
-    PreDecodeStageRegPath nextStage[FETCH_WIDTH];
+    PreDecodeStageRegPath nextStage;
 
     modport ThisStage(
     input

@@ -15,15 +15,15 @@ module FetchStage(
 );
     PC_Path pc, pcIn;
     PC_Path predictedPC, fetchRequestPC;
-    FetchStageRegPath nextPipeReg[FETCH_WIDTH], pipeReg[FETCH_WIDTH];
-    PreDecodeStageRegPath nextStage[FETCH_WIDTH];
+    FetchStageRegPath nextPipeReg, pipeReg;
+    PreDecodeStageRegPath nextStage;
 
     logic stall, clear;
     logic stallFromCtrl;
     logic regStall, regStallFromCtrl;
     logic beginStallFromCtrl;
-    BranchPred brPred[FETCH_WIDTH], regBrPred[FETCH_WIDTH];
-    logic isFlushed[FETCH_WIDTH];
+    // Both predictions are indexed by offset in the aligned fetch group.
+    BranchPred liveBrPred[FETCH_WIDTH], regBrPred[FETCH_WIDTH];
     always_ff @(posedge port.clk) begin
         if (port.rst) begin
             regStall <= FALSE;
@@ -40,23 +40,16 @@ module FetchStage(
             pc <= pcIn;
 
         if (port.rst) begin
-            for (int i = 0; i < FETCH_WIDTH; i++) begin
-                pipeReg[i] <= '0;
+            pipeReg <= '0;
+            for (int i = 0; i < FETCH_WIDTH; i++)
                 regBrPred[i] <= '0;
-            end
         end
         else begin
             if (!stallFromCtrl)
                 pipeReg <= nextPipeReg;
-            else begin
-                for (int i = 0; i < FETCH_WIDTH; i++) begin
-                    if (isFlushed[i])
-                        pipeReg[i].valid <= FALSE;
-                end
-            end
             // Save this group's prediction before the predictor advances during a stall.
             if (beginStallFromCtrl)
-                regBrPred <= brPred;
+                regBrPred <= liveBrPred;
         end
 
     end
@@ -74,33 +67,40 @@ module FetchStage(
 
     logic icMiss;
     BTB_OffsetPath fetchStartOffset;
-    logic [FETCH_WIDTH-1:0] validByFetchLane, validByGroupOffset;
-    logic empty;
+    logic [FETCH_WIDTH-1:0] validByGroupOffset;
     always_comb begin
-        empty = TRUE;
-        for (int fetchLane = 0; fetchLane < FETCH_WIDTH; fetchLane++) begin
-            validByFetchLane[fetchLane] = pipeReg[fetchLane].valid;
-            if (pipeReg[fetchLane].valid)
-                empty = FALSE;
-        end
-
-        icMiss = pipeReg[0].valid && !port.icReadHit[0];
+        icMiss = pipeReg.valid && !port.icReadHit;
         ctrl.ifStageSendBubbleLower = icMiss;
-        ctrl.ifStageEmpty = empty;
+        ctrl.ifStageEmpty = !pipeReg.valid;
 
-        // Lane 0 starts at the fetch PC. Earlier instructions in the group are skipped.
-        fetchStartOffset = ToFetchGroupOffset(pipeReg[0].pc);
-        validByGroupOffset = validByFetchLane << fetchStartOffset;
+        // The predictor uses fixed group offsets at or after the fetch PC.
+        fetchStartOffset = ToFetchGroupOffset(pipeReg.pc);
+        validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++)
             port.updateBrHistory[groupOffset] = !regStallFromCtrl && validByGroupOffset[groupOffset];
     end
 
-    // Use the first predicted-taken branch among the valid group offsets.
+    BranchPred brPred[FETCH_WIDTH];
+    logic [FETCH_WIDTH-1:0] flushByGroupOffset;
     always_comb begin
-        predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (validByGroupOffset[groupOffset] && port.btbHit[groupOffset] && port.brPredTaken[groupOffset]) begin
-                predictedPC = port.btbOut[groupOffset];
+            liveBrPred[groupOffset].takenAddr = port.btbOut[groupOffset];
+            liveBrPred[groupOffset].btbHit = port.btbHit[groupOffset];
+            liveBrPred[groupOffset].btbHitWay = port.btbHitWay[groupOffset];
+            liveBrPred[groupOffset].takenAddrChangedAtDecode = FALSE;
+            liveBrPred[groupOffset].predTaken = port.brPredTaken[groupOffset];
+            liveBrPred[groupOffset].globalHistory = port.brGlobalHistory[groupOffset];
+            liveBrPred[groupOffset].phtPrevValue = port.phtPrevValue[groupOffset];
+            brPred[groupOffset] = regStallFromCtrl ? regBrPred[groupOffset] : liveBrPred[groupOffset];
+        end
+
+        predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
+        flushByGroupOffset = '0;
+        // The first predicted-taken branch supplies the target and discards all later offsets.
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            if (validByGroupOffset[groupOffset] && brPred[groupOffset].predTaken) begin
+                predictedPC = brPred[groupOffset].takenAddr;
+                flushByGroupOffset = {FETCH_WIDTH{TRUE}} << (groupOffset + 1);
                 break;
             end
         end
@@ -109,7 +109,7 @@ module FetchStage(
             fetchRequestPC = recovery.recoveredPC_FromRwCommit;
         else if (recovery.recoverFromRename)
             fetchRequestPC = recovery.recoveredPC_FromRename;
-        else if (regStall || !pipeReg[0].valid)
+        else if (regStall || !pipeReg.valid)
             fetchRequestPC = pc;
         else
             fetchRequestPC = predictedPC;
@@ -128,61 +128,41 @@ module FetchStage(
 `endif
     PC_Path icNextReadPC;
     always_comb begin
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
+        nextPipeReg.pc = fetchRequestPC;
 `ifndef RSD_DISABLE_DEBUG_REGISTER
-            nextPipeReg[i].sid = curSID + i;
+        nextPipeReg.sid = curSID;
 `endif
-            nextPipeReg[i].pc = fetchRequestPC + i * INSN_BYTE_WIDTH;
-            if (port.interruptAddrWE || clear ||
-                int'(ToFetchGroupOffset(fetchRequestPC)) >= FETCH_WIDTH - i)
-                nextPipeReg[i].valid = FALSE;
-            else
-                nextPipeReg[i].valid = TRUE;
-        end
+        nextPipeReg.valid = !port.interruptAddrWE && !clear;
 
         // Repeat the current I-cache lookup while the request is stalled.
-        if (pipeReg[0].valid && stall)
-            icNextReadPC = pipeReg[0].pc;
+        if (pipeReg.valid && stall)
+            icNextReadPC = pipeReg.pc;
         else
             icNextReadPC = fetchRequestPC;
-        port.icRE = pipeReg[0].valid;
-        port.icReadAddrIn = ToAddrFromPC(pipeReg[0].pc);
+        port.icRE = pipeReg.valid;
+        port.icReadAddrIn = ToAddrFromPC(pipeReg.pc);
         port.icNextReadAddrIn = ToAddrFromPC(icNextReadPC);
     end
 
+    logic [FETCH_WIDTH-1:0] validByFetchLane, validThroughBranch;
     always_comb begin
-        // Match each I-cache lane to its predictor entry. Lanes that wrap are already invalid.
+        validThroughBranch = (validByGroupOffset & ~flushByGroupOffset) >> fetchStartOffset;
+        // A fresh response shows flushed lanes for one cycle. A held response has already discarded them.
+        validByFetchLane = regStallFromCtrl ? validThroughBranch : (validByGroupOffset >> fetchStartOffset);
+
+        nextStage.pc = pipeReg.pc;
+`ifndef RSD_DISABLE_DEBUG_REGISTER
+        nextStage.sid = pipeReg.sid;
+`endif
+        if (stallFromCtrl || ctrl.ifStage.clear || port.rst)
+            nextStage.valid = '0;
+        else
+            nextStage.valid = validThroughBranch;
         for (int fetchLane = 0; fetchLane < FETCH_WIDTH; fetchLane++) begin
             BTB_OffsetPath groupOffset;
             groupOffset = BTB_OffsetPath'((fetchStartOffset + fetchLane) % FETCH_WIDTH);
-            brPred[fetchLane].takenAddr = port.btbOut[groupOffset];
-            brPred[fetchLane].btbHit = port.btbHit[groupOffset];
-            brPred[fetchLane].btbHitWay = port.btbHitWay[groupOffset];
-            brPred[fetchLane].takenAddrChangedAtDecode = FALSE;
-            brPred[fetchLane].predTaken = port.brPredTaken[groupOffset];
-            brPred[fetchLane].globalHistory = port.brGlobalHistory[groupOffset];
-            brPred[fetchLane].phtPrevValue = port.phtPrevValue[groupOffset];
-            isFlushed[fetchLane] = FALSE;
-        end
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            if (!regStallFromCtrl && pipeReg[i].valid && brPred[i].predTaken) begin
-                for (int j = i + 1; j < FETCH_WIDTH; j++)
-                    isFlushed[j] = pipeReg[j].valid;
-                break;
-            end
-        end
-
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            if (stallFromCtrl || ctrl.ifStage.clear || port.rst || isFlushed[i])
-                nextStage[i].valid = FALSE;
-            else
-                nextStage[i].valid = pipeReg[i].valid;
-`ifndef RSD_DISABLE_DEBUG_REGISTER
-            nextStage[i].sid = pipeReg[i].sid;
-`endif
-            nextStage[i].pc = pipeReg[i].pc;
-            nextStage[i].brPred = regStallFromCtrl ? regBrPred[i] : brPred[i];
-            nextStage[i].insn = pipeReg[i].valid ? port.icReadDataOut[i] : '0;
+            nextStage.brPred[fetchLane] = brPred[groupOffset];
+            nextStage.insn[fetchLane] = validByFetchLane[fetchLane] ? port.icReadDataOut[fetchLane] : '0;
         end
         port.nextStage = nextStage;
     end
@@ -204,20 +184,15 @@ module FetchStage(
         else
             curSID <= nextSID;
     end
-    logic [FETCH_WIDTH:0] numValidInsns;
     always_comb begin
-        numValidInsns = 0;
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            if (!nextPipeReg[i].valid)
-                break;
-            numValidInsns++;
-        end
-        nextSID = (stall || clear) ? curSID : curSID + numValidInsns;
+        nextSID = curSID;
+        if (!stall && nextPipeReg.valid)
+            nextSID = curSID + OpSerial'(FETCH_WIDTH - int'(ToFetchGroupOffset(fetchRequestPC)));
 
         for (int i = 0; i < FETCH_WIDTH; i++) begin
-            debug.ifReg[i].valid = pipeReg[i].valid;
-            debug.ifReg[i].sid = pipeReg[i].sid;
-            debug.ifReg[i].flush = isFlushed[i];
+            debug.ifReg[i].valid = validByFetchLane[i];
+            debug.ifReg[i].sid = pipeReg.sid + OpSerial'(i);
+            debug.ifReg[i].flush = validByFetchLane[i] && !validThroughBranch[i];
             debug.ifReg[i].icMiss = (i == 0) && icMissOnCtrlStallEntry;
         end
     end

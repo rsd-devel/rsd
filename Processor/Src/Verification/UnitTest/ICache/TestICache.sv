@@ -35,14 +35,12 @@ module TestICache;
 
     task CheckRead(input logic expectedHit, input ICacheLinePath expectedLine = '0);
         int wordIndex;
-        logic laneHit;
+        assert (fetchStageIF.icReadHit === expectedHit)
+            else $fatal(1, "Fetch at %h: expected hit=%b, got %b",
+                        fetchStageIF.icReadAddrIn, expectedHit, fetchStageIF.icReadHit);
         for (int i = 0; i < FETCH_WIDTH; i++) begin
             wordIndex = (fetchStageIF.icReadAddrIn % ICACHE_LINE_BYTE_NUM) / INSN_BYTE_WIDTH + i;
-            laneHit = expectedHit && wordIndex < ICACHE_LINE_INSN_NUM;
-            assert (fetchStageIF.icReadHit[i] === laneHit)
-                else $fatal(1, "Fetch at %h lane %0d: expected hit=%b, got %b",
-                            fetchStageIF.icReadAddrIn, i, laneHit, fetchStageIF.icReadHit[i]);
-            if (laneHit) begin
+            if (expectedHit && wordIndex < ICACHE_LINE_INSN_NUM) begin
                 assert (fetchStageIF.icReadDataOut[i] === expectedLine[wordIndex * INSN_WIDTH +: INSN_WIDTH])
                     else $fatal(1, "Fetch at %h lane %0d: expected %h, got %h",
                                 fetchStageIF.icReadAddrIn, i,

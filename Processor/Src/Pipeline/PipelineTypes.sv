@@ -75,6 +75,7 @@ typedef enum logic [2:0] { // RefetchType
 // they are written by a fetch stage.
 //
 
+// Fetch and PreDecode each hold one group. PC and SID identify its first lane.
 typedef struct packed { // FetchStageRegPath
 `ifndef RSD_DISABLE_DEBUG_REGISTER
     OpSerial sid;
@@ -89,10 +90,10 @@ typedef struct packed // PreDecodeStageRegPath
     OpSerial sid;
 `endif
 
-    logic    valid;     // Valid flag. If this is 0, this op is treated as NOP.
-    InsnPath insn;      // Instruction code
     PC_Path pc;
-    BranchPred brPred;
+    logic [FETCH_WIDTH-1:0] valid;
+    InsnPath [FETCH_WIDTH-1:0] insn;
+    BranchPred [FETCH_WIDTH-1:0] brPred;
 } PreDecodeStageRegPath;
 
 typedef struct packed // DecodeStageRegPath

@@ -136,33 +136,6 @@ module ICacheNRUStateArray(
 
 endmodule
 
-//
-// Generate hit signals for each word.
-//
-module ICacheHitLogic(
-input
-    logic hitIn,
-    ICacheLineInsnIndexPath headWordPtr,
-output
-    logic hitOut [ FETCH_WIDTH ]
-);
-    ICacheLineInsnCountPath wordPtr [ FETCH_WIDTH ];
-    
-    always_comb begin
-        for ( int fetchLane = 0; fetchLane < FETCH_WIDTH; fetchLane++ ) begin
-            wordPtr[fetchLane] = headWordPtr + fetchLane;
-            if ( wordPtr[fetchLane][ $clog2(ICACHE_LINE_INSN_NUM) ] ) begin
-                // A fetch lane beyond the current cache line reports a miss.
-                hitOut[fetchLane] = FALSE;
-            end
-            else begin
-                hitOut[fetchLane] = hitIn;
-            end
-        end
-    end
-
-endmodule
-
 module ICache(
     FetchStageIF.ICache port,
     CacheSystemIF.ICache cacheSystem
@@ -338,21 +311,11 @@ module ICache(
     end
 
     //
-    // HitLogic
-    // Check whether each read request is satisfied
-    //
-    ICacheLineInsnIndexPath wordPtr[ FETCH_WIDTH ];
-    ICacheHitLogic iCacheHitLogic (
-        .hitIn( hit && regPhase == ICACHE_PHASE_READ_CACHE && port.icRE ),
-        .headWordPtr( wordPtr[0] ),
-        .hitOut( port.icReadHit )
-    );
-    
-    //
     // ICache Read
     //
-    
+    ICacheLineInsnIndexPath wordPtr[ FETCH_WIDTH ];
     always_comb begin
+        port.icReadHit = hit && regPhase == ICACHE_PHASE_READ_CACHE && port.icRE;
         wordPtr[0] = GetICacheLineInsnIndex( readPhyAddr );
         for ( int fetchLane = 1; fetchLane < FETCH_WIDTH; fetchLane++ ) begin
             wordPtr[fetchLane] = wordPtr[0] + fetchLane;
