@@ -142,10 +142,10 @@ typedef struct packed // struct BranchResult
 
 typedef struct packed // struct BranchPred
 {
-    PC_Path takenAddr;            // Predicted taken target, independent of the predicted direction.
+    PC_Path takenAddr;            // Selected target when predTaken is set.
     logic btbHit;
     BTB_WayIndexPath btbHitWay;
-    logic takenAddrChangedAtDecode; // Decode replaced the taken address supplied by Fetch.
+    logic takenAddrChangedAtDecode; // Decode supplied the target on a redirect.
     logic predTaken;                        // result of bpred
     
     BranchGlobalHistoryPath globalHistory;  // The global history of branches.

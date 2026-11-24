@@ -213,8 +213,8 @@ output
                 flushTriggered = TRUE;
                 brPredOut[i].predTaken = insnInfo[i].writePC;
                 if (insnInfo[i].writePC) begin
-                    // Keep the Fetch hit and way for training even if Decode replaces the target.
-                    brPredOut[i].takenAddrChangedAtDecode = !targetMatch;
+                    // Decode supplies the target on a redirect. Keep the Fetch hit way for training.
+                    brPredOut[i].takenAddrChangedAtDecode = TRUE;
                     brPredOut[i].takenAddr = decodedPC[i];
                 end
                 break;

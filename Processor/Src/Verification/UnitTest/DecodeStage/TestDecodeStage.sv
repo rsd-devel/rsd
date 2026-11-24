@@ -314,21 +314,22 @@ module TestDecodeStage;
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
         Reset();
-        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4, TRUE); // jal ra, +4
+        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, '0, TRUE); // jal ra, +4
         Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
               port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
-              !port.nextStage[0].bPred.takenAddrChangedAtDecode, "JAL direction correction preserves a correct BTB target");
-        LoadBundle(32'h00008067, NOP, TRUE, FALSE, START_PC + 4, TRUE); // ret, RAS holds call PC + 4
+              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
+              "JAL direction correction supplies the target and retains the Fetch hit way");
+        LoadBundle(32'h00008067, NOP, TRUE, FALSE, '0, TRUE); // ret, RAS holds call PC + 4
         Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
-              !port.nextStage[0].bPred.takenAddrChangedAtDecode, "return direction correction preserves a matching BTB target");
+              port.nextStage[0].bPred.takenAddrChangedAtDecode, "return direction correction supplies the RAS target");
 
         Reset();
-        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 4); // No BTB hit.
-        Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && !port.nextStage[0].bPred.takenAddrChangedAtDecode,
-              "a direction correction on a BTB miss keeps the target and the miss");
-        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, START_PC + 8);
+        LoadBundle(32'h00008067, NOP, TRUE, FALSE, '0, TRUE); // Empty RAS also yields address zero.
+        Check(port.nextFlush && port.nextRecoveredPC == '0 && port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "a return to zero still trains when Fetch selected no target");
+        LoadBundle(32'h004000ef, NOP, TRUE); // No BTB hit.
         Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
-              port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode records a target change even on a BTB miss");
+              port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode supplies the JAL target on a BTB miss");
         LoadBundle(32'h00008067, NOP, TRUE, TRUE, START_PC + 8, TRUE);
         Check(port.nextFlush && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHit &&
@@ -336,10 +337,10 @@ module TestDecodeStage;
               "a different RAS target still trains the Fetch hit way");
 
         Reset();
-        LoadBundle(32'h00000863, NOP, TRUE, FALSE, START_PC + 8, TRUE); // beq x0, x0, +16
+        LoadBundle(32'h00000863, NOP, TRUE, FALSE, '0, TRUE); // beq x0, x0, +16
         Check(!port.nextFlush && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
-              !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 8,
-              "not-taken conditional prediction keeps its target for execution");
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
+              "untaken conditional prediction keeps its hit way for execution");
         LoadBundle(32'h00000863, NOP, TRUE, TRUE, START_PC + 8, TRUE);
         Check(port.nextFlush && port.nextRecoveredPC == START_PC + 16 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 16,

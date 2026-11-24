@@ -22,8 +22,16 @@ module FetchStage(
     logic stallFromCtrl;
     logic regStall, regStallFromCtrl;
     logic beginStallFromCtrl;
-    // Both predictions are indexed by offset in the aligned fetch group.
-    BranchPred liveBrPred[FETCH_WIDTH], regBrPred[FETCH_WIDTH];
+    // Keep the selected branch and its group's training context while Fetch is held.
+    // The selected target itself is already in pc when the held group advances.
+    typedef struct packed {
+        logic [FETCH_WIDTH-1:0] takenByGroupOffset;
+        BranchGlobalHistoryPath globalHistory;
+        logic [FETCH_WIDTH-1:0] btbHit;
+        BTB_WayIndexPath [FETCH_WIDTH-1:0] btbHitWay;
+        PHT_EntryPath [FETCH_WIDTH-1:0] phtPrevValue;
+    } FetchPrediction;
+    FetchPrediction nextPredCtx, regPredCtx;
     always_ff @(posedge port.clk) begin
         if (port.rst) begin
             regStall <= FALSE;
@@ -41,15 +49,14 @@ module FetchStage(
 
         if (port.rst) begin
             pipeReg <= '0;
-            for (int i = 0; i < FETCH_WIDTH; i++)
-                regBrPred[i] <= '0;
+            regPredCtx <= '0;
         end
         else begin
             if (!stallFromCtrl)
                 pipeReg <= nextPipeReg;
             // Save this group's prediction before the predictor advances during a stall.
             if (beginStallFromCtrl)
-                regBrPred <= liveBrPred;
+                regPredCtx <= nextPredCtx;
         end
 
     end
@@ -83,27 +90,20 @@ module FetchStage(
                                                 validByGroupOffset[groupOffset];
     end
 
-    BranchPred brPred[FETCH_WIDTH];
-    logic [FETCH_WIDTH-1:0] flushByGroupOffset;
     always_comb begin
+        nextPredCtx.globalHistory = port.brGlobalHistory;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            liveBrPred[groupOffset].takenAddr = port.btbOut[groupOffset];
-            liveBrPred[groupOffset].btbHit = port.btbHit[groupOffset];
-            liveBrPred[groupOffset].btbHitWay = port.btbHitWay[groupOffset];
-            liveBrPred[groupOffset].takenAddrChangedAtDecode = FALSE;
-            liveBrPred[groupOffset].predTaken = port.brPredTaken[groupOffset];
-            liveBrPred[groupOffset].globalHistory = port.brGlobalHistory[groupOffset];
-            liveBrPred[groupOffset].phtPrevValue = port.phtPrevValue[groupOffset];
-            brPred[groupOffset] = regStallFromCtrl ? regBrPred[groupOffset] : liveBrPred[groupOffset];
+            nextPredCtx.btbHit[groupOffset] = port.btbHit[groupOffset];
+            nextPredCtx.btbHitWay[groupOffset] = port.btbHitWay[groupOffset];
+            nextPredCtx.phtPrevValue[groupOffset] = port.phtPrevValue[groupOffset];
         end
 
         predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
-        flushByGroupOffset = '0;
-        // The first predicted-taken branch supplies the target and discards all later offsets.
+        nextPredCtx.takenByGroupOffset = '0;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (validByGroupOffset[groupOffset] && brPred[groupOffset].predTaken) begin
-                predictedPC = brPred[groupOffset].takenAddr;
-                flushByGroupOffset = {FETCH_WIDTH{TRUE}} << (groupOffset + 1);
+            if (validByGroupOffset[groupOffset] && port.brPredTaken[groupOffset]) begin
+                predictedPC = port.btbOut[groupOffset];
+                nextPredCtx.takenByGroupOffset[groupOffset] = TRUE;
                 break;
             end
         end
@@ -147,8 +147,15 @@ module FetchStage(
         port.icNextReadAddrIn = ToAddrFromPC(icNextReadPC);
     end
 
-    logic [FETCH_WIDTH-1:0] validByFetchLane, validThroughBranch;
+    FetchPrediction responsePrediction;
+    PC_Path responseTakenAddr;
+    logic [FETCH_WIDTH-1:0] flushByGroupOffset, validByFetchLane, validThroughBranch;
     always_comb begin
+        responsePrediction = regStallFromCtrl ? regPredCtx : nextPredCtx;
+        responseTakenAddr = regStallFromCtrl ? pc : predictedPC;
+        flushByGroupOffset = '0;
+        for (int i = 1; i < FETCH_WIDTH; i++)
+            flushByGroupOffset[i] = flushByGroupOffset[i-1] || responsePrediction.takenByGroupOffset[i-1];
         validThroughBranch = (validByGroupOffset & ~flushByGroupOffset) >> fetchStartOffset;
         // A fresh response shows flushed lanes for one cycle. A held response has already discarded them.
         validByFetchLane = regStallFromCtrl ? validThroughBranch : (validByGroupOffset >> fetchStartOffset);
@@ -164,12 +171,29 @@ module FetchStage(
         for (int fetchLane = 0; fetchLane < FETCH_WIDTH; fetchLane++) begin
             BTB_OffsetPath groupOffset;
             groupOffset = BTB_OffsetPath'((fetchStartOffset + fetchLane) % FETCH_WIDTH);
-            nextStage.brPred[fetchLane] = brPred[groupOffset];
+            nextStage.brPred[fetchLane].predTaken = responsePrediction.takenByGroupOffset[groupOffset];
+            nextStage.brPred[fetchLane].takenAddr = responsePrediction.takenByGroupOffset[groupOffset] ? responseTakenAddr : '0;
+            nextStage.brPred[fetchLane].takenAddrChangedAtDecode = FALSE;
+            nextStage.brPred[fetchLane].btbHit = responsePrediction.btbHit[groupOffset];
+            nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
+            nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];
+            nextStage.brPred[fetchLane].globalHistory = responsePrediction.globalHistory;
             nextStage.insn[fetchLane] = validByFetchLane[fetchLane] ? port.icReadDataOut[fetchLane] : '0;
         end
         port.nextStage = nextStage;
     end
 
+`ifndef RSD_SYNTHESIS
+    PC_Path expectedHeldTarget;
+    always_ff @(posedge port.clk) begin
+        if (beginStallFromCtrl)
+            expectedHeldTarget <= predictedPC;
+        // A redirect can overwrite pc while the held group is being discarded.
+        if (regStallFromCtrl && (|nextStage.valid) && (|regPredCtx.takenByGroupOffset))
+            assert (pc == expectedHeldTarget)
+                else $fatal(1, "Fetch advanced a held taken branch with a different target");
+    end
+`endif
 
     // Performance counter
     logic icMissOnCtrlStallEntry;

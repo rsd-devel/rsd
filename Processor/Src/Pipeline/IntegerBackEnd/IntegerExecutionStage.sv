@@ -235,8 +235,8 @@ module IntegerExecutionStage(
             targetMatch = bPred[i].takenAddr == brResult[i].nextAddr;
             brResult[i].btbHit = bPred[i].btbHit;
             brResult[i].btbHitWay = bPred[i].btbHitWay;
-            brResult[i].btbTargetCorrect =
-                bPred[i].btbHit && !bPred[i].takenAddrChangedAtDecode && targetMatch;
+            brResult[i].btbTargetCorrect = bPred[i].predTaken && bPred[i].btbHit &&
+                                           !bPred[i].takenAddrChangedAtDecode && targetMatch;
             brResult[i].execTaken = brTaken[i];
             brResult[i].predTaken = bPred[i].predTaken;
             brResult[i].valid = isBranch[i] && pipeReg[i].valid && regValid[i];

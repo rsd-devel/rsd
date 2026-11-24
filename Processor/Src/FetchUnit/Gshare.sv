@@ -45,7 +45,6 @@ module Gshare(
 
     // Branch history for using predict.
     BranchGlobalHistoryPath nextBrGlobalHistory, regBrGlobalHistory;
-    BranchGlobalHistoryPath brGlobalHistory [ FETCH_WIDTH ];
 
     // assert when misprediction occured.
     logic mispred;
@@ -136,8 +135,6 @@ module Gshare(
 
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             brPredTaken[groupOffset] = phtRV[groupOffset][PHT_ENTRY_WIDTH - 1] && port.btbHit[groupOffset];
-            // Output global history to pipeline for recovery.
-            brGlobalHistory[groupOffset] = regBrGlobalHistory;
             updateHistory[groupOffset] = FALSE;
         end
 
@@ -161,7 +158,8 @@ module Gshare(
         
         port.phtPrevValue = phtRV;
         port.brPredTaken = brPredTaken;
-        port.brGlobalHistory = brGlobalHistory;
+        // All PHT counters in this group were read using the same history.
+        port.brGlobalHistory = regBrGlobalHistory;
 
         // Discard the result of previous cycle
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin

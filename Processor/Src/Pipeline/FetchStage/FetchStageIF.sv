@@ -33,7 +33,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
     logic readIsCondBr[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
-    BranchGlobalHistoryPath brGlobalHistory[FETCH_WIDTH];
+    BranchGlobalHistoryPath brGlobalHistory;
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
 
     logic updateBrHistory[FETCH_WIDTH];

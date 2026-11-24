@@ -106,6 +106,7 @@ module Bimodal(
     always_comb begin
     
         groupBase = ToFetchGroupBase(port.fetchRequestPC);
+        port.brGlobalHistory = '0;
 
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             port.phtPrevValue[groupOffset] = phtRV[groupOffset];
