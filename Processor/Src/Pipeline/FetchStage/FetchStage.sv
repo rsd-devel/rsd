@@ -76,8 +76,11 @@ module FetchStage(
         // The predictor uses fixed group offsets at or after the fetch PC.
         fetchStartOffset = ToFetchGroupOffset(pipeReg.pc);
         validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
+        // A redirect discards this group. An I-cache miss asserts both stall and clear
+        // and keeps the group, so count its prediction once, on entry to the stall.
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++)
-            port.updateBrHistory[groupOffset] = !regStallFromCtrl && validByGroupOffset[groupOffset];
+            port.updateBrHistory[groupOffset] = !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear) &&
+                                                validByGroupOffset[groupOffset];
     end
 
     BranchPred brPred[FETCH_WIDTH];
