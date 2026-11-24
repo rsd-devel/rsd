@@ -37,7 +37,6 @@ interface BrPredStageIF( input logic clk, rst, rstStart );
     input
         clk,
         rst,
-        brResult,
         interruptAddrIn,
         interruptAddrWE,
     output

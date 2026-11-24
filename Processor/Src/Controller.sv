@@ -115,10 +115,7 @@ module Controller(
                 bpStage = { TRUE, TRUE };
                 ifStage = { TRUE, TRUE };  
             end
-            else if(
-                port.bpStageSendBubbleLower ||
-                port.stopFetchForInterrupt
-            ) begin
+            else if( port.stopFetchForInterrupt ) begin
                 //
                 // Interrupt
                 //

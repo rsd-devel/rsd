@@ -11,8 +11,6 @@ import PipelineTypes::*;
 import MemoryMapTypes::*;
 import FetchUnitTypes::*;
 
-//`define RSD_STOP_FETCH_ON_PRED_MISS
-
 module BrPredStage(
     BrPredStageIF.ThisStage port,
     FetchStageIF.BrPredStage next,
@@ -20,50 +18,6 @@ module BrPredStage(
     ControllerIF.BrPredStage ctrl,
     DebugIF.BrPredStage debug
 );
-
-`ifdef RSD_STOP_FETCH_ON_PRED_MISS
-    typedef enum logic {
-        PHASE_FETCH,
-        PHASE_WAIT
-    } Phase;
-
-    parameter PHASE_DELAY = 2;
-    Phase phase[PHASE_DELAY];
-    Phase nextPhase;
-    always_ff @(posedge port.clk) begin
-        if (port.rst) begin
-            for (int i = 0; i < PHASE_DELAY; i++) begin
-                phase[i] <= PHASE_FETCH;
-            end
-        end
-        else if (recovery.toRecoveryPhase || recovery.toCommitPhase) begin
-            for (int i = 0; i < PHASE_DELAY; i++) begin
-                phase[i] <= PHASE_FETCH;
-            end
-        end
-        else begin
-            for (int i = 0; i < PHASE_DELAY - 1; i++) begin
-                phase[i+1] <= phase[i];
-            end
-            phase[0] <= nextPhase;
-        end
-    end
-
-    always_comb begin
-        if (recovery.toRecoveryPhase) begin
-            nextPhase = PHASE_FETCH;
-        end
-        else begin
-
-            nextPhase = phase[0];
-            for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-                if (port.brResult[i].valid && port.brResult[i].mispred) begin
-                    nextPhase = PHASE_WAIT;
-                end
-            end
-        end
-    end
-`endif
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
     // Debug serial IDs start at one.
@@ -100,12 +54,6 @@ module BrPredStage(
         // Control
         stall = ctrl.bpStage.stall;
         clear = ctrl.bpStage.clear;
-`ifdef RSD_STOP_FETCH_ON_PRED_MISS
-        ctrl.bpStageSendBubbleLower =
-            (!recovery.toRecoveryPhase && phase[PHASE_DELAY - 1] == PHASE_WAIT);
-`else
-        ctrl.bpStageSendBubbleLower = FALSE;
-`endif
 
         beginStall = !regStall && stall;
 

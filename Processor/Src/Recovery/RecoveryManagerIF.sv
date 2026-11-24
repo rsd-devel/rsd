@@ -160,7 +160,6 @@ interface RecoveryManagerIF( input logic clk, rst );
 
     modport BrPredStage(
     input
-        toCommitPhase,
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
         recoverFromRename,

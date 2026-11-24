@@ -52,7 +52,6 @@ input
     //
     // --- Requests from pipeline stages.
     //
-    logic bpStageSendBubbleLower;
     logic stopFetchForInterrupt;
     logic ifStageSendBubbleLower;
     logic idStageStallUpper;
@@ -74,7 +73,6 @@ input
         rnStageSendBubbleLower,
         idStageStallUpper,
         rnStageFlushUpper,
-        bpStageSendBubbleLower,
         ifStageSendBubbleLower,
         stopFetchForInterrupt,
         isStageStallUpper,
@@ -100,9 +98,7 @@ input
 
     modport BrPredStage(
     input
-        bpStage,
-    output
-        bpStageSendBubbleLower
+        bpStage
     );
 
     modport FetchStage(
