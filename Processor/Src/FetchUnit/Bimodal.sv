@@ -19,7 +19,7 @@ function automatic PHT_IndexPath ToPHT_Index_Local(PC_Path addr);
 endfunction
 
 module Bimodal(
-    NextPCStageIF.BranchPredictor port,
+    BrPredStageIF.BranchPredictor port,
     FetchStageIF.BranchPredictor next
 );
 

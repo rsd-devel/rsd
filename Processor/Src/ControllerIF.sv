@@ -29,7 +29,7 @@ input
     // これは，そのサイクルにそのステージにいる命令を無効化し，
     // 次のステージにNOP を送り込むことを意味する．
     //
-    PipelineControll npStage;
+    PipelineControll bpStage;
     PipelineControll ifStage;
     PipelineControll pdStage;
     PipelineControll idStage;
@@ -52,8 +52,8 @@ input
     //
     // --- Requests from pipeline stages.
     //
-    logic npStageSendBubbleLower;
-    logic npStageSendBubbleLowerForInterrupt;
+    logic bpStageSendBubbleLower;
+    logic stopFetchForInterrupt;
     logic ifStageSendBubbleLower;
     logic idStageStallUpper;
     logic rnStageFlushUpper;
@@ -74,9 +74,9 @@ input
         rnStageSendBubbleLower,
         idStageStallUpper,
         rnStageFlushUpper,
-        npStageSendBubbleLower,
+        bpStageSendBubbleLower,
         ifStageSendBubbleLower,
-        npStageSendBubbleLowerForInterrupt,
+        stopFetchForInterrupt,
         isStageStallUpper,
         ifStageEmpty,
         pdStageEmpty,
@@ -84,7 +84,7 @@ input
         rnStageEmpty,
         activeListEmpty,
     output
-        npStage,
+        bpStage,
         ifStage,
         pdStage,
         idStage,
@@ -98,11 +98,11 @@ input
         wholePipelineEmpty
     );
 
-    modport NextPCStage(
+    modport BrPredStage(
     input
-        npStage,
+        bpStage,
     output
-        npStageSendBubbleLower
+        bpStageSendBubbleLower
     );
 
     modport FetchStage(
@@ -298,7 +298,7 @@ input
     input 
         wholePipelineEmpty,
     output 
-        npStageSendBubbleLowerForInterrupt
+        stopFetchForInterrupt
     );
 
 endinterface : ControllerIF

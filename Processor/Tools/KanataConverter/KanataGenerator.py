@@ -28,7 +28,7 @@ from RSD_Event import RSD_Event
 # Global constants
 #
 KANATA_CONVERTER_STAGE_NAME_TABLE = [
-    "Np", "F", "Pd", "Dc", "Rn", "Ds", "Sc", "Is", "Rr", "X", "Ma", "Mt", "Rw", "Wc", "Cm"
+    "Bp", "F", "Pd", "Dc", "Rn", "Ds", "Sc", "Is", "Rr", "X", "Ma", "Mt", "Rw", "Wc", "Cm"
 ]
 KANATA_CONVERTER_INITIAL_CYCLE = -1
 KANATA_CONVERTER_RETIREMENT_STAGE_ID = 14   # See constants in RSD_Parser.py

@@ -22,7 +22,7 @@ function automatic PHT_IndexPath ToPHT_Index_Global(AddrPath addr, BranchGlobalH
 endfunction
 
 module Gshare(
-    NextPCStageIF.BranchPredictor port,
+    BrPredStageIF.BranchPredictor port,
     FetchStageIF.BranchPredictor next,
     ControllerIF.BranchPredictor ctrl
 );

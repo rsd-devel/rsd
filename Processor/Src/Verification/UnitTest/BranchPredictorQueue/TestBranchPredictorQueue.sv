@@ -12,7 +12,7 @@ module TestBranchPredictorQueue;
     logic rstStart = TRUE;
     always #5 clk = ~clk;
 
-    NextPCStageIF port(.*);
+    BrPredStageIF port(.*);
     FetchStageIF next(.*), bimodalNext(.*);
     ControllerIF ctrl(.*);
     BTB btb(.port(port), .next(next));

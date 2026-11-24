@@ -23,14 +23,14 @@ module TestICache;
     TestBenchClockGenerator #(
         .STEP(STEP), .INITIALIZATION_CYCLE(ICACHE_INDEX_NUM + 2)
     ) clkgen ( .rstOut(FALSE), .* );
-    NextPCStageIF nextPCStageIF(clk, rst, rstStart);
+    BrPredStageIF bpStageIF(clk, rst, rstStart);
     FetchStageIF fetchStageIF(clk, rst, rstStart);
     CacheSystemIF cacheSystemIF(clk, rst);
-    ICache iCache(nextPCStageIF, fetchStageIF, cacheSystemIF);
+    ICache iCache(bpStageIF, fetchStageIF, cacheSystemIF);
 
     // Match the address pipeline: supply the RAM index one cycle before the tag.
     always_ff @(posedge clk)
-        fetchStageIF.icReadAddrIn <= nextPCStageIF.icNextReadAddrIn;
+        fetchStageIF.icReadAddrIn <= bpStageIF.icNextReadAddrIn;
 
     int fillCount = 0;
 
@@ -66,7 +66,7 @@ module TestICache;
     task Read(input AddrPath addr, input logic expectedHit,
               input ICacheLinePath expectedLine = '0, input logic enable = TRUE);
         @(negedge clk);
-        nextPCStageIF.icNextReadAddrIn = addr;
+        bpStageIF.icNextReadAddrIn = addr;
         fetchStageIF.icRE = FALSE;
         @(posedge clk);
         #HOLD;
@@ -137,7 +137,7 @@ module TestICache;
         // The replacement sequence below exercises the default two-way configuration.
         assert (ICACHE_WAY_NUM == 2 && ICACHE_LINE_INSN_NUM == 2 && FETCH_WIDTH == 2)
             else $fatal(1, "This test requires two ways, two instructions per line, and two fetch lanes");
-        nextPCStageIF.icNextReadAddrIn = ADDR_A;
+        bpStageIF.icNextReadAddrIn = ADDR_A;
         fetchStageIF.icRE = FALSE;
         cacheSystemIF.icMemAccessReqAck = '0;
         cacheSystemIF.icMemAccessResult = '0;
@@ -165,11 +165,11 @@ module TestICache;
 
         // Request C while checking A. Both hit the same set with different physical tags.
         @(negedge clk);
-        nextPCStageIF.icNextReadAddrIn = ADDR_A;
+        bpStageIF.icNextReadAddrIn = ADDR_A;
         @(posedge clk);
         #HOLD;
         fetchStageIF.icRE = TRUE;
-        nextPCStageIF.icNextReadAddrIn = ADDR_C;
+        bpStageIF.icNextReadAddrIn = ADDR_C;
         #HOLD;
         CheckRead(TRUE, LINE_A);
         @(posedge clk);

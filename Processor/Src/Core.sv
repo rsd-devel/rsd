@@ -67,7 +67,7 @@ output
     ControllerIF ctrlIF( clk, rst );
 
     // Pipeline stages
-    NextPCStageIF npStageIF( clk, rst, rstStart );
+    BrPredStageIF bpStageIF( clk, rst, rstStart );
     FetchStageIF ifStageIF( clk, rst, rstStart );
     PreDecodeStageIF pdStageIF( clk, rst );
     DecodeStageIF idStageIF( clk, rst );
@@ -136,11 +136,11 @@ output
     );
 
 
-    NextPCStage npStage( npStageIF, ifStageIF, recoveryManagerIF, ctrlIF, debugIF );
-        BTB btb( npStageIF, ifStageIF );
-        BranchPredictor brPred( npStageIF, ifStageIF, ctrlIF );
-    FetchStage ifStage( ifStageIF, npStageIF, ctrlIF, debugIF, perfCounterIF );
-        ICache iCache( npStageIF, ifStageIF, cacheSystemIF );
+    BrPredStage bpStage( bpStageIF, ifStageIF, recoveryManagerIF, ctrlIF, debugIF );
+        BTB btb( bpStageIF, ifStageIF );
+        BranchPredictor brPred( bpStageIF, ifStageIF, ctrlIF );
+    FetchStage ifStage( ifStageIF, bpStageIF, ctrlIF, debugIF, perfCounterIF );
+        ICache iCache( bpStageIF, ifStageIF, cacheSystemIF );
     
     PreDecodeStage pdStage( pdStageIF, ifStageIF, ctrlIF, debugIF, csrUnitIF );
     DecodeStage idStage( idStageIF, pdStageIF, ctrlIF, debugIF, perfCounterIF );
@@ -167,7 +167,7 @@ output
     IntegerIssueStage intIsStage( intIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, ctrlIF, debugIF );
     IntegerRegisterReadStage intRrStage( intRrStageIF, intIsStageIF, registerFileIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
     IntegerExecutionStage intExStage( intExStageIF, intRrStageIF, bypassNetworkIF, recoveryManagerIF, ctrlIF, debugIF );
-    IntegerRegisterWriteStage intRwStage( /*intRwStageIF,*/ intExStageIF, schedulerIF, npStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
+    IntegerRegisterWriteStage intRwStage( /*intRwStageIF,*/ intExStageIF, schedulerIF, bpStageIF, registerFileIF, activeListIF, recoveryManagerIF, ctrlIF, debugIF );
 
 `ifndef RSD_MARCH_UNIFIED_MULDIV_MEM_PIPE
     ComplexIntegerIssueStage complexIsStage( complexIsStageIF, scStageIF, schedulerIF, recoveryManagerIF, mulDivUnitIF, ctrlIF, debugIF );
@@ -208,7 +208,7 @@ output
 
     CSR_Unit csrUnit(csrUnitIF, plicUnitIF, perfCounterIF);
     CacheFlushManager cacheFlushManager( cacheFlushManagerIF, cacheSystemIF );
-    InterruptController interruptCtrl(csrUnitIF, ctrlIF, npStageIF, idStageIF, recoveryManagerIF);
+    InterruptController interruptCtrl(csrUnitIF, ctrlIF, bpStageIF, idStageIF, recoveryManagerIF);
     IO_Unit ioUnit(ioUnitIF, plicUnitIF, csrUnitIF);
     PLIC_Unit plicUnit(plicUnitIF, csrUnitIF, ioUnitIF);
 

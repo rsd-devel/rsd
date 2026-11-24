@@ -14,7 +14,7 @@ package DumperTypes;
     import IO_UnitTypes::*;
     import DebugTypes::*;
 
-    localparam KS_NP = 0;
+    localparam KS_BP = 0;
     localparam KS_IF = 1;
     localparam KS_PD = 2;
     localparam KS_ID = 3;
@@ -98,11 +98,11 @@ package DumperTypes;
             // FetchStage
             for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
                 this.DumpStage(
-                    KS_NP, // stage id
-                    debugRegister.npReg[i].valid, // valid
-                    debugRegister.npStagePipeCtrl.stall, // stall
-                    debugRegister.npStagePipeCtrl.clear, // clear
-                    debugRegister.npReg[i].sid, // sid
+                    KS_BP, // stage id
+                    debugRegister.bpReg[i].valid, // valid
+                    debugRegister.bpStagePipeCtrl.stall, // stall
+                    debugRegister.bpStagePipeCtrl.clear, // clear
+                    debugRegister.bpReg[i].sid, // sid
                     0, // mid
                     "" // comment
                 );

@@ -13,7 +13,7 @@ import MemoryMapTypes::*;
 
 module FetchStage(
     FetchStageIF.ThisStage port,
-    NextPCStageIF.NextStage prev,
+    BrPredStageIF.NextStage prev,
     ControllerIF.FetchStage ctrl,
     DebugIF.FetchStage debug,
     PerformanceCounterIF.FetchStage perfCounter

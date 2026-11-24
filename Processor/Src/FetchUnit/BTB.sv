@@ -8,7 +8,7 @@ import MemoryMapTypes::*;
 import FetchUnitTypes::*;
 
 module BTB(
-    NextPCStageIF.BTB port,
+    BrPredStageIF.BTB port,
     FetchStageIF.BTB next
 );
     `RSD_STATIC_ASSERT(BTB_WAY_NUM == 2, "BTB replacement requires two ways.");

@@ -7,7 +7,7 @@ SOURCE_ROOT = ../../../
 include $(SOURCE_ROOT)Makefiles/CoreSources.inc.mk
 MODULES = \
 	ControllerIF.sv \
-	Pipeline/FetchStage/NextPCStageIF.sv \
+	Pipeline/FetchStage/BrPredStageIF.sv \
 	Pipeline/DecodeStageIF.sv \
 	Recovery/RecoveryManagerIF.sv \
 	Privileged/CSR_UnitIF.sv \

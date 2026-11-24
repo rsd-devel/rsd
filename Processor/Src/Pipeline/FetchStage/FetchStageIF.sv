@@ -57,7 +57,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         icReadAddrIn
     );
 
-    modport NextPCStage(
+    modport BrPredStage(
     input
         fetchSlotValid,
         icRE,

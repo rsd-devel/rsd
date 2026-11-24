@@ -3,7 +3,7 @@
 
 
 //
-// --- NextPCStageIF
+// --- BrPredStageIF
 //
 
 import BasicTypes::*;
@@ -11,7 +11,7 @@ import PipelineTypes::*;
 import FetchUnitTypes::*;
 import MemoryMapTypes::*;
 
-interface NextPCStageIF( input logic clk, rst, rstStart );
+interface BrPredStageIF( input logic clk, rst, rstStart );
     
     // Registered PC used as the interrupt return address.
     PC_Path  pcOut;
@@ -93,4 +93,4 @@ interface NextPCStageIF( input logic clk, rst, rstStart );
     );
 
 
-endinterface : NextPCStageIF
+endinterface : BrPredStageIF

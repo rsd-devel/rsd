@@ -26,7 +26,7 @@ module Debug (
     always_comb begin
         // Signal from each stage
         for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-            next.npReg[i] = port.npReg[i];
+            next.bpReg[i] = port.bpReg[i];
             next.ifReg[i] = port.ifReg[i];
         end
         for ( int i = 0; i < DECODE_WIDTH; i++ ) begin
@@ -86,7 +86,7 @@ module Debug (
         next.activeListCount = port.activeListCount;
         
         // PipelineControl
-        next.npStagePipeCtrl = port.npStagePipeCtrl;
+        next.bpStagePipeCtrl = port.bpStagePipeCtrl;
         next.ifStagePipeCtrl = port.ifStagePipeCtrl;
         next.pdStagePipeCtrl = port.pdStagePipeCtrl;
         next.idStagePipeCtrl = port.idStagePipeCtrl;

@@ -12,7 +12,7 @@ import FetchUnitTypes::*;
 `define USE_GSHARE
 
 module BranchPredictor(
-    NextPCStageIF.BranchPredictor port,
+    BrPredStageIF.BranchPredictor port,
     FetchStageIF.BranchPredictor next,
     ControllerIF.BranchPredictor ctrl
 );

@@ -13,12 +13,12 @@ import FetchUnitTypes::*;
 
 //`define RSD_STOP_FETCH_ON_PRED_MISS
 
-module NextPCStage(
-    NextPCStageIF.ThisStage port,
-    FetchStageIF.NextPCStage next,
-    RecoveryManagerIF.NextPCStage recovery,
-    ControllerIF.NextPCStage ctrl,
-    DebugIF.NextPCStage debug
+module BrPredStage(
+    BrPredStageIF.ThisStage port,
+    FetchStageIF.BrPredStage next,
+    RecoveryManagerIF.BrPredStage recovery,
+    ControllerIF.BrPredStage ctrl,
+    DebugIF.BrPredStage debug
 );
 
 `ifdef RSD_STOP_FETCH_ON_PRED_MISS
@@ -98,13 +98,13 @@ module NextPCStage(
 
     always_comb begin
         // Control
-        stall = ctrl.npStage.stall;
-        clear = ctrl.npStage.clear;
+        stall = ctrl.bpStage.stall;
+        clear = ctrl.bpStage.clear;
 `ifdef RSD_STOP_FETCH_ON_PRED_MISS
-        ctrl.npStageSendBubbleLower =
+        ctrl.bpStageSendBubbleLower =
             (!recovery.toRecoveryPhase && phase[PHASE_DELAY - 1] == PHASE_WAIT);
 `else
-        ctrl.npStageSendBubbleLower = FALSE;
+        ctrl.bpStageSendBubbleLower = FALSE;
 `endif
 
         beginStall = !regStall && stall;
@@ -231,10 +231,10 @@ module NextPCStage(
 
         // --- Debug Register
         for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-            debug.npReg[i].valid = stall ? FALSE : nextStage[i].valid;
-            debug.npReg[i].sid = nextStage[i].sid;
+            debug.bpReg[i].valid = stall ? FALSE : nextStage[i].valid;
+            debug.bpReg[i].sid = nextStage[i].sid;
         end
     end
 `endif
 
-endmodule : NextPCStage
+endmodule : BrPredStage

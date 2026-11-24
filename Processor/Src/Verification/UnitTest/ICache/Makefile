@@ -37,7 +37,7 @@ TEST_MODULES = \
 # ここの順番は適当でも大丈夫．
 MODULES = \
 	Primitives/RAM.sv \
-	Pipeline/FetchStage/NextPCStageIF.sv \
+	Pipeline/FetchStage/BrPredStageIF.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
 	Cache/CacheSystemIF.sv \
 	Cache/ICache.sv \

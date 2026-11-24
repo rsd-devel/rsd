@@ -165,7 +165,7 @@ output
 endmodule
 
 module ICache(
-    NextPCStageIF.ICache port,
+    BrPredStageIF.ICache port,
     FetchStageIF.ICache next,
     CacheSystemIF.ICache cacheSystem
 );
