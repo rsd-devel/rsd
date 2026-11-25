@@ -6,7 +6,8 @@ import BasicTypes::*;
 import FetchUnitTypes::*;
 
 module TestBranchPredictorQueue;
-    localparam int RESET_CYCLES = (BTB_SET_NUM > PHT_ENTRY_NUM ? BTB_SET_NUM : PHT_ENTRY_NUM) + 1;
+    localparam int PHT_ROWS = PHT_ENTRY_NUM / FETCH_WIDTH;
+    localparam int RESET_CYCLES = (BTB_SET_NUM > PHT_ROWS ? BTB_SET_NUM : PHT_ROWS) + 1;
     logic clk = FALSE;
     logic rst = TRUE;
     logic rstStart = TRUE;
@@ -40,7 +41,7 @@ module TestBranchPredictorQueue;
         foreach (port.brResult[i]) port.brResult[i] = '0;
     endtask
 
-    task ReadBTB(input MemoryMapTypes::PC_Path pc);
+    task ReadGroup(input MemoryMapTypes::PC_Path pc);
         @(negedge clk);
         port.fetchRequestPC = pc;
         @(posedge clk);
@@ -73,14 +74,12 @@ module TestBranchPredictorQueue;
         notTaken = miss;
         notTaken.execTaken = FALSE;
         hit.btbTargetCorrect = TRUE;
-        // The direction can miss even when the BTB returned the right target.
-        hit.predTaken = FALSE;
-        hit.mispred = TRUE;
+        hit.predTaken = TRUE;
         @(negedge clk);
         port.brResult[0] = hit;
         port.brResult[1] = notTaken;
         #1;
-        assert (btb.btbEntryArray.we === '0 && btb.pushCount == 0 && gshare.phtWE[0])
+        assert (btb.btbEntryArray.we === '0 && btb.pushCount == 0)
             else $fatal(1, "Correct targets and untaken branches must only train the PHT");
         for (int i = 0; i < 2; i++) begin
             @(negedge clk);
@@ -92,50 +91,116 @@ module TestBranchPredictorQueue;
         end
         @(negedge clk);
         ClearResults();
-        ReadBTB(miss.brAddr);
+        ReadGroup(miss.brAddr);
         CheckBTB(ToFetchGroupOffset(miss.brAddr), miss);
     endtask
 
-    // The PHTs defer the second result while the first lane keeps training.
-    task CheckBurst(input int count, input int firstIndex);
-        BranchResult expected;
-        for (int i = 0; i < count; i++) begin
-            @(negedge clk);
-            port.brResult[0] = MakeResult(0);
-            port.brResult[1] = MakeResult(firstIndex + i);
+    // Model the counter tables as flat arrays. Sample every returned counter
+    // before applying this edge's oldest write, including same-row collisions.
+    PHT_EntryPath expectedGshare[PHT_ENTRY_NUM], expectedBimodal[PHT_ENTRY_NUM];
+    BranchResult pendingPHT[$];
+    function automatic PHT_IndexPath HashedIndex(input PHT_IndexPath index, input BranchGlobalHistoryPath history);
+        return index ^ (PHT_IndexPath'(history) << (PHT_ENTRY_NUM_BIT_WIDTH - BRANCH_GLOBAL_HISTORY_BIT_WIDTH));
+    endfunction
+
+    always @(posedge clk) begin
+        BranchResult samples[INT_ISSUE_WIDTH], oldest;
+        PHT_IndexPath base, index;
+        PHT_EntryPath updated;
+        bit wasFull;
+        if (rst) begin
+            pendingPHT.delete();
+            if (rstStart) begin
+                foreach (expectedGshare[i]) begin
+                    expectedGshare[i] = PHT_ENTRY_MAX / 2 + 1;
+                    expectedBimodal[i] = PHT_ENTRY_MAX / 2 + 1;
+                end
+            end
         end
-        // A direct update delays the queue without discarding any entry.
-        @(negedge clk);
-        port.brResult[1] = '0;
-        repeat (3) @(negedge clk);
-        ClearResults();
-        for (int i = 0; i < count; i++) begin
-            expected = MakeResult(firstIndex + i);
-            port.fetchRequestPC = expected.brAddr;
+        else begin
+            base = PHT_IndexPath'((port.fetchRequestPC >> INSN_ADDR_BIT_WIDTH) & ~(FETCH_WIDTH - 1));
+            samples = port.brResult;
             #1;
-            assert (gshare.phtWE[0] &&
-                    gshare.phtWA[0] === PHT_IndexPath'(firstIndex + i) &&
-                    gshare.phtWV[0] === PHT_EntryPath'(expected.phtPrevValue + 1))
-                else $fatal(1, "Gshare queued update %0d was lost or reordered", firstIndex + i);
-            assert (bimodal.phtWE[0] &&
-                    bimodal.phtWA[0] === PHT_IndexPath'(firstIndex + i) &&
-                    bimodal.phtWV[0] === PHT_EntryPath'(expected.phtPrevValue + 1))
-                else $fatal(1, "Bimodal queued update %0d was lost or reordered", firstIndex + i);
+            foreach (port.phtPrevValue[i]) begin
+                index = base + i;
+                assert (bimodalPort.phtPrevValue[i] === expectedBimodal[index])
+                    else $fatal(1, "Bimodal counter mismatch at %0d", index);
+                index = HashedIndex(index, port.brGlobalHistory);
+                assert (port.phtPrevValue[i] === expectedGshare[index])
+                    else $fatal(1, "Gshare counter mismatch at %0d (history %h)", index, port.brGlobalHistory);
+            end
+            wasFull = pendingPHT.size() == PHT_QUEUE_SIZE;
+            if (pendingPHT.size() != 0) begin
+                oldest = pendingPHT.pop_front();
+                updated = oldest.phtPrevValue;
+                if (oldest.execTaken && updated < PHT_ENTRY_MAX) updated++;
+                if (!oldest.execTaken && updated > 0) updated--;
+                index = PHT_IndexPath'(oldest.brAddr >> INSN_ADDR_BIT_WIDTH);
+                expectedBimodal[index] = updated;
+                expectedGshare[HashedIndex(index, oldest.globalHistory)] = updated;
+            end
+            foreach (samples[i])
+                if (!wasFull && samples[i].valid) pendingPHT.push_back(samples[i]);
+        end
+    end
+
+    task CheckPHTQueue;
+        localparam int RESULTS = 2 * PHT_QUEUE_SIZE * INT_ISSUE_WIDTH;
+        BranchResult result;
+        // Keep reading the first row while the first two updates enqueue and drain.
+        // Distinct later addresses make dropped updates visible after the queue wraps.
+        for (int i = 0; i < RESULTS; i += INT_ISSUE_WIDTH) begin
             @(negedge clk);
+            foreach (port.brResult[lane]) begin
+                result = MakeResult(i + lane);
+                result.phtPrevValue = '0;
+                result.execTaken = ((i + lane) % 2 == 1);
+                port.brResult[lane] = result;
+            end
         end
+        @(negedge clk);
+        ClearResults();
+        repeat (PHT_QUEUE_SIZE) @(negedge clk);
+        // The high issue lane also trains when it is the only valid result.
+        result = MakeResult(RESULTS);
+        result.phtPrevValue = PHT_ENTRY_MAX;
+        port.brResult[INT_ISSUE_WIDTH-1] = result;
+        @(negedge clk);
+        ClearResults();
+        for (int i = 0; i <= RESULTS; i++) begin
+            result = MakeResult(i);
+            ReadGroup(result.brAddr);
+        end
+    endtask
+
+    task CheckPHTHistory;
+        BranchResult result;
+        PHT_IndexPath index;
+        result = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH);
+        result.globalHistory = '1;
+        result.phtPrevValue = '0;
+        result.execTaken = FALSE;
+        result.isCondBr = FALSE;
+        // Train under a saved nonzero history while the live history is zero.
+        @(negedge clk);
+        port.brResult[INT_ISSUE_WIDTH-1] = result;
+        @(negedge clk);
+        ClearResults();
+        @(negedge clk);
+        index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
+        ReadGroup(index * INSN_BYTE_WIDTH);
+        ReadGroup(result.brAddr);
+        // History recovery selects the new row for the request issued on this edge.
+        @(negedge clk);
+        result.mispred = TRUE;
+        port.brResult[0] = result;
+        port.fetchRequestPC = result.brAddr + (FETCH_WIDTH-1) * INSN_BYTE_WIDTH;
+        @(posedge clk);
         #1;
-        assert (gshare.empty && bimodal.empty && !gshare.phtWE[0] && !bimodal.phtWE[0])
-            else $fatal(1, "PHT update queues did not drain");
-        // A predictor read returns the whole group in order from its aligned base.
-        for (int i = 0; i < count; i++) begin
-            int groupOffset;
-            expected = MakeResult(firstIndex + i);
-            groupOffset = (firstIndex + i) % FETCH_WIDTH;
-            ReadBTB(expected.brAddr);
-            assert (port.phtPrevValue[groupOffset] === PHT_EntryPath'(expected.phtPrevValue + 1) &&
-                    bimodalPort.phtPrevValue[groupOffset] === PHT_EntryPath'(expected.phtPrevValue + 1))
-                else $fatal(1, "PHT readback mismatch at %0d", firstIndex + i);
-        end
+        assert (port.brGlobalHistory === result.globalHistory)
+            else $fatal(1, "Gshare did not restore the saved history");
+        @(negedge clk);
+        ClearResults();
     endtask
 
     // Compare the physical table write to the oldest request on every clock,
@@ -216,16 +281,16 @@ module TestBranchPredictorQueue;
         cold = MakeResult(0);
         cold.nextAddr = ToRawAddrFromBTB_Addr('0, cold.brAddr);
         cold.isCondBr = FALSE;
-        ReadBTB(cold.brAddr);
+        ReadGroup(cold.brAddr);
         CheckBTB(0, cold);
         assert (port.btbHitWay[0] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
             else $fatal(1, "Expected the highest way on a duplicate reset tag");
         CheckBTB(FETCH_WIDTH-1, '0);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, '0);
         WriteBTB(first, last);
         if (BTB_SET_NUM > 1) WriteBTB(neighbor);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
         first.btbHit = port.btbHit[0];
@@ -234,10 +299,10 @@ module TestBranchPredictorQueue;
         last.btbHitWay = port.btbHitWay[FETCH_WIDTH-1];
         assert (first.btbHitWay != last.btbHitWay) else $fatal(1, "Expected hits in distinct ways");
         if (BTB_SET_NUM > 1) begin
-            ReadBTB(neighbor.brAddr);
+            ReadGroup(neighbor.brAddr);
             CheckBTB(0, neighbor);
         end
-        ReadBTB(last.brAddr);
+        ReadGroup(last.brAddr);
         // Both predictions keep their group offsets when fetch lane zero starts at the last instruction.
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
@@ -259,7 +324,7 @@ module TestBranchPredictorQueue;
         updated = first;
         updated.nextAddr += INSN_BYTE_WIDTH;
         updated.isCondBr = FALSE;
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         WriteBTB(updated);
         CheckBTB(0, first);
         @(posedge clk);
@@ -269,21 +334,21 @@ module TestBranchPredictorQueue;
         // Repeated training of the same key must stay in that way.
         updated.nextAddr += INSN_BYTE_WIDTH;
         WriteBTB(updated);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, updated);
         CheckBTB(FETCH_WIDTH-1, last);
         // A different block in the same set replaces the older branch.
         WriteBTB(aliasBranch);
-        ReadBTB(aliasBranch.brAddr);
+        ReadGroup(aliasBranch.brAddr);
         CheckBTB(0, aliasBranch);
         CheckBTB(FETCH_WIDTH-1, '0);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, updated);
         CheckBTB(FETCH_WIDTH-1, '0);
 
         // The delayed hit for last still uses its Fetch way, now occupied by aliasBranch.
         // The earlier queued write uses that way first, leaving the other way as the miss victim.
-        ReadBTB(aliasBranch.brAddr);
+        ReadGroup(aliasBranch.brAddr);
         aliasBranch.btbHit = port.btbHit[0];
         aliasBranch.btbHitWay = port.btbHitWay[0];
         assert (aliasBranch.btbHit && aliasBranch.btbHitWay == last.btbHitWay)
@@ -291,18 +356,18 @@ module TestBranchPredictorQueue;
         aliasBranch.nextAddr += INSN_BYTE_WIDTH;
         last.nextAddr += 2 * INSN_BYTE_WIDTH;
         WriteBTB(aliasBranch, last);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, updated);
         CheckBTB(FETCH_WIDTH-1, last);
-        ReadBTB(aliasBranch.brAddr);
+        ReadGroup(aliasBranch.brAddr);
         CheckBTB(0, '0);
 
         ResetTables();
-        ReadBTB(cold.brAddr);
+        ReadGroup(cold.brAddr);
         CheckBTB(0, cold);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, '0);
-        ReadBTB(aliasBranch.brAddr);
+        ReadGroup(aliasBranch.brAddr);
         CheckBTB(0, '0);
     endtask
 
@@ -313,14 +378,14 @@ module TestBranchPredictorQueue;
         second = first;
         second.nextAddr += INSN_BYTE_WIDTH;
         WriteBTB(first, second); // The two requests allocate ways 0 then 1 after reset.
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, second);
         second.btbHit = port.btbHit[0];
         second.btbHitWay = port.btbHitWay[0];
         assert (second.btbHitWay) else $fatal(1, "Duplicate tag must report the way that supplied the target");
         second.nextAddr += INSN_BYTE_WIDTH;
         WriteBTB(second);
-        ReadBTB(first.brAddr);
+        ReadGroup(first.brAddr);
         CheckBTB(0, second);
     endtask
 
@@ -343,14 +408,9 @@ module TestBranchPredictorQueue;
         ResetTables();
         if (FETCH_WIDTH >= 2) CheckBTBWays();
 
-        CheckBurst(1, 1);
-        // Exercise pointer wrap at the PHT queues' own depth.
-        if (PHT_ENTRY_NUM >= 2*PHT_QUEUE_SIZE) begin
-            CheckBurst(7, 2);
-            // Fill and wrap both head and tail, then reuse their previous slots.
-            CheckBurst(PHT_QUEUE_SIZE, 9);
-            CheckBurst(5, 9 + PHT_QUEUE_SIZE);
-        end
+        port.fetchRequestPC = '0;
+        CheckPHTQueue();
+        CheckPHTHistory();
         CheckBTBTraining();
         @(negedge clk);
         port.brResult[0] = MakeResult(4);

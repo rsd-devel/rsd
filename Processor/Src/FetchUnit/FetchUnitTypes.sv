@@ -108,15 +108,7 @@ localparam PHT_ENTRY_MAX = (1 << PHT_ENTRY_WIDTH) - 1;
 typedef logic [PHT_ENTRY_WIDTH-1:0] PHT_EntryPath;
 
 
-localparam PHT_QUEUE_SIZE = 32;
-localparam PHT_QUEUE_SIZE_BIT_WIDTH = $clog2(PHT_QUEUE_SIZE);
-typedef logic [PHT_QUEUE_SIZE_BIT_WIDTH-1:0] PhtQueuePointerPath;
-
-typedef struct packed // struct PhtQueueEntry
-{
-    AddrPath phtWA;            // Write Address
-    PHT_EntryPath phtWV;                        // result of bpred
-} PhtQueueEntry;
+localparam PHT_QUEUE_SIZE = 4;
 
 
 //

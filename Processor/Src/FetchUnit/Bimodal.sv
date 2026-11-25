@@ -6,192 +6,105 @@
 // Branch predictor -- 2bc.
 //
 
+`include "BasicMacros.sv"
+
 import BasicTypes::*;
 import MemoryMapTypes::*;
 import FetchUnitTypes::*;
-
-function automatic PHT_IndexPath ToPHT_Index_Local(PC_Path addr);
-    return
-        addr[
-            PHT_ENTRY_NUM_BIT_WIDTH + INSN_ADDR_BIT_WIDTH - 1: 
-            INSN_ADDR_BIT_WIDTH
-        ];
-endfunction
 
 module Bimodal(
     FetchStageIF.BranchPredictor port
 );
 
-    PC_Path groupBase;
+    localparam ROW_NUM = PHT_ENTRY_NUM / FETCH_WIDTH;
+    `RSD_STATIC_ASSERT(PHT_ENTRY_NUM % FETCH_WIDTH == 0, "A PHT row must contain a whole fetch group.");
+    `RSD_STATIC_ASSERT(ROW_NUM >= 2, "The PHT must contain at least two rows.");
+    typedef logic [$clog2(ROW_NUM)-1:0] RowIndexPath;
 
-    // PHT control logic
-    logic phtWE[INT_ISSUE_WIDTH];
-    PHT_IndexPath phtWA[INT_ISSUE_WIDTH];
-    PHT_EntryPath phtWV[INT_ISSUE_WIDTH];
-    PHT_EntryPath phtPrevValue[INT_ISSUE_WIDTH];
-
-    // Read port need for branch predict and update counter.
-    PHT_IndexPath phtRA[FETCH_WIDTH];
-    PHT_EntryPath phtRV[FETCH_WIDTH];
-
-    // assert when misprediction occured.
-    logic mispred;
-
-    logic pushPhtQueue, popPhtQueue;
-    logic full, empty;
-
-    PhtQueueEntry phtQueue[PHT_QUEUE_SIZE];
-    PhtQueuePointerPath headPtr, tailPtr;
-
-    logic updatePht;
-
-
-    // the body of PHT.
-    generate
-        BlockMultiBankRAM #(
-            .ENTRY_NUM( PHT_ENTRY_NUM ),
-            .ENTRY_BIT_SIZE( $bits( PHT_EntryPath ) ),
-            .READ_NUM( FETCH_WIDTH ),
-            .WRITE_NUM( INT_ISSUE_WIDTH )
-        ) 
-        pht( 
-            .clk(port.clk),
-            .we(phtWE),
-            .wa(phtWA),
-            .wv(phtWV),
-            .ra(phtRA),
-            .rv(phtRV)
-        );
-
-        QueuePointer #(
-            .SIZE( PHT_QUEUE_SIZE )
-        )
-        phtQueuePointer(
-            .clk(port.clk),
-            .rst(port.rst),
-            .push(pushPhtQueue),
-            .pop(popPhtQueue),
-            .full(full),
-            .empty(empty),
-            .headPtr(headPtr),
-            .tailPtr(tailPtr)    
-        );
-    endgenerate
-    
-    
-    // Counter for reset sequence.
-    PHT_IndexPath resetIndex;
-    always_ff @(posedge port.clk) begin
-        if(port.rstStart) begin
-            resetIndex <= 0;
-        end
-        else begin
-            resetIndex <= resetIndex + 1;
-        end
-    end
+    // One byte per counter gives each position its own block RAM write enable.
+    BytePath [FETCH_WIDTH-1:0] readRow, writeRow;
+    logic [FETCH_WIDTH-1:0] writeMask;
+    RowIndexPath readRowIndex, writeRowIndex, resetRow;
+    BlockDualPortMaskedRAM #(
+        .ENTRY_NUM(ROW_NUM), .ENTRY_BIT_SIZE($bits(readRow))
+    ) counterArray (
+        .clk(port.clk), .we(writeMask), .wa(writeRowIndex), .wv(writeRow),
+        .ra(readRowIndex), .rv(readRow)
+    );
 
     always_ff @(posedge port.clk) begin
-        // Push Pht Queue
-        if (port.rst) begin
-            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWA <= '0;
-            phtQueue[resetIndex % PHT_QUEUE_SIZE].phtWV <= PHT_ENTRY_MAX / 2 + 1;
-        end
-        else if (pushPhtQueue) begin
-            phtQueue[tailPtr].phtWA <= phtWA[INT_ISSUE_WIDTH-1];
-            phtQueue[tailPtr].phtWV <= phtWV[INT_ISSUE_WIDTH-1];
-        end
+        if (port.rstStart)
+            resetRow <= '0;
+        else if (port.rst)
+            resetRow <= RowIndexPath'((resetRow + 1) % ROW_NUM);
     end
 
+
+    function automatic PHT_IndexPath ToPHT_Index(PC_Path pc);
+        return PHT_IndexPath'(pc >> INSN_ADDR_BIT_WIDTH);
+    endfunction
+    PHT_EntryPath counters[FETCH_WIDTH];
+    always_comb begin
+        readRowIndex = RowIndexPath'(ToPHT_Index(port.fetchRequestPC) / FETCH_WIDTH);
+
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            counters[groupOffset] = PHT_EntryPath'(readRow[groupOffset]);
+            port.brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1] && port.btbHit[groupOffset];
+        end
+        port.phtPrevValue = counters;
+        port.brGlobalHistory = '0;
+    end
+
+    typedef struct packed {
+        PHT_IndexPath index;
+        PHT_EntryPath value;
+    } UpdatePath;
+    typedef logic [$clog2(PHT_QUEUE_SIZE)-1:0] QueuePointerPath;
+    UpdatePath queueIn[INT_ISSUE_WIDTH], queue[PHT_QUEUE_SIZE], update;
+    QueuePointerPath queueWA[INT_ISSUE_WIDTH], headPtr, tailPtr;
+    logic queueWE[INT_ISSUE_WIDTH], writeEnable;
+    logic [$clog2(INT_ISSUE_WIDTH):0] pushCount;
+    logic [$clog2(PHT_QUEUE_SIZE):0] count;
+
+    MultiWidthQueuePointer #(.SIZE(PHT_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) queuePointer (
+        .clk(port.clk), .rst(port.rst), .push(pushCount != 0), .pushCount(pushCount),
+        .pop(writeEnable), .popCount(1'b1), .headPtr(headPtr), .tailPtr(tailPtr), .count(count)
+    );
+
+    always_ff @(posedge port.clk) begin
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            if (queueWE[i])
+                queue[queueWA[i]] <= queueIn[i];
+        end
+    end
 
     always_comb begin
-    
-        groupBase = ToFetchGroupBase(port.fetchRequestPC);
-        port.brGlobalHistory = '0;
-
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            port.phtPrevValue[groupOffset] = phtRV[groupOffset];
-
-            // Predict directions (Check the MSB).
-            port.brPredTaken[groupOffset] = phtRV[groupOffset][PHT_ENTRY_WIDTH - 1] && port.btbHit[groupOffset];
-        end
-
-        // Negate first. (to discard the result of previous cycle)
+        pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            phtWE[i] = FALSE;
-            updatePht = FALSE;
-            pushPhtQueue = FALSE;
-        end
+            queueIn[i].index = ToPHT_Index(port.brResult[i].brAddr);
+            queueIn[i].value = port.brResult[i].phtPrevValue;
+            if (port.brResult[i].execTaken && port.brResult[i].phtPrevValue != PHT_ENTRY_MAX)
+                queueIn[i].value = port.brResult[i].phtPrevValue + 1'b1;
+            else if (!port.brResult[i].execTaken && port.brResult[i].phtPrevValue != 0)
+                queueIn[i].value = port.brResult[i].phtPrevValue - 1'b1;
 
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            // When branch instruction is executed, update PHT.
-            if (updatePht) begin
-                pushPhtQueue = port.brResult[i].valid;
-            end
-            else begin
-                phtWE[i] = port.brResult[i].valid;
-                updatePht |= phtWE[i];
-            end
-
-            phtWA[i] = ToPHT_Index_Local(port.brResult[i].brAddr);
-
-            mispred = port.brResult[i].mispred && port.brResult[i].valid;
-            
-            // Counter's value.
-            phtPrevValue[i] = port.brResult[i].phtPrevValue; 
-            
-            // Update PHT's counter (saturated up/down counter).
-            if (port.brResult[i].execTaken) begin
-                phtWV[i] = (phtPrevValue[i] == PHT_ENTRY_MAX) ? 
-                    PHT_ENTRY_MAX : phtPrevValue[i] + 1;
-            end
-            else begin
-                phtWV[i] = (phtPrevValue[i] == 0) ? 
-                    0 : phtPrevValue[i] - 1;
-            end
-
-            // When miss prediction is occured, recovory history.
-            if (mispred) begin
-                break;
-            end
-        end
-
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            // Read PHT entry for next cycle (use PC).
-            phtRA[groupOffset] = ToPHT_Index_Local(groupBase + groupOffset*INSN_BYTE_WIDTH);
-        end
-
-
-        // Pop PHT Queue
-        if (!empty && !updatePht) begin
-            popPhtQueue = TRUE;
-            phtWE[0] = TRUE;
-            phtWA[0] = phtQueue[headPtr].phtWA;
-            phtWV[0] = phtQueue[headPtr].phtWV;
-        end 
-        else begin
-            popPhtQueue = FALSE;
-        end
-
-        // In reset sequence, the write port 0 is used for initializing, and 
-        // the other write ports are disabled.
-        if (port.rst) begin
-            for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-                phtWE[i] = (i == 0) ? TRUE : FALSE;
-                phtWA[i] = resetIndex;
-                phtWV[i] = PHT_ENTRY_MAX / 2 + 1;
-            end
-
-            // To avoid writing to the same bank (avoid error message)
-            for (int i = 0; i < FETCH_WIDTH; i++) begin
-                phtRA[i] = i;
-            end
-
-            pushPhtQueue = FALSE;
-            popPhtQueue = FALSE;
+            // As in the BTB, a full queue drops new training. Otherwise its
+            // simultaneous drain leaves space for both integer issue lanes.
+            queueWA[i] = tailPtr + QueuePointerPath'(pushCount);
+            queueWE[i] = !port.rst && port.brResult[i].valid && count < PHT_QUEUE_SIZE;
+            if (queueWE[i])
+                pushCount++;
         end
     end
 
+    always_comb begin
+        update = queue[headPtr];
+        writeEnable = !port.rst && count != 0;
+        writeRowIndex = port.rst ? resetRow : RowIndexPath'(update.index / FETCH_WIDTH);
+        for (int i = 0; i < FETCH_WIDTH; i++) begin
+            writeMask[i] = port.rst || (writeEnable && update.index % FETCH_WIDTH == i);
+            writeRow[i] = port.rst ? BytePath'(PHT_ENTRY_MAX / 2 + 1) : BytePath'(update.value);
+        end
+    end
 
 endmodule : Bimodal
-
-
