@@ -50,7 +50,7 @@ module TestBranchPredictorQueue;
 
     task ReadGroup(input MemoryMapTypes::PC_Path pc);
         @(negedge clk);
-        recovery.recoveredPC_FromRename = pc;
+        recovery.fetchRedirect.pc = pc;
         @(posedge clk);
         #1;
     endtask
@@ -232,7 +232,7 @@ module TestBranchPredictorQueue;
         // Distinct later addresses make dropped updates visible after the queue wraps.
         for (int i = 0; i < RESULTS; i += INT_ISSUE_WIDTH) begin
             @(negedge clk);
-            recovery.recoveredPC_FromRename = ((i / INT_ISSUE_WIDTH) % 2) * FETCH_WIDTH * INSN_BYTE_WIDTH;
+            recovery.fetchRedirect.pc = ((i / INT_ISSUE_WIDTH) % 2) * FETCH_WIDTH * INSN_BYTE_WIDTH;
             foreach (port.brResult[lane]) begin
                 result = MakeResult(i + lane);
                 result.phtPrevValue = PHT_ENTRY_MAX / 2 + 1;
@@ -268,7 +268,7 @@ module TestBranchPredictorQueue;
         first.execTaken = FALSE;
         adjacent.execTaken = FALSE;
         // Fetch the opposite bank so these repeated updates reach the counters.
-        recovery.recoveredPC_FromRename = first.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
+        recovery.fetchRedirect.pc = first.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
         WriteBTB(first, adjacent);
         WriteBTB(first, first);
         WriteBTB(otherRow, adjacent);
@@ -326,32 +326,30 @@ module TestBranchPredictorQueue;
         index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
         ReadGroup(index * INSN_BYTE_WIDTH);
         ReadGroup(result.brAddr);
-        // Exercise the selected backend redirect while a younger Rename redirect is pending.
+        // Fetch receives the selected redirect together with its history policy.
         @(negedge clk);
-        recovery.toRecoveryPhase = TRUE;
-        recovery.recoveredPC_FromRwCommit = result.brAddr;
-        recovery.recoverBrHistory_FromRwCommit = TRUE;
-        recovery.recoveredBrHistory_FromRwCommit = result.globalHistory;
+        recovery.fetchRedirect.brHistory = result.globalHistory;
         @(posedge clk);
         #1;
         assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
             else $fatal(1, "Fetch did not restore the selected branch history");
         @(negedge clk);
-        recovery.recoverBrHistory_FromRwCommit = FALSE;
-        recovery.recoveredBrHistory_FromRwCommit = '0;
-        recovery.recoveredBrHistory_FromRename = BranchGlobalHistoryPath'(1);
+        recovery.fetchRedirect.pc = result.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
+        recovery.fetchRedirect.restoreHistory = FALSE;
+        recovery.fetchRedirect.brHistory = BranchGlobalHistoryPath'(1);
         @(posedge clk);
         #1;
-        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
-            else $fatal(1, "A nonbranch redirect changed history or accepted a younger correction");
+        assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
+                port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
+            else $fatal(1, "Fetch must redirect to the supplied PC while keeping its history");
         @(negedge clk);
-        recovery.toRecoveryPhase = FALSE;
+        recovery.fetchRedirect.restoreHistory = TRUE;
         @(posedge clk);
         #1;
         assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0))
-            else $fatal(1, "Decode redirect did not restore its checkpoint");
+            else $fatal(1, "Fetch did not restore the new checkpoint");
         @(negedge clk);
-        recovery.recoveredBrHistory_FromRename = '0;
+        recovery.fetchRedirect.brHistory = '0;
     endtask
 
     // Compare the physical table write to the oldest request on every clock,
@@ -453,14 +451,14 @@ module TestBranchPredictorQueue;
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
-        recovery.recoverFromRename = FALSE;
+        recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
                 port.fetchRequestPC == first.nextAddr &&
                 port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
             else $fatal(1, "Fetch did not select the first taken conditional branch");
-        recovery.recoverFromRename = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
         first.btbHit = port.btbHit[0];
         first.btbHitWay = port.btbHitWay[0];
@@ -476,7 +474,7 @@ module TestBranchPredictorQueue;
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
         // The skipped conditional branch predicts taken but must not shift history.
-        recovery.recoverFromRename = FALSE;
+        recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.valid[0] && port.nextStage.brPred[0].predTaken &&
@@ -485,7 +483,7 @@ module TestBranchPredictorQueue;
                 port.fetchRequestPC == last.nextAddr &&
                 port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, last.brAddr))
             else $fatal(1, "Fetch must skip the earlier branch and take the jump independently of its counter");
-        recovery.recoverFromRename = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
         // On a same-row read/write the old target and branch kind are visible
@@ -549,14 +547,14 @@ module TestBranchPredictorQueue;
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
-        recovery.recoverFromRename = FALSE;
+        recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
                 port.fetchRequestPC == first.nextAddr &&
                 port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
             else $fatal(1, "A conditional hit after a taken jump updated the history");
-        recovery.recoverFromRename = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
         // On a cache miss the predictor can reach the target while I-cache repeats the source.
@@ -565,7 +563,7 @@ module TestBranchPredictorQueue;
         ReadGroup(last.brAddr);
         beforeBranch = port.nextStage.brPred[0].globalHistory;
         afterBranch = ExpectedTakenHistory(beforeBranch, last.brAddr);
-        recovery.recoverFromRename = FALSE;
+        recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         ctrl.ifStage.stall = TRUE;
         port.icReadHit = FALSE;
@@ -584,7 +582,7 @@ module TestBranchPredictorQueue;
                 port.nextStage.valid[0] && port.nextStage.pc == last.brAddr &&
                 port.nextStage.brPred[0].globalHistory == beforeBranch)
             else $fatal(1, "Fetch lost the held source group checkpoint on stall release");
-        recovery.recoverFromRename = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
         ResetTables();
@@ -623,11 +621,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         // Redirect each lookup to the test address and suppress speculative history
         // updates until the directed fetch check releases clear.
-        recovery.toRecoveryPhase = FALSE;
-        recovery.recoverFromRename = TRUE;
-        recovery.recoveredPC_FromRename = '0;
-        recovery.recoveredBrHistory_FromRename = '0;
-        recovery.recoverBrHistory_FromRwCommit = FALSE;
+        recovery.fetchRedirect = '{valid: TRUE, pc: '0, restoreHistory: TRUE, brHistory: '0};
         port.icReadHit = TRUE;
         port.interruptAddrWE = FALSE;
         ctrl.ifStage = '0;
@@ -636,7 +630,7 @@ module TestBranchPredictorQueue;
         ResetTables();
         if (FETCH_WIDTH >= 2) CheckBTBWays();
 
-        recovery.recoveredPC_FromRename = '0;
+        recovery.fetchRedirect.pc = '0;
         CheckPHTHeadConflict();
         CheckPackedCounterUpdates();
         CheckPHTQueue();

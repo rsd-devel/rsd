@@ -208,10 +208,17 @@ module RecoveryManager(
 
         port.phase = regState.phase;
 
-        // Update a PC in a fetcher if branch misprediction occurs.
-        port.recoveredPC_FromRwCommit = recoveredPC;
-        port.recoverBrHistory_FromRwCommit = regState.refetchType == REFETCH_TYPE_BRANCH_TARGET;
-        port.recoveredBrHistory_FromRwCommit = regState.brHistory;
+        // An older RW/Commit redirect takes precedence over a Decode correction from Rename.
+        if (regState.phase == PHASE_RECOVER_0) begin
+            port.fetchRedirect = '{
+                valid: TRUE, pc: recoveredPC,
+                restoreHistory: regState.refetchType == REFETCH_TYPE_BRANCH_TARGET,
+                brHistory: regState.brHistory
+            };
+        end
+        else begin
+            port.fetchRedirect = port.redirectFromRename;
+        end
         port.toCommitPhase = toCommitPhase;
 
         // To each logic to be recovered.

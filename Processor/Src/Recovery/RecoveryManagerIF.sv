@@ -39,10 +39,6 @@ interface RecoveryManagerIF( input logic clk, rst );
     logic    toCommitPhase;
     AddrPath recoveredPC_FromCommitStage;
     AddrPath recoveredPC_FromRwStage;
-    AddrPath recoveredPC_FromRwCommit;      // Correct PC
-
-    logic recoverBrHistory_FromRwCommit;
-    BranchGlobalHistoryPath recoveredBrHistory_FromRename, recoveredBrHistory_FromRwCommit;
     BranchGlobalHistoryPath recoveredBrHistory_FromCommitStage, recoveredBrHistory_FromRwStage;
 
     // For fault handling
@@ -54,9 +50,7 @@ interface RecoveryManagerIF( input logic clk, rst );
     ELP_State_Type elp_FromRwStage;
     ELP_State_Type nextELP_FromRwStage;
 
-    //　Miss prediction detected in RenameStage
-    logic    recoverFromRename;
-    AddrPath recoveredPC_FromRename;
+    FetchRedirectPath redirectFromRename, fetchRedirect;
 
     // Trigger recovery of each module
     logic toRecoveryPhase;
@@ -134,12 +128,11 @@ interface RecoveryManagerIF( input logic clk, rst );
         notIssued,
         flushIQ_Entry,
         recoveryCauseFromCommitStage,
+        redirectFromRename,
     output
         phase,
         toRecoveryPhase,
-        recoveredPC_FromRwCommit,
-        recoverBrHistory_FromRwCommit,
-        recoveredBrHistory_FromRwCommit,
+        fetchRedirect,
         toCommitPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
@@ -151,9 +144,7 @@ interface RecoveryManagerIF( input logic clk, rst );
 
     modport RenameStage(
     output
-        recoverFromRename,
-        recoveredPC_FromRename,
-        recoveredBrHistory_FromRename
+        redirectFromRename
     );
 
     modport CommitStage(
@@ -170,13 +161,7 @@ interface RecoveryManagerIF( input logic clk, rst );
 
     modport FetchStage(
     input
-        toRecoveryPhase,
-        recoveredPC_FromRwCommit,
-        recoverBrHistory_FromRwCommit,
-        recoveredBrHistory_FromRwCommit,
-        recoverFromRename,
-        recoveredPC_FromRename,
-        recoveredBrHistory_FromRename
+        fetchRedirect
     );
 
     modport RenameLogic(

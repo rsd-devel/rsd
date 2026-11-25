@@ -119,16 +119,11 @@ module FetchStage(
         end
 
 
-        // Decode supplies a checkpoint on every redirect. RW/commit supplies one for branches.
         fetchRequestHistory = regFetchRequestHistory;
-        if (recovery.toRecoveryPhase) begin
-            fetchRequestPC = recovery.recoveredPC_FromRwCommit;
-            if (recovery.recoverBrHistory_FromRwCommit)
-                fetchRequestHistory = recovery.recoveredBrHistory_FromRwCommit;
-        end
-        else if (recovery.recoverFromRename) begin
-            fetchRequestPC = recovery.recoveredPC_FromRename;
-            fetchRequestHistory = recovery.recoveredBrHistory_FromRename;
+        if (recovery.fetchRedirect.valid) begin
+            fetchRequestPC = recovery.fetchRedirect.pc;
+            if (recovery.fetchRedirect.restoreHistory)
+                fetchRequestHistory = recovery.fetchRedirect.brHistory;
         end
         else begin
             fetchRequestPC = (regStall || !pipeReg.valid) ? regPC : predictedPC;

@@ -148,9 +148,10 @@ module RenameStage(
     end
 
     always_comb begin
-        recovery.recoverFromRename = regFlush;
-        recovery.recoveredPC_FromRename = regRecoveredPC;
-        recovery.recoveredBrHistory_FromRename = regRecoveredBrHistory;
+        recovery.redirectFromRename = '{
+            valid: regFlush, pc: regRecoveredPC,
+            restoreHistory: TRUE, brHistory: regRecoveredBrHistory
+        };
         ctrl.rnStageFlushUpper = regFlush;
     end
 
