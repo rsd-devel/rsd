@@ -21,9 +21,8 @@ module Gshare(
     `RSD_STATIC_ASSERT(PHT_ENTRY_NUM % FETCH_WIDTH == 0, "A PHT row must contain a whole fetch group.");
     `RSD_STATIC_ASSERT(ROW_NUM >= 2, "The PHT must contain at least two rows.");
     localparam BANK_NUM = 2;
-    // The RAM primitive needs at least one address bit, even for one row per bank.
-    localparam BANK_ENTRY_NUM = ROW_NUM / BANK_NUM > 1 ? ROW_NUM / BANK_NUM : 2;
-    typedef logic [$clog2(BANK_ENTRY_NUM)-1:0] BankIndexPath;
+    localparam BANK_ENTRY_NUM = ROW_NUM / BANK_NUM;
+    typedef logic [$clog2(BANK_ENTRY_NUM > 1 ? BANK_ENTRY_NUM : 2)-1:0] BankIndexPath;
     typedef logic [$clog2(ROW_NUM)-1:0] RowIndexPath;
     typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] RowOffsetPath;
 
@@ -40,14 +39,12 @@ module Gshare(
     for (genvar b = 0; b < BANK_NUM; b++) begin : bank
         logic bankWE;
         BankIndexPath bankAddr;
-        RowPath ramOut[1];
-        BlockTrueDualPortRAM #(
-            .ENTRY_NUM(BANK_ENTRY_NUM), .ENTRY_BIT_SIZE($bits(RowPath)), .PORT_NUM(1)
+        BlockSinglePortRAM #(
+            .ENTRY_NUM(BANK_ENTRY_NUM), .ENTRY_BIT_SIZE($bits(RowPath))
         ) counterArray (
-            .clk(port.clk), .we('{bankWE}), .rwa('{bankAddr}), .wv('{writeRow}), .rv(ramOut)
+            .clk(port.clk), .we(bankWE), .rwa(bankAddr), .wv(writeRow), .rv(bankRow[b])
         );
         always_comb begin
-            bankRow[b] = ramOut[0];
             bankWE = port.rst ? resetRow[0] == b : writeEnable && headBank == b;
             if (port.rst)
                 bankAddr = BankIndexPath'(resetRow / BANK_NUM);

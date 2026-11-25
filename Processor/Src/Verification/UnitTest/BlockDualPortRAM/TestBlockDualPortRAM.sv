@@ -24,6 +24,12 @@ module TestBlockDualPortRAM;
         .ENTRY_NUM(ENTRY_NUM), .ENTRY_BIT_SIZE(ENTRY_BIT_SIZE)
     ) blockRAM (.*);
 
+    Value singleRV;
+    bit checkSingleHeld;
+    BlockSinglePortRAM #(
+        .ENTRY_NUM(ENTRY_NUM), .ENTRY_BIT_SIZE(ENTRY_BIT_SIZE)
+    ) singleRAM (.clk, .we, .rwa(we ? wa : ra), .wv, .rv(singleRV));
+
     logic [3:0] maskedDone;
     TestBlockDualPortRAMMasked #(8, 4) masked32(clk, rst, maskedDone[0]);
     TestBlockDualPortRAMMasked #(9, 4) masked36(clk, rst, maskedDone[1]);
@@ -46,9 +52,15 @@ module TestBlockDualPortRAM;
         #HOLD;
         // The registered output must hold its value until the next rising edge.
         Check(expectedBefore);
+        if (checkSingleHeld)
+            assert (singleRV === expectedBefore) else $fatal(1, "Single-port RAM output changed before the clock");
         @(posedge clk);
         #HOLD;
         Check(expectedAfter);
+        // On a write the single port reads wa; only compare when both RAMs read the same row.
+        checkSingleHeld = !we || wa == ra;
+        if (checkSingleHeld)
+            assert (singleRV === expectedAfter) else $fatal(1, "Single-port RAM expected %h, got %h", expectedAfter, singleRV);
     endtask
 
     initial begin
@@ -90,9 +102,10 @@ module TestBlockDualPortRAM;
 
         // READ_FIRST: a same-address read/write returns the old value at that edge.
         Step(TRUE,  1, 4'hf, 1, 4'hc, 4'hc);
-        Step(FALSE, 0, 0,    1, 4'hc, 4'hf);
+        Step(TRUE,  1, 4'h8, 1, 4'hc, 4'hf);
+        Step(FALSE, 0, 0,    1, 4'hf, 4'h8);
         // Writes to address 1 must not affect other entries.
-        Step(FALSE, 0, 0,    0, 4'hf, 4'h1);
+        Step(FALSE, 0, 0,    0, 4'h8, 4'h1);
         Step(FALSE, 0, 0,    2, 4'h1, 4'h7);
         Step(FALSE, 0, 0,    3, 4'h7, 4'ha);
 

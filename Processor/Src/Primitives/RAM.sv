@@ -15,6 +15,37 @@
 // A simultaneous read and write to the same address returns the old value.
 //
 
+// Single-port block RAM (1RW). A write returns the previous value at rwa.
+module BlockSinglePortRAM #(
+    parameter ENTRY_NUM = 128,
+    parameter ENTRY_BIT_SIZE = 64
+)(
+    input logic clk,
+    input logic we,
+    input logic [$clog2(ENTRY_NUM > 1 ? ENTRY_NUM : 2)-1:0] rwa,
+    input logic [ENTRY_BIT_SIZE-1:0] wv,
+    output logic [ENTRY_BIT_SIZE-1:0] rv
+);
+    typedef logic [ENTRY_BIT_SIZE-1:0] Value;
+
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "lsram"
+`elsif RSD_SYNTHESIS_VIVADO
+    (* ram_style = "block" *) Value array[ENTRY_NUM];
+`else
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "block_ram"
+`endif
+
+    always_ff @(posedge clk) begin
+        rv <= array[rwa];
+        if (we)
+            array[rwa] <= wv;
+    end
+
+    `RSD_ASSERT_CLK(clk, rwa < ENTRY_NUM, "Access outside the single-port RAM array.");
+endmodule : BlockSinglePortRAM
+
+
 // Simple Dual Port RAM ( 1-read / 1-write )
 module BlockDualPortRAM #( 
     parameter ENTRY_NUM = 128, 
