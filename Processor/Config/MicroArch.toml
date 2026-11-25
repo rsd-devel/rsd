@@ -49,7 +49,7 @@ btb_entry_num = 1024
 pht_entry_num = 16384
 
 # Taken-branch path history length in bits for gshare. Must not exceed log2(pht_entry_num).
-branch_global_history_bit_width = 10
+branch_global_history_bit_width = 12
 
 # Memory dependency prediction table entries. Must be a power of two.
 mdt_entry_num = 1024
