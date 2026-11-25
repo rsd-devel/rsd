@@ -28,6 +28,7 @@ module TestBranchPredictorQueue;
     // Exercise both predictors with the same fetch addresses and training results.
     always_comb begin
         bimodalPort.fetchRequestPC = port.fetchRequestPC;
+        bimodalPort.fetchRequestHistory = port.fetchRequestHistory;
         bimodalPort.brResult = port.brResult;
     end
 
@@ -124,6 +125,7 @@ module TestBranchPredictorQueue;
             int freeSlots, count;
             samples = port.brResult;
             base = PHT_IndexPath'((port.fetchRequestPC >> INSN_ADDR_BIT_WIDTH) & ~(FETCH_WIDTH - 1));
+            if (useGshare) base = HashedIndex(base, port.fetchRequestHistory);
             enqueue = useGshare ? gshare.queueWE : bimodal.queueWE;
             count = useGshare ? gshare.count : bimodal.count;
             readTraining = useGshare ? gshare.readTraining : bimodal.readTraining;
@@ -135,9 +137,8 @@ module TestBranchPredictorQueue;
                     foreach (counters[i]) counters[i] = PHT_ENTRY_MAX / 2 + 1;
             end
             else begin
-                // Use the history returned with this lookup, including any recovery.
+                // RAM outputs correspond to the PC and history sampled at the clock edge.
                 #1;
-                if (useGshare) base = HashedIndex(base, port.brGlobalHistory);
                 headCanRun = FALSE;
                 if (pending.size() != 0) begin
                     oldest = pending[0];
@@ -303,6 +304,12 @@ module TestBranchPredictorQueue;
         ReadAllPHTRows();
     endtask
 
+    function automatic BranchGlobalHistoryPath ExpectedTakenHistory(
+        BranchGlobalHistoryPath history, MemoryMapTypes::PC_Path pc);
+        if (!USE_GSHARE) return '0;
+        return (history << 1) ^ BranchGlobalHistoryPath'((pc >> INSN_ADDR_BIT_WIDTH) & 31);
+    endfunction
+
     task CheckPHTHistory;
         BranchResult result;
         PHT_IndexPath index;
@@ -319,17 +326,27 @@ module TestBranchPredictorQueue;
         index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
         ReadGroup(index * INSN_BYTE_WIDTH);
         ReadGroup(result.brAddr);
-        // History recovery selects the new row for the request issued on this edge.
+        // RW restores the branch's snapshot. Only an actual taken outcome folds in its source PC.
         @(negedge clk);
+        result = MakeResult(23);
         result.isCondBr = FALSE;
         result.execTaken = TRUE;
         result.mispred = TRUE;
+        result.globalHistory = BranchGlobalHistoryPath'('h2c5);
         port.brResult[0] = result;
-        recovery.recoveredPC_FromRename = result.brAddr + (FETCH_WIDTH-1) * INSN_BYTE_WIDTH;
         @(posedge clk);
         #1;
-        assert (port.brGlobalHistory === result.globalHistory)
-            else $fatal(1, "Gshare did not restore the saved history");
+        assert (port.nextStage.brPred[0].globalHistory === ExpectedTakenHistory(result.globalHistory, result.brAddr))
+            else $fatal(1, "Taken RW recovery did not fold in the branch source PC");
+        @(negedge clk);
+        result.isCondBr = TRUE;
+        result.execTaken = FALSE;
+        result.globalHistory = BranchGlobalHistoryPath'('h11);
+        port.brResult[0] = result;
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
+            else $fatal(1, "Untaken RW recovery changed the saved history");
         @(negedge clk);
         ClearResults();
     endtask
@@ -400,6 +417,7 @@ module TestBranchPredictorQueue;
         localparam int ALIAS_STRIDE = FETCH_WIDTH * BTB_SET_NUM;
         localparam int FIRST = ALIAS_STRIDE; // Keep the replacement checks clear of the reset tag.
         BranchResult first, last, neighbor, aliasBranch, updated, cold;
+        BranchGlobalHistoryPath beforeBranch, afterBranch;
         first = MakeResult(FIRST);
         last = MakeResult(FIRST + FETCH_WIDTH - 1);
         neighbor = MakeResult(FIRST + FETCH_WIDTH);
@@ -432,11 +450,14 @@ module TestBranchPredictorQueue;
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
+        recovery.recoverFromRename = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
-                port.updateBrHistory[0] && !port.updateBrHistory[FETCH_WIDTH-1])
+                port.fetchRequestPC == first.nextAddr &&
+                port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
             else $fatal(1, "Fetch did not select the first taken conditional branch");
+        recovery.recoverFromRename = TRUE;
         ctrl.ifStage.clear = TRUE;
         first.btbHit = port.btbHit[0];
         first.btbHitWay = port.btbHitWay[0];
@@ -452,14 +473,16 @@ module TestBranchPredictorQueue;
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
         // The skipped conditional branch predicts taken but must not shift history.
+        recovery.recoverFromRename = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.valid[0] && port.nextStage.brPred[0].predTaken &&
                 port.nextStage.brPred[0].takenAddr == last.nextAddr &&
                 port.phtPrevValue[FETCH_WIDTH-1] == 0 && bimodalPort.phtPrevValue[FETCH_WIDTH-1] == 0 &&
-                !port.updateBrHistory[0] && !port.updateBrHistory[FETCH_WIDTH-1] &&
-                gshare.nextBrGlobalHistory === gshare.regBrGlobalHistory)
+                port.fetchRequestPC == last.nextAddr &&
+                port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, last.brAddr))
             else $fatal(1, "Fetch must skip the earlier branch and take the jump independently of its counter");
+        recovery.recoverFromRename = TRUE;
         ctrl.ifStage.clear = TRUE;
 
         // On a same-row read/write the old target and branch kind are visible
@@ -523,11 +546,42 @@ module TestBranchPredictorQueue;
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
+        recovery.recoverFromRename = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
-                !port.updateBrHistory[FETCH_WIDTH-1] && gshare.nextBrGlobalHistory == gshare.regBrGlobalHistory)
+                port.fetchRequestPC == first.nextAddr &&
+                port.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
             else $fatal(1, "A conditional hit after a taken jump updated the history");
+        recovery.recoverFromRename = TRUE;
+        ctrl.ifStage.clear = TRUE;
+
+        // On a cache miss the predictor can reach the target while I-cache repeats the source.
+        last.isCondBr = FALSE;
+        WriteBTB(last);
+        ReadGroup(last.brAddr);
+        beforeBranch = port.nextStage.brPred[0].globalHistory;
+        afterBranch = ExpectedTakenHistory(beforeBranch, last.brAddr);
+        recovery.recoverFromRename = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        ctrl.ifStage.stall = TRUE;
+        port.icReadHit = FALSE;
+        repeat (3) begin
+            #1;
+            assert (port.fetchRequestPC == last.nextAddr && port.fetchRequestHistory == afterBranch &&
+                    port.icNextReadAddrIn == MemoryMapTypes::ToAddrFromPC(last.brAddr) && port.nextStage.valid == '0)
+                else $fatal(1, "Fetch lost the target PC/history or advanced the missed I-cache lookup");
+            @(posedge clk);
+        end
+        @(negedge clk);
+        ctrl.ifStage.stall = FALSE;
+        port.icReadHit = TRUE;
+        #1;
+        assert (port.fetchRequestPC == last.nextAddr && port.fetchRequestHistory == afterBranch &&
+                port.nextStage.valid[0] && port.nextStage.pc == last.brAddr &&
+                port.nextStage.brPred[0].globalHistory == beforeBranch)
+            else $fatal(1, "Fetch lost the held source group checkpoint on stall release");
+        recovery.recoverFromRename = TRUE;
         ctrl.ifStage.clear = TRUE;
 
         ResetTables();

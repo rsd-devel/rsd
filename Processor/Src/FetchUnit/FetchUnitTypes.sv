@@ -91,8 +91,15 @@ endfunction
 // GShare
 //
 
+// Select Gshare (TRUE) or Bimodal (FALSE) for direction prediction.
+localparam bit USE_GSHARE = TRUE;
 localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
 typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
+
+// Mix the low five word-address bits of each taken branch into the path history.
+function automatic BranchGlobalHistoryPath AdvanceTakenHistory(BranchGlobalHistoryPath history, PC_Path branchPC);
+    return (history << 1) ^ BranchGlobalHistoryPath'(branchPC[INSN_ADDR_BIT_WIDTH +: 5]);
+endfunction
 
 
 //

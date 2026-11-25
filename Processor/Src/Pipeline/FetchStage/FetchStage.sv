@@ -13,8 +13,9 @@ module FetchStage(
     DebugIF.FetchStage debug,
     PerformanceCounterIF.FetchStage perfCounter
 );
-    PC_Path pc, pcIn;
+    PC_Path regPC, pcIn;
     PC_Path predictedPC, fetchRequestPC;
+    BranchGlobalHistoryPath regFetchRequestHistory, fetchRequestHistory;
     FetchStageRegPath nextPipeReg, pipeReg;
     PreDecodeStageRegPath nextStage;
 
@@ -23,7 +24,7 @@ module FetchStage(
     logic regStall, regStallFromCtrl;
     logic beginStallFromCtrl;
     // Keep the selected branch and its group's training context while Fetch is held.
-    // The selected target itself is already in pc when the held group advances.
+    // The selected target itself is already in regPC when the held group advances.
     typedef struct packed {
         logic [FETCH_WIDTH-1:0] takenByGroupOffset;
         BranchGlobalHistoryPath globalHistory;
@@ -42,10 +43,14 @@ module FetchStage(
             regStallFromCtrl <= stallFromCtrl;
         end
 
-        if (port.rst)
-            pc <= PC_Path'(INSN_RESET_VECTOR);
-        else
-            pc <= pcIn;
+        if (port.rst) begin
+            regPC <= PC_Path'(INSN_RESET_VECTOR);
+            regFetchRequestHistory <= '0;
+        end
+        else begin
+            regPC <= pcIn;
+            regFetchRequestHistory <= fetchRequestHistory;
+        end
 
         if (port.rst) begin
             pipeReg <= '0;
@@ -85,37 +90,27 @@ module FetchStage(
         validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
     end
 
-    logic updateBrHistory[FETCH_WIDTH];
+    PC_Path predictedTakenPC;
     logic [FETCH_WIDTH-1:0] takenByGroupOffset;
     always_comb begin
-        predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
+        predictedPC = ToFetchGroupBase(regPC) + FETCH_GROUP_BYTE_NUM;
         takenByGroupOffset = '0;
+        predictedTakenPC = '0;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             if (validByGroupOffset[groupOffset] && port.btbHit[groupOffset]) begin
                 // A jump is taken regardless of the counter. Later offsets are off the predicted path.
                 if (!port.readIsCondBr[groupOffset] || port.brPredTaken[groupOffset]) begin
                     predictedPC = port.btbOut[groupOffset];
+                    predictedTakenPC = ToFetchGroupBase(pipeReg.pc) | PC_Path'(groupOffset << INSN_ADDR_BIT_WIDTH);
                     takenByGroupOffset[groupOffset] = TRUE;
                     break;
                 end
             end
         end
 
-        updateBrHistory = '{default: FALSE};
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (validByGroupOffset[groupOffset] && port.btbHit[groupOffset]) begin
-                // Count a held group once on stall entry, including an I-cache miss.
-                updateBrHistory[groupOffset] = port.readIsCondBr[groupOffset] && !regStallFromCtrl &&
-                                               (stallFromCtrl || !ctrl.ifStage.clear);
-            end
-            if (takenByGroupOffset[groupOffset])
-                break;
-        end
-        port.updateBrHistory = updateBrHistory;
-
         // IC ミスによるストール時のために，予測結果コンテキストを残しておく
         // この保存は IC ミス判定とは無関係に行われるため，予測の遅延が短縮される
-        nextPredCtx.globalHistory = port.brGlobalHistory;
+        nextPredCtx.globalHistory = regFetchRequestHistory;
         nextPredCtx.takenByGroupOffset = takenByGroupOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             nextPredCtx.btbHit[groupOffset] = port.btbHit[groupOffset];
@@ -129,17 +124,36 @@ module FetchStage(
         else if (recovery.recoverFromRename)
             fetchRequestPC = recovery.recoveredPC_FromRename;
         else if (regStall || !pipeReg.valid)
-            fetchRequestPC = pc;
+            fetchRequestPC = regPC;
         else
             fetchRequestPC = predictedPC;
+
+        // On stall entry the predictor advances once. regPredCtx keeps the
+        // original group's history while the I-cache retries its lookup.
+        fetchRequestHistory = regFetchRequestHistory;
+        if ((|takenByGroupOffset) && !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear))
+            fetchRequestHistory = AdvanceTakenHistory(regFetchRequestHistory, predictedTakenPC);
+
+        // Keep the existing RW recovery priority over the speculative update.
+        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
+            if (port.brResult[i].valid && port.brResult[i].mispred) begin
+                fetchRequestHistory = port.brResult[i].globalHistory;
+                if (port.brResult[i].execTaken)
+                    fetchRequestHistory = AdvanceTakenHistory(port.brResult[i].globalHistory, port.brResult[i].brAddr);
+            end
+        end
+        if (!USE_GSHARE)
+            fetchRequestHistory = '0;
+
         port.fetchRequestPC = fetchRequestPC;
+        port.fetchRequestHistory = fetchRequestHistory;
 
         if (port.interruptAddrWE)
             pcIn = port.interruptAddrIn;
         else
             pcIn = fetchRequestPC;
         // Interrupt entry samples the registered PC after the pipeline drains.
-        port.pcOut = pc;
+        port.pcOut = regPC;
     end
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -168,7 +182,7 @@ module FetchStage(
     logic [FETCH_WIDTH-1:0] flushByGroupOffset, validByFetchLane, validThroughBranch;
     always_comb begin
         responsePrediction = regStallFromCtrl ? regPredCtx : nextPredCtx;
-        responseTakenAddr = regStallFromCtrl ? pc : predictedPC;
+        responseTakenAddr = regStallFromCtrl ? regPC : predictedPC;
         flushByGroupOffset = '0;
         for (int i = 1; i < FETCH_WIDTH; i++)
             flushByGroupOffset[i] = flushByGroupOffset[i-1] || responsePrediction.takenByGroupOffset[i-1];
@@ -204,9 +218,9 @@ module FetchStage(
     always_ff @(posedge port.clk) begin
         if (beginStallFromCtrl)
             expectedHeldTarget <= predictedPC;
-        // A redirect can overwrite pc while the held group is being discarded.
+        // A redirect can overwrite regPC while the held group is being discarded.
         if (regStallFromCtrl && (|nextStage.valid) && (|regPredCtx.takenByGroupOffset))
-            assert (pc == expectedHeldTarget)
+            assert (regPC == expectedHeldTarget)
                 else $fatal(1, "Fetch advanced a held taken branch with a different target");
     end
 `endif

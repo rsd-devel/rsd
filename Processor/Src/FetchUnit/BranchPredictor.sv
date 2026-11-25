@@ -9,17 +9,16 @@
 import BasicTypes::*;
 import FetchUnitTypes::*;
 
-`define USE_GSHARE
-
 module BranchPredictor(
     FetchStageIF.BranchPredictor port,
     ControllerIF.BranchPredictor ctrl
 );
 
-`ifdef USE_GSHARE
-    Gshare predictor( port, ctrl );
-`else
-    Bimodal predictor( port );
-`endif
+    if (USE_GSHARE) begin : gshare
+        Gshare predictor( port, ctrl );
+    end
+    else begin : bimodal
+        Bimodal predictor( port );
+    end
 
 endmodule : BranchPredictor

@@ -79,7 +79,6 @@ module Bimodal(
             port.brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1];
         end
         port.phtPrevValue = counters;
-        port.brGlobalHistory = '0;
     end
 
     typedef struct packed {

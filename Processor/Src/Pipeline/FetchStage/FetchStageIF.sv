@@ -16,8 +16,9 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     // Registered PC used as the interrupt return address.
     PC_Path  pcOut;
 
-    // Address for the next predictor lookup, including redirects and repeated requests.
+    // PC and path history for the same predictor lookup.
     PC_Path  fetchRequestPC;
+    BranchGlobalHistoryPath fetchRequestHistory;
 
     // Executed branch results for updating a branch predictor.
     // This signal is written back from a write back stage.
@@ -27,16 +28,13 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     PC_Path interruptAddrIn;
     logic interruptAddrWE;
 
-    // BTB/PHT results and updateBrHistory use groupOffset, in instructions from the aligned group base.
+    // BTB/PHT results use groupOffset, in instructions from the aligned group base.
     PC_Path btbOut[FETCH_WIDTH];
     logic btbHit[FETCH_WIDTH];
     BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
     logic readIsCondBr[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
-    BranchGlobalHistoryPath brGlobalHistory;
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
-
-    logic updateBrHistory[FETCH_WIDTH];
 
     // Addresses for the next cache lookup and the response currently in Fetch.
     AddrPath icNextReadAddrIn, icReadAddrIn;
@@ -54,19 +52,19 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         rst,
         interruptAddrIn,
         interruptAddrWE,
+        brResult,
         btbHit,
         btbHitWay,
         btbOut,
         readIsCondBr,
         brPredTaken,
-        brGlobalHistory,
         phtPrevValue,
         icReadHit,
         icReadDataOut,
     output
         pcOut,
         fetchRequestPC,
-        updateBrHistory,
+        fetchRequestHistory,
         icNextReadAddrIn,
         icReadAddrIn,
         icRE,
@@ -103,11 +101,10 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         rst,
         rstStart,
         fetchRequestPC,
+        fetchRequestHistory,
         brResult,
-        updateBrHistory,
     output
         brPredTaken,
-        brGlobalHistory,
         phtPrevValue
     );
 

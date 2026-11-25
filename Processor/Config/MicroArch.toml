@@ -48,7 +48,7 @@ btb_entry_num = 1024
 # Each bank holds 4096 rows x 4 bits = 2 KiB, exactly one Zynq-7000 RAMB18E1 in 4-bit mode.
 pht_entry_num = 16384
 
-# Global history length in bits for gshare. Must not exceed log2(pht_entry_num).
+# Taken-branch path history length in bits for gshare. Must not exceed log2(pht_entry_num).
 branch_global_history_bit_width = 10
 
 # Memory dependency prediction table entries. Must be a power of two.

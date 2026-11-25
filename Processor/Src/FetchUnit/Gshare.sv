@@ -83,14 +83,6 @@ module Gshare(
         port.phtPrevValue = counters;
     end
 
-    BranchGlobalHistoryPath nextBrGlobalHistory, regBrGlobalHistory;
-    always_ff @(posedge port.clk) begin
-        if (port.rst)
-            regBrGlobalHistory <= '0;
-        else
-            regBrGlobalHistory <= nextBrGlobalHistory;
-    end
-
     function automatic PHT_IndexPath ToPHT_Index(PC_Path pc, BranchGlobalHistoryPath history);
         PHT_IndexPath index;
         index = PHT_IndexPath'(pc >> INSN_ADDR_BIT_WIDTH);
@@ -99,25 +91,8 @@ module Gshare(
     endfunction
 
     always_comb begin
-        nextBrGlobalHistory = regBrGlobalHistory;
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (port.updateBrHistory[groupOffset])
-                nextBrGlobalHistory = (nextBrGlobalHistory << 1) | brPredTaken[groupOffset];
-        end
-
-        // A resolved misprediction overrides speculative history for the next lookup.
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if (port.brResult[i].valid && port.brResult[i].mispred) begin
-                nextBrGlobalHistory = port.brResult[i].globalHistory;
-                if (port.brResult[i].isCondBr)
-                    nextBrGlobalHistory = (nextBrGlobalHistory << 1) | port.brResult[i].execTaken;
-            end
-        end
-
-        // Use the updated history for the next lookup and pass this lookup's history to Fetch.
-        readIndex = ToPHT_Index(ToFetchGroupBase(port.fetchRequestPC), nextBrGlobalHistory);
+        readIndex = ToPHT_Index(ToFetchGroupBase(port.fetchRequestPC), port.fetchRequestHistory);
         readRowIndex = RowIndexPath'(readIndex / FETCH_WIDTH);
-        port.brGlobalHistory = regBrGlobalHistory;
     end
 
     typedef struct packed {
