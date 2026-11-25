@@ -99,85 +99,151 @@ module TestBranchPredictorQueue;
         CheckBTB(ToFetchGroupOffset(miss.brAddr), miss);
     endtask
 
-    // Model the counter tables as flat arrays. Sample every returned counter
-    // before applying this edge's oldest write, including same-row collisions.
-    PHT_EntryPath expectedGshare[PHT_ENTRY_NUM], expectedBimodal[PHT_ENTRY_NUM];
-    BranchResult pendingPHT[$];
+    function automatic PHT_EntryPath NextCounter(PHT_EntryPath v, bit taken);
+        if (taken && v != PHT_ENTRY_MAX) return v + 1'b1;
+        if (!taken && v != 0) return v - 1'b1;
+        return v;
+    endfunction
     function automatic PHT_IndexPath HashedIndex(input PHT_IndexPath index, input BranchGlobalHistoryPath history);
         return index ^ (PHT_IndexPath'(history) << (PHT_ENTRY_NUM_BIT_WIDTH - BRANCH_GLOBAL_HISTORY_BIT_WIDTH));
     endfunction
 
-    always @(posedge clk) begin
-        BranchResult samples[INT_ISSUE_WIDTH], oldest;
-        PHT_IndexPath base, index;
-        PHT_EntryPath updated;
-        bit wasFull;
-        if (rst) begin
-            pendingPHT.delete();
-            if (rstStart) begin
-                foreach (expectedGshare[i]) begin
-                    expectedGshare[i] = PHT_ENTRY_MAX / 2 + 1;
-                    expectedBimodal[i] = PHT_ENTRY_MAX / 2 + 1;
+    // A flat counter table and one FIFO per predictor model the two independent
+    // instances. Only the oldest update can use the bank left free by fetch.
+    for (genvar useGshare = 0; useGshare <= 1; useGshare++) begin : phtModel
+        PHT_EntryPath counters[PHT_ENTRY_NUM];
+        BranchResult pending[$];
+        bit rowReady;
+        always @(posedge clk) begin
+            BranchResult samples[INT_ISSUE_WIDTH], oldest;
+            PHT_IndexPath base, index, headIndex;
+            logic enqueue[INT_ISSUE_WIDTH];
+            bit readTraining, writeEnable, headCanRun;
+            int freeSlots, count;
+            samples = port.brResult;
+            base = PHT_IndexPath'((port.fetchRequestPC >> INSN_ADDR_BIT_WIDTH) & ~(FETCH_WIDTH - 1));
+            enqueue = useGshare ? gshare.queueWE : bimodal.queueWE;
+            count = useGshare ? gshare.count : bimodal.count;
+            readTraining = useGshare ? gshare.readTraining : bimodal.readTraining;
+            writeEnable = useGshare ? gshare.writeEnable : bimodal.writeEnable;
+            if (rst) begin
+                pending.delete();
+                rowReady = FALSE;
+                if (rstStart)
+                    foreach (counters[i]) counters[i] = PHT_ENTRY_MAX / 2 + 1;
+            end
+            else begin
+                // Use the history returned with this lookup, including any recovery.
+                #1;
+                if (useGshare) base = HashedIndex(base, port.brGlobalHistory);
+                headCanRun = FALSE;
+                if (pending.size() != 0) begin
+                    oldest = pending[0];
+                    headIndex = PHT_IndexPath'(oldest.brAddr >> INSN_ADDR_BIT_WIDTH);
+                    if (useGshare) headIndex = HashedIndex(headIndex, oldest.globalHistory);
+                    headCanRun = (headIndex / FETCH_WIDTH) % 2 != (base / FETCH_WIDTH) % 2;
+                end
+                assert (count == pending.size() && readTraining == (headCanRun && !rowReady) &&
+                        writeEnable == (headCanRun && rowReady))
+                    else $fatal(1, "PHT %m queue occupancy or head service mismatch");
+
+                foreach (port.phtPrevValue[i]) begin
+                    index = base ^ PHT_IndexPath'(i);
+                    assert ((useGshare ? port.phtPrevValue[i] : bimodalPort.phtPrevValue[i]) === counters[index] &&
+                            (useGshare ? port.brPredTaken[i] : bimodalPort.brPredTaken[i]) ===
+                                (counters[index] > PHT_ENTRY_MAX / 2))
+                        else $fatal(1, "PHT %m prediction mismatch at %0d", index);
+                end
+                freeSlots = PHT_QUEUE_SIZE - pending.size();
+                if (writeEnable) begin
+                    oldest = pending.pop_front();
+                    counters[headIndex] = NextCounter(counters[headIndex], oldest.execTaken);
+                    rowReady = FALSE;
+                    if (freeSlots != 0) freeSlots++;
+                end
+                if (readTraining) rowReady = TRUE;
+                foreach (samples[i]) begin
+                    bit accept;
+                    accept = freeSlots > 0 && samples[i].valid && samples[i].isCondBr &&
+                        NextCounter(samples[i].phtPrevValue, samples[i].execTaken) != samples[i].phtPrevValue;
+                    assert (enqueue[i] === accept) else $fatal(1, "PHT %m queue write mismatch on lane %0d", i);
+                    if (accept) begin
+                        freeSlots--;
+                        pending.push_back(samples[i]);
+                    end
                 end
             end
         end
-        else begin
-            base = PHT_IndexPath'((port.fetchRequestPC >> INSN_ADDR_BIT_WIDTH) & ~(FETCH_WIDTH - 1));
-            samples = port.brResult;
-            wasFull = pendingPHT.size() == PHT_QUEUE_SIZE;
-            foreach (samples[i]) begin
-                bit shouldEnqueue;
-                shouldEnqueue = !wasFull && samples[i].valid && samples[i].isCondBr;
-                assert (gshare.queueWE[i] === shouldEnqueue && bimodal.queueWE[i] === shouldEnqueue)
-                    else $fatal(1, "Unexpected PHT queue write on issue lane %0d", i);
-            end
-            #1;
-            foreach (port.phtPrevValue[i]) begin
-                index = base + i;
-                assert (bimodalPort.phtPrevValue[i] === expectedBimodal[index])
-                    else $fatal(1, "Bimodal counter mismatch at %0d", index);
-                assert (bimodalPort.brPredTaken[i] === (expectedBimodal[index] > PHT_ENTRY_MAX / 2))
-                    else $fatal(1, "Bimodal direction mismatch at %0d", index);
-                index = HashedIndex(index, port.brGlobalHistory);
-                assert (port.phtPrevValue[i] === expectedGshare[index])
-                    else $fatal(1, "Gshare counter mismatch at %0d (history %h)", index, port.brGlobalHistory);
-                assert (port.brPredTaken[i] === (expectedGshare[index] > PHT_ENTRY_MAX / 2))
-                    else $fatal(1, "Gshare direction mismatch at %0d (history %h)", index, port.brGlobalHistory);
-            end
-            if (pendingPHT.size() != 0) begin
-                oldest = pendingPHT.pop_front();
-                updated = oldest.phtPrevValue;
-                if (oldest.execTaken && updated < PHT_ENTRY_MAX) updated++;
-                if (!oldest.execTaken && updated > 0) updated--;
-                index = PHT_IndexPath'(oldest.brAddr >> INSN_ADDR_BIT_WIDTH);
-                expectedBimodal[index] = updated;
-                expectedGshare[HashedIndex(index, oldest.globalHistory)] = updated;
-            end
-            foreach (samples[i])
-                if (!wasFull && samples[i].valid && samples[i].isCondBr) pendingPHT.push_back(samples[i]);
-        end
     end
+
+    // Offer both banks enough idle cycles to read and write every queued update.
+    task DrainPHT;
+        repeat (PHT_QUEUE_SIZE) begin
+            repeat (2) ReadGroup(0);
+            repeat (2) ReadGroup(FETCH_WIDTH * INSN_BYTE_WIDTH);
+        end
+        assert (bimodal.count == 0 && gshare.count == 0) else $fatal(1, "PHT queues did not drain");
+    endtask
+
+    task CheckPHTHeadConflict;
+        BranchResult first, second;
+        first = MakeResult(0);
+        second = MakeResult(FETCH_WIDTH);
+        first.execTaken = FALSE;
+        second.execTaken = FALSE;
+        first.phtPrevValue = PHT_ENTRY_MAX;
+        second.phtPrevValue = PHT_ENTRY_MAX;
+        // Distinguish the head row from other rows in its bank before forcing a stall.
+        WriteBTB(first);
+        DrainPHT();
+        ReadGroup(first.brAddr);
+        WriteBTB(first, second);
+        // A younger request to the free bank cannot pass the blocked head.
+        repeat (3) ReadGroup(first.brAddr);
+        assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "Blocked PHT head was bypassed");
+        // Allow only the training read, then use its bank for several fetches.
+        ReadGroup(second.brAddr);
+        repeat (3) ReadGroup(first.brAddr + 2 * FETCH_WIDTH * INSN_BYTE_WIDTH);
+        assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "PHT wrote a busy bank");
+        ReadGroup(second.brAddr); // Write the saved row while a different row is still on its bank output.
+        ReadGroup(first.brAddr);
+        DrainPHT();
+        ReadGroup(first.brAddr);
+        ReadGroup(second.brAddr);
+    endtask
 
     task CheckPHTQueue;
         localparam int RESULTS = 2 * PHT_QUEUE_SIZE * INT_ISSUE_WIDTH;
-        BranchResult result;
-        // Keep reading the first row while the first two updates enqueue and drain.
+        BranchResult result, other;
+        // A saturated snapshot skips the first lane while the opposite outcome
+        // on the same snapshot can still use the first available queue slot.
+        for (int taken = 0; taken <= 1; taken++) begin
+            result = MakeResult(RESULTS);
+            result.phtPrevValue = taken ? PHT_ENTRY_MAX : '0;
+            result.execTaken = taken;
+            other = result;
+            other.execTaken = !result.execTaken;
+            WriteBTB(result, other);
+        end
+        // Alternate fetch banks during the burst to exercise simultaneous pushes and pops.
         // Distinct later addresses make dropped updates visible after the queue wraps.
         for (int i = 0; i < RESULTS; i += INT_ISSUE_WIDTH) begin
             @(negedge clk);
+            recovery.recoveredPC_FromRename = ((i / INT_ISSUE_WIDTH) % 2) * FETCH_WIDTH * INSN_BYTE_WIDTH;
             foreach (port.brResult[lane]) begin
                 result = MakeResult(i + lane);
-                result.phtPrevValue = '0;
+                result.phtPrevValue = PHT_ENTRY_MAX / 2 + 1;
                 result.execTaken = ((i + lane) % 2 == 1);
                 port.brResult[lane] = result;
             end
         end
         @(negedge clk);
         ClearResults();
-        repeat (PHT_QUEUE_SIZE) @(negedge clk);
+        DrainPHT();
         // The high issue lane also trains when it is the only valid result.
+        @(negedge clk);
         result = MakeResult(RESULTS);
-        result.phtPrevValue = PHT_ENTRY_MAX;
+        result.phtPrevValue = '0;
         port.brResult[INT_ISSUE_WIDTH-1] = result;
         @(negedge clk);
         ClearResults();
@@ -187,19 +253,46 @@ module TestBranchPredictorQueue;
         end
     endtask
 
+    // Alternate rows and repeatedly update one row across both issue lanes.
+    // Deliberately supply stale lookup counters for every training request.
+    task CheckPackedCounterUpdates;
+        BranchResult first, adjacent, otherRow;
+        first = MakeResult(4 * FETCH_WIDTH);
+        adjacent = MakeResult(5 * FETCH_WIDTH - 1);
+        otherRow = MakeResult(6 * FETCH_WIDTH);
+        first.phtPrevValue = PHT_ENTRY_MAX;
+        adjacent.phtPrevValue = PHT_ENTRY_MAX;
+        first.execTaken = FALSE;
+        adjacent.execTaken = FALSE;
+        // Fetch the opposite bank so these repeated updates reach the counters.
+        recovery.recoveredPC_FromRename = first.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
+        WriteBTB(first, adjacent);
+        WriteBTB(first, first);
+        WriteBTB(otherRow, adjacent);
+        first.execTaken = TRUE;
+        adjacent.execTaken = TRUE;
+        first.phtPrevValue = '0;
+        WriteBTB(first, first);
+        WriteBTB(adjacent, adjacent);
+        WriteBTB(first, first);
+        DrainPHT();
+        ReadGroup(first.brAddr);
+        ReadGroup(otherRow.brAddr);
+    endtask
+
     task CheckPHTHistory;
         BranchResult result;
         PHT_IndexPath index;
         result = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH);
         result.globalHistory = '1;
-        result.phtPrevValue = '0;
+        result.phtPrevValue = PHT_ENTRY_MAX;
         result.execTaken = FALSE;
         // Train under a saved nonzero history while the live history is zero.
         @(negedge clk);
         port.brResult[INT_ISSUE_WIDTH-1] = result;
         @(negedge clk);
         ClearResults();
-        @(negedge clk);
+        DrainPHT();
         index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
         ReadGroup(index * INSN_BYTE_WIDTH);
         ReadGroup(result.brAddr);
@@ -308,10 +401,11 @@ module TestBranchPredictorQueue;
         updated = last;
         updated.isCondBr = TRUE;
         updated.execTaken = FALSE;
-        updated.phtPrevValue = '0;
-        WriteBTB(updated);
+        updated.phtPrevValue = PHT_ENTRY_MAX;
+        WriteBTB(updated, updated);
         WriteBTB(first, last);
         if (BTB_SET_NUM > 1) WriteBTB(neighbor);
+        DrainPHT();
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
@@ -389,8 +483,11 @@ module TestBranchPredictorQueue;
         CheckBTB(0, '0);
 
         // A weakly not-taken first branch lets the later unconditional jump win.
-        first.phtPrevValue = '0;
         WriteBTB(first);
+        updated = first;
+        updated.execTaken = FALSE;
+        WriteBTB(updated, updated);
+        DrainPHT();
         ReadGroup(first.brAddr);
         assert (!port.nextStage.brPred[0].predTaken && port.nextStage.brPred[FETCH_WIDTH-1].predTaken &&
                 port.nextStage.brPred[FETCH_WIDTH-1].takenAddr == last.nextAddr)
@@ -458,6 +555,8 @@ module TestBranchPredictorQueue;
         if (FETCH_WIDTH >= 2) CheckBTBWays();
 
         recovery.recoveredPC_FromRename = '0;
+        CheckPHTHeadConflict();
+        CheckPackedCounterUpdates();
         CheckPHTQueue();
         CheckPHTHistory();
         CheckBTBTraining();
