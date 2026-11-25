@@ -120,6 +120,13 @@ module TestBranchPredictorQueue;
         else begin
             base = PHT_IndexPath'((port.fetchRequestPC >> INSN_ADDR_BIT_WIDTH) & ~(FETCH_WIDTH - 1));
             samples = port.brResult;
+            wasFull = pendingPHT.size() == PHT_QUEUE_SIZE;
+            foreach (samples[i]) begin
+                bit shouldEnqueue;
+                shouldEnqueue = !wasFull && samples[i].valid && samples[i].isCondBr;
+                assert (gshare.queueWE[i] === shouldEnqueue && bimodal.queueWE[i] === shouldEnqueue)
+                    else $fatal(1, "Unexpected PHT queue write on issue lane %0d", i);
+            end
             #1;
             foreach (port.phtPrevValue[i]) begin
                 index = base + i;
@@ -129,7 +136,6 @@ module TestBranchPredictorQueue;
                 assert (port.phtPrevValue[i] === expectedGshare[index])
                     else $fatal(1, "Gshare counter mismatch at %0d (history %h)", index, port.brGlobalHistory);
             end
-            wasFull = pendingPHT.size() == PHT_QUEUE_SIZE;
             if (pendingPHT.size() != 0) begin
                 oldest = pendingPHT.pop_front();
                 updated = oldest.phtPrevValue;
@@ -140,7 +146,7 @@ module TestBranchPredictorQueue;
                 expectedGshare[HashedIndex(index, oldest.globalHistory)] = updated;
             end
             foreach (samples[i])
-                if (!wasFull && samples[i].valid) pendingPHT.push_back(samples[i]);
+                if (!wasFull && samples[i].valid && samples[i].isCondBr) pendingPHT.push_back(samples[i]);
         end
     end
 
@@ -180,7 +186,6 @@ module TestBranchPredictorQueue;
         result.globalHistory = '1;
         result.phtPrevValue = '0;
         result.execTaken = FALSE;
-        result.isCondBr = FALSE;
         // Train under a saved nonzero history while the live history is zero.
         @(negedge clk);
         port.brResult[INT_ISSUE_WIDTH-1] = result;
@@ -192,6 +197,8 @@ module TestBranchPredictorQueue;
         ReadGroup(result.brAddr);
         // History recovery selects the new row for the request issued on this edge.
         @(negedge clk);
+        result.isCondBr = FALSE;
+        result.execTaken = TRUE;
         result.mispred = TRUE;
         port.brResult[0] = result;
         port.fetchRequestPC = result.brAddr + (FETCH_WIDTH-1) * INSN_BYTE_WIDTH;

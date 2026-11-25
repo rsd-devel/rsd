@@ -91,7 +91,8 @@ module Bimodal(
             // As in the BTB, a full queue drops new training. Otherwise its
             // simultaneous drain leaves space for both integer issue lanes.
             queueWA[i] = tailPtr + QueuePointerPath'(pushCount);
-            queueWE[i] = !port.rst && port.brResult[i].valid && count < PHT_QUEUE_SIZE;
+            queueWE[i] = !port.rst && count < PHT_QUEUE_SIZE &&
+                         port.brResult[i].valid && port.brResult[i].isCondBr;
             if (queueWE[i])
                 pushCount++;
         end
