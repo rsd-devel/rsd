@@ -72,7 +72,7 @@ localparam CONF_STORE_QUEUE_ENTRY_NUM = 16;
 // --- Predictors
 // Branch predictor
 localparam CONF_BTB_ENTRY_NUM = 1024;
-localparam CONF_PHT_ENTRY_NUM = 2048;
+localparam CONF_PHT_ENTRY_NUM = 16384;
 localparam CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH = 10;
 
 // Memory dependency predictor

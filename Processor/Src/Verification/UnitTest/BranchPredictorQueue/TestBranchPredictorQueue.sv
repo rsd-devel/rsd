@@ -7,7 +7,9 @@ import FetchUnitTypes::*;
 
 module TestBranchPredictorQueue;
     localparam int PHT_ROWS = PHT_ENTRY_NUM / FETCH_WIDTH;
-    localparam int RESET_CYCLES = (BTB_SET_NUM > PHT_ROWS ? BTB_SET_NUM : PHT_ROWS) + 1;
+    // Both PHT banks initialize one row per cycle.
+    localparam int PHT_BANK_ROWS = PHT_ROWS / 2;
+    localparam int RESET_CYCLES = (BTB_SET_NUM > PHT_BANK_ROWS ? BTB_SET_NUM : PHT_BANK_ROWS) + 1;
     logic clk = FALSE;
     logic rst = TRUE;
     logic rstStart = TRUE;
@@ -280,6 +282,27 @@ module TestBranchPredictorQueue;
         ReadGroup(otherRow.brAddr);
     endtask
 
+    // Read every slot through the predictor ports; the flat reference tables check the values.
+    task ReadAllPHTRows;
+        for (int row = 0; row < PHT_ROWS; row++)
+            ReadGroup(row * FETCH_GROUP_BYTE_NUM);
+    endtask
+
+    task CheckUpperPHTRows;
+        BranchResult penultimate, last;
+        penultimate = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH - 1);
+        last = MakeResult(PHT_ENTRY_NUM - 1);
+        // Distinguish the last word of each bank from its neighbors and from each other.
+        penultimate.phtPrevValue = PHT_ENTRY_MAX;
+        penultimate.execTaken = FALSE;
+        last.phtPrevValue = '0;
+        last.btbTargetCorrect = TRUE;
+        DrainPHT();
+        WriteBTB(penultimate, last);
+        DrainPHT();
+        ReadAllPHTRows();
+    endtask
+
     task CheckPHTHistory;
         BranchResult result;
         PHT_IndexPath index;
@@ -535,7 +558,7 @@ module TestBranchPredictorQueue;
     endtask
 
     initial begin
-        #((3 * RESET_CYCLES + 1000) * 10);
+        #((3 * RESET_CYCLES + 2 * PHT_ROWS + 1000) * 10);
         $fatal(1, "Branch predictor queue test timed out");
     end
 
@@ -560,12 +583,14 @@ module TestBranchPredictorQueue;
         CheckPHTQueue();
         CheckPHTHistory();
         CheckBTBTraining();
+        CheckUpperPHTRows();
         @(negedge clk);
         port.brResult[0] = MakeResult(4);
         port.brResult[1] = MakeResult(5);
         ResetTables();
         ClearResults();
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");
+        ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
         CheckOverlappingMisses();
         CheckFullBTBQueue();
         $display("========== Test Passed ==========");

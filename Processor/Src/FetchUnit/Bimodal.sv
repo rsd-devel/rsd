@@ -27,7 +27,8 @@ module Bimodal(
     typedef PHT_EntryPath [FETCH_WIDTH-1:0] RowPath;
     RowPath readRow, trainingRow, writeRow, heldTrainingRow;
     RowPath bankRow[BANK_NUM];
-    RowIndexPath readRowIndex, trainingRowIndex, resetRow;
+    RowIndexPath readRowIndex, trainingRowIndex;
+    BankIndexPath resetBankAddr;
     logic predictionBank, regPredictionBank, headBank;
     logic readTraining, writeEnable, regReadTraining;
 
@@ -41,9 +42,10 @@ module Bimodal(
             .clk(port.clk), .we(bankWE), .rwa(bankAddr), .wv(writeRow), .rv(bankRow[b])
         );
         always_comb begin
-            bankWE = port.rst ? resetRow[0] == b : writeEnable && headBank == b;
+            // Initialize both banks in parallel so the full table fits in the reset sequence.
+            bankWE = port.rst || (writeEnable && headBank == b);
             if (port.rst)
-                bankAddr = BankIndexPath'(resetRow / BANK_NUM);
+                bankAddr = resetBankAddr;
             else if (predictionBank == b)
                 bankAddr = BankIndexPath'(readRowIndex / BANK_NUM);
             else
@@ -59,9 +61,9 @@ module Bimodal(
     always_ff @(posedge port.clk) begin
         regPredictionBank <= predictionBank;
         if (port.rstStart)
-            resetRow <= '0;
+            resetBankAddr <= '0;
         else if (port.rst)
-            resetRow <= RowIndexPath'((resetRow + 1) % ROW_NUM);
+            resetBankAddr <= BankIndexPath'((resetBankAddr + 1) % BANK_ENTRY_NUM);
     end
 
 

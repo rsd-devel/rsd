@@ -42,8 +42,11 @@ store_queue_entry_num = 16
 
 # Total entries in the two-way BTB (a power of two, at least 2).
 btb_entry_num = 1024
-# Pattern history table entries (a power of two).
-pht_entry_num = 2048
+
+# Total number of 2-bit PHT counters (a power of two). With the default fetch width of 2:
+# 2 RAM banks x 4096 rows/bank x 2 counters/row = 16384 counters (4 KiB total).
+# Each bank holds 4096 rows x 4 bits = 2 KiB, exactly one Zynq-7000 RAMB18E1 in 4-bit mode.
+pht_entry_num = 16384
 
 # Global history length in bits for gshare. Must not exceed log2(pht_entry_num).
 branch_global_history_bit_width = 10

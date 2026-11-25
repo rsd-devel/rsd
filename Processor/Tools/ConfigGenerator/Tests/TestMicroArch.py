@@ -107,7 +107,7 @@ class TestMicroArch(unittest.TestCase):
             ("btb_entry_num", 1),
             ("icache_way_num", 1),
             ("icache_line_byte_num", 4),
-            ("branch_global_history_bit_width", 12),
+            ("branch_global_history_bit_width", self.values["parameters"]["pht_entry_num"].bit_length()),
             ("dcache_index_bit_width_base", 32),
             ("dcache_index_bit_width_base", 1),
             ("int_issue_width", 3),
