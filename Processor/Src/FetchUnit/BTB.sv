@@ -80,7 +80,7 @@ module BTB(
     logic [FETCH_WIDTH-1:0] hitByOffset;
     BTB_WayIndexPath hitWay[FETCH_WIDTH];
     PC_Path target[FETCH_WIDTH];
-    logic isCondBr[FETCH_WIDTH];
+    BTB_BranchType brType[FETCH_WIDTH];
     always_comb begin
         lookupTag = ToBTB_Tag(lookupPC);
         hitByOffset = '0;
@@ -94,21 +94,21 @@ module BTB(
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             hitWay[groupOffset] = '0;
             target[groupOffset] = '0;
-            isCondBr[groupOffset] = FALSE;
+            brType[groupOffset] = BTB_JUMP;
             if (hitByOffset[groupOffset]) begin
                 // A later way wins if two entries match both the block and the offset.
                 for (int w = 0; w < BTB_WAY_NUM; w++) begin
                     if (blockHit[w] && wayEntry[w].tag.offset == BTB_OffsetPath'(groupOffset)) begin
                         hitWay[groupOffset] = BTB_WayIndexPath'(w);
                         target[groupOffset] = ToRawAddrFromBTB_Addr(wayEntry[w].data, lookupPC);
-                        isCondBr[groupOffset] = wayEntry[w].isCondBr;
+                        brType[groupOffset] = wayEntry[w].brType;
                     end
                 end
             end
             port.btbHit[groupOffset] = hitByOffset[groupOffset];
             port.btbHitWay[groupOffset] = hitWay[groupOffset];
             port.btbOut[groupOffset] = target[groupOffset];
-            port.readIsCondBr[groupOffset] = isCondBr[groupOffset];
+            port.readBrType[groupOffset] = brType[groupOffset];
         end
     end
 
@@ -118,13 +118,13 @@ module BTB(
             queueIn[i].setIndex = ToBTB_Set(port.brResult[i].brAddr);
             queueIn[i].entry.tag = ToBTB_Tag(port.brResult[i].brAddr);
             queueIn[i].entry.data = ToBTB_Addr(port.brResult[i].nextAddr);
-            queueIn[i].entry.isCondBr = port.brResult[i].isCondBr;
+            queueIn[i].entry.brType = port.brResult[i].brType;
             queueIn[i].hit = port.brResult[i].btbHit;
             queueIn[i].hitWay = port.brResult[i].btbHitWay;
             queueWA[i] = tailPtr + BTBQueuePointerPath'(pushCount);
             // Drop training when full. Otherwise, draining one entry leaves room for up to two lanes.
             queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken &&
-                         !port.brResult[i].btbTargetCorrect && count < BTB_QUEUE_SIZE;
+                         !port.brResult[i].btbEntryCorrect && count < BTB_QUEUE_SIZE;
             if (queueWE[i])
                 pushCount++;
         end

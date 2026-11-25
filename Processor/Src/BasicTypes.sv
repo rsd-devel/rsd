@@ -108,6 +108,12 @@ typedef struct packed { // PRegNumPath
 // --- Pipeline
 //
 
+// Decode supplies this classification to both the RAS and BTB training.
+typedef enum logic [2:0] {
+    BTB_JUMP, BTB_COND, BTB_CALL, BTB_RETURN,
+    BTB_RETURN_OFFSET    // Pop the RAS, but use the BTB target for a nonzero JALR displacement.
+} BTB_BranchType;
+
 // Fetch width
 localparam FETCH_WIDTH = CONF_FETCH_WIDTH;
 localparam FETCH_WIDTH_BIT_SIZE = $clog2( FETCH_WIDTH ); // log2(FETCH_WIDTH)

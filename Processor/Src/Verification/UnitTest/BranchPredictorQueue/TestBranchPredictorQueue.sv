@@ -37,7 +37,7 @@ module TestBranchPredictorQueue;
         result = '0;
         result.valid = TRUE;
         result.execTaken = TRUE;
-        result.isCondBr = TRUE;
+        result.brType = BTB_COND;
         result.brAddr = 32'h80000000 + index * INSN_BYTE_WIDTH;
         result.nextAddr = result.brAddr + 128;
         result.phtPrevValue = PHT_EntryPath'(index % PHT_ENTRY_MAX);
@@ -69,9 +69,71 @@ module TestBranchPredictorQueue;
     task CheckBTB(input int groupOffset, input BranchResult expected);
         assert (port.btbHit[groupOffset] === expected.valid &&
                 (!expected.valid || (port.btbOut[groupOffset] === expected.nextAddr &&
-                                     port.readIsCondBr[groupOffset] === expected.isCondBr)))
-            else $fatal(1, "BTB PC %h group offset %0d expected hit %b target %h conditional %b",
-                        port.fetchRequestPC, groupOffset, expected.valid, expected.nextAddr, expected.isCondBr);
+                                     port.readBrType[groupOffset] === expected.brType)))
+            else $fatal(1, "BTB PC %h group offset %0d expected hit %b target %h type %d",
+                        port.fetchRequestPC, groupOffset, expected.valid, expected.nextAddr, expected.brType);
+    endtask
+
+    task CheckFetchRAS;
+        BranchResult callOp, retOp;
+        localparam CALL_STRIDE = 3 * FETCH_GROUP_BYTE_NUM;
+        BranchResult firstCall;
+        // Use a nonzero block tag to avoid aliasing the reset contents.
+        callOp = MakeResult((BTB_SET_NUM + 12) * FETCH_WIDTH + FETCH_WIDTH - 1);
+        retOp = MakeResult((BTB_SET_NUM + 17) * FETCH_WIDTH);
+        callOp.brType = BTB_CALL;
+        callOp.nextAddr = retOp.brAddr;
+        retOp.brType = BTB_RETURN;
+        WriteBTB(callOp, retOp);
+
+        ReadGroup(retOp.brAddr);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        #1;
+        assert (!port.nextStage.brPred[0].usedRAS && port.fetchRequestPC == retOp.nextAddr)
+            else $fatal(1, "An empty Fetch RAS must use the BTB fallback");
+
+        recovery.fetchRedirect.valid = TRUE;
+        ReadGroup(callOp.brAddr);
+        recovery.fetchRedirect.valid = FALSE;
+        #1;
+        assert (port.nextStage.valid[0] && port.fetchRequestPC == retOp.brAddr)
+            else $fatal(1, "The call must fetch its target");
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.valid[0] && port.nextStage.brPred[0].usedRAS &&
+                port.fetchRequestPC == callOp.brAddr + INSN_BYTE_WIDTH)
+            else $fatal(1, "Back-to-back call and return must use the new stack top without a bubble");
+        recovery.fetchRedirect.valid = TRUE;
+        ctrl.ifStage.clear = TRUE;
+
+        // One more call than slots overwrites the oldest target. Each call returns to a ret.
+        firstCall = MakeResult((BTB_SET_NUM + 24) * FETCH_WIDTH + FETCH_WIDTH - 1);
+        for (int i = 0; i <= fetch.RAS_ENTRY_NUM; i++) begin
+            callOp.brAddr = firstCall.brAddr + i * CALL_STRIDE;
+            retOp.brAddr = callOp.brAddr + INSN_BYTE_WIDTH;
+            callOp.nextAddr = i == fetch.RAS_ENTRY_NUM ? retOp.brAddr : callOp.brAddr + CALL_STRIDE;
+            WriteBTB(callOp, retOp);
+        end
+        ReadGroup(firstCall.brAddr);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        for (int i = 0; i <= fetch.RAS_ENTRY_NUM; i++) begin
+            #1;
+            assert (port.nextStage.valid[0] && port.nextStage.pc == firstCall.brAddr + i * CALL_STRIDE)
+                else $fatal(1, "Unexpected call PC at nesting depth %0d", i + 1);
+            @(posedge clk);
+        end
+        for (int i = 0; i < 2 * fetch.RAS_ENTRY_NUM; i++) begin
+            #1;
+            assert (port.nextStage.valid[0] && port.nextStage.brPred[0].usedRAS &&
+                    port.fetchRequestPC == retOp.brAddr - (i % fetch.RAS_ENTRY_NUM) * CALL_STRIDE)
+                else $fatal(1, "Unexpected circular RAS target on return %0d", i + 1);
+            @(posedge clk);
+        end
+        #1;
+        recovery.fetchRedirect.valid = TRUE;
+        ctrl.ifStage.clear = TRUE;
     endtask
 
     task CheckBTBTraining;
@@ -80,7 +142,7 @@ module TestBranchPredictorQueue;
         miss = MakeResult(1);
         notTaken = miss;
         notTaken.execTaken = FALSE;
-        hit.btbTargetCorrect = TRUE;
+        hit.btbEntryCorrect = TRUE;
         hit.predTaken = TRUE;
         @(negedge clk);
         port.brResult[0] = hit;
@@ -167,7 +229,7 @@ module TestBranchPredictorQueue;
                 if (readTraining) rowReady = TRUE;
                 foreach (samples[i]) begin
                     bit accept;
-                    accept = freeSlots > 0 && samples[i].valid && samples[i].isCondBr &&
+                    accept = freeSlots > 0 && samples[i].valid && samples[i].brType == BTB_COND &&
                         NextCounter(samples[i].phtPrevValue, samples[i].execTaken) != samples[i].phtPrevValue;
                     assert (enqueue[i] === accept) else $fatal(1, "PHT %m queue write mismatch on lane %0d", i);
                     if (accept) begin
@@ -297,7 +359,7 @@ module TestBranchPredictorQueue;
         penultimate.phtPrevValue = PHT_ENTRY_MAX;
         penultimate.execTaken = FALSE;
         last.phtPrevValue = '0;
-        last.btbTargetCorrect = TRUE;
+        last.btbEntryCorrect = TRUE;
         DrainPHT();
         WriteBTB(penultimate, last);
         DrainPHT();
@@ -371,12 +433,12 @@ module TestBranchPredictorQueue;
                 entry = BTB_Entry'(btb.writeRow[btb.writeWay]);
                 assert (btb.writeSet == ToBTB_Set(oldest.brAddr) &&
                         entry.tag == ToBTB_Tag(oldest.brAddr) && entry.data == ToBTB_Addr(oldest.nextAddr) &&
-                        entry.isCondBr == oldest.isCondBr && (!oldest.btbHit || btb.writeWay == oldest.btbHitWay))
+                        entry.brType == oldest.brType && (!oldest.btbHit || btb.writeWay == oldest.btbHitWay))
                     else $fatal(1, "BTB table write did not match the oldest training request");
             end
             foreach (port.brResult[i])
                 if (port.brResult[i].valid && port.brResult[i].execTaken &&
-                    !port.brResult[i].btbTargetCorrect && !wasFull)
+                    !port.brResult[i].btbEntryCorrect && !wasFull)
                     pending.push_back(port.brResult[i]);
         end
     end
@@ -425,12 +487,12 @@ module TestBranchPredictorQueue;
         aliasBranch = MakeResult(FIRST + ALIAS_STRIDE);
         first.phtPrevValue = PHT_ENTRY_MAX;
         last.phtPrevValue = PHT_ENTRY_MAX;
-        last.isCondBr = FALSE;
+        last.brType = BTB_JUMP;
 
         // Both reset entries match this PC's zero block tag and offset.
         cold = MakeResult(0);
         cold.nextAddr = ToRawAddrFromBTB_Addr('0, cold.brAddr);
-        cold.isCondBr = FALSE;
+        cold.brType = BTB_JUMP;
         ReadGroup(cold.brAddr);
         CheckBTB(0, cold);
         assert (port.btbHitWay[0] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
@@ -441,7 +503,7 @@ module TestBranchPredictorQueue;
         assert (!port.nextStage.brPred[0].predTaken) else $fatal(1, "A BTB miss predicted taken");
         // Leave a strongly not-taken counter at the address of the upcoming jump.
         updated = last;
-        updated.isCondBr = TRUE;
+        updated.brType = BTB_COND;
         updated.execTaken = FALSE;
         updated.phtPrevValue = PHT_ENTRY_MAX;
         WriteBTB(updated, updated);
@@ -490,7 +552,7 @@ module TestBranchPredictorQueue;
         // for one cycle. Updating the first branch makes its way the newest.
         updated = first;
         updated.nextAddr += INSN_BYTE_WIDTH;
-        updated.isCondBr = FALSE;
+        updated.brType = BTB_JUMP;
         ReadGroup(first.brAddr);
         WriteBTB(updated);
         CheckBTB(0, first);
@@ -541,8 +603,8 @@ module TestBranchPredictorQueue;
             else $fatal(1, "Fetch did not skip the not-taken conditional branch");
 
         // The taken jump discards the conditional hit after it, including its history update.
-        first.isCondBr = FALSE;
-        last.isCondBr = TRUE;
+        first.brType = BTB_JUMP;
+        last.brType = BTB_COND;
         WriteBTB(first, last);
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
@@ -558,7 +620,7 @@ module TestBranchPredictorQueue;
         ctrl.ifStage.clear = TRUE;
 
         // On a cache miss the predictor can reach the target while I-cache repeats the source.
-        last.isCondBr = FALSE;
+        last.brType = BTB_JUMP;
         WriteBTB(last);
         ReadGroup(last.brAddr);
         beforeBranch = port.nextStage.brPred[0].globalHistory;
@@ -629,6 +691,7 @@ module TestBranchPredictorQueue;
         ctrl.drainFetchForInterrupt = FALSE;
         ResetTables();
         if (FETCH_WIDTH >= 2) CheckBTBWays();
+        CheckFetchRAS();
 
         recovery.fetchRedirect.pc = '0;
         CheckPHTHeadConflict();

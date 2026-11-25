@@ -132,7 +132,6 @@ module IntegerExecutionStage(
 
     // Branch
     logic isBranch [ INT_ISSUE_WIDTH ];
-    logic isJump [ INT_ISSUE_WIDTH ];
     logic brTaken  [ INT_ISSUE_WIDTH ];
     BranchResult brResult [ INT_ISSUE_WIDTH ];
     logic predMiss [ INT_ISSUE_WIDTH ];
@@ -206,15 +205,11 @@ module IntegerExecutionStage(
             //
             bPred[i] = brSubInfo[i].bPred;
             isBranch[i] = ( iqData[i].opType inside { INT_MOP_TYPE_BR, INT_MOP_TYPE_RIJ } );
-            isJump[i] = 
-                (iqData[i].opType == INT_MOP_TYPE_BR && iqData[i].cond == COND_AL)
-                    || iqData[i].opType == INT_MOP_TYPE_RIJ;
 
             // 分岐orレジスタ間接分岐で，条件が有効ならTaken
             brTaken[i] = pipeReg[i].valid && isBranch[i] && isCondEnabled[i];
 
-            // Whether this branch is conditional one or not.
-            brResult[i].isCondBr = !isJump[i];
+            brResult[i].brType = brSubInfo[i].brType;
             
             // The address of a branch.
             brResult[i].brAddr = ToPC_FromAddr(pc[i]);
@@ -235,8 +230,10 @@ module IntegerExecutionStage(
             targetMatch = bPred[i].takenAddr == brResult[i].nextAddr;
             brResult[i].btbHit = bPred[i].btbHit;
             brResult[i].btbHitWay = bPred[i].btbHitWay;
-            brResult[i].btbTargetCorrect = bPred[i].predTaken && bPred[i].btbHit &&
-                                           !bPred[i].takenAddrChangedAtDecode && targetMatch;
+            // A return predicted through the RAS leaves the BTB fallback target untouched.
+            // A type mismatch must retrain even when both targets happen to agree.
+            brResult[i].btbEntryCorrect = bPred[i].btbHit && (bPred[i].btbBrType == brSubInfo[i].brType) &&
+                (bPred[i].usedRAS || (bPred[i].predTaken && !bPred[i].takenAddrChangedAtDecode && targetMatch));
             brResult[i].execTaken = brTaken[i];
             brResult[i].predTaken = bPred[i].predTaken;
             brResult[i].valid = isBranch[i] && pipeReg[i].valid && regValid[i];

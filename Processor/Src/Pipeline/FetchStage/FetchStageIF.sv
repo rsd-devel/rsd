@@ -32,7 +32,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     PC_Path btbOut[FETCH_WIDTH];
     logic btbHit[FETCH_WIDTH];
     BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
-    logic readIsCondBr[FETCH_WIDTH];
+    BTB_BranchType readBrType[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
 
@@ -55,7 +55,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         btbHit,
         btbHitWay,
         btbOut,
-        readIsCondBr,
+        readBrType,
         brPredTaken,
         phtPrevValue,
         icReadHit,
@@ -91,7 +91,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         btbOut,
         btbHit,
         btbHitWay,
-        readIsCondBr
+        readBrType
     );
 
     modport BranchPredictor(

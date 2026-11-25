@@ -158,7 +158,6 @@ module DecodeStage(
     
     // Early branch misprediction detection.
     RISCV_ISF_Common [DECODE_WIDTH-1:0] isfIn;
-    logic stallBranchResolver;
     logic insnValidIn[DECODE_WIDTH];
     BranchPred [DECODE_WIDTH-1:0] brPredIn;
     PC_Path pcIn[DECODE_WIDTH];
@@ -172,7 +171,6 @@ module DecodeStage(
     BranchGlobalHistoryPath recoveredBrHistory;
 
     always_comb begin
-        stallBranchResolver = ctrl.idStage.stall && !ctrl.stallByDecodeStage;
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             insnValidIn[i] = pipeReg[i].valid;
             isfIn[i] = pipeReg[i].insn;
@@ -182,10 +180,6 @@ module DecodeStage(
     end
 
     DecodedBranchResolver decodeStageBranchResolver(
-        .clk(port.clk),
-        .rst(port.rst),
-        .stall(stallBranchResolver),
-        .decodeComplete(complete),
         .insnValidIn(insnValidIn),
         .isf(isfIn),
         .brPredIn(brPredIn),
@@ -253,7 +247,7 @@ module DecodeStage(
             if (port.serializeNextInsn) begin
                 currentSerializeNextInsn <= TRUE;
             end
-            else if (complete && !stallBranchResolver) begin
+            else if (complete && !(ctrl.idStage.stall && !ctrl.stallByDecodeStage)) begin
                 currentSerializeNextInsn <= nextSerializeNextInsn;
             end
         end
@@ -365,8 +359,6 @@ module DecodeStage(
                 ) begin
                     // Instruction access faults take priority over a landing pad fault.
                     modifiedInsnInfo[ToInsnLane(i)].writePC = FALSE;
-                    modifiedInsnInfo[ToInsnLane(i)].isCall = FALSE;
-                    modifiedInsnInfo[ToInsnLane(i)].isReturn = FALSE;
                     modifiedInsnInfo[ToInsnLane(i)].isRelBranch = FALSE;
                     modifiedInsnInfo[ToInsnLane(i)].isSerialized = TRUE;
 

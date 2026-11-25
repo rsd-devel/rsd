@@ -42,7 +42,7 @@ typedef logic [BTB_QUEUE_SIZE_BIT_WIDTH-1:0] BTBQueuePointerPath;
 typedef struct packed {
     BTB_Tag tag;
     BTB_AddrPath data;
-    logic isCondBr;
+    BTB_BranchType brType;
 } BTB_Entry;
 
 // The BTB takes its set and partial tag from the fetch group number.
@@ -135,11 +135,11 @@ typedef struct packed // struct BranchResult
     PC_Path nextAddr;   // The next address of a executed branch.
     logic execTaken;    // The execution result of a branch's direction.
     logic predTaken;    // The prediction result of a branch's direction.
-    logic isCondBr;     // Whether this branch is conditional one or not.
+    BTB_BranchType brType;
     logic mispred;      // Whether the prediction result of this branch is incorrect.
     logic btbHit;       // Tag hit at Fetch, even if Decode changed the target.
     BTB_WayIndexPath btbHitWay;
-    logic btbTargetCorrect; // A BTB hit supplied the resolved target.
+    logic btbEntryCorrect;  // The hit entry needs no type or target update.
     logic valid;        // Whether this result is valid or not.
 
     BranchGlobalHistoryPath globalHistory;  // The global history of branches.
@@ -151,6 +151,8 @@ typedef struct packed // struct BranchPred
     PC_Path takenAddr;            // Selected target when predTaken is set.
     logic btbHit;
     BTB_WayIndexPath btbHitWay;
+    BTB_BranchType btbBrType;     // Original BTB classification for training.
+    logic usedRAS;                // Fetch selected the RAS target.
     logic takenAddrChangedAtDecode; // Decode supplied the target on a redirect.
     logic predTaken;                        // result of bpred
     

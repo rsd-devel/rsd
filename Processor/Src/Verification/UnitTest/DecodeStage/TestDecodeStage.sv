@@ -20,6 +20,8 @@ module TestDecodeStage;
     localparam InsnPath NOP = 32'h00000013;
     localparam InsnPath LPAD = 32'h00000017;
     localparam InsnPath JALR = 32'h00050067; // jalr x0, x10, 0
+    localparam InsnPath CALL = 32'h004000ef; // jal ra, +4
+    localparam InsnPath RET = 32'h00008067;  // jalr x0, ra, 0
     localparam InsnPath JAL = 32'h0100006f;  // jal x0, +16
     localparam PC_Path START_PC = PC_Path'(32'h80001000);
 
@@ -183,8 +185,7 @@ module TestDecodeStage;
         end
         Check(validOps == 1 && decodedInfo[0].isSerialized == illegal, description);
         if (illegal)
-            Check(!decodedInfo[0].writePC && !decodedInfo[0].isCall &&
-                  !decodedInfo[0].isReturn && !decodedInfo[0].isRelBranch, description);
+            Check(!decodedInfo[0].writePC && !decodedInfo[0].isRelBranch, description);
     endtask
 
     task CheckFPEncoding(input InsnPath encoding, input logic illegal,
@@ -314,27 +315,21 @@ module TestDecodeStage;
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
         Reset();
-        LoadBundle(32'h004000ef, NOP, TRUE, FALSE, '0, TRUE); // jal ra, +4
+        LoadBundle(CALL, NOP, TRUE, FALSE, '0, TRUE); // jal ra, +4
         Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
               port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
               "JAL direction correction supplies the target and retains the Fetch hit way");
-        LoadBundle(32'h00008067, NOP, TRUE, FALSE, '0, TRUE); // ret, RAS holds call PC + 4
-        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
-              port.nextStage[0].bPred.takenAddrChangedAtDecode, "return direction correction supplies the RAS target");
-
-        Reset();
-        LoadBundle(32'h00008067, NOP, TRUE, FALSE, '0, TRUE); // Empty RAS also yields address zero.
-        Check(port.nextFlush && port.nextRecoveredPC == '0 && port.nextStage[0].bPred.takenAddrChangedAtDecode,
-              "a return to zero still trains when Fetch selected no target");
-        LoadBundle(32'h004000ef, NOP, TRUE); // No BTB hit.
+        LoadBundle(RET, NOP, TRUE, FALSE, '0, TRUE);
+        Check(!port.nextFlush && !port.nextStage[0].bPred.predTaken,
+              "a return missed by Fetch remains unresolved until execution");
+        LoadBundle(RET, NOP, FALSE, TRUE, START_PC + 12, TRUE);
+        Check(!port.nextFlush && port.nextStage[0].bPred.takenAddr == START_PC + 12 &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "Decode forwards a return target selected by Fetch");
+        LoadBundle(CALL, NOP, TRUE); // No BTB hit.
         Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
               port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode supplies the JAL target on a BTB miss");
-        LoadBundle(32'h00008067, NOP, TRUE, TRUE, START_PC + 8, TRUE);
-        Check(port.nextFlush && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
-              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHit &&
-              port.nextStage[0].bPred.btbHitWay == '1,
-              "a different RAS target still trains the Fetch hit way");
 
         Reset();
         LoadBundle(32'h00000863, NOP, TRUE, FALSE, '0, TRUE); // beq x0, x0, +16

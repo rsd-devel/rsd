@@ -129,6 +129,7 @@ module DispatchStage(
             intSubInfo[i].aluCode       = opInfo[i].operand.intOp.aluCode;
             intSubInfo[i].padding = '0;
 
+            brSubInfo[i].brType = opInfo[i].operand.brOp.brType;
             brSubInfo[i].brDisp = opInfo[i].operand.brOp.brDisp;
             brSubInfo[i].bPred = pipeReg[i].brPred;
             brSubInfo[i].operandTypeA = opInfo[i].opTypeA;

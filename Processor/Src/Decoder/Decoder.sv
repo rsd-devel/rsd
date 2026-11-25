@@ -169,8 +169,6 @@ function automatic void RISCV_DecodeOpImm(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -301,8 +299,6 @@ function automatic void RISCV_DecodeOp(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -495,8 +491,6 @@ function automatic void RISCV_DecodeUTypeInst(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -544,6 +538,7 @@ function automatic void RISCV_EmitJAL(
 
     // 分岐ターゲット
     opInfo.operand.brOp.brDisp = GetJAL_Target( isf );
+    opInfo.operand.brOp.brType = isfU.rd == LINK_REGISTER ? BTB_CALL : BTB_JUMP;
     opInfo.operand.brOp.padding = 0;
 
     // 未定義命令
@@ -586,8 +581,6 @@ function automatic void RISCV_DecodeJAL(
     microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
 
     insnInfo.writePC = TRUE;
-    insnInfo.isCall = ( brOp.writeReg && ( brOp.operand.brOp.dstRegNum.regNum == LINK_REGISTER ) ) ? TRUE : FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = TRUE;
     insnInfo.isSerialized = FALSE;
 
@@ -637,6 +630,12 @@ function automatic void RISCV_EmitJALR(
 
     // 分岐ターゲット
     opInfo.operand.brOp.brDisp = GetJALR_Target( isfI );
+    if (isfI.rd == LINK_REGISTER)
+        opInfo.operand.brOp.brType = BTB_CALL;
+    else if (isfI.rd == ZERO_REGISTER && isfI.rs1 == LINK_REGISTER)
+        opInfo.operand.brOp.brType = isfI.imm == '0 ? BTB_RETURN : BTB_RETURN_OFFSET;
+    else
+        opInfo.operand.brOp.brType = BTB_JUMP;
     opInfo.operand.brOp.padding = '0;
 
     // 未定義命令
@@ -685,9 +684,6 @@ function automatic void RISCV_DecodeJALR(
     microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
 
     insnInfo.writePC = TRUE;
-    insnInfo.isCall = ( brOp.writeReg && ( brOp.operand.brOp.dstRegNum.regNum == LINK_REGISTER ) ) ? TRUE : FALSE;
-    insnInfo.isReturn = ( ( brOp.operand.brOp.srcRegNumA.regNum == LINK_REGISTER )
-                        && ( brOp.operand.brOp.dstRegNum.regNum == ZERO_REGISTER ) ) ? TRUE : FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -741,6 +737,7 @@ function automatic void RISCV_EmitBranch(
 
     // 分岐ターゲット
     opInfo.operand.brOp.brDisp = GetBranchDisplacement( isfR );
+    opInfo.operand.brOp.brType = BTB_COND;
     opInfo.operand.brOp.padding = '0;
 
     // 未定義命令
@@ -787,8 +784,6 @@ function automatic void RISCV_DecodeBranch(
     microOps[1] = ModifyMicroOp(brOp, mid, FALSE, TRUE);
 
     insnInfo.writePC    = TRUE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = TRUE;
     insnInfo.isSerialized = FALSE;
 
@@ -906,8 +901,6 @@ function automatic void RISCV_DecodeMemOp(
     microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -1023,8 +1016,6 @@ function automatic void RISCV_DecodeAextOp(
     microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     // aq/rlビットに関係なくSerializedとする
     insnInfo.isSerialized = TRUE;
@@ -1149,8 +1140,6 @@ function automatic void RISCV_DecodeComplexOp(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -1260,8 +1249,6 @@ function automatic void RISCV_DecodeMiscMem(
     microOps[1] = ModifyMicroOp(miscMemOp, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = TRUE;
 
@@ -1476,8 +1463,6 @@ function automatic void RISCV_DecodeSystem(
     microOps[1] = ModifyMicroOp(opInfo, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = TRUE;   // A system instruction must be serialized
 
@@ -1578,8 +1563,6 @@ function automatic void RISCV_DecodeFPMemOp(
     microOps[1] = ModifyMicroOp(memOp, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 endfunction
@@ -1692,8 +1675,6 @@ function automatic void RISCV_DecodeFPOp(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 endfunction
@@ -1788,8 +1769,6 @@ function automatic void  RISCV_DecodeFPFMAOp(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 endfunction
@@ -1906,8 +1885,6 @@ function automatic void RISCV_DecodeZba(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -2017,8 +1994,6 @@ function automatic void RISCV_DecodeZicond(
     mid += 1;
 
     insnInfo.writePC = FALSE;
-    insnInfo.isCall = FALSE;
-    insnInfo.isReturn = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = FALSE;
 
@@ -2104,8 +2079,6 @@ function automatic void RISCV_DecodeIllegal(
     microOps[1] = ModifyMicroOp(opInfo, mid, FALSE, TRUE);
 
     insnInfo.writePC    = FALSE;
-    insnInfo.isCall     = FALSE;
-    insnInfo.isReturn   = FALSE;
     insnInfo.isRelBranch = FALSE;
     insnInfo.isSerialized = TRUE;   // A system instruction must be serialized
 
@@ -2136,8 +2109,6 @@ output
         zicondFunct7 = ZicondFunct7'(isf.funct7);
         
         insnInfo.writePC = FALSE;
-        insnInfo.isCall = FALSE;
-        insnInfo.isReturn = FALSE;
         insnInfo.isRelBranch = FALSE;
         insnInfo.isSerialized = FALSE;
 

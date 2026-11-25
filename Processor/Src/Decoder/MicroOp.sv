@@ -175,14 +175,15 @@ typedef struct packed // MemMicroOpOperand
     AddrOperandImm addrIn;
 } MemMicroOpOperand;
 
-// Branch:6+6+6 +15 +20=53 bits
+// Branch:6+6+6 +3+12 +20=53 bits
 typedef struct packed // BrMicroOpOperand
 {
     // 論理レジスタ番号
     LRegNumPath dstRegNum;
     LRegNumPath srcRegNumA;    // レジスタN 相当
     LRegNumPath srcRegNumB;    // 第2オペランド
-    logic [14:0] padding;       // padding
+    BTB_BranchType brType;
+    logic [14-$bits(BTB_BranchType):0] padding;       // padding
     BranchDisplacement brDisp;  // Branch offset.
 } BrMicroOpOperand;
 
@@ -314,10 +315,6 @@ typedef struct packed // OpInfo
 typedef struct packed { // InsnInfo
     logic writePC;  // This instruction writes the PC.
 
-    // call/return
-    logic isCall;
-    logic isReturn;
-    
     // PC relative (JAL, branch)
     logic isRelBranch;
 

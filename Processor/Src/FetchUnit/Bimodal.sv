@@ -115,7 +115,7 @@ module Bimodal(
             queueWA[i] = tailPtr + QueuePointerPath'(pushCount);
             queueWE[i] = !port.rst && count < PHT_QUEUE_SIZE &&
                          count + pushCount < PHT_QUEUE_SIZE + int'(writeEnable) &&
-                         port.brResult[i].valid && port.brResult[i].isCondBr &&
+                         port.brResult[i].valid && port.brResult[i].brType == BTB_COND &&
                          // Skip reinforcement of a counter already saturated at prediction time.
                          (port.brResult[i].execTaken ? port.brResult[i].phtPrevValue != PHT_ENTRY_MAX
                                                      : port.brResult[i].phtPrevValue != '0);
