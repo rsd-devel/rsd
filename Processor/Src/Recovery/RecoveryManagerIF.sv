@@ -7,6 +7,7 @@
 //
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
@@ -39,6 +40,10 @@ interface RecoveryManagerIF( input logic clk, rst );
     AddrPath recoveredPC_FromCommitStage;
     AddrPath recoveredPC_FromRwStage;
     AddrPath recoveredPC_FromRwCommit;      // Correct PC
+
+    logic recoverBrHistory_FromRwCommit;
+    BranchGlobalHistoryPath recoveredBrHistory_FromRename, recoveredBrHistory_FromRwCommit;
+    BranchGlobalHistoryPath recoveredBrHistory_FromCommitStage, recoveredBrHistory_FromRwStage;
 
     // For fault handling
     AddrPath faultingDataAddr;
@@ -120,6 +125,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        recoveredBrHistory_FromCommitStage,
+        recoveredBrHistory_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,
@@ -131,6 +138,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         phase,
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
+        recoverBrHistory_FromRwCommit,
+        recoveredBrHistory_FromRwCommit,
         toCommitPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
@@ -143,7 +152,8 @@ interface RecoveryManagerIF( input logic clk, rst );
     modport RenameStage(
     output
         recoverFromRename,
-        recoveredPC_FromRename
+        recoveredPC_FromRename,
+        recoveredBrHistory_FromRename
     );
 
     modport CommitStage(
@@ -162,8 +172,11 @@ interface RecoveryManagerIF( input logic clk, rst );
     input
         toRecoveryPhase,
         recoveredPC_FromRwCommit,
+        recoverBrHistory_FromRwCommit,
+        recoveredBrHistory_FromRwCommit,
         recoverFromRename,
-        recoveredPC_FromRename
+        recoveredPC_FromRename,
+        recoveredBrHistory_FromRename
     );
 
     modport RenameLogic(
@@ -446,6 +459,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        recoveredBrHistory_FromCommitStage,
+        recoveredBrHistory_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,

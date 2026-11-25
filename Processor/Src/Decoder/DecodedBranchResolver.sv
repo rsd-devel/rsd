@@ -29,7 +29,8 @@ output
     logic insnFlushTriggering[DECODE_WIDTH],
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
-    PC_Path recoveredPC
+    PC_Path recoveredPC,
+    BranchGlobalHistoryPath recoveredBrHistory
 );
     // Return address stack.
     parameter RAS_ENTRY_NUM = 4;
@@ -221,6 +222,11 @@ output
             end
         end
         recoveredPC = decodedPC[addrCheckLane];
+        // Restart from the redirecting instruction's checkpoint, discarding younger predictions.
+        // Include its own taken event only for a branch redirected by Decode.
+        recoveredBrHistory = brPredIn[addrCheckLane].globalHistory;
+        if (insnInfo[addrCheckLane].writePC)
+            recoveredBrHistory = AdvanceTakenHistory(brPredIn[addrCheckLane].globalHistory, pc[addrCheckLane]);
 
         // Update the RAS.
         nextRAS = nextPC[addrCheckLane];

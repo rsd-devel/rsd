@@ -119,28 +119,22 @@ module FetchStage(
         end
 
 
-        if (recovery.toRecoveryPhase)
-            fetchRequestPC = recovery.recoveredPC_FromRwCommit;
-        else if (recovery.recoverFromRename)
-            fetchRequestPC = recovery.recoveredPC_FromRename;
-        else if (regStall || !pipeReg.valid)
-            fetchRequestPC = regPC;
-        else
-            fetchRequestPC = predictedPC;
-
-        // On stall entry the predictor advances once. regPredCtx keeps the
-        // original group's history while the I-cache retries its lookup.
+        // Decode supplies a checkpoint on every redirect. RW/commit supplies one for branches.
         fetchRequestHistory = regFetchRequestHistory;
-        if ((|takenByGroupOffset) && !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear))
-            fetchRequestHistory = AdvanceTakenHistory(regFetchRequestHistory, predictedTakenPC);
-
-        // Keep the existing RW recovery priority over the speculative update.
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if (port.brResult[i].valid && port.brResult[i].mispred) begin
-                fetchRequestHistory = port.brResult[i].globalHistory;
-                if (port.brResult[i].execTaken)
-                    fetchRequestHistory = AdvanceTakenHistory(port.brResult[i].globalHistory, port.brResult[i].brAddr);
-            end
+        if (recovery.toRecoveryPhase) begin
+            fetchRequestPC = recovery.recoveredPC_FromRwCommit;
+            if (recovery.recoverBrHistory_FromRwCommit)
+                fetchRequestHistory = recovery.recoveredBrHistory_FromRwCommit;
+        end
+        else if (recovery.recoverFromRename) begin
+            fetchRequestPC = recovery.recoveredPC_FromRename;
+            fetchRequestHistory = recovery.recoveredBrHistory_FromRename;
+        end
+        else begin
+            fetchRequestPC = (regStall || !pipeReg.valid) ? regPC : predictedPC;
+            // A held group contributes once, when its prediction is first saved.
+            if ((|takenByGroupOffset) && !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear))
+                fetchRequestHistory = AdvanceTakenHistory(regFetchRequestHistory, predictedTakenPC);
         end
         if (!USE_GSHARE)
             fetchRequestHistory = '0;

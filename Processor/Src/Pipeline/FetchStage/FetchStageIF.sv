@@ -52,7 +52,6 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         rst,
         interruptAddrIn,
         interruptAddrWE,
-        brResult,
         btbHit,
         btbHitWay,
         btbOut,

@@ -15,6 +15,7 @@
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
 import PipelineTypes::*;
@@ -42,6 +43,7 @@ module RecoveryManager(
         // パイプライン化する
         logic exceptionDetectedInCommitStage;
         AddrPath recoveredPC_FromRwStage;
+        BranchGlobalHistoryPath brHistory;
         AddrPath recoveredPC_FromCommitStage;
 
         // Related to CSR 
@@ -96,6 +98,7 @@ module RecoveryManager(
 
             regState.exceptionDetectedInCommitStage <= '0;
             regState.recoveredPC_FromRwStage <= '0;
+            regState.brHistory <= '0;
             regState.recoveredPC_FromCommitStage <= '0;
 
             regState.excptCause <= EXEC_STATE_NOT_FINISHED;
@@ -135,6 +138,8 @@ module RecoveryManager(
         nextState.nextELP = port.exceptionDetectedInCommitStage ? port.nextELP_FromCommitStage : port.nextELP_FromRwStage;
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
+        nextState.brHistory = port.exceptionDetectedInCommitStage ?
+            port.recoveredBrHistory_FromCommitStage : port.recoveredBrHistory_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
 
         // CSR への要求はすべて PHASE_RECOVER_0 に行う
@@ -205,6 +210,8 @@ module RecoveryManager(
 
         // Update a PC in a fetcher if branch misprediction occurs.
         port.recoveredPC_FromRwCommit = recoveredPC;
+        port.recoverBrHistory_FromRwCommit = regState.refetchType == REFETCH_TYPE_BRANCH_TARGET;
+        port.recoveredBrHistory_FromRwCommit = regState.brHistory;
         port.toCommitPhase = toCommitPhase;
 
         // To each logic to be recovered.

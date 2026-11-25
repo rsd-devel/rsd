@@ -7,6 +7,7 @@
 //
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import PipelineTypes::*;
 import MicroOpTypes::*;
 
@@ -16,6 +17,7 @@ interface DecodeStageIF( input logic clk, rst );
     RenameStageRegPath nextStage[ DECODE_WIDTH ];
     logic nextFlush;
     AddrPath nextRecoveredPC;
+    BranchGlobalHistoryPath nextRecoveredBrHistory;
 
     ELP_State_Type elpState;
     logic recoverELP;
@@ -35,6 +37,7 @@ interface DecodeStageIF( input logic clk, rst );
     output 
         nextStage,
         nextFlush,
+        nextRecoveredBrHistory,
         nextRecoveredPC,
         elpState
     );
@@ -43,6 +46,7 @@ interface DecodeStageIF( input logic clk, rst );
     input
         nextStage,
         nextFlush,
+        nextRecoveredBrHistory,
         nextRecoveredPC
     );
 

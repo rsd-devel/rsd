@@ -326,29 +326,32 @@ module TestBranchPredictorQueue;
         index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
         ReadGroup(index * INSN_BYTE_WIDTH);
         ReadGroup(result.brAddr);
-        // RW restores the branch's snapshot. Only an actual taken outcome folds in its source PC.
+        // Exercise the selected backend redirect while a younger Rename redirect is pending.
         @(negedge clk);
-        result = MakeResult(23);
-        result.isCondBr = FALSE;
-        result.execTaken = TRUE;
-        result.mispred = TRUE;
-        result.globalHistory = BranchGlobalHistoryPath'('h2c5);
-        port.brResult[0] = result;
-        @(posedge clk);
-        #1;
-        assert (port.nextStage.brPred[0].globalHistory === ExpectedTakenHistory(result.globalHistory, result.brAddr))
-            else $fatal(1, "Taken RW recovery did not fold in the branch source PC");
-        @(negedge clk);
-        result.isCondBr = TRUE;
-        result.execTaken = FALSE;
-        result.globalHistory = BranchGlobalHistoryPath'('h11);
-        port.brResult[0] = result;
+        recovery.toRecoveryPhase = TRUE;
+        recovery.recoveredPC_FromRwCommit = result.brAddr;
+        recovery.recoverBrHistory_FromRwCommit = TRUE;
+        recovery.recoveredBrHistory_FromRwCommit = result.globalHistory;
         @(posedge clk);
         #1;
         assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
-            else $fatal(1, "Untaken RW recovery changed the saved history");
+            else $fatal(1, "Fetch did not restore the selected branch history");
         @(negedge clk);
-        ClearResults();
+        recovery.recoverBrHistory_FromRwCommit = FALSE;
+        recovery.recoveredBrHistory_FromRwCommit = '0;
+        recovery.recoveredBrHistory_FromRename = BranchGlobalHistoryPath'(1);
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
+            else $fatal(1, "A nonbranch redirect changed history or accepted a younger correction");
+        @(negedge clk);
+        recovery.toRecoveryPhase = FALSE;
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0))
+            else $fatal(1, "Decode redirect did not restore its checkpoint");
+        @(negedge clk);
+        recovery.recoveredBrHistory_FromRename = '0;
     endtask
 
     // Compare the physical table write to the oldest request on every clock,
@@ -623,6 +626,8 @@ module TestBranchPredictorQueue;
         recovery.toRecoveryPhase = FALSE;
         recovery.recoverFromRename = TRUE;
         recovery.recoveredPC_FromRename = '0;
+        recovery.recoveredBrHistory_FromRename = '0;
+        recovery.recoverBrHistory_FromRwCommit = FALSE;
         port.icReadHit = TRUE;
         port.interruptAddrWE = FALSE;
         ctrl.ifStage = '0;
