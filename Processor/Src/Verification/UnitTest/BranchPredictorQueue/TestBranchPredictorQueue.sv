@@ -55,15 +55,30 @@ module TestBranchPredictorQueue;
         #1;
     endtask
 
-    task WriteBTB(input BranchResult first, input BranchResult second = '0);
+    task SendResults(input BranchResult first, input BranchResult second = '0);
         @(negedge clk);
         port.brResult[0] = first;
         port.brResult[1] = second;
         @(negedge clk);
         ClearResults();
-        // Let each queued request reach the table before checking READ_FIRST.
+        // Leave time for the PHT to service a free bank.
         @(negedge clk);
         if (second.valid) @(negedge clk);
+    endtask
+
+    // Hold the controller stall long enough for every queued update to reach the RAM.
+    task DrainBTB;
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.stall = TRUE;
+        repeat (BTB_QUEUE_SIZE + 1) @(negedge clk);
+        assert (btb.count == 0) else $fatal(1, "BTB queue did not drain during a sustained stall");
+        ctrl.ifStage.stall = FALSE;
+        recovery.fetchRedirect.valid = TRUE;
+    endtask
+
+    task WriteBTB(input BranchResult first, input BranchResult second = '0);
+        SendResults(first, second);
+        DrainBTB();
     endtask
 
     task CheckBTB(input int groupOffset, input BranchResult expected);
@@ -138,6 +153,7 @@ module TestBranchPredictorQueue;
 
     task CheckBTBTraining;
         BranchResult hit, miss, notTaken;
+        DrainBTB();
         hit = MakeResult(0);
         miss = MakeResult(1);
         notTaken = miss;
@@ -155,11 +171,12 @@ module TestBranchPredictorQueue;
             port.brResult[i] = hit;
             port.brResult[1-i] = miss;
             #1;
-            assert (btb.pushCount == 1 && btb.queueWE[1-i] && (|btb.btbEntryArray.we) == (i != 0))
-                else $fatal(1, "Only the miss should enqueue; only a previous request may write");
+            assert (btb.pushCount == 1 && btb.queueWE[1-i] && btb.btbEntryArray.we == '0)
+                else $fatal(1, "Only the miss should enqueue while the prediction port is busy");
         end
         @(negedge clk);
         ClearResults();
+        DrainBTB();
         ReadGroup(miss.brAddr);
         CheckBTB(ToFetchGroupOffset(miss.brAddr), miss);
     endtask
@@ -259,10 +276,10 @@ module TestBranchPredictorQueue;
         first.phtPrevValue = PHT_ENTRY_MAX;
         second.phtPrevValue = PHT_ENTRY_MAX;
         // Distinguish the head row from other rows in its bank before forcing a stall.
-        WriteBTB(first);
+        SendResults(first);
         DrainPHT();
         ReadGroup(first.brAddr);
-        WriteBTB(first, second);
+        SendResults(first, second);
         // A younger request to the free bank cannot pass the blocked head.
         repeat (3) ReadGroup(first.brAddr);
         assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "Blocked PHT head was bypassed");
@@ -288,7 +305,7 @@ module TestBranchPredictorQueue;
             result.execTaken = taken;
             other = result;
             other.execTaken = !result.execTaken;
-            WriteBTB(result, other);
+            SendResults(result, other);
         end
         // Alternate fetch banks during the burst to exercise simultaneous pushes and pops.
         // Distinct later addresses make dropped updates visible after the queue wraps.
@@ -331,15 +348,15 @@ module TestBranchPredictorQueue;
         adjacent.execTaken = FALSE;
         // Fetch the opposite bank so these repeated updates reach the counters.
         recovery.fetchRedirect.pc = first.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
-        WriteBTB(first, adjacent);
-        WriteBTB(first, first);
-        WriteBTB(otherRow, adjacent);
+        SendResults(first, adjacent);
+        SendResults(first, first);
+        SendResults(otherRow, adjacent);
         first.execTaken = TRUE;
         adjacent.execTaken = TRUE;
         first.phtPrevValue = '0;
-        WriteBTB(first, first);
-        WriteBTB(adjacent, adjacent);
-        WriteBTB(first, first);
+        SendResults(first, first);
+        SendResults(adjacent, adjacent);
+        SendResults(first, first);
         DrainPHT();
         ReadGroup(first.brAddr);
         ReadGroup(otherRow.brAddr);
@@ -361,7 +378,7 @@ module TestBranchPredictorQueue;
         last.phtPrevValue = '0;
         last.btbEntryCorrect = TRUE;
         DrainPHT();
-        WriteBTB(penultimate, last);
+        SendResults(penultimate, last);
         DrainPHT();
         ReadAllPHTRows();
     endtask
@@ -414,20 +431,22 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.brHistory = '0;
     endtask
 
-    // Compare the physical table write to the oldest request on every clock,
-    // including pointer wrap and dropped requests when full at the start of a cycle.
+    // Check the physical write, FIFO order and lane acceptance on every clock.
     BranchResult pending[$];
+    bit previousStall;
     always @(posedge clk) begin
         BranchResult oldest;
-        bit wasFull;
+        bit canWrite, accept;
         if (rst) begin
             pending.delete();
+            previousStall = FALSE;
         end
         else begin
-            wasFull = pending.size() == BTB_QUEUE_SIZE;
-            assert (btb.count == pending.size() && (|btb.writeMask) == (pending.size() != 0))
+            canWrite = pending.size() != 0 && !recovery.fetchRedirect.valid &&
+                       ((previousStall && ctrl.ifStage.stall) || ctrl.drainFetchForInterrupt);
+            assert (btb.count == pending.size() && (|btb.btbEntryArray.we) == canWrite)
                 else $fatal(1, "BTB queue occupancy or table write enable mismatch");
-            if (pending.size() != 0) begin
+            if (canWrite) begin
                 BTB_Entry entry;
                 oldest = pending.pop_front();
                 entry = BTB_Entry'(btb.writeRow[btb.writeWay]);
@@ -436,34 +455,62 @@ module TestBranchPredictorQueue;
                         entry.brType == oldest.brType && (!oldest.btbHit || btb.writeWay == oldest.btbHitWay))
                     else $fatal(1, "BTB table write did not match the oldest training request");
             end
-            foreach (port.brResult[i])
-                if (port.brResult[i].valid && port.brResult[i].execTaken &&
-                    !port.brResult[i].btbEntryCorrect && !wasFull)
-                    pending.push_back(port.brResult[i]);
+            foreach (port.brResult[i]) begin
+                accept = port.brResult[i].valid && port.brResult[i].execTaken &&
+                         !port.brResult[i].btbEntryCorrect && pending.size() < BTB_QUEUE_SIZE;
+                assert (btb.queueWE[i] === accept) else $fatal(1, "BTB queue write mismatch on lane %0d", i);
+                if (accept) pending.push_back(port.brResult[i]);
+            end
+            previousStall = ctrl.ifStage.stall;
         end
     end
 
     task CheckFullBTBQueue;
-        // Starting empty, the BTB accepts two entries on the first cycle before it can pop.
-        // Further pairs fill the queue while one entry drains per cycle.
-        for (int i = 0; i < BTB_QUEUE_SIZE; i++) begin
+        // Leave a single slot for a pair while ordinary fetches keep the RAM busy.
+        for (int i = 0; i < BTB_QUEUE_SIZE-1; i++) begin
             @(negedge clk);
-            port.brResult[0] = MakeResult(2*i);
-            port.brResult[1] = MakeResult(2*i+1);
+            port.brResult[0] = MakeResult(i);
         end
+        @(negedge clk);
+        port.brResult[0] = MakeResult(BTB_QUEUE_SIZE-1);
+        port.brResult[1] = MakeResult(BTB_QUEUE_SIZE);
         #1;
-        assert (btb.count == BTB_QUEUE_SIZE && !btb.queueWE[0] && !btb.queueWE[1])
-            else $fatal(1, "A full BTB queue must drop both training requests");
+        assert (btb.queueWE[0] && !btb.queueWE[1]) else $fatal(1, "The last slot belongs to lane 0");
+        @(negedge clk);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.stall = TRUE;
+        #1;
+        assert (btb.count == BTB_QUEUE_SIZE && btb.pushCount == 0 && !btb.writeEnable)
+            else $fatal(1, "Entering a stall must preserve the prediction read");
         @(negedge clk);
         port.brResult[0] = '0;
-        port.brResult[1] = MakeResult(2*BTB_QUEUE_SIZE);
         #1;
-        assert (btb.pushCount == 1 && btb.queueWE[1])
-            else $fatal(1, "Lane 1 can use the freed slot when lane 0 has no request");
+        assert (btb.writeEnable && btb.pushCount == 1 && btb.queueWE[1])
+            else $fatal(1, "Lane 1 can use the slot freed by a simultaneous write");
         @(negedge clk);
         ClearResults();
+        recovery.fetchRedirect.valid = TRUE;
+        #1;
+        assert (!btb.writeEnable) else $fatal(1, "A redirect must preempt BTB training");
+        @(negedge clk);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.stall = FALSE;
+        #1;
+        assert (!btb.writeEnable) else $fatal(1, "Releasing a stall must restore the prediction read");
+        @(negedge clk);
+        // An interrupt drain can train the BTB even if the controller never stalls.
+        // A simultaneous branch redirect still needs its target lookup.
+        ctrl.drainFetchForInterrupt = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
+        #1;
+        assert (!btb.writeEnable && btb.count == BTB_QUEUE_SIZE)
+            else $fatal(1, "A redirect must retain the RAM port during interrupt drain");
+        @(negedge clk);
+        recovery.fetchRedirect.valid = FALSE;
         repeat (BTB_QUEUE_SIZE) @(negedge clk);
-        assert (btb.count == 0) else $fatal(1, "BTB queue did not drain");
+        assert (btb.count == 0) else $fatal(1, "An interrupt drain must service pending updates");
+        ctrl.drainFetchForInterrupt = FALSE;
+        recovery.fetchRedirect.valid = TRUE;
     endtask
 
     task ResetTables;
@@ -548,16 +595,16 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
-        // On a same-row read/write the old target and branch kind are visible
-        // for one cycle. Updating the first branch makes its way the newest.
+        // Active fetches keep seeing the old target until a stall permits the update.
+        // Updating the first branch makes its way the newest.
         updated = first;
         updated.nextAddr += INSN_BYTE_WIDTH;
         updated.brType = BTB_JUMP;
         ReadGroup(first.brAddr);
-        WriteBTB(updated);
+        SendResults(updated);
         CheckBTB(0, first);
-        @(posedge clk);
-        #1;
+        DrainBTB();
+        ReadGroup(first.brAddr);
         CheckBTB(0, updated);
         CheckBTB(FETCH_WIDTH-1, last);
         // Repeated training of the same key must stay in that way.
@@ -622,6 +669,13 @@ module TestBranchPredictorQueue;
         // On a cache miss the predictor can reach the target while I-cache repeats the source.
         last.brType = BTB_JUMP;
         WriteBTB(last);
+        // Queue the next jump at the target. Training uses the port during the miss,
+        // then the release cycle must read this target before live prediction resumes.
+        neighbor = MakeResult(0);
+        neighbor.brAddr = last.nextAddr;
+        neighbor.nextAddr = last.nextAddr + FETCH_GROUP_BYTE_NUM;
+        neighbor.brType = BTB_JUMP;
+        SendResults(neighbor);
         ReadGroup(last.brAddr);
         beforeBranch = port.nextStage.brPred[0].globalHistory;
         afterBranch = ExpectedTakenHistory(beforeBranch, last.brAddr);
@@ -644,6 +698,11 @@ module TestBranchPredictorQueue;
                 port.nextStage.valid[0] && port.nextStage.pc == last.brAddr &&
                 port.nextStage.brPred[0].globalHistory == beforeBranch)
             else $fatal(1, "Fetch lost the held source group checkpoint on stall release");
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.valid[0] && port.nextStage.pc == neighbor.brAddr &&
+                port.nextStage.brPred[0].predTaken && port.fetchRequestPC == neighbor.nextAddr)
+            else $fatal(1, "Fetch did not read the next group's BTB entry on stall release");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 

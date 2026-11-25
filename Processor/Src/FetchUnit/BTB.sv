@@ -12,13 +12,14 @@ module BTB(
 );
     `RSD_STATIC_ASSERT(BTB_WAY_NUM == 2, "BTB replacement requires two ways.");
 
-    // Pad each way to whole write-enable slices so updating one branch
-    // preserves the other way without reading the set on the training port.
+    // The entry table uses one synchronous 1RW RAM with byte write enables.
+    // A lookup reads both ways. Byte-aligned ways let training update one
+    // way in a single write while preserving the other.
     localparam BYTE_NUM = ($bits(BTB_Entry) + 7) / 8;
     typedef logic [BYTE_NUM*8-1:0] WayPath;
     WayPath [BTB_WAY_NUM-1:0] readRow, writeRow;
     logic [BTB_WAY_NUM-1:0][BYTE_NUM-1:0] writeMask;
-    BTB_SetIndexPath writeSet, resetIndex;
+    BTB_SetIndexPath arraySet, writeSet, resetIndex;
     PC_Path lookupPC;
 
     typedef struct packed {
@@ -46,12 +47,11 @@ module BTB(
         .ra(writeSet), .rv(victimWay)
     );
 
-    BlockDualPortMaskedRAM #(
+    BlockSinglePortRAM #(
         .ENTRY_NUM(BTB_SET_NUM > 1 ? BTB_SET_NUM : 2),
-        .ENTRY_BIT_SIZE($bits(writeRow))
+        .ENTRY_BIT_SIZE($bits(writeRow)), .WRITE_SLICE_BIT_SIZE(8)
     ) btbEntryArray (
-        .clk(port.clk), .we(writeMask), .wa(writeSet), .wv(writeRow),
-        .ra(ToBTB_Set(port.fetchRequestPC)), .rv(readRow)
+        .clk(port.clk), .we(writeMask), .rwa(arraySet), .wv(writeRow), .rv(readRow)
     );
 
     MultiWidthQueuePointer #(.SIZE(BTB_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) btbQueuePointer (
@@ -122,9 +122,10 @@ module BTB(
             queueIn[i].hit = port.brResult[i].btbHit;
             queueIn[i].hitWay = port.brResult[i].btbHitWay;
             queueWA[i] = tailPtr + BTBQueuePointerPath'(pushCount);
-            // Drop training when full. Otherwise, draining one entry leaves room for up to two lanes.
+            // Earlier lanes take the available slots, including a slot freed by this write.
             queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken &&
-                         !port.brResult[i].btbEntryCorrect && count < BTB_QUEUE_SIZE;
+                         !port.brResult[i].btbEntryCorrect &&
+                         count + pushCount < BTB_QUEUE_SIZE + int'(writeEnable);
             if (queueWE[i])
                 pushCount++;
         end
@@ -133,8 +134,9 @@ module BTB(
     Update update;
     always_comb begin
         update = queue[headPtr];
-        writeEnable = !port.rst && count != 0;
+        writeEnable = !port.rst && port.btbUpdateAllowed && count != 0;
         writeSet = port.rst ? resetIndex : update.setIndex;
+        arraySet = (port.rst || writeEnable) ? writeSet : ToBTB_Set(port.fetchRequestPC);
         // A delayed hit may replace a newer occupant. Write its full tag and target together.
         writeWay = update.hit ? update.hitWay : victimWay;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin

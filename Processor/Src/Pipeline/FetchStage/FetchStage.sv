@@ -76,6 +76,10 @@ module FetchStage(
         // Clearing only the response on a redirect lets the target request through.
         clear = port.rst || (stallFromCtrl && ctrl.ifStage.clear) || ctrl.drainFetchForInterrupt;
         beginStallFromCtrl = stallFromCtrl && !regStallFromCtrl;
+        // A held response uses regPredCtx. Interrupt drain issues no new
+        // fetches, even when waiting on a branch that still needs training.
+        port.btbUpdateAllowed = !recovery.fetchRedirect.valid &&
+            ((regStallFromCtrl && stallFromCtrl) || ctrl.drainFetchForInterrupt);
     end
 
 
