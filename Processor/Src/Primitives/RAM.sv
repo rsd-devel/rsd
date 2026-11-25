@@ -18,15 +18,22 @@
 // Single-port block RAM (1RW). A write returns the previous value at rwa.
 module BlockSinglePortRAM #(
     parameter ENTRY_NUM = 128,
-    parameter ENTRY_BIT_SIZE = 64
+    parameter ENTRY_BIT_SIZE = 64,
+    parameter WRITE_SLICE_BIT_SIZE = ENTRY_BIT_SIZE
 )(
     input logic clk,
-    input logic we,
+    input logic [ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE-1:0] we,
     input logic [$clog2(ENTRY_NUM > 1 ? ENTRY_NUM : 2)-1:0] rwa,
     input logic [ENTRY_BIT_SIZE-1:0] wv,
     output logic [ENTRY_BIT_SIZE-1:0] rv
 );
     typedef logic [ENTRY_BIT_SIZE-1:0] Value;
+
+    `RSD_STATIC_ASSERT(
+        ENTRY_BIT_SIZE > 0 && WRITE_SLICE_BIT_SIZE > 0 &&
+        ENTRY_BIT_SIZE % WRITE_SLICE_BIT_SIZE == 0,
+        "The entry width must be a positive multiple of the write slice width"
+    );
 
 `ifdef RSD_SYNTHESIS_OPT_MICROSEMI
     Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "lsram"
@@ -38,8 +45,11 @@ module BlockSinglePortRAM #(
 
     always_ff @(posedge clk) begin
         rv <= array[rwa];
-        if (we)
-            array[rwa] <= wv;
+        for (int i = 0; i < ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE; i++) begin
+            if (we[i])
+                array[rwa][i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE] <=
+                    wv[i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE];
+        end
     end
 
     `RSD_ASSERT_CLK(clk, rwa < ENTRY_NUM, "Access outside the single-port RAM array.");

@@ -133,7 +133,7 @@ module TestBlockDualPortRAMMasked #(
 
     Mask we;
     Address wa, ra;
-    Value wv, rv;
+    Value wv, rv, singlePortValue;
     Value model[ENTRY_NUM];
     logic [ENTRY_NUM-1:0] initialized;
     logic [MASK_NUM-1:0] masksSeen;
@@ -149,6 +149,11 @@ module TestBlockDualPortRAMMasked #(
         .ENTRY_NUM(ENTRY_NUM), .ENTRY_BIT_SIZE(ENTRY_BIT_SIZE),
         .WRITE_SLICE_BIT_SIZE(SLICE_BIT_SIZE)
     ) blockRAM (.*);
+
+    BlockSinglePortRAM #(
+        .ENTRY_NUM(ENTRY_NUM), .ENTRY_BIT_SIZE(ENTRY_BIT_SIZE),
+        .WRITE_SLICE_BIT_SIZE(SLICE_BIT_SIZE)
+    ) singlePortRAM (.clk, .we, .rwa(wa), .wv, .rv(singlePortValue));
 
     function automatic int unsigned RandomWord();
         rngState ^= rngState << 13;
@@ -174,8 +179,8 @@ module TestBlockDualPortRAMMasked #(
 
     task automatic Step(input Mask nextWE, input Address nextWA,
                         input Value nextWV, input Address nextRA);
-        Value oldRead;
-        logic oldReadValid;
+        Value oldRead, oldWriteRow;
+        logic oldReadValid, oldWriteRowValid;
         @(negedge clk);
         we = nextWE;
         wa = nextWA;
@@ -185,6 +190,8 @@ module TestBlockDualPortRAMMasked #(
         if (outputValid) Check(expectedOutput, "before edge");
         oldRead = model[nextRA];
         oldReadValid = initialized[nextRA];
+        oldWriteRow = model[nextWA];
+        oldWriteRowValid = initialized[nextWA];
         @(posedge clk);
         // Update by individual bits, independently of the DUT's slice loop.
         for (int bitIndex = 0; bitIndex < ENTRY_BIT_SIZE; bitIndex++)
@@ -197,6 +204,10 @@ module TestBlockDualPortRAMMasked #(
         #HOLD;
         // A collision returns the complete old row, including enabled slices.
         if (oldReadValid) Check(oldRead, "after edge");
+        if (oldWriteRowValid)
+            assert (singlePortValue === oldWriteRow)
+                else $fatal(1, "1RW masked read mismatch: addr=%0d mask=%b expected=%h actual=%h",
+                            nextWA, nextWE, oldWriteRow, singlePortValue);
         expectedOutput = oldRead;
         outputValid = oldReadValid;
     endtask
