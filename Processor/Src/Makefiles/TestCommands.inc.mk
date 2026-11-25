@@ -134,12 +134,12 @@ test/External/Dhrystone/clean:
 test/External/Dhrystone/run: test/External/Dhrystone/build
 
 # Measure benchmark loops using mcycle.
-DHRYSTONE_BENCH_ITERATIONS ?= 2000
+DHRYSTONE_BENCH_ITERATIONS ?= 10000
 .PHONY: bench/Coremark/run bench/Dhrystone/run
+bench/Coremark/run bench/Dhrystone/run: MAX_TEST_INSTRUCTIONS = 5000000
 bench/Coremark/run:
 	$(MAKE) -C Verification/TestCode/Coremark Coremark BENCHMARK=1
-	$(RUN_TEST_OMIT_MSG) --benchmark=coremark Verification/TestCode/Coremark/Coremark
-bench/Dhrystone/run: MAX_TEST_INSTRUCTIONS = 2000000
+	$(RUN_TEST_OMIT_MSG) --benchmark=coremark --max-test-instructions=$(MAX_TEST_INSTRUCTIONS) Verification/TestCode/Coremark/Coremark
 bench/Dhrystone/run:
 	$(MAKE) -C Verification/TestCode/Dhrystone BENCHMARK=1 DHRYSTONE_ITERATIONS=$(DHRYSTONE_BENCH_ITERATIONS)
 	$(RUN_TEST_OMIT_MSG) --benchmark=dhrystone --benchmark-iterations=$(DHRYSTONE_BENCH_ITERATIONS) --max-test-instructions=$(MAX_TEST_INSTRUCTIONS) Verification/TestCode/Dhrystone/Dhrystone

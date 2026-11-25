@@ -20,7 +20,15 @@ LIBRARY_ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
 # This integer-only port needs GCC helpers, but no libc or math library.
 LIBGCC = -lgcc
 DUMMY_ROM = dummy_rom.bin
-XCFLAGS = -I.. -I../External -DITERATIONS=1 -DRSD_BENCHMARK=$(BENCHMARK)
+# Keep the functional test short and check the final CRC for each run length.
+ifeq ($(BENCHMARK),1)
+ITERATIONS = 10
+FINAL_CRC = 0xfcaf
+else
+ITERATIONS = 1
+FINAL_CRC = 0xe714
+endif
+XCFLAGS = -I.. -I../External -DITERATIONS=$(ITERATIONS) -DRSD_BENCHMARK=$(BENCHMARK)
 CORE_SRCS = core_list_join.c core_main.c core_matrix.c core_state.c core_util.c
 OBJS = $(CORE_SRCS:.c=.o) core_portme.o ee_printf.o rsd-crt.o rsd-loader.o
 BUILD_MAKEFILES = ../Makefile ../../Makefile.inc .build-config
@@ -56,9 +64,10 @@ code.bin: code.elf $(DUMMY_ROM) $(BUILD_MAKEFILES)
 code.hex: code.bin $(RSD_TEST_TOOL_ROOT)/BinaryToHex.py $(BUILD_MAKEFILES)
 	$(BIN_TO_HEX) $< $@ $(BIN_SIZE)
 
-# CRC expectations are fixed; only the compiler version comes from the toolchain.
 serial.ref.txt: ../serial.ref.txt.in $(BUILD_MAKEFILES)
-	sed -e 's/@GCC_VERSION@/$(shell $(CC) -dumpfullversion -dumpversion)/' -e 's/@COMPILER_FLAGS@//' $< > $@
+	sed -e 's/@GCC_VERSION@/$(shell $(CC) -dumpfullversion -dumpversion)/' -e 's/@COMPILER_FLAGS@//' \
+	    -e 's/@ITERATIONS@/$(ITERATIONS)/' -e "s/@ITERATIONS_PER_SEC@/$$(( $(ITERATIONS) / 10 ))/" \
+	    -e 's/@FINAL_CRC@/$(FINAL_CRC)/' $< > $@
 
 -include $(OBJS:.o=.d)
 else
