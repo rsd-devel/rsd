@@ -49,7 +49,7 @@ module Bimodal(
 
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             counters[groupOffset] = PHT_EntryPath'(readRow[groupOffset]);
-            port.brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1] && port.btbHit[groupOffset];
+            port.brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1];
         end
         port.phtPrevValue = counters;
         port.brGlobalHistory = '0;

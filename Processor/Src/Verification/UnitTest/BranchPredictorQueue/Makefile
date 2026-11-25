@@ -18,13 +18,18 @@ TYPES = \
 	LoadStoreUnit/LoadStoreUnitTypes.sv \
 	RenameLogic/RenameLogicTypes.sv \
 	Scheduler/SchedulerTypes.sv \
-	Pipeline/PipelineTypes.sv
+	Pipeline/PipelineTypes.sv \
+	Debug/DebugTypes.sv
 
 MODULES = \
 	Primitives/RAM.sv \
 	Primitives/Queue.sv \
 	ControllerIF.sv \
+	Recovery/RecoveryManagerIF.sv \
+	Debug/DebugIF.sv \
+	Debug/PerformanceCounterIF.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
+	Pipeline/FetchStage/FetchStage.sv \
 	FetchUnit/BTB.sv \
 	FetchUnit/Gshare.sv \
 	FetchUnit/Bimodal.sv

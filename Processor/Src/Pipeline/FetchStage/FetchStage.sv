@@ -83,30 +83,46 @@ module FetchStage(
         // The predictor uses fixed group offsets at or after the fetch PC.
         fetchStartOffset = ToFetchGroupOffset(pipeReg.pc);
         validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
-        // A redirect discards this group. An I-cache miss asserts both stall and clear
-        // and keeps the group, so count its prediction once, on entry to the stall.
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++)
-            port.updateBrHistory[groupOffset] = !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear) &&
-                                                validByGroupOffset[groupOffset];
     end
 
+    logic updateBrHistory[FETCH_WIDTH];
+    logic [FETCH_WIDTH-1:0] takenByGroupOffset;
     always_comb begin
+        predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
+        takenByGroupOffset = '0;
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            if (validByGroupOffset[groupOffset] && port.btbHit[groupOffset]) begin
+                // A jump is taken regardless of the counter. Later offsets are off the predicted path.
+                if (!port.readIsCondBr[groupOffset] || port.brPredTaken[groupOffset]) begin
+                    predictedPC = port.btbOut[groupOffset];
+                    takenByGroupOffset[groupOffset] = TRUE;
+                    break;
+                end
+            end
+        end
+
+        updateBrHistory = '{default: FALSE};
+        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
+            if (validByGroupOffset[groupOffset] && port.btbHit[groupOffset]) begin
+                // Count a held group once on stall entry, including an I-cache miss.
+                updateBrHistory[groupOffset] = port.readIsCondBr[groupOffset] && !regStallFromCtrl &&
+                                               (stallFromCtrl || !ctrl.ifStage.clear);
+            end
+            if (takenByGroupOffset[groupOffset])
+                break;
+        end
+        port.updateBrHistory = updateBrHistory;
+
+        // IC ミスによるストール時のために，予測結果コンテキストを残しておく
+        // この保存は IC ミス判定とは無関係に行われるため，予測の遅延が短縮される
         nextPredCtx.globalHistory = port.brGlobalHistory;
+        nextPredCtx.takenByGroupOffset = takenByGroupOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             nextPredCtx.btbHit[groupOffset] = port.btbHit[groupOffset];
             nextPredCtx.btbHitWay[groupOffset] = port.btbHitWay[groupOffset];
             nextPredCtx.phtPrevValue[groupOffset] = port.phtPrevValue[groupOffset];
         end
 
-        predictedPC = ToFetchGroupBase(pc) + FETCH_GROUP_BYTE_NUM;
-        nextPredCtx.takenByGroupOffset = '0;
-        for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (validByGroupOffset[groupOffset] && port.brPredTaken[groupOffset]) begin
-                predictedPC = port.btbOut[groupOffset];
-                nextPredCtx.takenByGroupOffset[groupOffset] = TRUE;
-                break;
-            end
-        end
 
         if (recovery.toRecoveryPhase)
             fetchRequestPC = recovery.recoveredPC_FromRwCommit;

@@ -15,6 +15,10 @@ module TestBranchPredictorQueue;
 
     FetchStageIF port(.*), bimodalPort(.*);
     ControllerIF ctrl(.*);
+    RecoveryManagerIF recovery(.*);
+    DebugIF debug(.*);
+    PerformanceCounterIF perfCounter(.*);
+    FetchStage fetch(.*);
     BTB btb(.port(port));
     Gshare gshare(.port(port), .ctrl(ctrl));
     Bimodal bimodal(.port(bimodalPort));
@@ -43,7 +47,7 @@ module TestBranchPredictorQueue;
 
     task ReadGroup(input MemoryMapTypes::PC_Path pc);
         @(negedge clk);
-        port.fetchRequestPC = pc;
+        recovery.recoveredPC_FromRename = pc;
         @(posedge clk);
         #1;
     endtask
@@ -132,9 +136,13 @@ module TestBranchPredictorQueue;
                 index = base + i;
                 assert (bimodalPort.phtPrevValue[i] === expectedBimodal[index])
                     else $fatal(1, "Bimodal counter mismatch at %0d", index);
+                assert (bimodalPort.brPredTaken[i] === (expectedBimodal[index] > PHT_ENTRY_MAX / 2))
+                    else $fatal(1, "Bimodal direction mismatch at %0d", index);
                 index = HashedIndex(index, port.brGlobalHistory);
                 assert (port.phtPrevValue[i] === expectedGshare[index])
                     else $fatal(1, "Gshare counter mismatch at %0d (history %h)", index, port.brGlobalHistory);
+                assert (port.brPredTaken[i] === (expectedGshare[index] > PHT_ENTRY_MAX / 2))
+                    else $fatal(1, "Gshare direction mismatch at %0d (history %h)", index, port.brGlobalHistory);
             end
             if (pendingPHT.size() != 0) begin
                 oldest = pendingPHT.pop_front();
@@ -201,7 +209,7 @@ module TestBranchPredictorQueue;
         result.execTaken = TRUE;
         result.mispred = TRUE;
         port.brResult[0] = result;
-        port.fetchRequestPC = result.brAddr + (FETCH_WIDTH-1) * INSN_BYTE_WIDTH;
+        recovery.recoveredPC_FromRename = result.brAddr + (FETCH_WIDTH-1) * INSN_BYTE_WIDTH;
         @(posedge clk);
         #1;
         assert (port.brGlobalHistory === result.globalHistory)
@@ -295,11 +303,24 @@ module TestBranchPredictorQueue;
         CheckBTB(FETCH_WIDTH-1, '0);
         ReadGroup(first.brAddr);
         CheckBTB(0, '0);
+        assert (!port.nextStage.brPred[0].predTaken) else $fatal(1, "A BTB miss predicted taken");
+        // Leave a strongly not-taken counter at the address of the upcoming jump.
+        updated = last;
+        updated.isCondBr = TRUE;
+        updated.execTaken = FALSE;
+        updated.phtPrevValue = '0;
+        WriteBTB(updated);
         WriteBTB(first, last);
         if (BTB_SET_NUM > 1) WriteBTB(neighbor);
         ReadGroup(first.brAddr);
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
+        ctrl.ifStage.clear = FALSE;
+        #1;
+        assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
+                port.updateBrHistory[0] && !port.updateBrHistory[FETCH_WIDTH-1])
+            else $fatal(1, "Fetch did not select the first taken conditional branch");
+        ctrl.ifStage.clear = TRUE;
         first.btbHit = port.btbHit[0];
         first.btbHitWay = port.btbHitWay[0];
         last.btbHit = port.btbHit[FETCH_WIDTH-1];
@@ -314,17 +335,15 @@ module TestBranchPredictorQueue;
         CheckBTB(0, first);
         CheckBTB(FETCH_WIDTH-1, last);
         // The skipped conditional branch predicts taken but must not shift history.
-        port.updateBrHistory[FETCH_WIDTH-1] = TRUE;
-        bimodalPort.btbHit[0] = TRUE;
-        bimodalPort.btbHit[FETCH_WIDTH-1] = TRUE;
+        ctrl.ifStage.clear = FALSE;
         #1;
-        assert (port.brPredTaken[0] && port.brPredTaken[FETCH_WIDTH-1] &&
-                bimodalPort.brPredTaken[0] && bimodalPort.brPredTaken[FETCH_WIDTH-1] &&
+        assert (port.nextStage.valid[0] && port.nextStage.brPred[0].predTaken &&
+                port.nextStage.brPred[0].takenAddr == last.nextAddr &&
+                port.phtPrevValue[FETCH_WIDTH-1] == 0 && bimodalPort.phtPrevValue[FETCH_WIDTH-1] == 0 &&
+                !port.updateBrHistory[0] && !port.updateBrHistory[FETCH_WIDTH-1] &&
                 gshare.nextBrGlobalHistory === gshare.regBrGlobalHistory)
-            else $fatal(1, "The branch before the fetch start changed the history or hid the later prediction");
-        port.updateBrHistory[FETCH_WIDTH-1] = FALSE;
-        bimodalPort.btbHit[0] = FALSE;
-        bimodalPort.btbHit[FETCH_WIDTH-1] = FALSE;
+            else $fatal(1, "Fetch must skip the earlier branch and take the jump independently of its counter");
+        ctrl.ifStage.clear = TRUE;
 
         // On a same-row read/write the old target and branch kind are visible
         // for one cycle. Updating the first branch makes its way the newest.
@@ -369,6 +388,28 @@ module TestBranchPredictorQueue;
         ReadGroup(aliasBranch.brAddr);
         CheckBTB(0, '0);
 
+        // A weakly not-taken first branch lets the later unconditional jump win.
+        first.phtPrevValue = '0;
+        WriteBTB(first);
+        ReadGroup(first.brAddr);
+        assert (!port.nextStage.brPred[0].predTaken && port.nextStage.brPred[FETCH_WIDTH-1].predTaken &&
+                port.nextStage.brPred[FETCH_WIDTH-1].takenAddr == last.nextAddr)
+            else $fatal(1, "Fetch did not skip the not-taken conditional branch");
+
+        // The taken jump discards the conditional hit after it, including its history update.
+        first.isCondBr = FALSE;
+        last.isCondBr = TRUE;
+        WriteBTB(first, last);
+        ReadGroup(first.brAddr);
+        CheckBTB(0, first);
+        CheckBTB(FETCH_WIDTH-1, last);
+        ctrl.ifStage.clear = FALSE;
+        #1;
+        assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
+                !port.updateBrHistory[FETCH_WIDTH-1] && gshare.nextBrGlobalHistory == gshare.regBrGlobalHistory)
+            else $fatal(1, "A conditional hit after a taken jump updated the history");
+        ctrl.ifStage.clear = TRUE;
+
         ResetTables();
         ReadGroup(cold.brAddr);
         CheckBTB(0, cold);
@@ -403,19 +444,20 @@ module TestBranchPredictorQueue;
 
     initial begin
         ClearResults();
-        port.fetchRequestPC = '0;
+        // Redirect each lookup to the test address and suppress speculative history
+        // updates until the directed fetch check releases clear.
+        recovery.toRecoveryPhase = FALSE;
+        recovery.recoverFromRename = TRUE;
+        recovery.recoveredPC_FromRename = '0;
+        port.icReadHit = TRUE;
+        port.interruptAddrWE = FALSE;
         ctrl.ifStage = '0;
-        foreach (port.updateBrHistory[groupOffset]) begin
-            port.updateBrHistory[groupOffset] = FALSE;
-            bimodalPort.btbHit[groupOffset] = FALSE;
-            bimodalPort.readIsCondBr[groupOffset] = FALSE;
-            bimodalPort.updateBrHistory[groupOffset] = FALSE;
-            bimodalPort.btbOut[groupOffset] = '0;
-        end
+        ctrl.ifStage.clear = TRUE;
+        ctrl.drainFetchForInterrupt = FALSE;
         ResetTables();
         if (FETCH_WIDTH >= 2) CheckBTBWays();
 
-        port.fetchRequestPC = '0;
+        recovery.recoveredPC_FromRename = '0;
         CheckPHTQueue();
         CheckPHTHistory();
         CheckBTBTraining();

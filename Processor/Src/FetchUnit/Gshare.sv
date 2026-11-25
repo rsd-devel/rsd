@@ -50,7 +50,7 @@ module Gshare(
         // If the history overlaps the slot bits, undo the XOR permutation of the returned row.
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             counters[groupOffset] = PHT_EntryPath'(readRow[RowOffsetPath'(groupOffset) ^ regOffsetXor]);
-            brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1] && port.btbHit[groupOffset];
+            brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1];
         end
         port.brPredTaken = brPredTaken;
         port.phtPrevValue = counters;
@@ -74,11 +74,8 @@ module Gshare(
     always_comb begin
         nextBrGlobalHistory = regBrGlobalHistory;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            if (port.updateBrHistory[groupOffset] && port.btbHit[groupOffset] && port.readIsCondBr[groupOffset]) begin
+            if (port.updateBrHistory[groupOffset])
                 nextBrGlobalHistory = (nextBrGlobalHistory << 1) | brPredTaken[groupOffset];
-                if (brPredTaken[groupOffset])
-                    break;
-            end
         end
 
         // A resolved misprediction overrides speculative history for the next lookup.

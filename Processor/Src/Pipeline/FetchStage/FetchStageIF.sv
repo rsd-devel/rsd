@@ -57,6 +57,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         btbHit,
         btbHitWay,
         btbOut,
+        readIsCondBr,
         brPredTaken,
         brGlobalHistory,
         phtPrevValue,
@@ -104,8 +105,6 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         fetchRequestPC,
         brResult,
         updateBrHistory,
-        btbHit,
-        readIsCondBr,
     output
         brPredTaken,
         brGlobalHistory,
