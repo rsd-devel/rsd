@@ -17,6 +17,7 @@ module FetchStage(
     PC_Path predictedPC, fetchRequestPC;
     BranchGlobalHistoryPath regFetchRequestHistory, fetchRequestHistory;
     BTB_LookupPath regBTB_Lookup, nextBTB_Lookup;
+    logic refillBTB, regRefillBTB, captureBTB_Row;
     FetchStageRegPath nextPipeReg, pipeReg;
     PreDecodeStageRegPath nextStage;
 
@@ -51,11 +52,13 @@ module FetchStage(
             regPC <= PC_Path'(INSN_RESET_VECTOR);
             regFetchRequestHistory <= '0;
             regBTB_Lookup <= '0;
+            regRefillBTB <= FALSE;
         end
         else begin
             regPC <= pcIn;
             regFetchRequestHistory <= fetchRequestHistory;
             regBTB_Lookup <= nextBTB_Lookup;
+            regRefillBTB <= refillBTB;
         end
 
         if (port.rst) begin
@@ -63,7 +66,7 @@ module FetchStage(
             regPredCtx <= '0;
         end
         else begin
-            if (!stallFromCtrl)
+            if (!stallFromCtrl || refillBTB)
                 pipeReg <= nextPipeReg;
             // Save this group's prediction before the predictor advances during a stall.
             if (beginStallFromCtrl)
@@ -87,18 +90,25 @@ module FetchStage(
     end
 
 
-    // Read the current group's row while choosing its successor. On restart,
-    // reissue the saved predecessor row alongside the successor PC and history.
+    // While the RAM reads A, the preceding row and regPC select B. Capture
+    // row(A) with B at the edge and start reading row(B) for the next group.
     always_comb begin
-        if (port.interruptAddrWE)
+        refillBTB = !port.interruptAddrWE && recovery.fetchRedirect.valid && recovery.fetchRedirect.restorePredCtx;
+        port.btbReadSet = refillBTB ? recovery.fetchRedirect.predCtx.btbSet : ToBTB_Set(pcIn);
+        captureBTB_Row = regRefillBTB || (!regStall && pipeReg.valid);
+        port.btbCaptureRow = captureBTB_Row && !recovery.fetchRedirect.valid && !port.interruptAddrWE;
+
+        nextBTB_Lookup = regBTB_Lookup;
+        if (refillBTB) begin
+            // The predecessor row is ready one edge after a warm redirect.
+            nextBTB_Lookup = '{valid: FALSE, setIndex: recovery.fetchRedirect.predCtx.btbSet};
+        end
+        else if (port.interruptAddrWE || recovery.fetchRedirect.valid)
             nextBTB_Lookup = '0;
-        else if (recovery.fetchRedirect.valid)
-            nextBTB_Lookup = '{valid: recovery.fetchRedirect.restorePredCtx, setIndex: recovery.fetchRedirect.predCtx.btbSet};
-        else if (regStall || !pipeReg.valid)
-            nextBTB_Lookup = regBTB_Lookup;
-        else
-            nextBTB_Lookup = '{valid: TRUE, setIndex: ToBTB_Set(pipeReg.pc)};
-        port.btbReadSet = nextBTB_Lookup.setIndex;
+        else if (regRefillBTB)
+            nextBTB_Lookup.valid = TRUE;
+        else if (captureBTB_Row)
+            nextBTB_Lookup = '{valid: TRUE, setIndex: ToBTB_Set(regPC)};
         port.btbLookupValid = regBTB_Lookup.valid;
     end
 
@@ -209,7 +219,7 @@ module FetchStage(
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         nextPipeReg.sid = curSID;
 `endif
-        nextPipeReg.valid = !port.interruptAddrWE && !clear;
+        nextPipeReg.valid = !port.interruptAddrWE && !clear && !refillBTB;
 
         // Repeat the current I-cache lookup while the request is stalled.
         if (pipeReg.valid && stall)

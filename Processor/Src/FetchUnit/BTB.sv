@@ -17,7 +17,7 @@ module BTB(
     // way in a single write while preserving the other.
     localparam BYTE_NUM = ($bits(BTB_Entry) + 7) / 8;
     typedef logic [BYTE_NUM*8-1:0] WayPath;
-    WayPath [BTB_WAY_NUM-1:0] readRow, writeRow;
+    WayPath [BTB_WAY_NUM-1:0] readRow, regReadRow, writeRow;
     logic [BTB_WAY_NUM-1:0][BYTE_NUM-1:0] writeMask;
     BTB_SetIndexPath arraySet, writeSet, resetIndex;
 
@@ -53,6 +53,12 @@ module BTB(
         .clk(port.clk), .we(writeMask), .rwa(arraySet), .wv(writeRow), .rv(readRow)
     );
 
+    // Read both ways with A for a full cycle. B selects from that row after this edge.
+    always_ff @(posedge port.clk) begin
+        if (port.btbCaptureRow)
+            regReadRow <= readRow;
+    end
+
     MultiWidthQueuePointer #(.SIZE(BTB_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) btbQueuePointer (
         .clk(port.clk), .rst(port.rst), .push(pushCount != 0), .pushCount(pushCount),
         .pop(writeEnable), .popCount(1'b1), .headPtr(headPtr), .tailPtr(tailPtr), .count(count)
@@ -83,7 +89,7 @@ module BTB(
         lookupTag = ToBTB_Tag(port.pcOut);
         hitByOffset = '0;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
-            wayEntry[w] = BTB_Entry'(readRow[w]);
+            wayEntry[w] = BTB_Entry'(regReadRow[w]);
             blockHit[w] = port.btbLookupValid && wayEntry[w].tag.block == lookupTag.block;
             if (blockHit[w])
                 hitByOffset[wayEntry[w].tag.offset] = TRUE;

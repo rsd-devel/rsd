@@ -50,13 +50,26 @@ module TestBranchPredictorQueue;
         foreach (port.brResult[i]) port.brResult[i] = '0;
     endtask
 
+    // A warm redirect first reads the saved predecessor set. On the next edge the
+    // target captures that row and starts the read for its own successor.
+    task CompleteWarmRedirect;
+        @(posedge clk);
+        #1;
+        assert (!fetch.pipeReg.valid) else $fatal(1, "A warm redirect must wait for its predecessor row");
+        @(negedge clk);
+        recovery.fetchRedirect.valid = FALSE;
+        @(posedge clk);
+        #1;
+        recovery.fetchRedirect.valid = TRUE;
+    endtask
+
     task ReadGroupFrom(input MemoryMapTypes::PC_Path pc, input MemoryMapTypes::PC_Path predecessor);
         @(negedge clk);
         recovery.fetchRedirect.pc = pc;
         recovery.fetchRedirect.restorePredCtx = TRUE;
+        recovery.fetchRedirect.valid = TRUE;
         recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor);
-        @(posedge clk);
-        #1;
+        CompleteWarmRedirect();
     endtask
 
     task ReadGroup(input MemoryMapTypes::PC_Path pc);
@@ -277,10 +290,18 @@ module TestBranchPredictorQueue;
     end
 
     // Offer both banks enough idle cycles to read and write every queued update.
+    // PHT bank arbitration still takes one fetch request per edge.
+    task ReadPHTGroup(input MemoryMapTypes::PC_Path pc);
+        @(negedge clk);
+        recovery.fetchRedirect.pc = pc;
+        @(posedge clk);
+        #1;
+    endtask
+
     task DrainPHT;
         repeat (PHT_QUEUE_SIZE) begin
-            repeat (2) ReadGroup(0);
-            repeat (2) ReadGroup(FETCH_WIDTH * INSN_BYTE_WIDTH);
+            repeat (2) ReadPHTGroup(0);
+            repeat (2) ReadPHTGroup(FETCH_WIDTH * INSN_BYTE_WIDTH);
         end
         assert (bimodal.count == 0 && gshare.count == 0) else $fatal(1, "PHT queues did not drain");
     endtask
@@ -296,20 +317,20 @@ module TestBranchPredictorQueue;
         // Distinguish the head row from other rows in its bank before forcing a stall.
         SendResults(first);
         DrainPHT();
-        ReadGroup(first.brAddr);
+        ReadPHTGroup(first.brAddr);
         SendResults(first, second);
         // A younger request to the free bank cannot pass the blocked head.
-        repeat (3) ReadGroup(first.brAddr);
+        repeat (3) ReadPHTGroup(first.brAddr);
         assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "Blocked PHT head was bypassed");
         // Allow only the training read, then use its bank for several fetches.
-        ReadGroup(second.brAddr);
-        repeat (3) ReadGroup(first.brAddr + 2 * FETCH_WIDTH * INSN_BYTE_WIDTH);
+        ReadPHTGroup(second.brAddr);
+        repeat (3) ReadPHTGroup(first.brAddr + 2 * FETCH_WIDTH * INSN_BYTE_WIDTH);
         assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "PHT wrote a busy bank");
-        ReadGroup(second.brAddr); // Write the saved row while a different row is still on its bank output.
-        ReadGroup(first.brAddr);
+        ReadPHTGroup(second.brAddr); // Write the saved row while a different row is still on its bank output.
+        ReadPHTGroup(first.brAddr);
         DrainPHT();
-        ReadGroup(first.brAddr);
-        ReadGroup(second.brAddr);
+        ReadPHTGroup(first.brAddr);
+        ReadPHTGroup(second.brAddr);
     endtask
 
     task CheckPHTQueue;
@@ -349,7 +370,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         for (int i = 0; i <= RESULTS; i++) begin
             result = MakeResult(i);
-            ReadGroup(result.brAddr);
+            ReadPHTGroup(result.brAddr);
         end
     endtask
 
@@ -376,14 +397,14 @@ module TestBranchPredictorQueue;
         SendResults(adjacent, adjacent);
         SendResults(first, first);
         DrainPHT();
-        ReadGroup(first.brAddr);
-        ReadGroup(otherRow.brAddr);
+        ReadPHTGroup(first.brAddr);
+        ReadPHTGroup(otherRow.brAddr);
     endtask
 
     // Read every slot through the predictor ports; the flat reference tables check the values.
     task ReadAllPHTRows;
         for (int row = 0; row < PHT_ROWS; row++)
-            ReadGroup(row * FETCH_GROUP_BYTE_NUM);
+            ReadPHTGroup(row * FETCH_GROUP_BYTE_NUM);
     endtask
 
     task CheckUpperPHTRows;
@@ -421,8 +442,8 @@ module TestBranchPredictorQueue;
         ClearResults();
         DrainPHT();
         index = HashedIndex(PHT_IndexPath'(result.brAddr >> INSN_ADDR_BIT_WIDTH), result.globalHistory);
-        ReadGroup(index * INSN_BYTE_WIDTH);
-        ReadGroup(result.brAddr);
+        ReadPHTGroup(index * INSN_BYTE_WIDTH);
+        ReadPHTGroup(result.brAddr);
         // Fetch receives the selected redirect together with its history policy.
         @(negedge clk);
         recovery.fetchRedirect.predCtx.history = result.globalHistory;
@@ -442,8 +463,7 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         recovery.fetchRedirect.restorePredCtx = TRUE;
         recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(result.brAddr);
-        @(posedge clk);
-        #1;
+        CompleteWarmRedirect();
         assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
                 port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0) &&
                 port.nextStage.brPred[0].btbLookup.valid &&
@@ -452,6 +472,27 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         recovery.fetchRedirect.predCtx.history = '0;
     endtask
+
+    // Track the physical RAM request through both edges, independently of Fetch's lookup metadata.
+    BTB_LookupPath ramLookup, capturedLookup;
+    always @(posedge clk) begin
+        logic [$bits(btb.readRow)-1:0] expectedRow;
+        if (rst) begin
+            ramLookup = '0;
+            capturedLookup = '0;
+        end
+        else begin
+            if (port.btbCaptureRow) capturedLookup = ramLookup;
+            ramLookup = '{valid: btb.btbEntryArray.we == '0, setIndex: btb.btbEntryArray.rwa};
+            expectedRow = port.btbCaptureRow ? btb.readRow : btb.regReadRow;
+            #1;
+            assert (btb.regReadRow === expectedRow)
+                else $fatal(1, "BTB raw row was not captured or held at the fetch edge");
+            assert (!port.btbLookupValid || (capturedLookup.valid && capturedLookup.setIndex === fetch.regBTB_Lookup.setIndex))
+                else $fatal(1, "BTB used set %h with a captured RAM request valid=%b set=%h",
+                            fetch.regBTB_Lookup.setIndex, capturedLookup.valid, capturedLookup.setIndex);
+        end
+    end
 
     // Check the physical write, FIFO order and lane acceptance on every clock.
     BranchResult pending[$];
@@ -622,8 +663,8 @@ module TestBranchPredictorQueue;
         updated = first;
         updated.nextAddr += INSN_BYTE_WIDTH;
         updated.brType = BTB_JUMP;
-        ReadGroup(first.brAddr);
         SendResults(updated);
+        ReadGroup(first.brAddr);
         CheckBTB(0, first);
         DrainBTB();
         ReadGroup(first.brAddr);
@@ -691,14 +732,21 @@ module TestBranchPredictorQueue;
         // On a cache miss the predictor can reach the target while I-cache repeats the source.
         last.brType = BTB_JUMP;
         WriteBTB(last);
-        // Queue the next jump at the target. Training uses the port during the miss,
-        // then the release cycle must read this target before live prediction resumes.
+        // Capture a known target on stall entry, then train the very same entry
+        // while the single port is free. The held prediction still uses the old row.
         neighbor = MakeResult(0);
         neighbor.brAddr = last.nextAddr;
         neighbor.btbLookup.setIndex = ToBTB_Set(last.brAddr);
         neighbor.nextAddr = last.nextAddr + FETCH_GROUP_BYTE_NUM;
         neighbor.brType = BTB_JUMP;
-        SendResults(neighbor);
+        WriteBTB(neighbor);
+        ReadGroupFrom(neighbor.brAddr, last.brAddr);
+        CheckBTB(ToFetchGroupOffset(neighbor.brAddr), neighbor);
+        updated = neighbor;
+        updated.btbHit = TRUE;
+        updated.btbHitWay = port.btbHitWay[ToFetchGroupOffset(neighbor.brAddr)];
+        updated.nextAddr += FETCH_GROUP_BYTE_NUM;
+        SendResults(updated);
         ReadGroup(last.brAddr);
         beforeBranch = port.nextStage.brPred[0].globalHistory;
         afterBranch = ExpectedTakenHistory(beforeBranch, last.brAddr);
@@ -725,9 +773,11 @@ module TestBranchPredictorQueue;
         #1;
         assert (port.nextStage.valid[0] && port.nextStage.pc == neighbor.brAddr &&
                 port.nextStage.brPred[0].predTaken && port.fetchRequestPC == neighbor.nextAddr)
-            else $fatal(1, "Fetch did not read the next group's BTB entry on stall release");
+            else $fatal(1, "Fetch did not preserve the successor's captured target through the stall");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
+        ReadGroupFrom(neighbor.brAddr, last.brAddr);
+        CheckBTB(ToFetchGroupOffset(neighbor.brAddr), updated);
 
         ResetTables();
         ReadGroup(cold.brAddr);
@@ -757,6 +807,18 @@ module TestBranchPredictorQueue;
         CheckBTB(0, second);
         assert (port.nextStage.brPred[0].btbLookup == second.btbLookup)
             else $fatal(1, "Second predecessor context did not reach the predicted branch");
+
+        // A second redirect can arrive before the first raw row reaches its FF.
+        // Both edges name the same B, but only the later predecessor's target is valid.
+        @(negedge clk);
+        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor1);
+        @(posedge clk);
+        #1;
+        assert (!fetch.pipeReg.valid) else $fatal(1, "An unfinished warm redirect delivered a group");
+        @(negedge clk);
+        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor2);
+        CompleteWarmRedirect();
+        CheckBTB(0, second);
 
         // Reuse the same PC and stale set on a redirect without a predecessor.
         @(negedge clk);
@@ -789,6 +851,41 @@ module TestBranchPredictorQueue;
         CheckBTB(0, first);
         ReadGroupFrom(second.brAddr, predecessor1);
         CheckBTB(0, second);
+    endtask
+
+    task CheckAheadSequence;
+        BranchResult jumps[4];
+        for (int i = 0; i < 4; i++) begin
+            jumps[i] = MakeResult((BTB_SET_NUM + 6 + i*3) * FETCH_WIDTH);
+            jumps[i].brType = BTB_JUMP;
+            if (i != 0) begin
+                jumps[i-1].nextAddr = jumps[i].brAddr;
+                jumps[i].btbLookup.setIndex = ToBTB_Set(jumps[i-1].brAddr);
+            end
+        end
+        WriteBTB(jumps[0], jumps[1]);
+        WriteBTB(jumps[2], jumps[3]);
+        ReadGroup(jumps[0].brAddr);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        // While A predicts B using the captured predecessor row, the RAM samples B's
+        // set. At that edge B must select from A's row, even though B's row is now read.
+        for (int i = 0; i < 3; i++) begin
+            #1;
+            CheckBTB(0, jumps[i]);
+            assert (port.nextStage.valid[0] && port.pcOut == jumps[i].brAddr &&
+                    port.nextStage.brPred[0].btbLookup == jumps[i].btbLookup &&
+                    port.fetchRequestPC == jumps[i+1].brAddr &&
+                    btb.btbEntryArray.rwa == ToBTB_Set(jumps[i+1].brAddr))
+                else $fatal(1, "BTB lookahead at PC %h: predicted %h, RAM set %h, expected next PC %h set %h",
+                            port.pcOut, port.fetchRequestPC, btb.btbEntryArray.rwa,
+                            jumps[i+1].brAddr, ToBTB_Set(jumps[i+1].brAddr));
+            @(posedge clk);
+        end
+        #1;
+        CheckBTB(0, jumps[3]);
+        recovery.fetchRedirect.valid = TRUE;
+        ctrl.ifStage.clear = TRUE;
     endtask
 
     // Two instances fetched before either was trained can both report a miss.
@@ -843,6 +940,7 @@ module TestBranchPredictorQueue;
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");
         ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
         CheckAheadRows();
+        CheckAheadSequence();
         CheckOverlappingMisses();
         CheckFullBTBQueue();
         $display("========== Test Passed ==========");
