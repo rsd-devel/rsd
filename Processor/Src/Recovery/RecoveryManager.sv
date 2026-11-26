@@ -43,7 +43,7 @@ module RecoveryManager(
         // パイプライン化する
         logic exceptionDetectedInCommitStage;
         AddrPath recoveredPC_FromRwStage;
-        BranchGlobalHistoryPath brHistory;
+        BranchRecoveryPath predCtx;
         AddrPath recoveredPC_FromCommitStage;
 
         // Related to CSR 
@@ -98,7 +98,7 @@ module RecoveryManager(
 
             regState.exceptionDetectedInCommitStage <= '0;
             regState.recoveredPC_FromRwStage <= '0;
-            regState.brHistory <= '0;
+            regState.predCtx <= '0;
             regState.recoveredPC_FromCommitStage <= '0;
 
             regState.excptCause <= EXEC_STATE_NOT_FINISHED;
@@ -138,8 +138,8 @@ module RecoveryManager(
         nextState.nextELP = port.exceptionDetectedInCommitStage ? port.nextELP_FromCommitStage : port.nextELP_FromRwStage;
         nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
         nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
-        nextState.brHistory = port.exceptionDetectedInCommitStage ?
-            port.recoveredBrHistory_FromCommitStage : port.recoveredBrHistory_FromRwStage;
+        nextState.predCtx = port.exceptionDetectedInCommitStage ?
+            port.recoveredPredCtx_FromCommitStage : port.recoveredPredCtx_FromRwStage;
         nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
 
         // CSR への要求はすべて PHASE_RECOVER_0 に行う
@@ -212,8 +212,8 @@ module RecoveryManager(
         if (regState.phase == PHASE_RECOVER_0) begin
             port.fetchRedirect = '{
                 valid: TRUE, pc: recoveredPC,
-                restoreHistory: regState.refetchType == REFETCH_TYPE_BRANCH_TARGET,
-                brHistory: regState.brHistory
+                restorePredCtx: regState.refetchType == REFETCH_TYPE_BRANCH_TARGET,
+                predCtx: regState.predCtx
             };
         end
         else begin

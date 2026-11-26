@@ -39,6 +39,8 @@ module TestBranchPredictorQueue;
         result.execTaken = TRUE;
         result.brType = BTB_COND;
         result.brAddr = 32'h80000000 + index * INSN_BYTE_WIDTH;
+        // Use a sequential predecessor by default. Non-sequential edges specify theirs below.
+        result.btbLookup = '{valid: TRUE, setIndex: ToBTB_Set(result.brAddr - FETCH_GROUP_BYTE_NUM)};
         result.nextAddr = result.brAddr + 128;
         result.phtPrevValue = PHT_EntryPath'(index % PHT_ENTRY_MAX);
         return result;
@@ -48,11 +50,17 @@ module TestBranchPredictorQueue;
         foreach (port.brResult[i]) port.brResult[i] = '0;
     endtask
 
-    task ReadGroup(input MemoryMapTypes::PC_Path pc);
+    task ReadGroupFrom(input MemoryMapTypes::PC_Path pc, input MemoryMapTypes::PC_Path predecessor);
         @(negedge clk);
         recovery.fetchRedirect.pc = pc;
+        recovery.fetchRedirect.restorePredCtx = TRUE;
+        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor);
         @(posedge clk);
         #1;
+    endtask
+
+    task ReadGroup(input MemoryMapTypes::PC_Path pc);
+        ReadGroupFrom(pc, pc - FETCH_GROUP_BYTE_NUM);
     endtask
 
     task SendResults(input BranchResult first, input BranchResult second = '0);
@@ -99,9 +107,10 @@ module TestBranchPredictorQueue;
         callOp.brType = BTB_CALL;
         callOp.nextAddr = retOp.brAddr;
         retOp.brType = BTB_RETURN;
+        retOp.btbLookup.setIndex = ToBTB_Set(callOp.brAddr);
         WriteBTB(callOp, retOp);
 
-        ReadGroup(retOp.brAddr);
+        ReadGroupFrom(retOp.brAddr, callOp.brAddr);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
@@ -128,8 +137,17 @@ module TestBranchPredictorQueue;
             callOp.brAddr = firstCall.brAddr + i * CALL_STRIDE;
             retOp.brAddr = callOp.brAddr + INSN_BYTE_WIDTH;
             callOp.nextAddr = i == fetch.RAS_ENTRY_NUM ? retOp.brAddr : callOp.brAddr + CALL_STRIDE;
+            callOp.btbLookup.setIndex = i == 0 ? firstCall.btbLookup.setIndex : ToBTB_Set(callOp.brAddr - CALL_STRIDE);
+            // Returns are reached from the next deeper return, except at the innermost call.
+            retOp.btbLookup.setIndex = ToBTB_Set(i == fetch.RAS_ENTRY_NUM ? callOp.brAddr : retOp.brAddr + CALL_STRIDE);
             WriteBTB(callOp, retOp);
         end
+        // The deepest call returns to its own return instruction for the first pop.
+        retOp.btbLookup.setIndex = ToBTB_Set(retOp.brAddr);
+        WriteBTB(retOp);
+        // When the RAS wraps, the oldest surviving return leads back to the innermost one.
+        retOp.btbLookup.setIndex = ToBTB_Set(firstCall.brAddr + CALL_STRIDE + INSN_BYTE_WIDTH);
+        WriteBTB(retOp);
         ReadGroup(firstCall.brAddr);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
@@ -407,28 +425,32 @@ module TestBranchPredictorQueue;
         ReadGroup(result.brAddr);
         // Fetch receives the selected redirect together with its history policy.
         @(negedge clk);
-        recovery.fetchRedirect.brHistory = result.globalHistory;
+        recovery.fetchRedirect.predCtx.history = result.globalHistory;
         @(posedge clk);
         #1;
         assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
             else $fatal(1, "Fetch did not restore the selected branch history");
         @(negedge clk);
         recovery.fetchRedirect.pc = result.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
-        recovery.fetchRedirect.restoreHistory = FALSE;
-        recovery.fetchRedirect.brHistory = BranchGlobalHistoryPath'(1);
+        recovery.fetchRedirect.restorePredCtx = FALSE;
+        recovery.fetchRedirect.predCtx.history = BranchGlobalHistoryPath'(1);
         @(posedge clk);
         #1;
         assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
                 port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
             else $fatal(1, "Fetch must redirect to the supplied PC while keeping its history");
         @(negedge clk);
-        recovery.fetchRedirect.restoreHistory = TRUE;
+        recovery.fetchRedirect.restorePredCtx = TRUE;
+        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(result.brAddr);
         @(posedge clk);
         #1;
-        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0))
-            else $fatal(1, "Fetch did not restore the new checkpoint");
+        assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
+                port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0) &&
+                port.nextStage.brPred[0].btbLookup.valid &&
+                port.nextStage.brPred[0].btbLookup.setIndex === ToBTB_Set(result.brAddr))
+            else $fatal(1, "The redirected group must carry its restored history and predecessor set together");
         @(negedge clk);
-        recovery.fetchRedirect.brHistory = '0;
+        recovery.fetchRedirect.predCtx.history = '0;
     endtask
 
     // Check the physical write, FIFO order and lane acceptance on every clock.
@@ -450,13 +472,13 @@ module TestBranchPredictorQueue;
                 BTB_Entry entry;
                 oldest = pending.pop_front();
                 entry = BTB_Entry'(btb.writeRow[btb.writeWay]);
-                assert (btb.writeSet == ToBTB_Set(oldest.brAddr) &&
+                assert (btb.writeSet == oldest.btbLookup.setIndex &&
                         entry.tag == ToBTB_Tag(oldest.brAddr) && entry.data == ToBTB_Addr(oldest.nextAddr) &&
                         entry.brType == oldest.brType && (!oldest.btbHit || btb.writeWay == oldest.btbHitWay))
                     else $fatal(1, "BTB table write did not match the oldest training request");
             end
             foreach (port.brResult[i]) begin
-                accept = port.brResult[i].valid && port.brResult[i].execTaken &&
+                accept = port.brResult[i].valid && port.brResult[i].btbLookup.valid && port.brResult[i].execTaken &&
                          !port.brResult[i].btbEntryCorrect && pending.size() < BTB_QUEUE_SIZE;
                 assert (btb.queueWE[i] === accept) else $fatal(1, "BTB queue write mismatch on lane %0d", i);
                 if (accept) pending.push_back(port.brResult[i]);
@@ -673,6 +695,7 @@ module TestBranchPredictorQueue;
         // then the release cycle must read this target before live prediction resumes.
         neighbor = MakeResult(0);
         neighbor.brAddr = last.nextAddr;
+        neighbor.btbLookup.setIndex = ToBTB_Set(last.brAddr);
         neighbor.nextAddr = last.nextAddr + FETCH_GROUP_BYTE_NUM;
         neighbor.brType = BTB_JUMP;
         SendResults(neighbor);
@@ -715,6 +738,59 @@ module TestBranchPredictorQueue;
         CheckBTB(0, '0);
     endtask
 
+    task CheckAheadRows;
+        BranchResult first, second;
+        MemoryMapTypes::PC_Path predecessor1, predecessor2;
+        first = MakeResult((BTB_SET_NUM + 20) * FETCH_WIDTH);
+        second = first;
+        second.nextAddr += FETCH_GROUP_BYTE_NUM;
+        predecessor1 = first.brAddr - 3 * FETCH_GROUP_BYTE_NUM;
+        predecessor2 = first.brAddr + 5 * FETCH_GROUP_BYTE_NUM;
+        first.btbLookup.setIndex = ToBTB_Set(predecessor1);
+        second.btbLookup.setIndex = ToBTB_Set(predecessor2);
+        WriteBTB(first, second);
+        ReadGroupFrom(first.brAddr, predecessor1);
+        CheckBTB(0, first);
+        assert (port.nextStage.brPred[0].btbLookup == first.btbLookup)
+            else $fatal(1, "First predecessor context did not reach the predicted branch");
+        ReadGroupFrom(second.brAddr, predecessor2);
+        CheckBTB(0, second);
+        assert (port.nextStage.brPred[0].btbLookup == second.btbLookup)
+            else $fatal(1, "Second predecessor context did not reach the predicted branch");
+
+        // Reuse the same PC and stale set on a redirect without a predecessor.
+        @(negedge clk);
+        recovery.fetchRedirect.restorePredCtx = FALSE;
+        @(posedge clk);
+        #1;
+        CheckBTB(0, '0);
+        assert (!port.nextStage.brPred[0].btbLookup.valid) else $fatal(1, "A cold redirect reused a predecessor");
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        @(posedge clk);
+        #1;
+        assert (port.nextStage.valid[0] && port.nextStage.pc == first.brAddr + FETCH_GROUP_BYTE_NUM &&
+                port.nextStage.brPred[0].btbLookup.valid &&
+                port.nextStage.brPred[0].btbLookup.setIndex == ToBTB_Set(first.brAddr))
+            else $fatal(1, "The first sequential successor must have a known predecessor");
+        recovery.fetchRedirect.valid = TRUE;
+        ctrl.ifStage.clear = TRUE;
+        first.btbLookup.valid = FALSE;
+        SendResults(first);
+        assert (btb.count == 0) else $fatal(1, "A cold lookup must not train an unrelated BTB set");
+        ReadGroupFrom(second.brAddr, predecessor2);
+        CheckBTB(0, second);
+
+        // These successors use the same row and differ only in the top bit of the low tag field.
+        second.brAddr = first.brAddr ^ MemoryMapTypes::PC_Path'(FETCH_GROUP_BYTE_NUM << (BTB_TAG_LOW_WIDTH - 1));
+        second.btbLookup.setIndex = first.btbLookup.setIndex;
+        WriteBTB(second);
+        ReadGroupFrom(first.brAddr, predecessor1);
+        CheckBTB(0, first);
+        ReadGroupFrom(second.brAddr, predecessor1);
+        CheckBTB(0, second);
+    endtask
+
     // Two instances fetched before either was trained can both report a miss.
     task CheckOverlappingMisses;
         BranchResult first, second;
@@ -742,7 +818,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         // Redirect each lookup to the test address and suppress speculative history
         // updates until the directed fetch check releases clear.
-        recovery.fetchRedirect = '{valid: TRUE, pc: '0, restoreHistory: TRUE, brHistory: '0};
+        recovery.fetchRedirect = '{valid: TRUE, pc: '0, restorePredCtx: TRUE, predCtx: '0};
         port.icReadHit = TRUE;
         port.interruptAddrWE = FALSE;
         ctrl.ifStage = '0;
@@ -766,6 +842,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");
         ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
+        CheckAheadRows();
         CheckOverlappingMisses();
         CheckFullBTBQueue();
         $display("========== Test Passed ==========");

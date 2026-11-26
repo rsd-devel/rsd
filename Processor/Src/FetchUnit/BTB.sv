@@ -20,7 +20,6 @@ module BTB(
     WayPath [BTB_WAY_NUM-1:0] readRow, writeRow;
     logic [BTB_WAY_NUM-1:0][BYTE_NUM-1:0] writeMask;
     BTB_SetIndexPath arraySet, writeSet, resetIndex;
-    PC_Path lookupPC;
 
     typedef struct packed {
         BTB_SetIndexPath setIndex;
@@ -67,7 +66,6 @@ module BTB(
     end
 
     always_ff @(posedge port.clk) begin
-        lookupPC <= port.fetchRequestPC;
         if (port.rstStart)
             resetIndex <= '0;
         else if (port.rst)
@@ -82,11 +80,11 @@ module BTB(
     PC_Path target[FETCH_WIDTH];
     BTB_BranchType brType[FETCH_WIDTH];
     always_comb begin
-        lookupTag = ToBTB_Tag(lookupPC);
+        lookupTag = ToBTB_Tag(port.pcOut);
         hitByOffset = '0;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
             wayEntry[w] = BTB_Entry'(readRow[w]);
-            blockHit[w] = wayEntry[w].tag.block == lookupTag.block;
+            blockHit[w] = port.btbLookupValid && wayEntry[w].tag.block == lookupTag.block;
             if (blockHit[w])
                 hitByOffset[wayEntry[w].tag.offset] = TRUE;
         end
@@ -100,7 +98,7 @@ module BTB(
                 for (int w = 0; w < BTB_WAY_NUM; w++) begin
                     if (blockHit[w] && wayEntry[w].tag.offset == BTB_OffsetPath'(groupOffset)) begin
                         hitWay[groupOffset] = BTB_WayIndexPath'(w);
-                        target[groupOffset] = ToRawAddrFromBTB_Addr(wayEntry[w].data, lookupPC);
+                        target[groupOffset] = ToRawAddrFromBTB_Addr(wayEntry[w].data, port.pcOut);
                         brType[groupOffset] = wayEntry[w].brType;
                     end
                 end
@@ -115,7 +113,7 @@ module BTB(
     always_comb begin
         pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            queueIn[i].setIndex = ToBTB_Set(port.brResult[i].brAddr);
+            queueIn[i].setIndex = port.brResult[i].btbLookup.setIndex;
             queueIn[i].entry.tag = ToBTB_Tag(port.brResult[i].brAddr);
             queueIn[i].entry.data = ToBTB_Addr(port.brResult[i].nextAddr);
             queueIn[i].entry.brType = port.brResult[i].brType;
@@ -123,7 +121,7 @@ module BTB(
             queueIn[i].hitWay = port.brResult[i].btbHitWay;
             queueWA[i] = tailPtr + BTBQueuePointerPath'(pushCount);
             // Earlier lanes take the available slots, including a slot freed by this write.
-            queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken &&
+            queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken && port.brResult[i].btbLookup.valid &&
                          !port.brResult[i].btbEntryCorrect &&
                          count + pushCount < BTB_QUEUE_SIZE + int'(writeEnable);
             if (queueWE[i])
@@ -136,7 +134,7 @@ module BTB(
         update = queue[headPtr];
         writeEnable = !port.rst && port.btbUpdateAllowed && count != 0;
         writeSet = port.rst ? resetIndex : update.setIndex;
-        arraySet = (port.rst || writeEnable) ? writeSet : ToBTB_Set(port.fetchRequestPC);
+        arraySet = (port.rst || writeEnable) ? writeSet : port.btbReadSet;
         // A delayed hit may replace a newer occupant. Write its full tag and target together.
         writeWay = update.hit ? update.hitWay : victimWay;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin

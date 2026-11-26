@@ -16,6 +16,7 @@ module FetchStage(
     PC_Path regPC, pcIn;
     PC_Path predictedPC, fetchRequestPC;
     BranchGlobalHistoryPath regFetchRequestHistory, fetchRequestHistory;
+    BTB_LookupPath regBTB_Lookup, nextBTB_Lookup;
     FetchStageRegPath nextPipeReg, pipeReg;
     PreDecodeStageRegPath nextStage;
 
@@ -28,6 +29,7 @@ module FetchStage(
     typedef struct packed {
         logic [FETCH_WIDTH-1:0] takenByGroupOffset;
         BranchGlobalHistoryPath globalHistory;
+        BTB_LookupPath btbLookup;
         logic [FETCH_WIDTH-1:0] btbHit;
         BTB_BranchType [FETCH_WIDTH-1:0] btbBrType;
         logic usedRAS;
@@ -48,10 +50,12 @@ module FetchStage(
         if (port.rst) begin
             regPC <= PC_Path'(INSN_RESET_VECTOR);
             regFetchRequestHistory <= '0;
+            regBTB_Lookup <= '0;
         end
         else begin
             regPC <= pcIn;
             regFetchRequestHistory <= fetchRequestHistory;
+            regBTB_Lookup <= nextBTB_Lookup;
         end
 
         if (port.rst) begin
@@ -82,6 +86,21 @@ module FetchStage(
             ((regStallFromCtrl && stallFromCtrl) || ctrl.drainFetchForInterrupt);
     end
 
+
+    // Read the current group's row while choosing its successor. On restart,
+    // reissue the saved predecessor row alongside the successor PC and history.
+    always_comb begin
+        if (port.interruptAddrWE)
+            nextBTB_Lookup = '0;
+        else if (recovery.fetchRedirect.valid)
+            nextBTB_Lookup = '{valid: recovery.fetchRedirect.restorePredCtx, setIndex: recovery.fetchRedirect.predCtx.btbSet};
+        else if (regStall || !pipeReg.valid)
+            nextBTB_Lookup = regBTB_Lookup;
+        else
+            nextBTB_Lookup = '{valid: TRUE, setIndex: ToBTB_Set(pipeReg.pc)};
+        port.btbReadSet = nextBTB_Lookup.setIndex;
+        port.btbLookupValid = regBTB_Lookup.valid;
+    end
 
     logic icMiss;
     BTB_OffsetPath fetchStartOffset;
@@ -144,6 +163,7 @@ module FetchStage(
 
         // IC ミスによるストール時のために，予測結果コンテキストを残しておく
         // この保存は IC ミス判定とは無関係に行われるため，予測の遅延が短縮される
+        nextPredCtx.btbLookup = regBTB_Lookup;
         nextPredCtx.globalHistory = regFetchRequestHistory;
         nextPredCtx.takenByGroupOffset = takenByGroupOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
@@ -157,8 +177,8 @@ module FetchStage(
         fetchRequestHistory = regFetchRequestHistory;
         if (recovery.fetchRedirect.valid) begin
             fetchRequestPC = recovery.fetchRedirect.pc;
-            if (recovery.fetchRedirect.restoreHistory)
-                fetchRequestHistory = recovery.fetchRedirect.brHistory;
+            if (recovery.fetchRedirect.restorePredCtx)
+                fetchRequestHistory = recovery.fetchRedirect.predCtx.history;
         end
         else begin
             fetchRequestPC = (regStall || !pipeReg.valid) ? regPC : predictedPC;
@@ -230,6 +250,7 @@ module FetchStage(
             nextStage.brPred[fetchLane].takenAddrChangedAtDecode = FALSE;
             nextStage.brPred[fetchLane].usedRAS = responsePrediction.usedRAS && responsePrediction.takenByGroupOffset[groupOffset];
             nextStage.brPred[fetchLane].btbBrType = responsePrediction.btbBrType[groupOffset];
+            nextStage.brPred[fetchLane].btbLookup = responsePrediction.btbLookup;
             nextStage.brPred[fetchLane].btbHit = responsePrediction.btbHit[groupOffset];
             nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
             nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];

@@ -19,7 +19,8 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     // PC and path history for the same predictor lookup.
     PC_Path  fetchRequestPC;
     BranchGlobalHistoryPath fetchRequestHistory;
-    logic btbUpdateAllowed;
+    logic btbUpdateAllowed, btbLookupValid;
+    BTB_SetIndexPath btbReadSet;
 
     // Executed branch results for updating a branch predictor.
     // This signal is written back from a write back stage.
@@ -66,6 +67,8 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         fetchRequestPC,
         fetchRequestHistory,
         btbUpdateAllowed,
+        btbReadSet,
+        btbLookupValid,
         icNextReadAddrIn,
         icReadAddrIn,
         icRE,
@@ -87,8 +90,10 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         clk,
         rst,
         rstStart,
-        fetchRequestPC,
+        pcOut,
         btbUpdateAllowed,
+        btbReadSet,
+        btbLookupValid,
         brResult,
     output
         btbOut,

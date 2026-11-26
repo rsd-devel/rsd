@@ -22,13 +22,21 @@ localparam BTB_ENTRY_NUM = CONF_BTB_ENTRY_NUM;
 // The two-way replacement policy allocates the way opposite the last write to the set.
 localparam BTB_WAY_NUM = 2;
 localparam BTB_SET_NUM = BTB_ENTRY_NUM / BTB_WAY_NUM;
-localparam BTB_TAG_WIDTH = 4;
+localparam BTB_TAG_HIGH_WIDTH = 3;
+localparam BTB_TAG_LOW_WIDTH = 4;
+localparam BTB_TAG_WIDTH = BTB_TAG_HIGH_WIDTH + BTB_TAG_LOW_WIDTH;
 localparam BTB_CONTENTS_ADDR_WIDTH = 13;
 
 typedef logic [(BTB_SET_NUM > 1 ? $clog2(BTB_SET_NUM) : 1)-1:0] BTB_SetIndexPath;
 typedef logic [$clog2(BTB_WAY_NUM)-1:0] BTB_WayIndexPath;
 typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] BTB_OffsetPath;
 typedef logic [BTB_CONTENTS_ADDR_WIDTH-1:0] BTB_AddrPath;
+
+// The predecessor selects the RAM row. Save that row for training the selected branch.
+typedef struct packed {
+    logic valid;
+    BTB_SetIndexPath setIndex;
+} BTB_LookupPath;
 
 typedef struct packed {
     logic [BTB_TAG_WIDTH-1:0] block; // Partial tag of the aligned fetch group.
@@ -45,7 +53,7 @@ typedef struct packed {
     BTB_BranchType brType;
 } BTB_Entry;
 
-// The BTB takes its set and partial tag from the fetch group number.
+// The predecessor supplies the set. The current fetch group supplies the tag and offset.
 function automatic PC_Path ToFetchGroupNumber(PC_Path addr);
     return addr / FETCH_GROUP_BYTE_NUM;
 endfunction
@@ -65,7 +73,10 @@ endfunction
 
 function automatic BTB_Tag ToBTB_Tag(PC_Path addr);
     BTB_Tag tag;
-    tag.block = BTB_TAG_WIDTH'(ToFetchGroupNumber(addr) >> $clog2(BTB_SET_NUM));
+    PC_Path groupNumber;
+    groupNumber = ToFetchGroupNumber(addr);
+    // The predecessor supplies the set. Keep both nearby and distant successors distinguishable.
+    tag.block = {groupNumber[$clog2(BTB_SET_NUM) +: BTB_TAG_HIGH_WIDTH], groupNumber[BTB_TAG_LOW_WIDTH-1:0]};
     tag.offset = ToFetchGroupOffset(addr);
     return tag;
 endfunction
@@ -96,11 +107,17 @@ localparam bit USE_GSHARE = TRUE;
 localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
 typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
 
+// Restart a successor with its entry history and the row read by its predecessor.
+typedef struct packed {
+    BranchGlobalHistoryPath history;
+    BTB_SetIndexPath btbSet;
+} BranchRecoveryPath;
+
 typedef struct packed {
     logic valid;
     PC_Path pc;
-    logic restoreHistory;
-    BranchGlobalHistoryPath brHistory;
+    logic restorePredCtx;
+    BranchRecoveryPath predCtx;
 } FetchRedirectPath;
 
 // Mix the low five word-address bits of each taken branch into the path history.
@@ -138,6 +155,7 @@ typedef struct packed // struct BranchResult
     BTB_BranchType brType;
     logic mispred;      // Whether the prediction result of this branch is incorrect.
     logic btbHit;       // Tag hit at Fetch, even if Decode changed the target.
+    BTB_LookupPath btbLookup;
     BTB_WayIndexPath btbHitWay;
     logic btbEntryCorrect;  // The hit entry needs no type or target update.
     logic valid;        // Whether this result is valid or not.
@@ -150,6 +168,7 @@ typedef struct packed // struct BranchPred
 {
     PC_Path takenAddr;            // Selected target when predTaken is set.
     logic btbHit;
+    BTB_LookupPath btbLookup;
     BTB_WayIndexPath btbHitWay;
     BTB_BranchType btbBrType;     // Original BTB classification for training.
     logic usedRAS;                // Fetch selected the RAS target.

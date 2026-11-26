@@ -108,7 +108,8 @@ module IntegerRegisterWriteStage(
             // Branch results.
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
-            alWriteData[i].brHistory = brResult[i].execTaken ?
+            alWriteData[i].predCtx.btbSet = ToBTB_Set(brResult[i].brAddr);
+            alWriteData[i].predCtx.history = brResult[i].execTaken ?
                 AdvanceTakenHistory(brResult[i].globalHistory, brResult[i].brAddr) : brResult[i].globalHistory;
 
             // ExecState

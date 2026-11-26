@@ -39,7 +39,7 @@ interface RecoveryManagerIF( input logic clk, rst );
     logic    toCommitPhase;
     AddrPath recoveredPC_FromCommitStage;
     AddrPath recoveredPC_FromRwStage;
-    BranchGlobalHistoryPath recoveredBrHistory_FromCommitStage, recoveredBrHistory_FromRwStage;
+    BranchRecoveryPath recoveredPredCtx_FromCommitStage, recoveredPredCtx_FromRwStage;
 
     // For fault handling
     AddrPath faultingDataAddr;
@@ -119,8 +119,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
-        recoveredBrHistory_FromCommitStage,
-        recoveredBrHistory_FromRwStage,
+        recoveredPredCtx_FromCommitStage,
+        recoveredPredCtx_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,
@@ -444,8 +444,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
-        recoveredBrHistory_FromCommitStage,
-        recoveredBrHistory_FromRwStage,
+        recoveredPredCtx_FromCommitStage,
+        recoveredPredCtx_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,

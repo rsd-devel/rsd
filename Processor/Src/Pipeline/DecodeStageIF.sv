@@ -17,7 +17,7 @@ interface DecodeStageIF( input logic clk, rst );
     RenameStageRegPath nextStage[ DECODE_WIDTH ];
     logic nextFlush;
     AddrPath nextRecoveredPC;
-    BranchGlobalHistoryPath nextRecoveredBrHistory;
+    BranchRecoveryPath nextRecoveredPredCtx;
 
     ELP_State_Type elpState;
     logic recoverELP;
@@ -37,7 +37,7 @@ interface DecodeStageIF( input logic clk, rst );
     output 
         nextStage,
         nextFlush,
-        nextRecoveredBrHistory,
+        nextRecoveredPredCtx,
         nextRecoveredPC,
         elpState
     );
@@ -46,7 +46,7 @@ interface DecodeStageIF( input logic clk, rst );
     input
         nextStage,
         nextFlush,
-        nextRecoveredBrHistory,
+        nextRecoveredPredCtx,
         nextRecoveredPC
     );
 

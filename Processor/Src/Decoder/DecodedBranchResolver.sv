@@ -28,7 +28,7 @@ output
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
     PC_Path recoveredPC,
-    BranchGlobalHistoryPath recoveredBrHistory
+    BranchRecoveryPath recoveredPredCtx
 );
     PC_Path decodedPC[DECODE_WIDTH];
     RISCV_ISF_U isfU[DECODE_WIDTH];
@@ -155,9 +155,10 @@ output
         recoveredPC = decodedPC[addrCheckLane];
         // Restart from the redirecting instruction's checkpoint, discarding younger predictions.
         // Include its own taken event only for a branch redirected by Decode.
-        recoveredBrHistory = brPredIn[addrCheckLane].globalHistory;
+        recoveredPredCtx.btbSet = ToBTB_Set(pc[addrCheckLane]);
+        recoveredPredCtx.history = brPredIn[addrCheckLane].globalHistory;
         if (insnInfo[addrCheckLane].writePC)
-            recoveredBrHistory = AdvanceTakenHistory(brPredIn[addrCheckLane].globalHistory, pc[addrCheckLane]);
+            recoveredPredCtx.history = AdvanceTakenHistory(brPredIn[addrCheckLane].globalHistory, pc[addrCheckLane]);
 
         if (flushTriggered) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin

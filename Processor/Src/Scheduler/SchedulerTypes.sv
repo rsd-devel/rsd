@@ -125,7 +125,7 @@ typedef struct packed // ActiveListWriteData
     StoreQueueIndexPath storeQueuePtr;
     ExecutionState      state;
     PC_Path             pc;
-    BranchGlobalHistoryPath brHistory; // History after the resolved branch.
+    BranchRecoveryPath predCtx; // Predictor state for the resolved successor.
     AddrPath            dataAddr;
     logic               isBranch;
     logic               isStore;

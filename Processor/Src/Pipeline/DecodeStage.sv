@@ -168,7 +168,7 @@ module DecodeStage(
     logic flushTriggered;
     BranchPred brPredOut[DECODE_WIDTH];
     PC_Path recoveredPC;
-    BranchGlobalHistoryPath recoveredBrHistory;
+    BranchRecoveryPath recoveredPredCtx;
 
     always_comb begin
         for (int i = 0; i < DECODE_WIDTH; i++) begin
@@ -191,13 +191,13 @@ module DecodeStage(
         .flushTriggered(flushTriggered),
         .brPredOut(brPredOut),
         .recoveredPC(recoveredPC),
-        .recoveredBrHistory(recoveredBrHistory)
+        .recoveredPredCtx(recoveredPredCtx)
     );
     
     always_comb begin
         port.nextFlush = complete && flushTriggered && !clear;
         port.nextRecoveredPC = recoveredPC;
-        port.nextRecoveredBrHistory = recoveredBrHistory;
+        port.nextRecoveredPredCtx = recoveredPredCtx;
     end
     
     AllDecodedMicroOpPath remainingValidMOps;

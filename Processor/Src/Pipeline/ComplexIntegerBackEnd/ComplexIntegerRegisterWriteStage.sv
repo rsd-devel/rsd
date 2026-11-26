@@ -104,7 +104,7 @@ module ComplexIntegerRegisterWriteStage(
             alWriteData[i].ptr = iqData[i].activeListPtr;
             alWriteData[i].pc = iqData[i].pc;
             alWriteData[i].dataAddr = '0;
-            alWriteData[i].brHistory = '0;
+            alWriteData[i].predCtx = '0;
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = FALSE;
             alWriteData[i].elp = LP_NOT_EXPECTED;
