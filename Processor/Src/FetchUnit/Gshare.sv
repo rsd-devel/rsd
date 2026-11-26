@@ -17,24 +17,19 @@ module Gshare(
     ControllerIF.BranchPredictor ctrl
 );
 
-    localparam ROW_NUM = PHT_ENTRY_NUM / FETCH_WIDTH;
     `RSD_STATIC_ASSERT(PHT_ENTRY_NUM % FETCH_WIDTH == 0, "A PHT row must contain a whole fetch group.");
-    `RSD_STATIC_ASSERT(ROW_NUM >= 2, "The PHT must contain at least two rows.");
+    `RSD_STATIC_ASSERT(PHT_ROW_NUM >= 2, "The PHT must contain at least two rows.");
     localparam BANK_NUM = 2;
-    localparam BANK_ENTRY_NUM = ROW_NUM / BANK_NUM;
+    localparam BANK_ENTRY_NUM = PHT_ROW_NUM / BANK_NUM;
     typedef logic [$clog2(BANK_ENTRY_NUM > 1 ? BANK_ENTRY_NUM : 2)-1:0] BankIndexPath;
-    typedef logic [$clog2(ROW_NUM)-1:0] RowIndexPath;
-    typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] RowOffsetPath;
 
     typedef PHT_EntryPath [FETCH_WIDTH-1:0] RowPath;
     RowPath readRow, trainingRow, writeRow, heldTrainingRow;
-    RowPath bankRow[BANK_NUM];
-    RowIndexPath readRowIndex, trainingRowIndex;
+    RowPath bankRow[BANK_NUM], regBankRow[BANK_NUM];
+    PHT_RowIndexPath trainingRowIndex;
     BankIndexPath resetBankAddr;
-    logic predictionBank, regPredictionBank, headBank;
+    logic predictionBank, regPredictionBank, regRowBank, headBank;
     logic readTraining, writeEnable, regReadTraining;
-    PHT_IndexPath readIndex;
-    RowOffsetPath regOffsetXor;
 
     // Adjacent PHT rows occupy opposite banks. Fetch owns its bank every cycle.
     for (genvar b = 0; b < BANK_NUM; b++) begin : bank
@@ -45,26 +40,32 @@ module Gshare(
         ) counterArray (
             .clk(port.clk), .we(bankWE), .rwa(bankAddr), .wv(writeRow), .rv(bankRow[b])
         );
+        // Keep the raw counters before B selects its bank output and slot.
+        always_ff @(posedge port.clk) begin
+            if (port.capturePredRows)
+                regBankRow[b] <= bankRow[b];
+        end
         always_comb begin
             // Initialize both banks in parallel so the full table fits in the reset sequence.
             bankWE = port.rst || (writeEnable && headBank == b);
             if (port.rst)
                 bankAddr = resetBankAddr;
             else if (predictionBank == b)
-                bankAddr = BankIndexPath'(readRowIndex / BANK_NUM);
+                bankAddr = BankIndexPath'(port.phtReadRow / BANK_NUM);
             else
                 bankAddr = BankIndexPath'(trainingRowIndex / BANK_NUM);
         end
     end
 
     always_comb begin
-        predictionBank = readRowIndex[0];
-        readRow = bankRow[regPredictionBank];
+        predictionBank = port.phtReadRow[0];
+        readRow = regBankRow[regRowBank];
     end
 
     always_ff @(posedge port.clk) begin
         regPredictionBank <= predictionBank;
-        regOffsetXor <= RowOffsetPath'(readIndex % FETCH_WIDTH);
+        if (port.capturePredRows)
+            regRowBank <= regPredictionBank;
         if (port.rstStart)
             resetBankAddr <= '0;
         else if (port.rst)
@@ -74,25 +75,15 @@ module Gshare(
     PHT_EntryPath counters[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
     always_comb begin
-        // If the history overlaps the slot bits, undo the XOR permutation of the returned row.
+        // A issued this row. B selects the counter for each offset after the RAM.
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            counters[groupOffset] = PHT_EntryPath'(readRow[RowOffsetPath'(groupOffset) ^ regOffsetXor]);
+            PHT_RowOffsetPath offset;
+            offset = ToPHT_CounterOffset(port.pcOut, PHT_RowOffsetPath'(groupOffset));
+            counters[groupOffset] = port.brLookupValid ? readRow[offset] : '0;
             brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1];
         end
         port.brPredTaken = brPredTaken;
         port.phtPrevValue = counters;
-    end
-
-    function automatic PHT_IndexPath ToPHT_Index(PC_Path pc, BranchGlobalHistoryPath history);
-        PHT_IndexPath index;
-        index = PHT_IndexPath'(pc >> INSN_ADDR_BIT_WIDTH);
-        index[PHT_ENTRY_NUM_BIT_WIDTH-1 -: BRANCH_GLOBAL_HISTORY_BIT_WIDTH] ^= history;
-        return index;
-    endfunction
-
-    always_comb begin
-        readIndex = ToPHT_Index(ToFetchGroupBase(port.fetchRequestPC), port.fetchRequestHistory);
-        readRowIndex = RowIndexPath'(readIndex / FETCH_WIDTH);
     end
 
     typedef struct packed {
@@ -121,7 +112,7 @@ module Gshare(
     always_comb begin
         pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            queueIn[i].index = ToPHT_Index(port.brResult[i].brAddr, port.brResult[i].globalHistory);
+            queueIn[i].index = ToPHT_TrainingIndex(port.brResult[i].brLookup.phtRow, port.brResult[i].brAddr);
             queueIn[i].taken = port.brResult[i].execTaken;
 
             // Drop arrivals when already full. On a read cycle a nearly full
@@ -129,7 +120,7 @@ module Gshare(
             queueWA[i] = tailPtr + QueuePointerPath'(pushCount);
             queueWE[i] = !port.rst && count < PHT_QUEUE_SIZE &&
                          count + pushCount < PHT_QUEUE_SIZE + int'(writeEnable) &&
-                         port.brResult[i].valid && port.brResult[i].brType == BTB_COND &&
+                         port.brResult[i].valid && port.brResult[i].brLookup.valid && port.brResult[i].brType == BTB_COND &&
                          // Skip reinforcement of a counter already saturated at prediction time.
                          (port.brResult[i].execTaken ? port.brResult[i].phtPrevValue != PHT_ENTRY_MAX
                                                      : port.brResult[i].phtPrevValue != '0);
@@ -152,7 +143,7 @@ module Gshare(
 
     always_comb begin
         update = queue[headPtr];
-        trainingRowIndex = RowIndexPath'(update.index / FETCH_WIDTH);
+        trainingRowIndex = PHT_RowIndexPath'(update.index / FETCH_WIDTH);
         headBank = trainingRowIndex[0];
         readTraining = !port.rst && count != 0 && headBank != predictionBank && !rowReady;
         writeEnable = !port.rst && headBank != predictionBank && rowReady;

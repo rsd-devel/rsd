@@ -109,6 +109,8 @@ module IntegerRegisterWriteStage(
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
             alWriteData[i].predCtx.btbSet = ToBTB_Set(brResult[i].brAddr);
+            // Re-read this branch's rows for its corrected successor. Its own training uses brLookup.
+            alWriteData[i].predCtx.phtRow = ToPHT_Row(brResult[i].brAddr, brResult[i].globalHistory);
             alWriteData[i].predCtx.history = brResult[i].execTaken ?
                 AdvanceTakenHistory(brResult[i].globalHistory, brResult[i].brAddr) : brResult[i].globalHistory;
 

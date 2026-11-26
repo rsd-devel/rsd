@@ -32,12 +32,6 @@ typedef logic [$clog2(BTB_WAY_NUM)-1:0] BTB_WayIndexPath;
 typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] BTB_OffsetPath;
 typedef logic [BTB_CONTENTS_ADDR_WIDTH-1:0] BTB_AddrPath;
 
-// The predecessor selects the RAM row. Save that row for training the selected branch.
-typedef struct packed {
-    logic valid;
-    BTB_SetIndexPath setIndex;
-} BTB_LookupPath;
-
 typedef struct packed {
     logic [BTB_TAG_WIDTH-1:0] block; // Partial tag of the aligned fetch group.
     BTB_OffsetPath offset;            // Instruction position within that group.
@@ -107,19 +101,6 @@ localparam bit USE_GSHARE = TRUE;
 localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
 typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
 
-// Restart a successor with its entry history and the row read by its predecessor.
-typedef struct packed {
-    BranchGlobalHistoryPath history;
-    BTB_SetIndexPath btbSet;
-} BranchRecoveryPath;
-
-typedef struct packed {
-    logic valid;
-    PC_Path pc;
-    logic restorePredCtx;
-    BranchRecoveryPath predCtx;
-} FetchRedirectPath;
-
 // Mix the low five word-address bits of each taken branch into the path history.
 function automatic BranchGlobalHistoryPath AdvanceTakenHistory(BranchGlobalHistoryPath history, PC_Path branchPC);
     return (history << 1) ^ BranchGlobalHistoryPath'(branchPC[INSN_ADDR_BIT_WIDTH +: 5]);
@@ -142,6 +123,52 @@ typedef logic [PHT_ENTRY_WIDTH-1:0] PHT_EntryPath;
 localparam PHT_QUEUE_SIZE = 4;
 
 
+localparam PHT_ROW_NUM = PHT_ENTRY_NUM / FETCH_WIDTH;
+typedef logic [$clog2(PHT_ROW_NUM > 1 ? PHT_ROW_NUM : 2)-1:0] PHT_RowIndexPath;
+typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] PHT_RowOffsetPath;
+
+// Read the successor's counter group using the predecessor's PC and entry history.
+function automatic PHT_RowIndexPath ToPHT_Row(PC_Path pc, BranchGlobalHistoryPath history);
+    PHT_IndexPath index;
+    index = PHT_IndexPath'(pc >> INSN_ADDR_BIT_WIDTH);
+    index[PHT_ENTRY_NUM_BIT_WIDTH-1 -: BRANCH_GLOBAL_HISTORY_BIT_WIDTH] ^= history;
+    return PHT_RowIndexPath'(index / FETCH_WIDTH);
+endfunction
+
+// After the row arrives, the current group's PC selects the order within each counter pair.
+function automatic PHT_RowOffsetPath ToPHT_CounterOffset(PC_Path pc, PHT_RowOffsetPath groupOffset);
+    if (FETCH_WIDTH == 1)
+        return '0;
+    return groupOffset ^ PHT_RowOffsetPath'(pc[11]);
+endfunction
+
+function automatic PHT_IndexPath ToPHT_TrainingIndex(PHT_RowIndexPath row, PC_Path branchPC);
+    PHT_RowOffsetPath offset;
+    offset = ToPHT_CounterOffset(branchPC, PHT_RowOffsetPath'(ToFetchGroupOffset(branchPC)));
+    return PHT_IndexPath'(row * FETCH_WIDTH + offset);
+endfunction
+
+// Carry the predecessor's RAM addresses with this group's predictions for training.
+typedef struct packed {
+    logic valid;
+    BTB_SetIndexPath btbSet;
+    PHT_RowIndexPath phtRow;
+} BranchLookupPath;
+
+// Restart a successor with its entry history and the row read by its predecessor.
+typedef struct packed {
+    BranchGlobalHistoryPath history;
+    BTB_SetIndexPath btbSet;
+    PHT_RowIndexPath phtRow;
+} BranchRecoveryPath;
+
+typedef struct packed {
+    logic valid;
+    PC_Path pc;
+    logic restorePredCtx;
+    BranchRecoveryPath predCtx;
+} FetchRedirectPath;
+
 //
 // Result/prediction
 //
@@ -155,7 +182,7 @@ typedef struct packed // struct BranchResult
     BTB_BranchType brType;
     logic mispred;      // Whether the prediction result of this branch is incorrect.
     logic btbHit;       // Tag hit at Fetch, even if Decode changed the target.
-    BTB_LookupPath btbLookup;
+    BranchLookupPath brLookup;
     BTB_WayIndexPath btbHitWay;
     logic btbEntryCorrect;  // The hit entry needs no type or target update.
     logic valid;        // Whether this result is valid or not.
@@ -168,7 +195,7 @@ typedef struct packed // struct BranchPred
 {
     PC_Path takenAddr;            // Selected target when predTaken is set.
     logic btbHit;
-    BTB_LookupPath btbLookup;
+    BranchLookupPath brLookup;
     BTB_WayIndexPath btbHitWay;
     BTB_BranchType btbBrType;     // Original BTB classification for training.
     logic usedRAS;                // Fetch selected the RAS target.

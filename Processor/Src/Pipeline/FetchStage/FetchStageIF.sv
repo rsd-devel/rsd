@@ -16,11 +16,10 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     // Registered PC used as the interrupt return address.
     PC_Path  pcOut;
 
-    // PC and path history for the same predictor lookup.
-    PC_Path  fetchRequestPC;
-    BranchGlobalHistoryPath fetchRequestHistory;
-    logic btbUpdateAllowed, btbCaptureRow, btbLookupValid;
+    // The BTB and PHT read and capture the predecessor's rows on the same edges.
+    logic btbUpdateAllowed, capturePredRows, brLookupValid;
     BTB_SetIndexPath btbReadSet;
+    PHT_RowIndexPath phtReadRow;
 
     // Executed branch results for updating a branch predictor.
     // This signal is written back from a write back stage.
@@ -64,12 +63,11 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         icReadDataOut,
     output
         pcOut,
-        fetchRequestPC,
-        fetchRequestHistory,
+        phtReadRow,
         btbUpdateAllowed,
-        btbCaptureRow,
+        capturePredRows,
         btbReadSet,
-        btbLookupValid,
+        brLookupValid,
         icNextReadAddrIn,
         icReadAddrIn,
         icRE,
@@ -93,9 +91,9 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         rstStart,
         pcOut,
         btbUpdateAllowed,
-        btbCaptureRow,
+        capturePredRows,
         btbReadSet,
-        btbLookupValid,
+        brLookupValid,
         brResult,
     output
         btbOut,
@@ -109,8 +107,10 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         clk,
         rst,
         rstStart,
-        fetchRequestPC,
-        fetchRequestHistory,
+        pcOut,
+        phtReadRow,
+        capturePredRows,
+        brLookupValid,
         brResult,
     output
         brPredTaken,

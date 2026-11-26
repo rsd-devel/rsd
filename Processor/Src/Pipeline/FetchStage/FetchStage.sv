@@ -16,8 +16,8 @@ module FetchStage(
     PC_Path regPC, pcIn;
     PC_Path predictedPC, fetchRequestPC;
     BranchGlobalHistoryPath regFetchRequestHistory, fetchRequestHistory;
-    BTB_LookupPath regBTB_Lookup, nextBTB_Lookup;
-    logic refillBTB, regRefillBTB, captureBTB_Row;
+    BranchLookupPath regBrLookup, nextBrLookup;
+    logic refillPredRows, regRefillPredRows, advancePredRows;
     FetchStageRegPath nextPipeReg, pipeReg;
     PreDecodeStageRegPath nextStage;
 
@@ -30,7 +30,7 @@ module FetchStage(
     typedef struct packed {
         logic [FETCH_WIDTH-1:0] takenByGroupOffset;
         BranchGlobalHistoryPath globalHistory;
-        BTB_LookupPath btbLookup;
+        BranchLookupPath brLookup;
         logic [FETCH_WIDTH-1:0] btbHit;
         BTB_BranchType [FETCH_WIDTH-1:0] btbBrType;
         logic usedRAS;
@@ -51,14 +51,14 @@ module FetchStage(
         if (port.rst) begin
             regPC <= PC_Path'(INSN_RESET_VECTOR);
             regFetchRequestHistory <= '0;
-            regBTB_Lookup <= '0;
-            regRefillBTB <= FALSE;
+            regBrLookup <= '0;
+            regRefillPredRows <= FALSE;
         end
         else begin
             regPC <= pcIn;
             regFetchRequestHistory <= fetchRequestHistory;
-            regBTB_Lookup <= nextBTB_Lookup;
-            regRefillBTB <= refillBTB;
+            regBrLookup <= nextBrLookup;
+            regRefillPredRows <= refillPredRows;
         end
 
         if (port.rst) begin
@@ -66,7 +66,7 @@ module FetchStage(
             regPredCtx <= '0;
         end
         else begin
-            if (!stallFromCtrl || refillBTB)
+            if (!stallFromCtrl || refillPredRows)
                 pipeReg <= nextPipeReg;
             // Save this group's prediction before the predictor advances during a stall.
             if (beginStallFromCtrl)
@@ -90,26 +90,35 @@ module FetchStage(
     end
 
 
-    // While the RAM reads A, the preceding row and regPC select B. Capture
-    // row(A) with B at the edge and start reading row(B) for the next group.
+    // Read the BTB and PHT for A while the preceding rows and regPC select B.
+    // Capture A's candidates with B at the edge and start both reads for B.
     always_comb begin
-        refillBTB = !port.interruptAddrWE && recovery.fetchRedirect.valid && recovery.fetchRedirect.restorePredCtx;
-        port.btbReadSet = refillBTB ? recovery.fetchRedirect.predCtx.btbSet : ToBTB_Set(pcIn);
-        captureBTB_Row = regRefillBTB || (!regStall && pipeReg.valid);
-        port.btbCaptureRow = captureBTB_Row && !recovery.fetchRedirect.valid && !port.interruptAddrWE;
+        refillPredRows = !port.interruptAddrWE && recovery.fetchRedirect.valid && recovery.fetchRedirect.restorePredCtx;
+        port.btbReadSet = refillPredRows ? recovery.fetchRedirect.predCtx.btbSet : ToBTB_Set(pcIn);
+        port.phtReadRow = refillPredRows ? recovery.fetchRedirect.predCtx.phtRow : ToPHT_Row(pcIn, fetchRequestHistory);
+        advancePredRows = regRefillPredRows || (!regStall && pipeReg.valid);
+        port.capturePredRows = advancePredRows && !recovery.fetchRedirect.valid && !port.interruptAddrWE;
 
-        nextBTB_Lookup = regBTB_Lookup;
-        if (refillBTB) begin
+        nextBrLookup = regBrLookup;
+        if (refillPredRows) begin
             // The predecessor row is ready one edge after a warm redirect.
-            nextBTB_Lookup = '{valid: FALSE, setIndex: recovery.fetchRedirect.predCtx.btbSet};
+            nextBrLookup = '{
+                valid: FALSE,
+                btbSet: recovery.fetchRedirect.predCtx.btbSet,
+                phtRow: recovery.fetchRedirect.predCtx.phtRow
+            };
         end
         else if (port.interruptAddrWE || recovery.fetchRedirect.valid)
-            nextBTB_Lookup = '0;
-        else if (regRefillBTB)
-            nextBTB_Lookup.valid = TRUE;
-        else if (captureBTB_Row)
-            nextBTB_Lookup = '{valid: TRUE, setIndex: ToBTB_Set(regPC)};
-        port.btbLookupValid = regBTB_Lookup.valid;
+            nextBrLookup = '0;
+        else if (regRefillPredRows)
+            nextBrLookup.valid = TRUE;
+        else if (advancePredRows)
+            nextBrLookup = '{
+                valid: TRUE,
+                btbSet: ToBTB_Set(regPC),
+                phtRow: ToPHT_Row(regPC, regFetchRequestHistory)
+            };
+        port.brLookupValid = regBrLookup.valid;
     end
 
     logic icMiss;
@@ -173,7 +182,7 @@ module FetchStage(
 
         // IC ミスによるストール時のために，予測結果コンテキストを残しておく
         // この保存は IC ミス判定とは無関係に行われるため，予測の遅延が短縮される
-        nextPredCtx.btbLookup = regBTB_Lookup;
+        nextPredCtx.brLookup = regBrLookup;
         nextPredCtx.globalHistory = regFetchRequestHistory;
         nextPredCtx.takenByGroupOffset = takenByGroupOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
@@ -199,9 +208,6 @@ module FetchStage(
         if (!USE_GSHARE)
             fetchRequestHistory = '0;
 
-        port.fetchRequestPC = fetchRequestPC;
-        port.fetchRequestHistory = fetchRequestHistory;
-
         if (port.interruptAddrWE)
             pcIn = port.interruptAddrIn;
         else
@@ -219,7 +225,7 @@ module FetchStage(
 `ifndef RSD_DISABLE_DEBUG_REGISTER
         nextPipeReg.sid = curSID;
 `endif
-        nextPipeReg.valid = !port.interruptAddrWE && !clear && !refillBTB;
+        nextPipeReg.valid = !port.interruptAddrWE && !clear && !refillPredRows;
 
         // Repeat the current I-cache lookup while the request is stalled.
         if (pipeReg.valid && stall)
@@ -260,7 +266,7 @@ module FetchStage(
             nextStage.brPred[fetchLane].takenAddrChangedAtDecode = FALSE;
             nextStage.brPred[fetchLane].usedRAS = responsePrediction.usedRAS && responsePrediction.takenByGroupOffset[groupOffset];
             nextStage.brPred[fetchLane].btbBrType = responsePrediction.btbBrType[groupOffset];
-            nextStage.brPred[fetchLane].btbLookup = responsePrediction.btbLookup;
+            nextStage.brPred[fetchLane].brLookup = responsePrediction.brLookup;
             nextStage.brPred[fetchLane].btbHit = responsePrediction.btbHit[groupOffset];
             nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
             nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];

@@ -228,7 +228,7 @@ module IntegerExecutionStage(
                 brResult[i].nextAddr = ToPC_FromAddr(pc[i] + INSN_BYTE_WIDTH);
             end
             targetMatch = bPred[i].takenAddr == brResult[i].nextAddr;
-            brResult[i].btbLookup = bPred[i].btbLookup;
+            brResult[i].brLookup = bPred[i].brLookup;
             brResult[i].btbHit = bPred[i].btbHit;
             brResult[i].btbHitWay = bPred[i].btbHitWay;
             // A return predicted through the RAS leaves the BTB fallback target untouched.

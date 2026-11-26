@@ -55,7 +55,7 @@ module BTB(
 
     // Read both ways with A for a full cycle. B selects from that row after this edge.
     always_ff @(posedge port.clk) begin
-        if (port.btbCaptureRow)
+        if (port.capturePredRows)
             regReadRow <= readRow;
     end
 
@@ -90,7 +90,7 @@ module BTB(
         hitByOffset = '0;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
             wayEntry[w] = BTB_Entry'(regReadRow[w]);
-            blockHit[w] = port.btbLookupValid && wayEntry[w].tag.block == lookupTag.block;
+            blockHit[w] = port.brLookupValid && wayEntry[w].tag.block == lookupTag.block;
             if (blockHit[w])
                 hitByOffset[wayEntry[w].tag.offset] = TRUE;
         end
@@ -119,7 +119,7 @@ module BTB(
     always_comb begin
         pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            queueIn[i].setIndex = port.brResult[i].btbLookup.setIndex;
+            queueIn[i].setIndex = port.brResult[i].brLookup.btbSet;
             queueIn[i].entry.tag = ToBTB_Tag(port.brResult[i].brAddr);
             queueIn[i].entry.data = ToBTB_Addr(port.brResult[i].nextAddr);
             queueIn[i].entry.brType = port.brResult[i].brType;
@@ -127,7 +127,7 @@ module BTB(
             queueIn[i].hitWay = port.brResult[i].btbHitWay;
             queueWA[i] = tailPtr + BTBQueuePointerPath'(pushCount);
             // Earlier lanes take the available slots, including a slot freed by this write.
-            queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken && port.brResult[i].btbLookup.valid &&
+            queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken && port.brResult[i].brLookup.valid &&
                          !port.brResult[i].btbEntryCorrect &&
                          count + pushCount < BTB_QUEUE_SIZE + int'(writeEnable);
             if (queueWE[i])
