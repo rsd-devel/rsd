@@ -43,8 +43,7 @@ module TestBranchPredictorQueue;
         result.brAddr = 32'h80000000 + index * INSN_BYTE_WIDTH;
         // Use a sequential predecessor by default. Non-sequential edges specify theirs below.
         result.brLookup.valid = TRUE;
-        result.brLookup.btbSet = ToBTB_Set(result.brAddr - FETCH_GROUP_BYTE_NUM);
-        result.brLookup.phtRow = ToPHT_Row(result.brAddr - FETCH_GROUP_BYTE_NUM, '0);
+        result.brLookup.ctx = MakeBranchHistoryContext(result.brAddr - FETCH_GROUP_BYTE_NUM, '0, FALSE);
         result.nextAddr = result.brAddr + 128;
         result.phtPrevValue = PHT_EntryPath'(index % PHT_ENTRY_MAX);
         return result;
@@ -68,13 +67,12 @@ module TestBranchPredictorQueue;
     endtask
 
     task ReadGroupFrom(input MemoryMapTypes::PC_Path pc, input MemoryMapTypes::PC_Path predecessor,
-                       input BranchGlobalHistoryPath predecessorHistory = '0);
+                       input BranchGlobalHistoryPath predecessorHistory = '0, input logic predecessorTaken = FALSE);
         @(negedge clk);
         recovery.fetchRedirect.pc = pc;
         recovery.fetchRedirect.restorePredCtx = TRUE;
         recovery.fetchRedirect.valid = TRUE;
-        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor);
-        recovery.fetchRedirect.predCtx.phtRow = ToPHT_Row(predecessor, predecessorHistory);
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(predecessor, predecessorHistory, predecessorTaken);
         CompleteWarmRedirect();
     endtask
 
@@ -126,10 +124,10 @@ module TestBranchPredictorQueue;
         callOp.brType = BTB_CALL;
         callOp.nextAddr = retOp.brAddr;
         retOp.brType = BTB_RETURN;
-        retOp.brLookup.btbSet = ToBTB_Set(callOp.brAddr);
+        retOp.brLookup.ctx = MakeBranchHistoryContext(callOp.brAddr, '0, TRUE);
         WriteBTB(callOp, retOp);
 
-        ReadGroupFrom(retOp.brAddr, callOp.brAddr);
+        ReadGroupFrom(retOp.brAddr, callOp.brAddr, '0, TRUE);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
@@ -156,16 +154,17 @@ module TestBranchPredictorQueue;
             callOp.brAddr = firstCall.brAddr + i * CALL_STRIDE;
             retOp.brAddr = callOp.brAddr + INSN_BYTE_WIDTH;
             callOp.nextAddr = i == fetch.RAS_ENTRY_NUM ? retOp.brAddr : callOp.brAddr + CALL_STRIDE;
-            callOp.brLookup.btbSet = i == 0 ? firstCall.brLookup.btbSet : ToBTB_Set(callOp.brAddr - CALL_STRIDE);
+            callOp.brLookup.ctx = i == 0 ? firstCall.brLookup.ctx :
+                MakeBranchHistoryContext(callOp.brAddr - CALL_STRIDE, '0, TRUE);
             // Returns are reached from the next deeper return, except at the innermost call.
-            retOp.brLookup.btbSet = ToBTB_Set(i == fetch.RAS_ENTRY_NUM ? callOp.brAddr : retOp.brAddr + CALL_STRIDE);
+            retOp.brLookup.ctx = MakeBranchHistoryContext(i == fetch.RAS_ENTRY_NUM ? callOp.brAddr : retOp.brAddr + CALL_STRIDE, '0, TRUE);
             WriteBTB(callOp, retOp);
         end
         // The deepest call returns to its own return instruction for the first pop.
-        retOp.brLookup.btbSet = ToBTB_Set(retOp.brAddr);
+        retOp.brLookup.ctx = MakeBranchHistoryContext(retOp.brAddr, '0, TRUE);
         WriteBTB(retOp);
         // When the RAS wraps, the oldest surviving return leads back to the innermost one.
-        retOp.brLookup.btbSet = ToBTB_Set(firstCall.brAddr + CALL_STRIDE + INSN_BYTE_WIDTH);
+        retOp.brLookup.ctx = MakeBranchHistoryContext(firstCall.brAddr + CALL_STRIDE + INSN_BYTE_WIDTH, '0, TRUE);
         WriteBTB(retOp);
         ReadGroup(firstCall.brAddr);
         recovery.fetchRedirect.valid = FALSE;
@@ -281,8 +280,8 @@ module TestBranchPredictorQueue;
                     ramCounters[s] = counters[ramIndex * FETCH_WIDTH + s];
                 #1;
                 if (port.brLookupValid) begin
-                    assert (capturedValid && capturedIndex === fetch.regBrLookup.phtRow)
-                        else $fatal(1, "PHT %m captured row %h but Fetch used row %h", capturedIndex, fetch.regBrLookup.phtRow);
+                    assert (capturedValid && capturedIndex === BranchContextPHT_Row(fetch.regBrLookup.ctx))
+                        else $fatal(1, "PHT %m captured row %h but Fetch used row %h", capturedIndex, BranchContextPHT_Row(fetch.regBrLookup.ctx));
                     assert ((useGshare ? gshare.readRow : bimodal.readRow) === capturedCounters)
                         else $fatal(1, "PHT %m row %h returned raw counters %h, expected %h", capturedIndex,
                                     useGshare ? gshare.readRow : bimodal.readRow, capturedCounters);
@@ -290,8 +289,8 @@ module TestBranchPredictorQueue;
                 headCanRun = FALSE;
                 if (pending.size() != 0) begin
                     oldest = pending[0];
-                    headIndex = CounterIndex(oldest.brLookup.phtRow, oldest.brAddr, ToFetchGroupOffset(oldest.brAddr));
-                    headCanRun = oldest.brLookup.phtRow[0] != readRow[0];
+                    headIndex = CounterIndex(BranchContextPHT_Row(oldest.brLookup.ctx), oldest.brAddr, ToFetchGroupOffset(oldest.brAddr));
+                    headCanRun = (headIndex / FETCH_WIDTH) % 2 != readRow[0];
                 end
                 assert (count == pending.size() && readTraining == (headCanRun && !rowReady) &&
                         writeEnable == (headCanRun && rowReady))
@@ -331,7 +330,7 @@ module TestBranchPredictorQueue;
     task ReadPHTGroup(input MemoryMapTypes::PC_Path pc);
         @(negedge clk);
         recovery.fetchRedirect.pc = pc;
-        recovery.fetchRedirect.predCtx.phtRow = ToPHT_Row(pc - FETCH_GROUP_BYTE_NUM, '0);
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(pc - FETCH_GROUP_BYTE_NUM, '0, FALSE);
         @(posedge clk);
         #1;
     endtask
@@ -390,7 +389,7 @@ module TestBranchPredictorQueue;
         for (int i = 0; i < RESULTS; i += INT_ISSUE_WIDTH) begin
             @(negedge clk);
             recovery.fetchRedirect.pc = ((i / INT_ISSUE_WIDTH) % 2) * FETCH_WIDTH * INSN_BYTE_WIDTH;
-            recovery.fetchRedirect.predCtx.phtRow = ToPHT_Row(recovery.fetchRedirect.pc - FETCH_GROUP_BYTE_NUM, '0);
+            recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(recovery.fetchRedirect.pc - FETCH_GROUP_BYTE_NUM, '0, FALSE);
             foreach (port.brResult[lane]) begin
                 result = MakeResult(i + lane);
                 result.phtPrevValue = PHT_ENTRY_MAX / 2 + 1;
@@ -470,45 +469,46 @@ module TestBranchPredictorQueue;
 
     task CheckPHTHistory;
         BranchResult result;
+        BranchGlobalHistoryPath history;
         result = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH);
-        result.globalHistory = '1;
+        history = USE_GSHARE ? '1 : '0;
         result.phtPrevValue = PHT_ENTRY_MAX;
         result.execTaken = FALSE;
-        result.brLookup.phtRow = ToPHT_Row(result.brAddr - FETCH_GROUP_BYTE_NUM, result.globalHistory);
+        result.brLookup.ctx = MakeBranchHistoryContext(result.brAddr - FETCH_GROUP_BYTE_NUM, history, FALSE);
         @(negedge clk);
         port.brResult[INT_ISSUE_WIDTH-1] = result;
         @(negedge clk);
         ClearResults();
         DrainPHT();
-        ReadGroupFrom(result.brAddr, result.brAddr - FETCH_GROUP_BYTE_NUM, result.globalHistory);
+        ReadGroupFrom(result.brAddr, result.brAddr - FETCH_GROUP_BYTE_NUM, history);
         ReadGroup(result.brAddr);
         // Fetch receives the selected redirect together with its history policy.
         @(negedge clk);
-        recovery.fetchRedirect.predCtx.history = result.globalHistory;
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(result.brAddr - FETCH_GROUP_BYTE_NUM, history, FALSE);
         @(posedge clk);
         #1;
-        assert (port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
+        assert (BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx) === history)
             else $fatal(1, "Fetch did not restore the selected branch history");
         @(negedge clk);
         recovery.fetchRedirect.pc = result.brAddr + FETCH_WIDTH * INSN_BYTE_WIDTH;
         recovery.fetchRedirect.restorePredCtx = FALSE;
-        recovery.fetchRedirect.predCtx.history = BranchGlobalHistoryPath'(1);
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(result.brAddr,
+            USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0, FALSE);
         @(posedge clk);
         #1;
-        assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
-                port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? result.globalHistory : '0))
+        assert (port.nextStage.pc === recovery.fetchRedirect.pc && !port.nextStage.brPred[0].brLookup.valid &&
+                BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx) === history)
             else $fatal(1, "Fetch must redirect to the supplied PC while keeping its history");
         @(negedge clk);
         recovery.fetchRedirect.restorePredCtx = TRUE;
-        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(result.brAddr);
         CompleteWarmRedirect();
         assert (port.nextStage.pc === recovery.fetchRedirect.pc &&
-                port.nextStage.brPred[0].globalHistory === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0) &&
+                BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx) === (USE_GSHARE ? BranchGlobalHistoryPath'(1) : '0) &&
                 port.nextStage.brPred[0].brLookup.valid &&
-                port.nextStage.brPred[0].brLookup.btbSet === ToBTB_Set(result.brAddr))
+                BranchContextBTB_Set(port.nextStage.brPred[0].brLookup.ctx) === ToBTB_Set(result.brAddr))
             else $fatal(1, "The redirected group must carry its restored history and predecessor set together");
         @(negedge clk);
-        recovery.fetchRedirect.predCtx.history = '0;
+        recovery.fetchRedirect.predCtx.ctx = '0;
     endtask
 
     // Track the physical RAM request through both edges, independently of Fetch's lookup metadata.
@@ -526,9 +526,9 @@ module TestBranchPredictorQueue;
             #1;
             assert (btb.regReadRow === expectedRow)
                 else $fatal(1, "BTB raw row was not captured or held at the fetch edge");
-            assert (!port.brLookupValid || (capturedLookup.valid && capturedLookup.setIndex === fetch.regBrLookup.btbSet))
+            assert (!port.brLookupValid || (capturedLookup.valid && capturedLookup.setIndex === BranchContextBTB_Set(fetch.regBrLookup.ctx)))
                 else $fatal(1, "BTB used set %h with a captured RAM request valid=%b set=%h",
-                            fetch.regBrLookup.btbSet, capturedLookup.valid, capturedLookup.setIndex);
+                            BranchContextBTB_Set(fetch.regBrLookup.ctx), capturedLookup.valid, capturedLookup.setIndex);
         end
     end
 
@@ -551,7 +551,7 @@ module TestBranchPredictorQueue;
                 BTB_Entry entry;
                 oldest = pending.pop_front();
                 entry = BTB_Entry'(btb.writeRow[btb.writeWay]);
-                assert (btb.writeSet == oldest.brLookup.btbSet &&
+                assert (btb.writeSet == BranchContextBTB_Set(oldest.brLookup.ctx) &&
                         entry.tag == ToBTB_Tag(oldest.brAddr) && entry.data == ToBTB_Addr(oldest.nextAddr) &&
                         entry.brType == oldest.brType && (!oldest.btbHit || btb.writeWay == oldest.btbHitWay))
                     else $fatal(1, "BTB table write did not match the oldest training request");
@@ -666,7 +666,7 @@ module TestBranchPredictorQueue;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
                 fetch.fetchRequestPC == first.nextAddr &&
-                fetch.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
+                fetch.fetchRequestHistory == ExpectedTakenHistory(BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx), first.brAddr))
             else $fatal(1, "Fetch did not select the first taken conditional branch");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
@@ -691,7 +691,7 @@ module TestBranchPredictorQueue;
                 port.nextStage.brPred[0].takenAddr == last.nextAddr &&
                 port.phtPrevValue[FETCH_WIDTH-1] == 0 && bimodalPort.phtPrevValue[FETCH_WIDTH-1] == 0 &&
                 fetch.fetchRequestPC == last.nextAddr &&
-                fetch.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, last.brAddr))
+                fetch.fetchRequestHistory == ExpectedTakenHistory(BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx), last.brAddr))
             else $fatal(1, "Fetch must skip the earlier branch and take the jump independently of its counter");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
@@ -762,7 +762,7 @@ module TestBranchPredictorQueue;
         #1;
         assert (port.nextStage.brPred[0].predTaken && port.nextStage.brPred[0].takenAddr == first.nextAddr &&
                 fetch.fetchRequestPC == first.nextAddr &&
-                fetch.fetchRequestHistory == ExpectedTakenHistory(port.nextStage.brPred[0].globalHistory, first.brAddr))
+                fetch.fetchRequestHistory == ExpectedTakenHistory(BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx), first.brAddr))
             else $fatal(1, "A conditional hit after a taken jump updated the history");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
@@ -774,7 +774,7 @@ module TestBranchPredictorQueue;
         // while the single port is free. The held prediction still uses the old row.
         neighbor = MakeResult(0);
         neighbor.brAddr = last.nextAddr;
-        neighbor.brLookup.btbSet = ToBTB_Set(last.brAddr);
+        neighbor.brLookup.ctx = MakeBranchHistoryContext(last.brAddr, '0, TRUE);
         neighbor.nextAddr = last.nextAddr + FETCH_GROUP_BYTE_NUM;
         neighbor.brType = BTB_JUMP;
         WriteBTB(neighbor);
@@ -786,7 +786,7 @@ module TestBranchPredictorQueue;
         updated.nextAddr += FETCH_GROUP_BYTE_NUM;
         SendResults(updated);
         ReadGroup(last.brAddr);
-        beforeBranch = port.nextStage.brPred[0].globalHistory;
+        beforeBranch = BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx);
         afterBranch = ExpectedTakenHistory(beforeBranch, last.brAddr);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
@@ -805,7 +805,7 @@ module TestBranchPredictorQueue;
         #1;
         assert (fetch.fetchRequestPC == last.nextAddr && fetch.fetchRequestHistory == afterBranch &&
                 port.nextStage.valid[0] && port.nextStage.pc == last.brAddr &&
-                port.nextStage.brPred[0].globalHistory == beforeBranch)
+                BranchContextHistory(port.nextStage.brPred[0].brLookup.ctx) == beforeBranch)
             else $fatal(1, "Fetch lost the held source group checkpoint on stall release");
         @(posedge clk);
         #1;
@@ -839,17 +839,16 @@ module TestBranchPredictorQueue;
         sourceRow = PHT_RowIndexPath'(sourceIndex / FETCH_WIDTH);
 
         // Let Fetch issue A's lookup. B must carry a row formed with A's PC and pre-branch history.
-        recovery.fetchRedirect.predCtx.history = history;
-        ReadGroup(SOURCE);
+        ReadGroupFrom(SOURCE, SOURCE - FETCH_GROUP_BYTE_NUM, history);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         @(posedge clk);
         #1;
         assert (port.nextStage.pc == SUCCESSOR && port.nextStage.brPred[0].brLookup.valid &&
-                port.nextStage.brPred[0].brLookup.phtRow == sourceRow)
+                BranchContextPHT_Row(port.nextStage.brPred[0].brLookup.ctx) == sourceRow)
             else $fatal(1, "Expected successor %h row %h, got PC %h valid %b row %h",
                         SUCCESSOR, sourceRow, port.nextStage.pc, port.nextStage.brPred[0].brLookup.valid,
-                        port.nextStage.brPred[0].brLookup.phtRow);
+                        BranchContextPHT_Row(port.nextStage.brPred[0].brLookup.ctx));
         result = MakeResult(0);
         result.brAddr = SUCCESSOR;
         result.brLookup = port.nextStage.brPred[0].brLookup;
@@ -858,16 +857,16 @@ module TestBranchPredictorQueue;
         // Train while Fetch reads a different row and history. The same B under another A stays cold.
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
-        recovery.fetchRedirect.predCtx.history = '0;
         ReadGroupFrom(SUCCESSOR, SOURCE + FETCH_GROUP_BYTE_NUM, history);
         SendResults(result);
         DrainPHT();
         ReadGroupFrom(SUCCESSOR, SOURCE + FETCH_GROUP_BYTE_NUM, history);
         assert (port.phtPrevValue[0] == 2 && bimodalPort.phtPrevValue[0] == 2)
             else $fatal(1, "The update followed the live predecessor instead of the saved PHT row");
-        ReadGroupFrom(SUCCESSOR, SOURCE, history);
-        assert (port.phtPrevValue[0] == 1 && bimodalPort.phtPrevValue[0] == 1)
-            else $fatal(1, "The saved PHT row was not trained");
+        ReadGroupFrom(SUCCESSOR, SOURCE, history, TRUE);
+        assert (port.phtPrevValue[0] == 1 && bimodalPort.phtPrevValue[0] == 1 &&
+                fetch.regFetchRequestHistory == ExpectedTakenHistory(history, SOURCE))
+            else $fatal(1, "The taken predecessor must supply its trained row and advance the successor's history");
 
         // Keep A fixed and flip B.pc[11]. The trained counter moves to its adjacent group offset.
         ReadGroupFrom(SUCCESSOR ^ 32'h800, SOURCE, history);
@@ -910,7 +909,7 @@ module TestBranchPredictorQueue;
             else $fatal(1, "Stall entry did not capture B's counters for C");
         result = MakeResult(0);
         result.brAddr = C;
-        result.brLookup.phtRow = ToPHT_Row(B, '0);
+        result.brLookup.ctx = MakeBranchHistoryContext(B, '0, FALSE);
         result.execTaken = FALSE;
         result.phtPrevValue = port.phtPrevValue[0];
         SendResults(result);
@@ -938,10 +937,8 @@ module TestBranchPredictorQueue;
         second.nextAddr += FETCH_GROUP_BYTE_NUM;
         predecessor1 = first.brAddr - 3 * FETCH_GROUP_BYTE_NUM;
         predecessor2 = first.brAddr + 5 * FETCH_GROUP_BYTE_NUM;
-        first.brLookup.btbSet = ToBTB_Set(predecessor1);
-        first.brLookup.phtRow = ToPHT_Row(predecessor1, '0);
-        second.brLookup.btbSet = ToBTB_Set(predecessor2);
-        second.brLookup.phtRow = ToPHT_Row(predecessor2, '0);
+        first.brLookup.ctx = MakeBranchHistoryContext(predecessor1, '0, FALSE);
+        second.brLookup.ctx = MakeBranchHistoryContext(predecessor2, '0, FALSE);
         WriteBTB(first, second);
         ReadGroupFrom(first.brAddr, predecessor1);
         CheckBTB(0, first);
@@ -955,14 +952,12 @@ module TestBranchPredictorQueue;
         // A second redirect can arrive before the first raw row reaches its FF.
         // Both edges name the same B, but only the later predecessor's target is valid.
         @(negedge clk);
-        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor1);
-        recovery.fetchRedirect.predCtx.phtRow = ToPHT_Row(predecessor1, '0);
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(predecessor1, '0, FALSE);
         @(posedge clk);
         #1;
         assert (!fetch.pipeReg.valid) else $fatal(1, "An unfinished warm redirect delivered a group");
         @(negedge clk);
-        recovery.fetchRedirect.predCtx.btbSet = ToBTB_Set(predecessor2);
-        recovery.fetchRedirect.predCtx.phtRow = ToPHT_Row(predecessor2, '0);
+        recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(predecessor2, '0, FALSE);
         CompleteWarmRedirect();
         CheckBTB(0, second);
 
@@ -979,7 +974,7 @@ module TestBranchPredictorQueue;
         #1;
         assert (port.nextStage.valid[0] && port.nextStage.pc == first.brAddr + FETCH_GROUP_BYTE_NUM &&
                 port.nextStage.brPred[0].brLookup.valid &&
-                port.nextStage.brPred[0].brLookup.btbSet == ToBTB_Set(first.brAddr))
+                BranchContextBTB_Set(port.nextStage.brPred[0].brLookup.ctx) == ToBTB_Set(first.brAddr))
             else $fatal(1, "The first sequential successor must have a known predecessor");
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
@@ -991,8 +986,7 @@ module TestBranchPredictorQueue;
 
         // These successors use the same row and differ only in the top bit of the low tag field.
         second.brAddr = first.brAddr ^ MemoryMapTypes::PC_Path'(FETCH_GROUP_BYTE_NUM << (BTB_TAG_LOW_WIDTH - 1));
-        second.brLookup.btbSet = first.brLookup.btbSet;
-        second.brLookup.phtRow = first.brLookup.phtRow;
+        second.brLookup.ctx = first.brLookup.ctx;
         WriteBTB(second);
         ReadGroupFrom(first.brAddr, predecessor1);
         CheckBTB(0, first);
@@ -1002,12 +996,15 @@ module TestBranchPredictorQueue;
 
     task CheckAheadSequence;
         BranchResult jumps[4];
+        BranchGlobalHistoryPath entryHistory[4];
+        entryHistory[0] = '0;
         for (int i = 0; i < 4; i++) begin
             jumps[i] = MakeResult((BTB_SET_NUM + 6 + i*3) * FETCH_WIDTH);
             jumps[i].brType = BTB_JUMP;
             if (i != 0) begin
                 jumps[i-1].nextAddr = jumps[i].brAddr;
-                jumps[i].brLookup.btbSet = ToBTB_Set(jumps[i-1].brAddr);
+                jumps[i].brLookup.ctx = MakeBranchHistoryContext(jumps[i-1].brAddr, entryHistory[i-1], TRUE);
+                entryHistory[i] = ExpectedTakenHistory(entryHistory[i-1], jumps[i-1].brAddr);
             end
         end
         WriteBTB(jumps[0], jumps[1]);
@@ -1022,8 +1019,9 @@ module TestBranchPredictorQueue;
             CheckBTB(0, jumps[i]);
             assert (port.nextStage.valid[0] && port.pcOut == jumps[i].brAddr &&
                     port.nextStage.brPred[0].brLookup.valid &&
-                    port.nextStage.brPred[0].brLookup.btbSet == jumps[i].brLookup.btbSet &&
-                    port.phtReadRow == ToPHT_Row(jumps[i+1].brAddr, fetch.fetchRequestHistory) &&
+                    port.nextStage.brPred[0].brLookup.ctx == jumps[i].brLookup.ctx &&
+                    fetch.fetchRequestHistory == entryHistory[i+1] &&
+                    port.phtReadRow == ToPHT_Row(jumps[i+1].brAddr, entryHistory[i+1]) &&
                     fetch.fetchRequestPC == jumps[i+1].brAddr &&
                     btb.btbEntryArray.rwa == ToBTB_Set(jumps[i+1].brAddr))
                 else $fatal(1, "BTB lookahead at PC %h: predicted %h, RAM set %h, expected next PC %h set %h",

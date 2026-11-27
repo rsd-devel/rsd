@@ -153,11 +153,9 @@ output
         recoveredPC = decodedPC[addrCheckLane];
         // Restart from the redirecting instruction's checkpoint, discarding younger predictions.
         // Include its own taken event only for a branch redirected by Decode.
-        recoveredPredCtx.btbSet = ToBTB_Set(pc[addrCheckLane]);
-        recoveredPredCtx.phtRow = ToPHT_Row(pc[addrCheckLane], brPredIn[addrCheckLane].globalHistory);
-        recoveredPredCtx.history = brPredIn[addrCheckLane].globalHistory;
-        if (insnInfo[addrCheckLane].writePC)
-            recoveredPredCtx.history = AdvanceTakenHistory(brPredIn[addrCheckLane].globalHistory, pc[addrCheckLane]);
+        recoveredPredCtx.ctx = RecoverBranchHistory(
+            pc[addrCheckLane], brPredIn[addrCheckLane].brLookup, insnInfo[addrCheckLane].writePC
+        );
 
         if (flushTriggered) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin

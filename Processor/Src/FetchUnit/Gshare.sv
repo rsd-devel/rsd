@@ -112,7 +112,7 @@ module Gshare(
     always_comb begin
         pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            queueIn[i].index = ToPHT_TrainingIndex(port.brResult[i].brLookup.phtRow, port.brResult[i].brAddr);
+            queueIn[i].index = ToPHT_TrainingIndex(port.brResult[i].brLookup.ctx, port.brResult[i].brAddr);
             queueIn[i].taken = port.brResult[i].execTaken;
 
             // Drop arrivals when already full. On a read cycle a nearly full

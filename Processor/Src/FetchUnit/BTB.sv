@@ -119,7 +119,7 @@ module BTB(
     always_comb begin
         pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            queueIn[i].setIndex = port.brResult[i].brLookup.btbSet;
+            queueIn[i].setIndex = BranchContextBTB_Set(port.brResult[i].brLookup.ctx);
             queueIn[i].entry.tag = ToBTB_Tag(port.brResult[i].brAddr);
             queueIn[i].entry.data = ToBTB_Addr(port.brResult[i].nextAddr);
             queueIn[i].entry.brType = port.brResult[i].brType;

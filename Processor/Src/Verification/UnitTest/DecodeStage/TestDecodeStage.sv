@@ -24,6 +24,11 @@ module TestDecodeStage;
     localparam InsnPath RET = 32'h00008067;  // jalr x0, ra, 0
     localparam InsnPath JAL = 32'h0100006f;  // jal x0, +16
     localparam PC_Path START_PC = PC_Path'(32'h80001000);
+    localparam PC_Path PREDECESSOR_PC = START_PC - 'h34;
+    localparam BranchGlobalHistoryPath PREDECESSOR_HISTORY = USE_GSHARE ? 'h3 : '0;
+    localparam BranchLookupPath GROUP_LOOKUP = '{
+        valid: TRUE, ctx: MakeBranchHistoryContext(PREDECESSOR_PC, PREDECESSOR_HISTORY, TRUE)
+    };
 
     logic clk = FALSE;
     logic rst = TRUE;
@@ -133,6 +138,8 @@ module TestDecodeStage;
         inputValid[1] = secondValid;
         insn[0] = first;
         insn[1] = second;
+        prediction[0].brLookup = GROUP_LOOKUP;
+        prediction[1].brLookup = GROUP_LOOKUP;
         prediction[0].predTaken = predTaken;
         prediction[0].takenAddr = takenAddr;
         prediction[0].btbHit = btbHit;
@@ -321,6 +328,10 @@ module TestDecodeStage;
               port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
               "JAL direction correction supplies the target and retains the Fetch hit way");
+        Check(port.nextStage[0].bPred.brLookup == GROUP_LOOKUP &&
+              port.nextRecoveredPredCtx.ctx == MakeBranchHistoryContext(
+                  START_PC, USE_GSHARE ? AdvanceTakenHistory(PREDECESSOR_HISTORY, PREDECESSOR_PC) : '0, TRUE),
+              "a missed call preserves its training context and starts its target from the call");
         LoadBundle(RET, NOP, TRUE, FALSE, '0, TRUE);
         Check(!port.nextFlush && !port.nextStage[0].bPred.predTaken,
               "a return missed by Fetch remains unresolved until execution");

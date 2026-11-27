@@ -29,7 +29,6 @@ module FetchStage(
     // The selected target itself is already in regPC when the held group advances.
     typedef struct packed {
         logic [FETCH_WIDTH-1:0] takenByGroupOffset;
-        BranchGlobalHistoryPath globalHistory;
         BranchLookupPath brLookup;
         logic [FETCH_WIDTH-1:0] btbHit;
         BTB_BranchType [FETCH_WIDTH-1:0] btbBrType;
@@ -89,38 +88,6 @@ module FetchStage(
             ((regStallFromCtrl && stallFromCtrl) || ctrl.drainFetchForInterrupt);
     end
 
-
-    // Read the BTB and PHT for A while the preceding rows and regPC select B.
-    // Capture A's candidates with B at the edge and start both reads for B.
-    always_comb begin
-        refillPredRows = !port.interruptAddrWE && recovery.fetchRedirect.valid && recovery.fetchRedirect.restorePredCtx;
-        port.btbReadSet = refillPredRows ? recovery.fetchRedirect.predCtx.btbSet : ToBTB_Set(pcIn);
-        port.phtReadRow = refillPredRows ? recovery.fetchRedirect.predCtx.phtRow : ToPHT_Row(pcIn, fetchRequestHistory);
-        advancePredRows = regRefillPredRows || (!regStall && pipeReg.valid);
-        port.capturePredRows = advancePredRows && !recovery.fetchRedirect.valid && !port.interruptAddrWE;
-
-        nextBrLookup = regBrLookup;
-        if (refillPredRows) begin
-            // The predecessor row is ready one edge after a warm redirect.
-            nextBrLookup = '{
-                valid: FALSE,
-                btbSet: recovery.fetchRedirect.predCtx.btbSet,
-                phtRow: recovery.fetchRedirect.predCtx.phtRow
-            };
-        end
-        else if (port.interruptAddrWE || recovery.fetchRedirect.valid)
-            nextBrLookup = '0;
-        else if (regRefillPredRows)
-            nextBrLookup.valid = TRUE;
-        else if (advancePredRows)
-            nextBrLookup = '{
-                valid: TRUE,
-                btbSet: ToBTB_Set(regPC),
-                phtRow: ToPHT_Row(regPC, regFetchRequestHistory)
-            };
-        port.brLookupValid = regBrLookup.valid;
-    end
-
     logic icMiss;
     BTB_OffsetPath fetchStartOffset;
     logic [FETCH_WIDTH-1:0] validByGroupOffset;
@@ -130,6 +97,7 @@ module FetchStage(
         ctrl.ifStageEmpty = !pipeReg.valid;
 
         // The predictor uses fixed group offsets at or after the fetch PC.
+        port.brLookupValid = regBrLookup.valid;
         fetchStartOffset = ToFetchGroupOffset(pipeReg.pc);
         validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
     end
@@ -160,6 +128,7 @@ module FetchStage(
     end
 
     PC_Path predictedTakenPC;
+    logic advanceHistory;
     logic [FETCH_WIDTH-1:0] takenByGroupOffset;
     always_comb begin
         predictedPC = ToFetchGroupBase(regPC) + FETCH_GROUP_BYTE_NUM;
@@ -183,7 +152,9 @@ module FetchStage(
         // IC ミスによるストール時のために，予測結果コンテキストを残しておく
         // この保存は IC ミス判定とは無関係に行われるため，予測の遅延が短縮される
         nextPredCtx.brLookup = regBrLookup;
-        nextPredCtx.globalHistory = regFetchRequestHistory;
+        // The first group after a cold redirect has history but no predecessor rows.
+        if (!regBrLookup.valid)
+            nextPredCtx.brLookup.ctx = MakeBranchHistoryContext('0, regFetchRequestHistory, FALSE);
         nextPredCtx.takenByGroupOffset = takenByGroupOffset;
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
             nextPredCtx.btbBrType[groupOffset] = port.readBrType[groupOffset];
@@ -193,16 +164,17 @@ module FetchStage(
         end
 
 
+        advanceHistory = (|takenByGroupOffset) && !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear);
         fetchRequestHistory = regFetchRequestHistory;
         if (recovery.fetchRedirect.valid) begin
             fetchRequestPC = recovery.fetchRedirect.pc;
             if (recovery.fetchRedirect.restorePredCtx)
-                fetchRequestHistory = recovery.fetchRedirect.predCtx.history;
+                fetchRequestHistory = BranchContextHistory(recovery.fetchRedirect.predCtx.ctx);
         end
         else begin
             fetchRequestPC = (regStall || !pipeReg.valid) ? regPC : predictedPC;
             // A held group contributes once, when its prediction is first saved.
-            if ((|takenByGroupOffset) && !regStallFromCtrl && (stallFromCtrl || !ctrl.ifStage.clear))
+            if (advanceHistory)
                 fetchRequestHistory = AdvanceTakenHistory(regFetchRequestHistory, predictedTakenPC);
         end
         if (!USE_GSHARE)
@@ -214,6 +186,33 @@ module FetchStage(
             pcIn = fetchRequestPC;
         // Interrupt entry samples the registered PC after the pipeline drains.
         port.pcOut = regPC;
+    end
+
+    // Read the BTB and PHT for A while the preceding rows and regPC select B.
+    // Capture A's candidates with B at the edge and start both reads for B.
+    always_comb begin
+        refillPredRows = !port.interruptAddrWE && recovery.fetchRedirect.valid && recovery.fetchRedirect.restorePredCtx;
+        port.btbReadSet = refillPredRows ? BranchContextBTB_Set(recovery.fetchRedirect.predCtx.ctx) : ToBTB_Set(pcIn);
+        port.phtReadRow = refillPredRows ? BranchContextPHT_Row(recovery.fetchRedirect.predCtx.ctx) :
+                                           ToPHT_Row(pcIn, fetchRequestHistory);
+        advancePredRows = regRefillPredRows || (!regStall && pipeReg.valid);
+        port.capturePredRows = advancePredRows && !recovery.fetchRedirect.valid && !port.interruptAddrWE;
+
+        nextBrLookup = regBrLookup;
+        if (refillPredRows) begin
+            // The predecessor row is ready one edge after a warm redirect.
+            nextBrLookup = '{valid: FALSE, ctx: recovery.fetchRedirect.predCtx.ctx};
+        end
+        else if (port.interruptAddrWE || recovery.fetchRedirect.valid)
+            nextBrLookup = '0;
+        else if (regRefillPredRows)
+            nextBrLookup.valid = TRUE;
+        else if (advancePredRows)
+            nextBrLookup = '{
+                valid: TRUE,
+                ctx: MakeBranchHistoryContext(advanceHistory ? predictedTakenPC : regPC,
+                                              regFetchRequestHistory, advanceHistory)
+            };
     end
 
 `ifndef RSD_DISABLE_DEBUG_REGISTER
@@ -270,7 +269,6 @@ module FetchStage(
             nextStage.brPred[fetchLane].btbHit = responsePrediction.btbHit[groupOffset];
             nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
             nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];
-            nextStage.brPred[fetchLane].globalHistory = responsePrediction.globalHistory;
             nextStage.insn[fetchLane] = validByFetchLane[fetchLane] ? port.icReadDataOut[fetchLane] : '0;
         end
         port.nextStage = nextStage;
@@ -293,6 +291,10 @@ module FetchStage(
 `ifndef RSD_SYNTHESIS
     PC_Path expectedHeldTarget;
     always_ff @(posedge port.clk) begin
+        // Check the compact checkpoint against the history actually used to fetch this group.
+        if (!port.rst && USE_GSHARE && (|nextStage.valid) && !regStallFromCtrl)
+            assert (BranchContextHistory(nextStage.brPred[0].brLookup.ctx) == regFetchRequestHistory)
+                else $fatal(1, "Fetch checkpoint disagrees with the request history");
         if (beginStallFromCtrl)
             expectedHeldTarget <= predictedPC;
         // A redirect can overwrite regPC while the held group is being discarded.

@@ -99,11 +99,12 @@ endfunction
 // Select Gshare (TRUE) or Bimodal (FALSE) for direction prediction.
 localparam bit USE_GSHARE = TRUE;
 localparam BRANCH_GLOBAL_HISTORY_BIT_WIDTH = CONF_BRANCH_GLOBAL_HISTORY_BIT_WIDTH;
+localparam TAKEN_HISTORY_PC_WIDTH = 5;
 typedef logic [BRANCH_GLOBAL_HISTORY_BIT_WIDTH-1 : 0] BranchGlobalHistoryPath;
 
 // Mix the low five word-address bits of each taken branch into the path history.
 function automatic BranchGlobalHistoryPath AdvanceTakenHistory(BranchGlobalHistoryPath history, PC_Path branchPC);
-    return (history << 1) ^ BranchGlobalHistoryPath'(branchPC[INSN_ADDR_BIT_WIDTH +: 5]);
+    return (history << 1) ^ BranchGlobalHistoryPath'(branchPC[INSN_ADDR_BIT_WIDTH +: TAKEN_HISTORY_PC_WIDTH]);
 endfunction
 
 
@@ -142,25 +143,68 @@ function automatic PHT_RowOffsetPath ToPHT_CounterOffset(PC_Path pc, PHT_RowOffs
     return groupOffset ^ PHT_RowOffsetPath'(pc[11]);
 endfunction
 
-function automatic PHT_IndexPath ToPHT_TrainingIndex(PHT_RowIndexPath row, PC_Path branchPC);
-    PHT_RowOffsetPath offset;
-    offset = ToPHT_CounterOffset(branchPC, PHT_RowOffsetPath'(ToFetchGroupOffset(branchPC)));
-    return PHT_IndexPath'(row * FETCH_WIDTH + offset);
+// Both table addresses and the successor's entry history come from the same predecessor.
+localparam BTB_SOURCE_WIDTH = $clog2(BTB_SET_NUM) + $clog2(FETCH_WIDTH);
+localparam TABLE_SOURCE_WIDTH = BTB_SOURCE_WIDTH > PHT_ENTRY_NUM_BIT_WIDTH ?
+                                BTB_SOURCE_WIDTH : PHT_ENTRY_NUM_BIT_WIDTH;
+// Division or modulo by non-powers of two can also depend on high PC bits.
+localparam BRANCH_SOURCE_WIDTH = ((FETCH_WIDTH & (FETCH_WIDTH - 1)) != 0 ||
+                                  (BTB_SET_NUM & (BTB_SET_NUM - 1)) != 0) ?
+                                 PC_WIDTH - INSN_ADDR_BIT_WIDTH :
+                                 (TABLE_SOURCE_WIDTH > TAKEN_HISTORY_PC_WIDTH ?
+                                  TABLE_SOURCE_WIDTH : TAKEN_HISTORY_PC_WIDTH);
+typedef logic [BRANCH_SOURCE_WIDTH-1:0] BranchSourcePath;
+
+typedef struct packed {
+    BranchSourcePath source; // Low word-PC bits of the taken branch or the predecessor fetch PC.
+    BranchGlobalHistoryPath history; // History on entry to the predecessor.
+    logic taken;
+} BranchHistoryContextPath;
+
+function automatic BranchHistoryContextPath MakeBranchHistoryContext(
+    PC_Path pc, BranchGlobalHistoryPath history, logic taken
+);
+    return '{source: BranchSourcePath'(pc >> INSN_ADDR_BIT_WIDTH), history: history, taken: taken};
 endfunction
 
-// Carry the predecessor's RAM addresses with this group's predictions for training.
+// Reconstruct the byte-address bits used by ToBTB_Set, ToPHT_Row and AdvanceTakenHistory.
+function automatic PC_Path BranchContextPC(BranchHistoryContextPath ctx);
+    return PC_Path'(ctx.source) << INSN_ADDR_BIT_WIDTH;
+endfunction
+
+function automatic BranchGlobalHistoryPath BranchContextHistory(BranchHistoryContextPath ctx);
+    return ctx.taken ? AdvanceTakenHistory(ctx.history, BranchContextPC(ctx)) : ctx.history;
+endfunction
+
+function automatic BTB_SetIndexPath BranchContextBTB_Set(BranchHistoryContextPath ctx);
+    return ToBTB_Set(BranchContextPC(ctx));
+endfunction
+
+function automatic PHT_RowIndexPath BranchContextPHT_Row(BranchHistoryContextPath ctx);
+    return ToPHT_Row(BranchContextPC(ctx), ctx.history);
+endfunction
+
+function automatic PHT_IndexPath ToPHT_TrainingIndex(BranchHistoryContextPath ctx, PC_Path branchPC);
+    PHT_RowOffsetPath offset;
+    offset = ToPHT_CounterOffset(branchPC, PHT_RowOffsetPath'(ToFetchGroupOffset(branchPC)));
+    return PHT_IndexPath'(BranchContextPHT_Row(ctx) * FETCH_WIDTH + offset);
+endfunction
+
 typedef struct packed {
     logic valid;
-    BTB_SetIndexPath btbSet;
-    PHT_RowIndexPath phtRow;
+    BranchHistoryContextPath ctx;
 } BranchLookupPath;
 
-// Restart a successor with its entry history and the row read by its predecessor.
+// The successor restarts from the predecessor that supplied its prediction rows.
 typedef struct packed {
-    BranchGlobalHistoryPath history;
-    BTB_SetIndexPath btbSet;
-    PHT_RowIndexPath phtRow;
+    BranchHistoryContextPath ctx;
 } BranchRecoveryPath;
+
+function automatic BranchHistoryContextPath RecoverBranchHistory(
+    PC_Path pc, BranchLookupPath lookup, logic taken
+);
+    return MakeBranchHistoryContext(pc, USE_GSHARE ? BranchContextHistory(lookup.ctx) : '0, taken);
+endfunction
 
 typedef struct packed {
     logic valid;
@@ -187,7 +231,6 @@ typedef struct packed // struct BranchResult
     logic btbEntryCorrect;  // The hit entry needs no type or target update.
     logic valid;        // Whether this result is valid or not.
 
-    BranchGlobalHistoryPath globalHistory;  // The global history of branches.
     PHT_EntryPath phtPrevValue;             // PHT's counter value
 } BranchResult;
 
@@ -202,7 +245,6 @@ typedef struct packed // struct BranchPred
     logic takenAddrChangedAtDecode; // Decode supplied the target on a redirect.
     logic predTaken;                        // result of bpred
     
-    BranchGlobalHistoryPath globalHistory;  // The global history of branches.
     PHT_EntryPath phtPrevValue;             // PHT's counter value
 } BranchPred;
 
