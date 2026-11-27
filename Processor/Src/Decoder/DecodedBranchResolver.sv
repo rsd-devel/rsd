@@ -137,11 +137,9 @@ output
         end
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
-            logic targetMatch;
-            targetMatch = brPredIn[i].takenAddr == decodedPC[i];
             // A direction miss redirects even when the target equals the fall-through PC.
             if (addrCheckLane == i &&
-                (addrIncorrect || (addrCheck && (!brPredIn[i].predTaken || !targetMatch)))) begin
+                (addrIncorrect || (addrCheck && (!brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i])))) begin
                 flushTriggered = TRUE;
                 brPredOut[i].predTaken = insnInfo[i].writePC;
                 if (insnInfo[i].writePC) begin

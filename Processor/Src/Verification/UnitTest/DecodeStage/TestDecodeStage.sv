@@ -204,6 +204,9 @@ module TestDecodeStage;
     end
 
     initial begin
+        logic legal;
+        MicroOpType expectedType;
+
         if (DECODE_WIDTH != 2)
             $fatal(1, "DecodeStage test requires two decode lanes");
 
@@ -250,8 +253,6 @@ module TestDecodeStage;
         for (int funct7 = 0; funct7 < 128; funct7++) begin
             for (int funct3 = 0; funct3 < 8; funct3++) begin
                 for (int rd = 0; rd <= 31; rd += 31) begin
-                    logic legal;
-                    MicroOpType expectedType;
                     legal = funct7 == 0 || funct7 == 1 ||
                             (funct7 == 'h20 && (funct3 == 0 || funct3 == 5));
 `ifdef RSD_ENABLE_ZBA

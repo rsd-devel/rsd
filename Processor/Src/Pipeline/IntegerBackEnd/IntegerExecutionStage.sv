@@ -133,6 +133,7 @@ module IntegerExecutionStage(
     // Branch
     logic isBranch [ INT_ISSUE_WIDTH ];
     logic brTaken  [ INT_ISSUE_WIDTH ];
+    logic targetMatch [ INT_ISSUE_WIDTH ];
     BranchResult brResult [ INT_ISSUE_WIDTH ];
     logic predMiss [ INT_ISSUE_WIDTH ];
     logic regValid [ INT_ISSUE_WIDTH ];
@@ -148,7 +149,6 @@ module IntegerExecutionStage(
         clear = ctrl.backEnd.clear;
 
         for ( int i = 0; i < INT_ISSUE_WIDTH; i++ ) begin
-            logic targetMatch;
             iqData[i] = pipeReg[i].intQueueData;
             intOpInfo[i] = iqData[i].intOpInfo;
             intSubInfo[i] = intOpInfo[i].intSubInfo;
@@ -227,14 +227,14 @@ module IntegerExecutionStage(
             else begin
                 brResult[i].nextAddr = ToPC_FromAddr(pc[i] + INSN_BYTE_WIDTH);
             end
-            targetMatch = bPred[i].takenAddr == brResult[i].nextAddr;
+            targetMatch[i] = bPred[i].takenAddr == brResult[i].nextAddr;
             brResult[i].brLookup = bPred[i].brLookup;
             brResult[i].btbHit = bPred[i].btbHit;
             brResult[i].btbHitWay = bPred[i].btbHitWay;
             // A return predicted through the RAS leaves the BTB fallback target untouched.
             // A type mismatch must retrain even when both targets happen to agree.
             brResult[i].btbEntryCorrect = bPred[i].btbHit && (bPred[i].btbBrType == brSubInfo[i].brType) &&
-                (bPred[i].usedRAS || (bPred[i].predTaken && !bPred[i].takenAddrChangedAtDecode && targetMatch));
+                (bPred[i].usedRAS || (bPred[i].predTaken && !bPred[i].takenAddrChangedAtDecode && targetMatch[i]));
             brResult[i].execTaken = brTaken[i];
             brResult[i].predTaken = bPred[i].predTaken;
             brResult[i].valid = isBranch[i] && pipeReg[i].valid && regValid[i];
@@ -246,7 +246,7 @@ module IntegerExecutionStage(
                 brResult[i].valid &&
                 (
                      (bPred[i].predTaken != brTaken[i]) ||
-                     (brTaken[i] && !targetMatch)
+                     (brTaken[i] && !targetMatch[i])
                 );
 
             brResult[i].mispred = predMiss[i];
