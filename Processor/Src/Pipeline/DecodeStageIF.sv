@@ -15,9 +15,7 @@ interface DecodeStageIF( input logic clk, rst );
 
     // Pipeline registers 
     RenameStageRegPath nextStage[ DECODE_WIDTH ];
-    logic nextFlush;
-    AddrPath nextRecoveredPC;
-    BranchRecoveryPath nextRecoveredPredCtx;
+    FetchRedirectPath nextRedirect;
 
     ELP_State_Type elpState;
     logic recoverELP;
@@ -36,18 +34,14 @@ interface DecodeStageIF( input logic clk, rst );
         setELP_OnInterrupt,
     output 
         nextStage,
-        nextFlush,
-        nextRecoveredPredCtx,
-        nextRecoveredPC,
+        nextRedirect,
         elpState
     );
     
     modport NextStage(
     input
         nextStage,
-        nextFlush,
-        nextRecoveredPredCtx,
-        nextRecoveredPC
+        nextRedirect
     );
 
     modport InterruptController(

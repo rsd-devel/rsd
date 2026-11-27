@@ -194,10 +194,12 @@ module DecodeStage(
         .recoveredPredCtx(recoveredPredCtx)
     );
     
+    logic redirectValid;
     always_comb begin
-        port.nextFlush = complete && flushTriggered && !clear;
-        port.nextRecoveredPC = recoveredPC;
-        port.nextRecoveredPredCtx = recoveredPredCtx;
+        redirectValid = complete && flushTriggered && !clear;
+        port.nextRedirect = '{
+            valid: redirectValid, pc: recoveredPC, restorePredCtx: TRUE, predCtx: recoveredPredCtx
+        };
     end
     
     AllDecodedMicroOpPath remainingValidMOps;
@@ -449,7 +451,7 @@ module DecodeStage(
         port.nextStage = nextStage;
 
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
-        perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
+        perfCounter.branchPredMissDetectedOnDecode = redirectValid;
 `endif
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER

@@ -112,9 +112,7 @@ module RenameStage(
 
     // --- Pipeline registers
     RenameStageRegPath pipeReg[RENAME_WIDTH];
-    logic regFlush;
-    PC_Path regRecoveredPC;
-    BranchRecoveryPath regRecoveredPredCtx;
+    FetchRedirectPath regRedirect;
 
 
 `ifndef RSD_SYNTHESIS
@@ -124,7 +122,7 @@ module RenameStage(
             for (int i = 0; i < RENAME_WIDTH; i++) begin
                 pipeReg[i] = '0;
             end
-            regRecoveredPC = '0;
+            regRedirect = '0;
         end
     `endif
 `endif
@@ -135,24 +133,17 @@ module RenameStage(
             for (int i = 0; i < RENAME_WIDTH; i++) begin
                 pipeReg[i].valid <= FALSE;
             end
-            regFlush <= '0;
-            regRecoveredPC <= '0;
-            regRecoveredPredCtx <= '0;
+            regRedirect <= '0;
         end
         else if(!ctrl.rnStage.stall) begin             // write data
             pipeReg <= prev.nextStage;
-            regFlush <= prev.nextFlush;
-            regRecoveredPC <= prev.nextRecoveredPC;
-            regRecoveredPredCtx <= prev.nextRecoveredPredCtx;
+            regRedirect <= prev.nextRedirect;
         end
     end
 
     always_comb begin
-        recovery.redirectFromRename = '{
-            valid: regFlush, pc: regRecoveredPC,
-            restorePredCtx: TRUE, predCtx: regRecoveredPredCtx
-        };
-        ctrl.rnStageFlushUpper = regFlush;
+        recovery.redirectFromRename = regRedirect;
+        ctrl.rnStageFlushUpper = regRedirect.valid;
     end
 
 

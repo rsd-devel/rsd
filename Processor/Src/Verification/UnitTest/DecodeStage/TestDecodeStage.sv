@@ -317,46 +317,46 @@ module TestDecodeStage;
         // An earlier corrected direct branch discards the later JALR.
         Reset();
         LoadBundle(JAL, JALR, TRUE);
-        Check(port.nextFlush && port.nextStage[0].valid && !port.nextStage[1].valid,
+        Check(port.nextRedirect.valid && port.nextStage[0].valid && !port.nextStage[1].valid,
               "branch correction discards the suffix");
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
         Reset();
         LoadBundle(CALL, NOP, TRUE, FALSE, '0, TRUE); // jal ra, +4
-        Check(port.nextFlush && !port.nextStage[1].valid && port.nextRecoveredPC == START_PC + 4 &&
+        Check(port.nextRedirect.valid && !port.nextStage[1].valid && port.nextRedirect.pc == START_PC + 4 &&
               port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
               "JAL direction correction supplies the target and retains the Fetch hit way");
         Check(port.nextStage[0].bPred.brLookup == GROUP_LOOKUP &&
-              port.nextRecoveredPredCtx.ctx == MakeBranchHistoryContext(
+              port.nextRedirect.predCtx.ctx == MakeBranchHistoryContext(
                   START_PC, USE_GSHARE ? AdvanceTakenHistory(PREDECESSOR_HISTORY, PREDECESSOR_PC) : '0, TRUE),
               "a missed call preserves its training context and starts its target from the call");
         LoadBundle(RET, NOP, TRUE, FALSE, '0, TRUE);
-        Check(!port.nextFlush && !port.nextStage[0].bPred.predTaken,
+        Check(!port.nextRedirect.valid && !port.nextStage[0].bPred.predTaken,
               "a return missed by Fetch remains unresolved until execution");
         LoadBundle(RET, NOP, FALSE, TRUE, START_PC + 12, TRUE);
-        Check(!port.nextFlush && port.nextStage[0].bPred.takenAddr == START_PC + 12 &&
+        Check(!port.nextRedirect.valid && port.nextStage[0].bPred.takenAddr == START_PC + 12 &&
               !port.nextStage[0].bPred.takenAddrChangedAtDecode,
               "Decode forwards a return target selected by Fetch");
         LoadBundle(CALL, NOP, TRUE); // No BTB hit.
-        Check(port.nextFlush && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
+        Check(port.nextRedirect.valid && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
               port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode supplies the JAL target on a BTB miss");
 
         Reset();
         LoadBundle(32'h00000863, NOP, TRUE, FALSE, '0, TRUE); // beq x0, x0, +16
-        Check(!port.nextFlush && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
+        Check(!port.nextRedirect.valid && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
               !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
               "untaken conditional prediction keeps its hit way for execution");
         LoadBundle(32'h00000863, NOP, TRUE, TRUE, START_PC + 8, TRUE);
-        Check(port.nextFlush && port.nextRecoveredPC == START_PC + 16 &&
+        Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + 16 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 16,
               "taken conditional prediction with the wrong target redirects");
         LoadBundle(NOP, NOP, FALSE, TRUE, START_PC + 8, TRUE);
-        Check(port.nextFlush && port.nextRecoveredPC == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
+        Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
               "non-branch predicted taken recovers to fall-through");
         if (FETCH_WIDTH > 1)
-            Check(port.nextRecoveredPredCtx.ctx == GROUP_LOOKUP.ctx,
+            Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx,
                   "a redirect into the same fetch group retains the predecessor and its history");
 
         // FENCE redirects to pc+4 even when Fetch predicted fall-through.
@@ -369,12 +369,12 @@ module TestDecodeStage;
             Tick();
             ClearInput();
             #1;
-            Check(port.nextFlush && port.nextRecoveredPC == START_PC + (slot + 1) * INSN_BYTE_WIDTH,
+            Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + (slot + 1) * INSN_BYTE_WIDTH,
                   "serialization resumes at the next instruction");
             if (slot + 1 < FETCH_WIDTH)
-                Check(port.nextRecoveredPredCtx.ctx == GROUP_LOOKUP.ctx, "serialization within the group reuses its rows");
+                Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx, "serialization within the group reuses its rows");
             else
-                Check(port.nextRecoveredPredCtx.ctx == MakeBranchHistoryContext(
+                Check(port.nextRedirect.predCtx.ctx == MakeBranchHistoryContext(
                       START_PC + slot * INSN_BYTE_WIDTH, USE_GSHARE ? BranchContextHistory(GROUP_LOOKUP.ctx) : '0, FALSE),
                       "serialization at the end of the group reads the successor's rows");
         end
@@ -391,7 +391,7 @@ module TestDecodeStage;
         Tick();
         ClearInput();
         #1;
-        Check(!port.nextFlush && port.nextStage[1].valid, "correct prediction keeps the suffix");
+        Check(!port.nextRedirect.valid && port.nextStage[1].valid, "correct prediction keeps the suffix");
         Tick();
         Check(port.elpState === EXPECTED_ELP, "live suffix JALR advances ELP");
 
