@@ -28,7 +28,8 @@ output
     logic insnFlushTriggering[DECODE_WIDTH],
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
-    PC_Path recoveredPC,
+    PC_Path recoveredPC, rasReturnPC,
+    logic rasPush,
     BranchRecoveryPath recoveredPredCtx
 );
     PC_Path decodedPC[DECODE_WIDTH];
@@ -36,6 +37,7 @@ output
 
     logic addrCheck;
     logic addrIncorrect;
+    logic predPush, rasMiss;
     DecodeLaneIndexPath addrCheckLane;
     typedef enum logic [1:0] 
     {
@@ -109,7 +111,9 @@ output
             else if ( // JALR
                 brTargetType[i] == BTT_INDIRECT_JUMP
             ) begin
-                // The execution stage resolves indirect targets, including returns.
+                // Decode can repair the RAS here. Execute resolves the indirect target.
+                addrCheckLane = i;
+                addrCheck = TRUE;
                 break;
             end
             else if (brTargetType[i] == BTT_SERIALIZED) begin
@@ -132,6 +136,9 @@ output
                     decodedPC[i] = pc[i] + ExtendBranchDisplacement( GetBranchDisplacement(isfU[i]));
                 end
             end
+            else if (brTargetType[i] == BTT_INDIRECT_JUMP && brPredIn[i].predTaken) begin
+                decodedPC[i] = brPredIn[i].takenAddr;
+            end
             else begin
                 decodedPC[i] = pc[i] + INSN_BYTE_WIDTH;
             end
@@ -140,7 +147,8 @@ output
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             // A direction miss redirects even when the target equals the fall-through PC.
             if (addrCheckLane == i &&
-                (addrIncorrect || (addrCheck && (!brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i])))) begin
+                (addrIncorrect || (addrCheck && brTargetType[i] == BTT_PC_RELATIVE &&
+                                   (!brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i])))) begin
                 flushTriggered = TRUE;
                 brPredOut[i].predTaken = insnInfo[i].writePC;
                 if (insnInfo[i].writePC) begin
@@ -152,13 +160,22 @@ output
             end
         end
         recoveredPC = decodedPC[addrCheckLane];
-        // Restart from the redirecting instruction's checkpoint, discarding younger predictions.
-        // Include its own taken event only for a branch redirected by Decode.
+        // Repair the selected instruction's stack operation even when its target was correct.
+        predPush = brPredIn[addrCheckLane].predTaken && brPredIn[addrCheckLane].btbBrType == BTB_CALL;
+        rasPush = addrCheck && brType[addrCheckLane] == BTB_CALL && !predPush;
+        rasReturnPC = pc[addrCheckLane] + INSN_BYTE_WIDTH;
+        rasMiss = addrCheck && (predPush != (brType[addrCheckLane] == BTB_CALL) ||
+            (brPredIn[addrCheckLane].predTaken &&
+             (brPredIn[addrCheckLane].btbBrType inside {BTB_RETURN, BTB_RETURN_OFFSET}) !=
+             (brType[addrCheckLane] inside {BTB_RETURN, BTB_RETURN_OFFSET})));
+        flushTriggered = flushTriggered || rasMiss;
+
         recoveredPredCtx.ctx = RecoverBranchHistory(
             pc[addrCheckLane], brPredIn[addrCheckLane].brLookup, brPredOut[addrCheckLane].predTaken
         );
+        // An unresolved indirect call pushes its link while following Fetch's prediction.
         recoveredPredCtx.rasPtr = RecoverRAS_Ptr(
-            brPredIn[addrCheckLane].rasPtr, brType[addrCheckLane], brPredOut[addrCheckLane].predTaken
+            brPredIn[addrCheckLane].rasPtr, brType[addrCheckLane], brPredOut[addrCheckLane].predTaken || rasPush
         );
 
         if (flushTriggered) begin

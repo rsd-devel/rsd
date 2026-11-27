@@ -200,7 +200,7 @@ module RecoveryManager(
         // An older RW/Commit redirect takes precedence over a Decode correction from Rename.
         if (regState.phase == PHASE_RECOVER_0) begin
             port.fetchRedirect = '{
-                valid: TRUE, pc: recoveredPC,
+                valid: TRUE, pc: recoveredPC, rasPush: FALSE, rasReturnPC: '0,
                 restorePredCtx: regState.refetchType == REFETCH_TYPE_BRANCH_TARGET,
                 predCtx: regState.predCtx
             };

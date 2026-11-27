@@ -185,14 +185,18 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
-        // Restore a nonzero pointer before resuming at a return.
+        // Decode corrects the missed call using its saved checkpoint.
         recovery.fetchRedirect.predCtx.rasPtr = RecoverRAS_Ptr(RAS_IndexPath'(2), BTB_CALL, TRUE);
+        recovery.fetchRedirect.rasPush = TRUE;
+        recovery.fetchRedirect.rasReturnPC = callOp.brAddr + INSN_BYTE_WIDTH;
         ReadGroupFrom(retOp.brAddr, callOp.brAddr, '0, TRUE);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
-        assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3) && port.nextStage.brPred[0].usedRAS)
-            else $fatal(1, "Fetch must use the restored stack pointer");
+        assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3) && port.nextStage.brPred[0].usedRAS &&
+                fetch.fetchRequestPC == callOp.brAddr + INSN_BYTE_WIDTH)
+            else $fatal(1, "Decode must write the missing link at the restored top");
+        recovery.fetchRedirect.rasPush = FALSE;
         ctrl.ifStage.stall = TRUE;
         repeat (3) begin
             @(posedge clk);
@@ -1142,7 +1146,7 @@ module TestBranchPredictorQueue;
         ClearResults();
         // Redirect each lookup to the test address and suppress speculative history
         // updates until the directed fetch check releases clear.
-        recovery.fetchRedirect = '{valid: TRUE, pc: '0, restorePredCtx: TRUE, predCtx: '0};
+        recovery.fetchRedirect = '{valid: TRUE, restorePredCtx: TRUE, default: '0};
         port.icReadHit = TRUE;
         port.interruptAddrWE = FALSE;
         ctrl.ifStage = '0;

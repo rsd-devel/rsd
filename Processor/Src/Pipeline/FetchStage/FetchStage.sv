@@ -106,7 +106,7 @@ module FetchStage(
     PC_Path ras[RAS_ENTRY_NUM];
     RAS_IndexPath rasPtr, nextRAS_Ptr;
     logic pushRAS, popRAS, rasWE;
-    PC_Path returnPC;
+    PC_Path returnPC, rasWritePC;
     always_ff @(posedge port.clk) begin
         rasPtr <= nextRAS_Ptr;
         if (port.rst) begin
@@ -114,18 +114,22 @@ module FetchStage(
                 ras[i] <= '0;
         end
         else if (rasWE)
-            ras[nextRAS_Ptr] <= returnPC;
+            ras[nextRAS_Ptr] <= rasWritePC;
     end
 
     always_comb begin
         nextRAS_Ptr = rasPtr;
         rasWE = FALSE;
+        rasWritePC = returnPC;
         if (port.rst)
             nextRAS_Ptr = '0;
         else if (recovery.fetchRedirect.valid || port.interruptAddrWE) begin
             // Cold redirects have no checkpoint. Preserve the circular stack as a prediction hint.
-            if (recovery.fetchRedirect.restorePredCtx && recovery.fetchRedirect.valid && !port.interruptAddrWE)
+            if (recovery.fetchRedirect.restorePredCtx && recovery.fetchRedirect.valid && !port.interruptAddrWE) begin
                 nextRAS_Ptr = recovery.fetchRedirect.predCtx.rasPtr;
+                rasWE = recovery.fetchRedirect.rasPush;
+                rasWritePC = recovery.fetchRedirect.rasReturnPC;
+            end
         end
         else if (pushRAS) begin
             nextRAS_Ptr = rasPtr + RAS_IndexPath'(1);

@@ -230,6 +230,8 @@ endfunction
 typedef struct packed {
     logic valid;
     PC_Path pc;
+    logic rasPush; // Decode fills a return address missed at Fetch.
+    PC_Path rasReturnPC;
     logic restorePredCtx;
     BranchRecoveryPath predCtx;
 } FetchRedirectPath;

@@ -168,7 +168,8 @@ module DecodeStage(
     logic insnFlushTriggering[DECODE_WIDTH];
     logic flushTriggered;
     BranchPred brPredOut[DECODE_WIDTH];
-    PC_Path recoveredPC;
+    PC_Path recoveredPC, rasReturnPC;
+    logic rasPush;
     BranchRecoveryPath recoveredPredCtx;
 
     always_comb begin
@@ -195,6 +196,8 @@ module DecodeStage(
         .flushTriggered(flushTriggered),
         .brPredOut(brPredOut),
         .recoveredPC(recoveredPC),
+        .rasReturnPC(rasReturnPC),
+        .rasPush(rasPush),
         .recoveredPredCtx(recoveredPredCtx)
     );
     
@@ -202,10 +205,11 @@ module DecodeStage(
     always_comb begin
         redirectValid = complete && flushTriggered && !clear;
         port.nextRedirect = '{
-            valid: redirectValid, pc: recoveredPC, restorePredCtx: TRUE, predCtx: recoveredPredCtx
+            valid: redirectValid, pc: recoveredPC, restorePredCtx: TRUE, predCtx: recoveredPredCtx,
+            rasPush: redirectValid && rasPush, rasReturnPC: rasReturnPC
         };
     end
-    
+
     AllDecodedMicroOpPath remainingValidMOps;
     AllDecodedMicroOpPath nextValidMOps;
 

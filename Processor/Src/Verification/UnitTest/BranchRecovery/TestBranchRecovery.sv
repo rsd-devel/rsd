@@ -80,8 +80,9 @@ module TestBranchRecovery;
 
     task automatic CheckRedirect(input PC_Path target, input RAS_IndexPath ptr);
         assert (rec.fetchRedirect.valid && rec.fetchRedirect.restorePredCtx &&
-                rec.fetchRedirect.pc == target && rec.fetchRedirect.predCtx.rasPtr == ptr)
-            else $fatal(1, "Expected redirect to %h with RAS pointer %0d", target, ptr);
+                rec.fetchRedirect.pc == target && rec.fetchRedirect.predCtx.rasPtr == ptr &&
+                !rec.fetchRedirect.rasPush && rec.fetchRedirect.rasReturnPC == '0)
+            else $fatal(1, "Expected redirect to %h with RAS pointer %0d and no RAS write", target, ptr);
     endtask
 
     initial begin
@@ -108,11 +109,13 @@ module TestBranchRecovery;
             else $fatal(1, "Expected immediate RW recovery");
         foreach (ex.nextStage[i]) ex.nextStage[i] = '0;
         Tick();
-        // A younger Decode redirect competes with the older RW redirect.
+        // A younger Decode call requests a RAS write in the same cycle as the RW redirect.
         rec.redirectFromRename.valid = TRUE;
         rec.redirectFromRename.pc = TARGET1;
         rec.redirectFromRename.restorePredCtx = TRUE;
         rec.redirectFromRename.predCtx.rasPtr = RAS_IndexPath'(3);
+        rec.redirectFromRename.rasPush = TRUE;
+        rec.redirectFromRename.rasReturnPC = PC1 + INSN_BYTE_WIDTH;
         #1;
         CheckRedirect(TARGET0, 2);
         rec.redirectFromRename = '0;
@@ -150,7 +153,7 @@ module TestBranchRecovery;
         assert (csr.triggerExcpt && csr.excptCause == EXEC_STATE_FAULT_INSN_MISALIGNED &&
                 csr.excptCauseAddr == PC0 && csr.excptCauseDataAddr == TARGET0 + 2 &&
                 rec.fetchRedirect.valid && rec.fetchRedirect.pc == csr.excptTargetAddr &&
-                !rec.fetchRedirect.restorePredCtx)
+                !rec.fetchRedirect.restorePredCtx && !rec.fetchRedirect.rasPush)
             else $fatal(1, "A misaligned JALR must report the faulting instruction and its target");
         $display("BranchRecovery: immediate RW, deferred commit and JALR trap passed");
         $finish;
