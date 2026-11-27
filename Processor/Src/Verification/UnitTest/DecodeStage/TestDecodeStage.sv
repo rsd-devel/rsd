@@ -359,6 +359,26 @@ module TestDecodeStage;
             Check(port.nextRecoveredPredCtx.ctx == GROUP_LOOKUP.ctx,
                   "a redirect into the same fetch group retains the predecessor and its history");
 
+        // FENCE redirects to pc+4 even when Fetch predicted fall-through.
+        for (int slot = 0; slot < FETCH_WIDTH; slot++) begin
+            ClearInput();
+            inputValid[0] = TRUE;
+            pc[0] = START_PC + slot * INSN_BYTE_WIDTH;
+            insn[0] = 32'h0ff0000f; // fence iorw, iorw
+            prediction[0].brLookup = GROUP_LOOKUP;
+            Tick();
+            ClearInput();
+            #1;
+            Check(port.nextFlush && port.nextRecoveredPC == START_PC + (slot + 1) * INSN_BYTE_WIDTH,
+                  "serialization resumes at the next instruction");
+            if (slot + 1 < FETCH_WIDTH)
+                Check(port.nextRecoveredPredCtx.ctx == GROUP_LOOKUP.ctx, "serialization within the group reuses its rows");
+            else
+                Check(port.nextRecoveredPredCtx.ctx == MakeBranchHistoryContext(
+                      START_PC + slot * INSN_BYTE_WIDTH, USE_GSHARE ? BranchContextHistory(GROUP_LOOKUP.ctx) : '0, FALSE),
+                      "serialization at the end of the group reads the successor's rows");
+        end
+
         // If that prediction was correct, the second instruction is live.
         Reset();
         inputValid[0] = TRUE;

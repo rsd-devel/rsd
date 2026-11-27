@@ -109,7 +109,7 @@ module IntegerRegisterWriteStage(
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
             alWriteData[i].predCtx.ctx = RecoverBranchHistory(
-                brResult[i].brAddr, brResult[i].brLookup, brResult[i].predTaken, brResult[i].execTaken
+                brResult[i].brAddr, brResult[i].brLookup, brResult[i].execTaken
             );
 
             // ExecState

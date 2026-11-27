@@ -67,9 +67,9 @@ module TestBranchPredictorQueue;
                 pc = 32'h800034e0 + slot * INSN_BYTE_WIDTH;
                 for (int v = 0; v < 2; v++) begin
                     lookup.valid = v[0];
-                    for (int directions = 0; directions < 4; directions++) begin
-                        recoveryCtx = RecoverBranchHistory(pc, lookup, directions[1], directions[0]);
-                        if (lookup.valid && directions[1:0] == 2'b10 && slot + 1 < FETCH_WIDTH) begin
+                    for (int resumeTaken = 0; resumeTaken < 2; resumeTaken++) begin
+                        recoveryCtx = RecoverBranchHistory(pc, lookup, resumeTaken[0]);
+                        if (lookup.valid && !resumeTaken && slot + 1 < FETCH_WIDTH) begin
                             // The suffix keeps the same entry history even if the predecessor was taken.
                             expectedSource = predecessor;
                             expectedRowHistory = predecessorHistory;
@@ -78,12 +78,12 @@ module TestBranchPredictorQueue;
                             expectedSource = pc;
                             expectedRowHistory = history;
                         end
-                        expectedHistory = directions[0] ? ExpectedTakenHistory(history, pc) : history;
+                        expectedHistory = resumeTaken ? ExpectedTakenHistory(history, pc) : history;
                         assert (BranchContextBTB_Set(recoveryCtx) == ToBTB_Set(expectedSource) &&
                                 BranchContextPHT_Row(recoveryCtx) == ToPHT_Row(expectedSource, expectedRowHistory) &&
                                 (!USE_GSHARE || BranchContextHistory(recoveryCtx) == expectedHistory))
-                            else $fatal(1, "Recovery rows/history mismatch at slot %0d, valid %d, directions %b, predecessor taken %d",
-                                        slot, lookup.valid, directions[1:0], prevTaken);
+                            else $fatal(1, "Recovery rows/history mismatch at slot %0d, valid %d, resume taken %d, predecessor taken %d",
+                                        slot, lookup.valid, resumeTaken, prevTaken);
                     end
                 end
             end
