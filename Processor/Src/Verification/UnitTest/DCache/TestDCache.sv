@@ -203,6 +203,53 @@ module TestDCache;
             else $fatal(1, "A cache hit issued an unexpected memory request");
     endtask
 
+    task CheckDeniedLoad;
+        localparam PhyAddrPath FILL_ADDR = ADDR_A + DCACHE_LINE_BYTE_NUM;
+        localparam PhyAddrPath OTHER_MISS = ADDR_A + 2 * DCACHE_LINE_BYTE_NUM;
+        MSHR_IndexPath fillID, otherID;
+        MemAccessSerial serial;
+        LoadMiss(FILL_ADDR, fillID);
+        wait (cacheSystemIF.dcMemAccessReq.valid);
+        @(negedge clk);
+        assert (!cacheSystemIF.dcMemAccessReq.we && cacheSystemIF.dcMemAccessReq.addr === FILL_ADDR)
+            else $fatal(1, "Unexpected memory request for first miss");
+        serial = MemAccessSerial'(readCount + 1);
+        cacheSystemIF.dcMemAccessReqAck = '{TRUE, serial, '0};
+        @(negedge clk);
+        cacheSystemIF.dcMemAccessReqAck = '0;
+
+        // Return the first line as the second miss allocates its MSHR. Its
+        // victim lookup then competes with the first MSHR's fill and a load hit.
+        fork
+            LoadMiss(OTHER_MISS, otherID);
+            begin
+                wait (loadStoreUnitIF.loadHasAllocatedMSHR[0]);
+                @(negedge clk);
+                cacheSystemIF.dcMemAccessResult = '{TRUE, serial, LINE_B};
+                readCount++;
+                @(negedge clk);
+                cacheSystemIF.dcMemAccessResult = '0;
+            end
+        join
+        loadStoreUnitIF.dcReadReq[0] = TRUE;
+        loadStoreUnitIF.dcReadAddr[0] = ADDR_A;
+        #HOLD;
+        assert (dCache.port.mshrCacheGrt[fillID] && dCache.port.mshrCacheGrt[otherID] &&
+                !dCache.port.lsuCacheGrt[0])
+            else $fatal(1, "Expected both MSHRs to take the cache ports");
+        @(posedge clk);
+        #HOLD;
+        assert (loadStoreUnitIF.dcReadHit[0] === FALSE && loadStoreUnitIF.mshrAddrHit[0] === FALSE &&
+                loadStoreUnitIF.mshrReadHit[0] === FALSE)
+            else $fatal(1, "A denied load reported a cache or MSHR hit");
+        @(negedge clk);
+        loadStoreUnitIF.dcReadReq[0] = FALSE;
+        MemoryAccess(FALSE, OTHER_MISS, LINE_C, otherID);
+        CompleteLoad(FILL_ADDR, LINE_B, fillID);
+        CompleteLoad(OTHER_MISS, LINE_C, otherID);
+        ReadHit(ADDR_A, MODIFIED_A);
+    endtask
+
     initial begin
         #(STEP * 2 * (DCACHE_INDEX_NUM + 1000));
         $fatal(1, "DCache test timed out after %0d reads and %0d writebacks; MSHR phases=%p",
@@ -256,6 +303,9 @@ module TestDCache;
         // Fill the other way and the last set, then exercise both array ports with a load and a store.
         LoadMiss(PhyAddrPath'(ADDR_B + 4), mshrID);
         MemoryAccess(FALSE, ADDR_B, LINE_B, mshrID);
+        // A lone fill must write the tag through exactly one array port.
+        assert (dCache.port.tagArrayWE[0] === TRUE && dCache.port.tagArrayWE[1] === FALSE)
+            else $fatal(1, "A lone MSHR fill must write exactly one tag");
         CompleteLoad(ADDR_B, LINE_B, mshrID);
         ReadHit(ADDR_A, MODIFIED_A);
         ReadHit(ADDR_B, LINE_B);
@@ -278,9 +328,38 @@ module TestDCache;
         // Reload the evicted data. Replacing a clean line must not cause another writeback.
         LoadMiss(ADDR_A, mshrID);
         MemoryAccess(FALSE, ADDR_A, MODIFIED_A, mshrID);
+
+        // Keep both LSU requests asserted across the fill. Giving both ports to
+        // the LSU on every retry would prevent the MSHR from installing its line.
+        loadStoreUnitIF.dcReadReq[0] = TRUE;
+        loadStoreUnitIF.dcReadAddr[0] = ADDR_A;
+        loadStoreUnitIF.dcWriteReq = TRUE;
+        loadStoreUnitIF.dcWriteAddr = ADDR_D;
+        loadStoreUnitIF.dcWriteByteWE = 8'h02;
+        loadStoreUnitIF.dcWriteData = 64'hbb00;
+        #HOLD;
+        assert (loadStoreUnitIF.mshrPhase[mshrID] === MSHR_PHASE_MISS_WRITE_CACHE_REQUEST)
+            else $fatal(1, "Expected simultaneous load, store and MSHR fill requests");
+        assert (loadStoreUnitIF.dcWriteReqAck === FALSE)
+            else $fatal(1, "Store accepted while a load and MSHR fill request both ports");
+        @(posedge clk);
+        #HOLD;
+        assert (loadStoreUnitIF.mshrPhase[mshrID] === MSHR_PHASE_MISS_HANDLING_COMPLETE &&
+                loadStoreUnitIF.mshrReadHit[0] === TRUE && loadStoreUnitIF.dcWriteHit === FALSE)
+            else $fatal(1, "Load and MSHR fill must progress while the store waits");
+        @(posedge clk);
+        #HOLD;
+        assert (loadStoreUnitIF.dcWriteHit === TRUE)
+            else $fatal(1, "Pending store did not hit after the MSHR fill");
+        @(negedge clk);
+        loadStoreUnitIF.dcReadReq[0] = FALSE;
+        loadStoreUnitIF.dcWriteReq = FALSE;
+
         CompleteLoad(ADDR_A, MODIFIED_A, mshrID);
         ReadHit(ADDR_A, MODIFIED_A);
-        ReadHit(ADDR_D, MODIFIED_D);
+        ReadHit(ADDR_D, 64'h99aabbcc_ddeebbee);
+        if (MSHR_NUM >= 2)
+            CheckDeniedLoad();
         repeat (3) begin
             @(posedge clk);
             #HOLD;

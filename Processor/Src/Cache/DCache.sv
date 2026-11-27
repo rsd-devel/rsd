@@ -305,8 +305,7 @@ endmodule : DCacheMemoryReqPortMultiplexer
 //     上記の R 個 リクエストのうち，r 番目 が
 //     キャッシュの p 番目のポートに割り当てられた
 //
-// 典型的には，
-//   grant[0]: load, grant[1]: store, grant[2],grant[3]...: mshr
+// Requester IDs are shared by the arbiter and mux: MSHRs, then loads, then stores.
 //
 module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
 
@@ -324,29 +323,23 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
             grant[r] = FALSE;
         end
 
-        // Merge inputs.
-        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
-            if (port.dcFlushing) begin
-                // Only MSHRs can be processed during flush.
-                req[r] = FALSE;
-            end
-            else begin
-            req[r] = port.lsuCacheReq[r];
+        // MSHRs must be able to fill the cache while a load and a store retry.
+        for (int i = 0; i < MSHR_NUM; i++) begin
+            req[i] = port.mshrCacheReq[i];
         end
-        end
-        for (int r = 0; r < MSHR_NUM; r++) begin
-            req[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheReq[r];
+        for (int i = 0; i < DCACHE_LSU_PORT_NUM; i++) begin
+            req[MSHR_NUM + i] = !port.dcFlushing && port.lsuCacheReq[i];
         end
 
-        // Arbitrate
         for (int p = 0; p < DCACHE_ARRAY_PORT_NUM; p++ ) begin
             cacheArrayInGrant[p] = FALSE;
-            cacheArrayInSel[p] = '0;
+            // An idle array port must select a load input so it cannot issue a write.
+            cacheArrayInSel[p] = DCacheMuxPortIndexPath'(MSHR_NUM);
             for (int r = 0; r < DCACHE_MUX_PORT_NUM; r++) begin
                 if (req[r]) begin
                     req[r] = FALSE;
                     grant[r] = TRUE;
-                    cacheArrayInSel[p] = r;
+                    cacheArrayInSel[p] = DCacheMuxPortIndexPath'(r);
                     cacheArrayOutSel[r] = p;
                     cacheArrayInGrant[p] = TRUE;
                     break;
@@ -359,11 +352,11 @@ module DCacheArrayPortArbiter(DCacheIF.DCacheArrayPortArbiter port);
         port.cacheArrayInGrant = cacheArrayInGrant;
         port.cacheArrayOutSel = cacheArrayOutSel;
 
-        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
-            port.lsuCacheGrt[r] = grant[r];
-        end
         for (int r = 0; r < MSHR_NUM; r++) begin
-            port.mshrCacheGrt[r] = grant[r + DCACHE_LSU_PORT_NUM];
+            port.mshrCacheGrt[r] = grant[r];
+        end
+        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
+            port.lsuCacheGrt[r] = grant[MSHR_NUM + r];
         end
     end
 
@@ -455,11 +448,11 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
     always_comb begin
 
         // Merge inputs.
-        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
-            muxIn[r] = port.lsuMuxIn[r];
-        end
         for (int r = 0; r < MSHR_NUM; r++) begin
-            muxIn[r + DCACHE_LSU_PORT_NUM] = port.mshrCacheMuxIn[r];
+            muxIn[r] = port.mshrCacheMuxIn[r];
+        end
+        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
+            muxIn[MSHR_NUM + r] = port.lsuMuxIn[r];
         end
 
         for (int r = 0; r < MSHR_NUM; r++) begin
@@ -617,13 +610,13 @@ module DCacheArrayPortMultiplexer(DCacheIF.DCacheArrayPortMultiplexer port);
 
     // Output to each port.
     always_comb begin
-        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
-            port.lsuMuxTagOut[r] = muxTagOut[r];
-            port.lsuMuxDataOut[r] = muxDataOut[r];
-        end
         for (int r = 0; r < MSHR_NUM; r++) begin
-            port.mshrCacheMuxTagOut[r] = muxTagOut[r + DCACHE_LSU_PORT_NUM];
-            port.mshrCacheMuxDataOut[r] = muxDataOut[r + DCACHE_LSU_PORT_NUM];
+            port.mshrCacheMuxTagOut[r] = muxTagOut[r];
+            port.mshrCacheMuxDataOut[r] = muxDataOut[r];
+        end
+        for (int r = 0; r < DCACHE_LSU_PORT_NUM; r++) begin
+            port.lsuMuxTagOut[r] = muxTagOut[MSHR_NUM + r];
+            port.lsuMuxDataOut[r] = muxDataOut[MSHR_NUM + r];
         end
     end
 
@@ -1152,9 +1145,10 @@ module DCache(
 
         // MSHR addr/data hit and data signals for MemoryAccessBackend
         for (int i = 0; i < DCACHE_LSU_READ_PORT_NUM; i++) begin
-            lsuMSHRAddrHit[i] = port.lsuMuxTagOut[i].mshrAddrHit;
+            // Without a grant the return mux can point at another request's port.
+            lsuMSHRAddrHit[i] = lsuCacheGrtReg[i] && port.lsuMuxTagOut[i].mshrAddrHit;
             lsuMSHRAddrHitMSHRID[i] = port.lsuMuxTagOut[i].mshrAddrHitMSHRID;
-            lsuMSHRReadHit[i] = port.lsuMuxTagOut[i].mshrReadHit;
+            lsuMSHRReadHit[i] = lsuCacheGrtReg[i] && port.lsuMuxTagOut[i].mshrReadHit;
             lsuMSHRReadData[i] = port.lsuMuxTagOut[i].mshrReadData;
         end
 
