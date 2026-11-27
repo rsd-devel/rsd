@@ -352,9 +352,12 @@ module TestDecodeStage;
         Check(port.nextFlush && port.nextRecoveredPC == START_PC + 16 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 16,
               "taken conditional prediction with the wrong target redirects");
-        LoadBundle(NOP, NOP, TRUE, TRUE, START_PC + 8);
+        LoadBundle(NOP, NOP, FALSE, TRUE, START_PC + 8, TRUE);
         Check(port.nextFlush && port.nextRecoveredPC == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
               "non-branch predicted taken recovers to fall-through");
+        if (FETCH_WIDTH > 1)
+            Check(port.nextRecoveredPredCtx.ctx == GROUP_LOOKUP.ctx,
+                  "a redirect into the same fetch group retains the predecessor and its history");
 
         // If that prediction was correct, the second instruction is live.
         Reset();

@@ -154,7 +154,8 @@ output
         // Restart from the redirecting instruction's checkpoint, discarding younger predictions.
         // Include its own taken event only for a branch redirected by Decode.
         recoveredPredCtx.ctx = RecoverBranchHistory(
-            pc[addrCheckLane], brPredIn[addrCheckLane].brLookup, insnInfo[addrCheckLane].writePC
+            pc[addrCheckLane], brPredIn[addrCheckLane].brLookup,
+            brPredIn[addrCheckLane].predTaken, brPredOut[addrCheckLane].predTaken
         );
 
         if (flushTriggered) begin

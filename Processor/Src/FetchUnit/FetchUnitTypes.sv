@@ -201,8 +201,12 @@ typedef struct packed {
 } BranchRecoveryPath;
 
 function automatic BranchHistoryContextPath RecoverBranchHistory(
-    PC_Path pc, BranchLookupPath lookup, logic taken
+    PC_Path pc, BranchLookupPath lookup, logic reuseOnFallthrough, logic taken
 );
+    // The fall-through suffix of this group uses the same predecessor rows as its prefix.
+    if (lookup.valid && reuseOnFallthrough && !taken &&
+        ToFetchGroupOffset(pc) != BTB_OffsetPath'(FETCH_WIDTH - 1))
+        return lookup.ctx;
     return MakeBranchHistoryContext(pc, USE_GSHARE ? BranchContextHistory(lookup.ctx) : '0, taken);
 endfunction
 

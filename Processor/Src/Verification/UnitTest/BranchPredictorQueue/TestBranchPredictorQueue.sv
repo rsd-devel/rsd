@@ -53,6 +53,43 @@ module TestBranchPredictorQueue;
         foreach (port.brResult[i]) port.brResult[i] = '0;
     endtask
 
+    task automatic CheckRecoveryRows;
+        MemoryMapTypes::PC_Path pc, predecessor, expectedSource;
+        BranchGlobalHistoryPath predecessorHistory, history, expectedRowHistory, expectedHistory;
+        BranchLookupPath lookup;
+        BranchHistoryContextPath recoveryCtx;
+        predecessor = 32'h80001500 + FETCH_GROUP_BYTE_NUM + (FETCH_WIDTH - 1) * INSN_BYTE_WIDTH;
+        predecessorHistory = USE_GSHARE ? BranchGlobalHistoryPath'(12'h535) : '0;
+        for (int prevTaken = 0; prevTaken < 2; prevTaken++) begin
+            lookup.ctx = MakeBranchHistoryContext(predecessor, predecessorHistory, prevTaken[0]);
+            history = prevTaken ? ExpectedTakenHistory(predecessorHistory, predecessor) : predecessorHistory;
+            for (int slot = 0; slot < FETCH_WIDTH; slot++) begin
+                pc = 32'h800034e0 + slot * INSN_BYTE_WIDTH;
+                for (int v = 0; v < 2; v++) begin
+                    lookup.valid = v[0];
+                    for (int directions = 0; directions < 4; directions++) begin
+                        recoveryCtx = RecoverBranchHistory(pc, lookup, directions[1], directions[0]);
+                        if (lookup.valid && directions[1:0] == 2'b10 && slot + 1 < FETCH_WIDTH) begin
+                            // The suffix keeps the same entry history even if the predecessor was taken.
+                            expectedSource = predecessor;
+                            expectedRowHistory = predecessorHistory;
+                        end
+                        else begin
+                            expectedSource = pc;
+                            expectedRowHistory = history;
+                        end
+                        expectedHistory = directions[0] ? ExpectedTakenHistory(history, pc) : history;
+                        assert (BranchContextBTB_Set(recoveryCtx) == ToBTB_Set(expectedSource) &&
+                                BranchContextPHT_Row(recoveryCtx) == ToPHT_Row(expectedSource, expectedRowHistory) &&
+                                (!USE_GSHARE || BranchContextHistory(recoveryCtx) == expectedHistory))
+                            else $fatal(1, "Recovery rows/history mismatch at slot %0d, valid %d, directions %b, predecessor taken %d",
+                                        slot, lookup.valid, directions[1:0], prevTaken);
+                    end
+                end
+            end
+        end
+    endtask
+
     // A warm redirect first reads the saved predecessor set. On the next edge the
     // target captures that row and starts the read for its own successor.
     task CompleteWarmRedirect;
@@ -1088,6 +1125,7 @@ module TestBranchPredictorQueue;
         ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
         CheckAheadPHT();
         CheckStalledPHT();
+        CheckRecoveryRows();
         CheckAheadRows();
         CheckAheadSequence();
         CheckOverlappingMisses();
