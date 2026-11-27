@@ -15,7 +15,10 @@ include ../../Makefile.inc
 # Keep dependency-file paths usable both inside and outside the container.
 CRTASM = ../../rsd-crt.s
 LDSRC = ../../rsd-loader.c
-ARCHFLAGS = -march=$(COREMARK_ARCH)_zicsr_zifencei -mabi=ilp32
+RSD_TEST_BASE_ARCH = $(COREMARK_ARCH)
+ifeq ($(COREMARK_ARCH),rv32i)
+RSD_TEST_EXTENSIONS =
+endif
 LIBRARY_ARCHFLAGS = -march=$(COREMARK_ARCH) -mabi=ilp32
 # This integer-only port needs GCC helpers, but no libc or math library.
 LIBGCC = -lgcc
@@ -26,11 +29,12 @@ OBJS = $(CORE_SRCS:.c=.o) core_portme.o ee_printf.o rsd-crt.o rsd-loader.o
 BUILD_MAKEFILES = ../Makefile ../../Makefile.inc .build-config
 vpath %.c ../External ..
 
-# Recompile only when the measurement setting changes.
+# Track the effective ISA as well as the measurement mode.
+RSD_BUILD_CONFIG = $(BENCHMARK) $(ARCHFLAGS)
 .PHONY: force-build-config
 .build-config: force-build-config
-	@if ! test -f $@ || test "$$(cat $@)" != "$(BENCHMARK)"; then \
-		printf '%s\n' "$(BENCHMARK)" > $@; \
+	@if ! test -f $@ || test "$$(cat $@)" != "$(RSD_BUILD_CONFIG)"; then \
+		printf '%s\n' "$(RSD_BUILD_CONFIG)" > $@; \
 	fi
 
 %.o: %.c $(BUILD_MAKEFILES)

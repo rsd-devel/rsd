@@ -33,7 +33,9 @@ $(RSD_MEMORY_MAP_STAMP): $(RSD_CONFIG_GENERATOR) \
 RSD_MICRO_ARCH_OUTPUTS := $(addprefix $(RSD_ROOT)/Processor/Src/,Config/MicroArchConf.sv Config/MicroArchMacros.svh Makefiles/MicroArch.inc.mk)
 RSD_MICRO_ARCH_STAMP := $(RSD_ROOT)/Processor/Src/Config/MicroArch.stamp
 
-$(RSD_MICRO_ARCH_OUTPUTS): $(RSD_MICRO_ARCH_STAMP)
+# The stamp writes MicroArch.inc.mk. An explicit empty recipe makes GNU Make
+# recheck its timestamp and reload the new ISA flags before compiling objects.
+$(RSD_MICRO_ARCH_OUTPUTS): $(RSD_MICRO_ARCH_STAMP) ;
 ifneq ($(filter-out $(wildcard $(RSD_MICRO_ARCH_OUTPUTS)),$(RSD_MICRO_ARCH_OUTPUTS)),)
 .PHONY: $(RSD_MICRO_ARCH_STAMP)
 endif

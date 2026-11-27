@@ -5,6 +5,8 @@ include $(abspath $(dir $(lastword $(MAKEFILE_LIST)))MicroArch.inc.mk)
 
 # Keep test selection and compiler flags consistent with the RTL configuration.
 RSD_HAS_FP = $(if $(filter +define+RSD_MARCH_FP_PIPE +define+RSD_MARCH_FP_PIPE=%,$(RSD_SRC_CFG)),1,0)
+RSD_HAS_ZBA = $(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),1,0)
+RSD_HAS_ZICOND = $(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),1,0)
 RSD_HAS_ZICFILP = $(if $(filter +define+RSD_ENABLE_ZICFILP +define+RSD_ENABLE_ZICFILP=%,$(RSD_SRC_CFG)),1,0)
 
 # TYPES specifies files that include packages that contain type definitions.
