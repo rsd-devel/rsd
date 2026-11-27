@@ -161,6 +161,7 @@ module DecodeStage(
     logic insnValidIn[DECODE_WIDTH];
     BranchPred [DECODE_WIDTH-1:0] brPredIn;
     PC_Path pcIn[DECODE_WIDTH];
+    BTB_BranchType [DECODE_WIDTH-1:0] brType;
 
     logic insnValidOut[DECODE_WIDTH];
     logic insnFlushed[DECODE_WIDTH];
@@ -176,6 +177,8 @@ module DecodeStage(
             isfIn[i] = pipeReg[i].insn;
             pcIn[i] = pipeReg[i].pc;
             brPredIn[i] = pipeReg[i].brPred;
+            // Decoder emits the single branch micro-op in slot 1. Landing-pad checking may replace it.
+            brType[i] = insnInfo[i].writePC ? microOps[i*MICRO_OP_MAX_NUM + 1].operand.brOp.brType : BTB_JUMP;
         end
     end
 
@@ -185,6 +188,7 @@ module DecodeStage(
         .brPredIn(brPredIn),
         .pc(pcIn),
         .insnInfo(insnInfo),
+        .brType(brType),
         .insnValidOut(insnValidOut),
         .insnFlushed(insnFlushed),
         .insnFlushTriggering(insnFlushTriggering),

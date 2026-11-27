@@ -103,32 +103,36 @@ module FetchStage(
     end
 
     // Fetch speculates on BTB call/return types. Only an accepted group changes the stack.
-    localparam RAS_ENTRY_NUM = 4;
-    typedef logic [$clog2(RAS_ENTRY_NUM)-1:0] RAS_IndexPath;
     PC_Path ras[RAS_ENTRY_NUM];
-    RAS_IndexPath rasPtr;
-    logic [RAS_ENTRY_NUM-1:0] rasValid;
-    logic pushRAS, popRAS;
+    RAS_IndexPath rasPtr, nextRAS_Ptr;
+    logic pushRAS, popRAS, rasWE;
     PC_Path returnPC;
     always_ff @(posedge port.clk) begin
-        if (port.rst || recovery.fetchRedirect.valid || port.interruptAddrWE) begin
-            // Ignore entries from the discarded path until the corresponding slots are written again.
-            rasValid <= '0;
-            rasPtr <= '0;
-            if (port.rst) begin
-                for (int i = 0; i < RAS_ENTRY_NUM; i++)
-                    ras[i] <= '0;
-            end
+        rasPtr <= nextRAS_Ptr;
+        if (port.rst) begin
+            for (int i = 0; i < RAS_ENTRY_NUM; i++)
+                ras[i] <= '0;
+        end
+        else if (rasWE)
+            ras[nextRAS_Ptr] <= returnPC;
+    end
+
+    always_comb begin
+        nextRAS_Ptr = rasPtr;
+        rasWE = FALSE;
+        if (port.rst)
+            nextRAS_Ptr = '0;
+        else if (recovery.fetchRedirect.valid || port.interruptAddrWE) begin
+            // Cold redirects have no checkpoint. Preserve the circular stack as a prediction hint.
+            if (recovery.fetchRedirect.restorePredCtx && recovery.fetchRedirect.valid && !port.interruptAddrWE)
+                nextRAS_Ptr = recovery.fetchRedirect.predCtx.rasPtr;
         end
         else if (pushRAS) begin
-            ras[rasPtr + RAS_IndexPath'(1)] <= returnPC;
-            rasPtr <= rasPtr + RAS_IndexPath'(1);
-            rasValid[rasPtr + RAS_IndexPath'(1)] <= TRUE;
+            nextRAS_Ptr = rasPtr + RAS_IndexPath'(1);
+            rasWE = TRUE;
         end
-        else if (popRAS) begin
-            // Keep the entry on pop so deep returns can reuse targets on the next lap.
-            rasPtr <= rasPtr - RAS_IndexPath'(1);
-        end
+        else if (popRAS)
+            nextRAS_Ptr = rasPtr - RAS_IndexPath'(1);
     end
 
     PC_Path predictedTakenPC;
@@ -144,7 +148,7 @@ module FetchStage(
                 // A jump is taken regardless of the counter. Later offsets are off the predicted path.
                 if (port.readBrType[groupOffset] != BTB_COND || port.brPredTaken[groupOffset]) begin
                     // A return can select the current stack top in the same cycle as the BTB target.
-                    nextPredCtx.usedRAS = port.readBrType[groupOffset] == BTB_RETURN && rasValid[rasPtr];
+                    nextPredCtx.usedRAS = port.readBrType[groupOffset] == BTB_RETURN;
                     predictedPC = nextPredCtx.usedRAS ? ras[rasPtr] : port.btbOut[groupOffset];
                     predictedTakenPC = ToFetchGroupBase(pipeReg.pc) | PC_Path'(groupOffset << INSN_ADDR_BIT_WIDTH);
                     takenByGroupOffset[groupOffset] = TRUE;
@@ -273,6 +277,8 @@ module FetchStage(
             nextStage.brPred[fetchLane].btbHit = responsePrediction.btbHit[groupOffset];
             nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
             nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];
+            // The fetched group updates the stack only when it advances, even after a stall.
+            nextStage.brPred[fetchLane].rasPtr = rasPtr;
             nextStage.insn[fetchLane] = validByFetchLane[fetchLane] ? port.icReadDataOut[fetchLane] : '0;
         end
         port.nextStage = nextStage;

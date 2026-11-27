@@ -21,6 +21,7 @@ input
     BranchPred [DECODE_WIDTH-1 : 0] brPredIn,
     PC_Path pc[DECODE_WIDTH],
     InsnInfo [DECODE_WIDTH-1 : 0] insnInfo,
+    BTB_BranchType [DECODE_WIDTH-1 : 0] brType,
 output 
     logic insnValidOut[DECODE_WIDTH],
     logic insnFlushed[DECODE_WIDTH],
@@ -155,6 +156,9 @@ output
         // Include its own taken event only for a branch redirected by Decode.
         recoveredPredCtx.ctx = RecoverBranchHistory(
             pc[addrCheckLane], brPredIn[addrCheckLane].brLookup, brPredOut[addrCheckLane].predTaken
+        );
+        recoveredPredCtx.rasPtr = RecoverRAS_Ptr(
+            brPredIn[addrCheckLane].rasPtr, brType[addrCheckLane], brPredOut[addrCheckLane].predTaken
         );
 
         if (flushTriggered) begin

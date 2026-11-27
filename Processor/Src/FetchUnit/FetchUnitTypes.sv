@@ -195,9 +195,22 @@ typedef struct packed {
     BranchHistoryContextPath ctx;
 } BranchLookupPath;
 
+localparam RAS_ENTRY_NUM = 4;
+typedef logic [$clog2(RAS_ENTRY_NUM)-1:0] RAS_IndexPath;
+
+// The checkpoint precedes the redirecting instruction.
+function automatic RAS_IndexPath RecoverRAS_Ptr(RAS_IndexPath ptr, BTB_BranchType brType, logic taken);
+    if (taken && brType == BTB_CALL)
+        return ptr + RAS_IndexPath'(1);
+    if (taken && brType inside {BTB_RETURN, BTB_RETURN_OFFSET})
+        return ptr - RAS_IndexPath'(1);
+    return ptr;
+endfunction
+
 // The successor restarts from the predecessor that supplied its prediction rows.
 typedef struct packed {
     BranchHistoryContextPath ctx;
+    RAS_IndexPath rasPtr;
 } BranchRecoveryPath;
 
 function automatic BranchHistoryContextPath RecoverBranchHistory(
@@ -240,6 +253,7 @@ typedef struct packed // struct BranchResult
     logic valid;        // Whether this result is valid or not.
 
     PHT_EntryPath phtPrevValue;             // PHT's counter value
+    RAS_IndexPath rasPtr;
 } BranchResult;
 
 typedef struct packed // struct BranchPred
@@ -254,6 +268,7 @@ typedef struct packed // struct BranchPred
     logic predTaken;                        // result of bpred
     
     PHT_EntryPath phtPrevValue;             // PHT's counter value
+    RAS_IndexPath rasPtr;   // Stack top before this fetch group.
 } BranchPred;
 
 endpackage : FetchUnitTypes

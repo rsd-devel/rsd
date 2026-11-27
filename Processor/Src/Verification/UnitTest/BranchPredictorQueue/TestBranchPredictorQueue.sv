@@ -168,8 +168,8 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
-        assert (!port.nextStage.brPred[0].usedRAS && fetch.fetchRequestPC == retOp.nextAddr)
-            else $fatal(1, "An empty Fetch RAS must use the BTB fallback");
+        assert (port.nextStage.brPred[0].usedRAS && fetch.fetchRequestPC === MemoryMapTypes::PC_Path'(0))
+            else $fatal(1, "The cold circular RAS must supply its initialized entry");
 
         recovery.fetchRedirect.valid = TRUE;
         ReadGroup(callOp.brAddr);
@@ -185,16 +185,56 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
+        // Restore a nonzero pointer before resuming at a return.
+        recovery.fetchRedirect.predCtx.rasPtr = RecoverRAS_Ptr(RAS_IndexPath'(2), BTB_CALL, TRUE);
+        ReadGroupFrom(retOp.brAddr, callOp.brAddr, '0, TRUE);
+        recovery.fetchRedirect.valid = FALSE;
+        ctrl.ifStage.clear = FALSE;
+        #1;
+        assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3) && port.nextStage.brPred[0].usedRAS)
+            else $fatal(1, "Fetch must use the restored stack pointer");
+        ctrl.ifStage.stall = TRUE;
+        repeat (3) begin
+            @(posedge clk);
+            #1;
+            assert (fetch.rasPtr == RAS_IndexPath'(3)) else $fatal(1, "A held return changed the RAS");
+        end
+        ctrl.ifStage.stall = FALSE;
+        #1;
+        assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3)) else $fatal(1, "Held return checkpoint changed");
+        @(posedge clk);
+        #1;
+        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A return must pop its checkpoint once");
+        // Without a branch checkpoint an interrupt or cold redirect must leave that pointer alone.
+        recovery.fetchRedirect.valid = TRUE;
+        recovery.fetchRedirect.restorePredCtx = FALSE;
+        port.interruptAddrIn = callOp.brAddr;
+        port.interruptAddrWE = TRUE;
+        ctrl.ifStage.clear = TRUE;
+        @(posedge clk);
+        #1;
+        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "Interrupt entry changed the RAS pointer");
+        port.interruptAddrWE = FALSE;
+        @(posedge clk);
+        #1;
+        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A cold redirect changed the RAS pointer");
+        recovery.fetchRedirect.predCtx.rasPtr = RecoverRAS_Ptr(RAS_IndexPath'(2), BTB_RETURN_OFFSET, TRUE);
+        recovery.fetchRedirect.restorePredCtx = TRUE;
+        @(posedge clk);
+        #1;
+        assert (fetch.rasPtr == RAS_IndexPath'(1)) else $fatal(1, "An offset return must restore one pop");
+        recovery.fetchRedirect.predCtx.rasPtr = '0;
+
         // One more call than slots overwrites the oldest target. Each call returns to a ret.
         firstCall = MakeResult((BTB_SET_NUM + 24) * FETCH_WIDTH + FETCH_WIDTH - 1);
-        for (int i = 0; i <= fetch.RAS_ENTRY_NUM; i++) begin
+        for (int i = 0; i <= RAS_ENTRY_NUM; i++) begin
             callOp.brAddr = firstCall.brAddr + i * CALL_STRIDE;
             retOp.brAddr = callOp.brAddr + INSN_BYTE_WIDTH;
-            callOp.nextAddr = i == fetch.RAS_ENTRY_NUM ? retOp.brAddr : callOp.brAddr + CALL_STRIDE;
+            callOp.nextAddr = i == RAS_ENTRY_NUM ? retOp.brAddr : callOp.brAddr + CALL_STRIDE;
             callOp.brLookup.ctx = i == 0 ? firstCall.brLookup.ctx :
                 MakeBranchHistoryContext(callOp.brAddr - CALL_STRIDE, '0, TRUE);
             // Returns are reached from the next deeper return, except at the innermost call.
-            retOp.brLookup.ctx = MakeBranchHistoryContext(i == fetch.RAS_ENTRY_NUM ? callOp.brAddr : retOp.brAddr + CALL_STRIDE, '0, TRUE);
+            retOp.brLookup.ctx = MakeBranchHistoryContext(i == RAS_ENTRY_NUM ? callOp.brAddr : retOp.brAddr + CALL_STRIDE, '0, TRUE);
             WriteBTB(callOp, retOp);
         end
         // The deepest call returns to its own return instruction for the first pop.
@@ -206,16 +246,16 @@ module TestBranchPredictorQueue;
         ReadGroup(firstCall.brAddr);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
-        for (int i = 0; i <= fetch.RAS_ENTRY_NUM; i++) begin
+        for (int i = 0; i <= RAS_ENTRY_NUM; i++) begin
             #1;
             assert (port.nextStage.valid[0] && port.nextStage.pc == firstCall.brAddr + i * CALL_STRIDE)
                 else $fatal(1, "Unexpected call PC at nesting depth %0d", i + 1);
             @(posedge clk);
         end
-        for (int i = 0; i < 2 * fetch.RAS_ENTRY_NUM; i++) begin
+        for (int i = 0; i < 2 * RAS_ENTRY_NUM; i++) begin
             #1;
             assert (port.nextStage.valid[0] && port.nextStage.brPred[0].usedRAS &&
-                    fetch.fetchRequestPC == retOp.brAddr - (i % fetch.RAS_ENTRY_NUM) * CALL_STRIDE)
+                    fetch.fetchRequestPC == retOp.brAddr - (i % RAS_ENTRY_NUM) * CALL_STRIDE)
                 else $fatal(1, "Unexpected circular RAS target on return %0d", i + 1);
             @(posedge clk);
         end
@@ -656,7 +696,7 @@ module TestBranchPredictorQueue;
         rst = TRUE;
         rstStart = TRUE;
         @(negedge clk);
-        for (int i = 0; i < fetch.RAS_ENTRY_NUM; i++)
+        for (int i = 0; i < RAS_ENTRY_NUM; i++)
             assert (fetch.ras[i] === '0) else $fatal(1, "Reset did not clear RAS entry %0d on the first clock", i);
         assert (fetch.rasPtr === '0) else $fatal(1, "Reset did not restore the initial RAS pointer");
         rstStart = FALSE;
@@ -1122,7 +1162,7 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         port.brResult[0] = MakeResult(4);
         port.brResult[1] = MakeResult(5);
-        for (int i = 0; i < fetch.RAS_ENTRY_NUM; i++)
+        for (int i = 0; i < RAS_ENTRY_NUM; i++)
             assert (fetch.ras[i] != '0) else $fatal(1, "RAS entry %0d was not populated before reset", i);
         ResetTables();
         ClearResults();

@@ -111,6 +111,7 @@ module IntegerRegisterWriteStage(
             alWriteData[i].predCtx.ctx = RecoverBranchHistory(
                 brResult[i].brAddr, brResult[i].brLookup, brResult[i].execTaken
             );
+            alWriteData[i].predCtx.rasPtr = RecoverRAS_Ptr(brResult[i].rasPtr, brResult[i].brType, brResult[i].execTaken);
 
             // ExecState
             if ( update[i] ) begin

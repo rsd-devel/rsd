@@ -26,6 +26,7 @@ module TestDecodeStage;
     localparam PC_Path START_PC = PC_Path'(32'h80001000);
     localparam PC_Path PREDECESSOR_PC = START_PC - 'h34;
     localparam BranchGlobalHistoryPath PREDECESSOR_HISTORY = USE_GSHARE ? 'h3 : '0;
+    localparam RAS_IndexPath STACK_TOP = RAS_IndexPath'(2);
     localparam BranchLookupPath GROUP_LOOKUP = '{
         valid: TRUE, ctx: MakeBranchHistoryContext(PREDECESSOR_PC, PREDECESSOR_HISTORY, TRUE)
     };
@@ -143,6 +144,8 @@ module TestDecodeStage;
         prediction[0].predTaken = predTaken;
         prediction[0].takenAddr = takenAddr;
         prediction[0].btbHit = btbHit;
+        prediction[0].rasPtr = STACK_TOP;
+        prediction[1].rasPtr = STACK_TOP;
         prediction[0].btbHitWay = btbHit ? '1 : '0; // Exercise a hit in the upper way.
         Tick();
         ClearInput();
@@ -328,6 +331,8 @@ module TestDecodeStage;
               port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
               port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
               "JAL direction correction supplies the target and retains the Fetch hit way");
+        Check(port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1),
+              "a direct call advances the restored stack pointer");
         Check(port.nextStage[0].bPred.brLookup == GROUP_LOOKUP &&
               port.nextRedirect.predCtx.ctx == MakeBranchHistoryContext(
                   START_PC, USE_GSHARE ? AdvanceTakenHistory(PREDECESSOR_HISTORY, PREDECESSOR_PC) : '0, TRUE),
@@ -366,11 +371,13 @@ module TestDecodeStage;
             pc[0] = START_PC + slot * INSN_BYTE_WIDTH;
             insn[0] = 32'h0ff0000f; // fence iorw, iorw
             prediction[0].brLookup = GROUP_LOOKUP;
+            prediction[0].rasPtr = STACK_TOP;
             Tick();
             ClearInput();
             #1;
-            Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + (slot + 1) * INSN_BYTE_WIDTH,
-                  "serialization resumes at the next instruction");
+            Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + (slot + 1) * INSN_BYTE_WIDTH &&
+                  port.nextRedirect.predCtx.rasPtr == STACK_TOP,
+                  "serialization resumes at the next instruction with the same RAS pointer");
             if (slot + 1 < FETCH_WIDTH)
                 Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx, "serialization within the group reuses its rows");
             else
