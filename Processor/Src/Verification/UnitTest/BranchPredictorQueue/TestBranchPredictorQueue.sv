@@ -656,6 +656,9 @@ module TestBranchPredictorQueue;
         rst = TRUE;
         rstStart = TRUE;
         @(negedge clk);
+        for (int i = 0; i < fetch.RAS_ENTRY_NUM; i++)
+            assert (fetch.ras[i] === '0) else $fatal(1, "Reset did not clear RAS entry %0d on the first clock", i);
+        assert (fetch.rasPtr === '0) else $fatal(1, "Reset did not restore the initial RAS pointer");
         rstStart = FALSE;
         repeat (RESET_CYCLES) @(negedge clk);
         rst = FALSE;
@@ -1119,6 +1122,8 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         port.brResult[0] = MakeResult(4);
         port.brResult[1] = MakeResult(5);
+        for (int i = 0; i < fetch.RAS_ENTRY_NUM; i++)
+            assert (fetch.ras[i] != '0) else $fatal(1, "RAS entry %0d was not populated before reset", i);
         ResetTables();
         ClearResults();
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");

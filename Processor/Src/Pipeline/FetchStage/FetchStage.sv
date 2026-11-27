@@ -115,6 +115,10 @@ module FetchStage(
             // Ignore entries from the discarded path until the corresponding slots are written again.
             rasValid <= '0;
             rasPtr <= '0;
+            if (port.rst) begin
+                for (int i = 0; i < RAS_ENTRY_NUM; i++)
+                    ras[i] <= '0;
+            end
         end
         else if (pushRAS) begin
             ras[rasPtr + RAS_IndexPath'(1)] <= returnPC;
