@@ -739,6 +739,29 @@ module TestBranchPredictorQueue;
         rst = FALSE;
     endtask
 
+    // CoreMark visits these unrelated PCs with the same offset in a four-wide group.
+    task CheckFourWidePartialTag;
+        localparam MemoryMapTypes::PC_Path PREDECESSOR = 32'h80001230;
+        localparam MemoryMapTypes::PC_Path NON_BRANCH_PC = 32'h80003458;
+        BranchResult branch;
+        logic hitResetEntry, hitOtherBranch;
+        ReadGroupFrom(32'h80001c00, PREDECESSOR);
+        hitResetEntry = port.btbHit[0];
+
+        branch = MakeResult('h3658 / INSN_BYTE_WIDTH);
+        branch.phtPrevValue = PHT_ENTRY_MAX;
+        branch.nextAddr = 32'h800034d8;
+        branch.brLookup.ctx = MakeBranchHistoryContext(PREDECESSOR, '0, FALSE);
+        WriteBTB(branch);
+        ReadGroupFrom(branch.brAddr, PREDECESSOR);
+        CheckBTB(ToFetchGroupOffset(branch.brAddr), branch);
+        ReadGroupFrom(NON_BRANCH_PC, PREDECESSOR);
+        hitOtherBranch = port.btbHit[ToFetchGroupOffset(NON_BRANCH_PC)];
+        assert (!hitResetEntry && !hitOtherBranch)
+            else $fatal(1, "Unexpected four-wide BTB hit: reset entry at 0x1c00 = %b, trained 0x3658 at 0x3458 = %b",
+                        hitResetEntry, hitOtherBranch);
+    endtask
+
     task CheckBTBWays;
         localparam int ALIAS_STRIDE = FETCH_WIDTH * BTB_SET_NUM;
         localparam int FIRST = ALIAS_STRIDE; // Keep the replacement checks clear of the reset tag.
@@ -1185,6 +1208,7 @@ module TestBranchPredictorQueue;
         ctrl.ifStage.clear = TRUE;
         ctrl.drainFetchForInterrupt = FALSE;
         ResetTables();
+        if (FETCH_WIDTH == 4 && BTB_SET_NUM == 512) CheckFourWidePartialTag();
         if (FETCH_WIDTH >= 2) CheckBTBWays();
         CheckFetchRAS();
 

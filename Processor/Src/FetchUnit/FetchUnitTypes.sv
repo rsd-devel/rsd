@@ -22,8 +22,12 @@ localparam BTB_ENTRY_NUM = CONF_BTB_ENTRY_NUM;
 // The two-way replacement policy allocates the way opposite the last write to the set.
 localparam BTB_WAY_NUM = 2;
 localparam BTB_SET_NUM = BTB_ENTRY_NUM / BTB_WAY_NUM;
-localparam BTB_TAG_HIGH_WIDTH = 3;
-localparam BTB_TAG_LOW_WIDTH = 4;
+// Four-wide fetch has room for a wider tag in the same byte-aligned RAM way.
+// With 512 sets, use {PC[15:12], PC[9:4]} to distinguish nearby successor groups.
+localparam BTB_TAG_HIGH_WIDTH = FETCH_WIDTH == 4 ? 4 : 3;
+localparam BTB_TAG_LOW_WIDTH = FETCH_WIDTH == 4 ? 6 : 4;
+localparam BTB_TAG_HIGH_LSB = FETCH_WIDTH == 4 && BTB_SET_NUM > 1 ?
+                              $clog2(BTB_SET_NUM) - 1 : $clog2(BTB_SET_NUM);
 localparam BTB_TAG_WIDTH = BTB_TAG_HIGH_WIDTH + BTB_TAG_LOW_WIDTH;
 localparam BTB_CONTENTS_ADDR_WIDTH = 13;
 
@@ -68,7 +72,7 @@ function automatic BTB_Tag ToBTB_Tag(PC_Path addr);
     PC_Path groupNumber;
     groupNumber = ToFetchGroupNumber(addr);
     // The predecessor supplies the set. Keep both nearby and distant successors distinguishable.
-    tag.block = {groupNumber[$clog2(BTB_SET_NUM) +: BTB_TAG_HIGH_WIDTH], groupNumber[BTB_TAG_LOW_WIDTH-1:0]};
+    tag.block = {groupNumber[BTB_TAG_HIGH_LSB +: BTB_TAG_HIGH_WIDTH], groupNumber[BTB_TAG_LOW_WIDTH-1:0]};
     tag.offset = ToFetchGroupOffset(addr);
     return tag;
 endfunction
