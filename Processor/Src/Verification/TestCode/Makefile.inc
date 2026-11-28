@@ -42,11 +42,14 @@ STRIP = $(RSD_CROSS_TOOL_PREFIX)strip
 #
 # コンパイルオプションとリンクオプション
 #
+RSD_TEST_BASE_ARCH = $(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima)
+RSD_TEST_EXTENSIONS = $(if $(filter 1,$(RSD_HAS_ZBA)),_zba)$(if $(filter 1,$(RSD_HAS_ZICOND)),_zicond)
+
 # Newer toolchains require explicit Zicsr/Zifencei for CSR and fence.i
 # instructions, which were previously included in the base I extension.
 ARCHFLAGS = \
-	-march=$(if $(filter 1,$(RSD_HAS_FP)),rv32imaf,rv32ima)_zicsr_zifencei \
-	-mabi=ilp32 \
+	-march=$(RSD_TEST_BASE_ARCH)$(RSD_TEST_EXTENSIONS)_zicsr_zifencei \
+	-mabi=ilp32
 
 # Ubuntu's GCC packages have no rv32imaf/ilp32 multilib. Link against RV32IM
 # libraries, which use the same soft-float ABI and require no C/D extensions.
@@ -100,10 +103,10 @@ LDSCRIPT = $(RSD_TEST_CODE_ROOT)/rsd-ld.script
 DUMMY_ROM = $(RSD_TEST_CODE_ROOT)/dummy_rom.bin
 
 # スタートアップルーチンのコンパイル
-$(CRTOBJ): $(CRTASM) $(RSD_MEMORY_MAP_OUTPUTS) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc
+$(CRTOBJ): $(CRTASM) $(RSD_MEMORY_MAP_OUTPUTS) $(DUMMY_ROM) $(RSD_TEST_CODE_ROOT)/Asm/rsd-asm-macros.h $(RSD_TEST_CODE_ROOT)/Makefile.inc $(RSD_ROOT)/Processor/Src/Makefiles/MicroArch.inc.mk
 	$(CC) $(CFLAGS) -MMD -MP -x assembler-with-cpp -o $@ -c $<
 
-$(LDOBJ): $(LDSRC) $(RSD_MEMORY_MAP_OUTPUTS) $(RSD_TEST_CODE_ROOT)/Makefile.inc
+$(LDOBJ): $(LDSRC) $(RSD_MEMORY_MAP_OUTPUTS) $(RSD_TEST_CODE_ROOT)/Makefile.inc $(RSD_ROOT)/Processor/Src/Makefiles/MicroArch.inc.mk
 	$(CC) $(CFLAGS) -MMD -MP -o $@ -c $<
 
 

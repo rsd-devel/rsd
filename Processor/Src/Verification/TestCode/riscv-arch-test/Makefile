@@ -20,8 +20,8 @@ empty :=
 space := $(empty) $(empty)
 ACT_PRIV_EXTENSIONS := ExceptionsSm ExceptionsZaamo ExceptionsZalrsc InterruptsSm
 ACT_AVAILABLE_EXTENSIONS := I M Zaamo Zalrsc Zicsr Zifencei $(ACT_PRIV_EXTENSIONS) \
-	$(if $(filter +define+RSD_ENABLE_ZBA +define+RSD_ENABLE_ZBA=%,$(RSD_SRC_CFG)),Zba) \
-	$(if $(filter +define+RSD_ENABLE_ZICOND +define+RSD_ENABLE_ZICOND=%,$(RSD_SRC_CFG)),Zicond) \
+	$(if $(filter 1,$(RSD_HAS_ZBA)),Zba) \
+	$(if $(filter 1,$(RSD_HAS_ZICOND)),Zicond) \
 	$(if $(filter 1,$(RSD_HAS_FP)),F)
 # Select all validated extensions enabled in the current RTL configuration.
 ACT_EXTENSIONS ?= $(subst $(space),$(comma),$(strip $(ACT_AVAILABLE_EXTENSIONS)))

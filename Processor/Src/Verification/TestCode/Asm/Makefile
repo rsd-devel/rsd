@@ -70,7 +70,7 @@ ASM_DSTS  = $(SRC_DIRS:%=%/code.hex)
 # $(ASM_DSTS) の全ファイルを生成 -> 
 #   各ファイルごとに依存関係を逆辿りすることで全体が生成される
 #
-$(ASM_OBJS): %.o: %.s Makefile ../Makefile.inc
+$(ASM_OBJS): %.o: %.s Makefile ../Makefile.inc $(RSD_ROOT)/Processor/Src/Makefiles/MicroArch.inc.mk
 	$(CC) $(CFLAGS) -MMD -MP -x assembler-with-cpp -o $@ -c $<
 
 # LD の引数の順にアドレス空間に配置されるため，

@@ -12,7 +12,7 @@ BUILD_MAKEFILES = Makefile ../BuildC.inc.mk ../../Makefile.inc
 
 all: code.hex
 
-%.o: %.c $(BUILD_MAKEFILES)
+%.o: %.c $(BUILD_MAKEFILES) $(RSD_ROOT)/Processor/Src/Makefiles/MicroArch.inc.mk
 	$(CC) $(CFLAGS) $(XCFLAGS) -MMD -MP -o $@ -c $<
 
 

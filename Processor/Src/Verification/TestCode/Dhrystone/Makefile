@@ -21,8 +21,7 @@ include ../../Makefile.inc
 # Keep dependency-file paths usable both inside and outside the container.
 CRTASM = ../../rsd-crt.s
 LDSRC = ../../rsd-loader.c
-ARCHFLAGS = -march=rv32im_zicsr_zifencei -mabi=ilp32
-LIBRARY_ARCHFLAGS = -march=rv32im -mabi=ilp32
+RSD_TEST_BASE_ARCH = rv32im
 LIBGCC = -lgcc
 # Use picolibc's strcpy/strcmp; the port supplies allocation, time and output.
 LIBC = -lc
@@ -41,11 +40,12 @@ OBJS = dhrystone_port.o dhry_2.o rsd-crt.o rsd-loader.o
 BUILD_MAKEFILES = ../Makefile ../../Makefile.inc .build-config
 vpath %.c ../External ..
 
-# Recompile when the builtin, measurement or iteration setting changes.
+# Track the effective ISA as well as the benchmark settings.
+RSD_BUILD_CONFIG = $(DHRYSTONE_BUILTINS) $(BENCHMARK) $(DHRYSTONE_ITERATIONS) $(ARCHFLAGS)
 .PHONY: force-build-config
 .build-config: force-build-config
-	@if ! test -f $@ || test "$$(cat $@)" != "$(DHRYSTONE_BUILTINS) $(BENCHMARK) $(DHRYSTONE_ITERATIONS)"; then \
-		printf '%s\n' "$(DHRYSTONE_BUILTINS) $(BENCHMARK) $(DHRYSTONE_ITERATIONS)" > $@; \
+	@if ! test -f $@ || test "$$(cat $@)" != "$(RSD_BUILD_CONFIG)"; then \
+		printf '%s\n' "$(RSD_BUILD_CONFIG)" > $@; \
 	fi
 
 %.o: %.c $(BUILD_MAKEFILES)
