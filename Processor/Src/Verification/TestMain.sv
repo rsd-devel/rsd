@@ -178,7 +178,9 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
     always @(posedge main.main.core.perfCounterIF.clk) begin
         if (main.main.core.perfCounterIF.rst)
             decodePredictionMisses <= 0;
-        else if (main.main.core.perfCounterIF.branchPredMissDetectedOnDecode) begin
+        // Count a held redirect only when Rename accepts it.
+        else if (main.main.core.perfCounterIF.branchPredMissDetectedOnDecode &&
+                 !main.main.core.ctrlIF.rnStage.stall) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin
                 if (main.main.core.idStage.insnFlushTriggering[i] && !main.main.core.idStage.insnInfo[i].isSerialized)
                     decodePredictionMisses <= decodePredictionMisses + 1;
