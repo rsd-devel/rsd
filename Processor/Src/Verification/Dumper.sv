@@ -14,7 +14,7 @@ package DumperTypes;
     import IO_UnitTypes::*;
     import DebugTypes::*;
 
-    localparam KS_NP = 0;
+    // Stage 0 was the prediction stage in older traces.
     localparam KS_IF = 1;
     localparam KS_PD = 2;
     localparam KS_ID = 3;
@@ -96,17 +96,6 @@ package DumperTypes;
             this.ProceedCycle();
 
             // FetchStage
-            for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-                this.DumpStage(
-                    KS_NP, // stage id
-                    debugRegister.npReg[i].valid, // valid
-                    debugRegister.npStagePipeCtrl.stall, // stall
-                    debugRegister.npStagePipeCtrl.clear, // clear
-                    debugRegister.npReg[i].sid, // sid
-                    0, // mid
-                    "" // comment
-                );
-            end
             for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
                 // Avoid a string ternary with an unknown condition in XSim.
                 str = "";

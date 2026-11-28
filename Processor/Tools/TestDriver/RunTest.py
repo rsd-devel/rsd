@@ -476,6 +476,19 @@ def PrintBenchmarkScore(benchmark, comparator, expectedIterations=None):
           (label, score, iterations, cycles))
 
 
+def PrintBenchmarkSimulationStats(logPath):
+    # IPC and prediction counters cover the whole run, including startup and UART.
+    ipc = misses = 'unavailable'
+    with open(logPath, errors='replace') as log:
+        for line in log:
+            label, _, value = line.removeprefix('# ').partition(':')
+            if label == 'IPC (RISC-V instruction)':
+                ipc = value.strip()
+            elif label == 'Branch prediction misses':
+                misses = value.strip()
+    print('Full simulation: IPC %s, branch prediction misses %s' % (ipc, misses))
+
+
 # テストに失敗して結果が出なかった時に、
 # CompareRegValue()で前回のテスト結果が使われるのを防ぐため、
 # 前回のテスト結果のファイルを削除する。
@@ -515,7 +528,7 @@ parser.add_option('--serial-prefix',
                   action='store_true', dest='serialPrefix', default=False,
                   help="When serial.ref.txt exists, require its entire nonempty contents at the start of serial output, allowing additional output (default: exact match).")
 parser.add_option('--benchmark', type='choice', choices=['coremark', 'dhrystone'],
-                  help="Validate the serial reference and appended cycle measurement, then display a CoreMark/MHz or DMIPS/MHz estimate.")
+                  help="Validate benchmark output and report its score, full-run IPC and branch prediction misses.")
 parser.add_option('--benchmark-iterations', type='int', dest='benchmarkIterations',
                   help="Iteration count used to build a benchmark whose measurement report omits it.")
 parser.add_option('--max-test-instructions', type='int', dest='maxTestInstructions',
@@ -621,6 +634,7 @@ for testCodePath in testCodePathList:
     if options.benchmark and regValuesMatched and serialOutComparator.IsMatched():
         try:
             PrintBenchmarkScore(options.benchmark, serialOutComparator, options.benchmarkIterations)
+            PrintBenchmarkSimulationStats(simDriver.GetLogPath())
         except ValueError as error:
             print('NG ( %s ) : %s' % (testCodePath, error), file=sys.stderr)
             sys.exit(3)

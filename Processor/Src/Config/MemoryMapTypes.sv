@@ -87,6 +87,7 @@ localparam PHY_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_ADDR_WIDTH);
 localparam PHY_ADDR_BYTE_WIDTH = PHY_ADDR_WIDTH / BYTE_WIDTH;
 
 localparam PHY_RAW_ADDR_WIDTH = PHY_ADDR_WIDTH - 2;
+localparam PHY_ADDR_OFFSET_WIDTH = 16; // Low bits preserved by every region.
 localparam PHY_RAW_ADDR_WIDTH_BIT_SIZE = $clog2(PHY_RAW_ADDR_WIDTH);
 localparam PHY_RAW_ADDR_BYTE_WIDTH = PHY_RAW_ADDR_WIDTH / BYTE_WIDTH;
 
@@ -226,6 +227,8 @@ endfunction
 function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
     PhyAddrPath phyAddr;
 
+    // GetMemoryMapType reports unmapped accesses using the logical address.
+    phyAddr = '0;
     if (LOG_ADDR_ROM_BEGIN <= logAddr && logAddr <= LOG_ADDR_ROM_END) begin
         // Section 0 (ROM)
         phyAddr.isUncachable = FALSE;
@@ -259,12 +262,9 @@ function automatic PhyAddrPath ToPhyAddrFromLogical(AddrPath logAddr);
         phyAddr.isIO = TRUE;
         phyAddr.addr = PHY_ADDR_PLIC_BASE + PhyRawAddrPath'(logAddr[LOG_ADDR_PLIC_ADDR_BIT_WIDTH-1:0]);
     end
-    else begin
-        // Invalid
-        phyAddr.isUncachable = FALSE;
-        phyAddr.isIO = FALSE;
-        phyAddr.addr = 32'hCCCC_CCCC;
-    end
+
+    // These bits pass through independently of region decoding.
+    phyAddr.addr[PHY_ADDR_OFFSET_WIDTH-1:0] = logAddr[PHY_ADDR_OFFSET_WIDTH-1:0];
 
     return phyAddr;
 endfunction

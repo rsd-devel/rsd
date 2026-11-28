@@ -15,7 +15,7 @@ import MemoryMapTypes::*;
 module InterruptController(
     CSR_UnitIF.InterruptController csrUnit,
     ControllerIF.InterruptController ctrl,
-    NextPCStageIF.InterruptController fetchStage,
+    FetchStageIF.InterruptController fetchStage,
     DecodeStageIF.InterruptController decodeStage,
     RecoveryManagerIF.InterruptController recoveryManager
 );
@@ -103,7 +103,7 @@ module InterruptController(
         reqInterrupt &= csrUnit.privilegeLevel < PRIVILEGE_LEVEL_M || csrReg.mstatus.MIE;
 
         // パイプライン全体が空になるまでフェッチをとめる        
-        ctrl.npStageSendBubbleLowerForInterrupt =
+        ctrl.stopFetchForInterrupt =
             reqInterrupt;
         
         // * パイプライン全体が空になったら割り込みをかける

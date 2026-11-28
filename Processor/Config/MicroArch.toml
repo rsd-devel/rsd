@@ -40,12 +40,16 @@ enable_unified_ldst_mem_pipe = false
 load_queue_entry_num = 16
 store_queue_entry_num = 16
 
-# Branch target buffer and pattern history table entries (powers of two).
+# Total entries in the two-way BTB (a power of two, at least 2).
 btb_entry_num = 1024
-pht_entry_num = 2048
 
-# Global history length in bits for gshare. Must not exceed log2(pht_entry_num).
-branch_global_history_bit_width = 10
+# Total number of 2-bit PHT counters (a power of two). With the default fetch width of 2:
+# 2 RAM banks x 4096 rows/bank x 2 counters/row = 16384 counters (4 KiB total).
+# Each bank holds 4096 rows x 4 bits = 2 KiB, exactly one Zynq-7000 RAMB18E1 in 4-bit mode.
+pht_entry_num = 16384
+
+# Taken-branch path history length in bits for gshare. Must not exceed log2(pht_entry_num).
+branch_global_history_bit_width = 12
 
 # Memory dependency prediction table entries. Must be a power of two.
 mdt_entry_num = 1024
@@ -70,7 +74,7 @@ icache_way_num = 2
 # the set index width. Total capacity = 2^this value * icache_line_byte_num.
 icache_index_bit_width_base = 9
 
-# I-cache line size in bytes. Must be a power of two.
+# I-cache line size in bytes. Must be a power of two and hold whole fetch groups.
 icache_line_byte_num = 8
 
 # Enable the Zba address-generation instructions.

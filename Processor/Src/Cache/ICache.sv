@@ -136,37 +136,8 @@ module ICacheNRUStateArray(
 
 endmodule
 
-//
-// Generate hit signals for each word.
-//
-module ICacheHitLogic(
-input
-    logic hitIn,
-    ICacheLineInsnIndexPath headWordPtr,
-output
-    logic hitOut [ FETCH_WIDTH ]
-);
-    ICacheLineInsnCountPath wordPtr [ FETCH_WIDTH ];
-    
-    always_comb begin
-        for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-            wordPtr[i] = headWordPtr + i;
-            if ( wordPtr[i][ $clog2(ICACHE_LINE_INSN_NUM) ] ) begin
-                // If this condition is satisfied, word[i] is not on the same line as word[0].
-                // It means cache-miss.
-                hitOut[i] = FALSE;
-            end
-            else begin
-                hitOut[i] = hitIn;
-            end
-        end
-    end
-
-endmodule
-
 module ICache(
-    NextPCStageIF.ICache port,
-    FetchStageIF.ICache next,
+    FetchStageIF.ICache port,
     CacheSystemIF.ICache cacheSystem
 );
     
@@ -262,6 +233,7 @@ module ICache(
     ICacheWayPath hitWay;
     logic [ICACHE_WAY_NUM-1:0] we;
     ICacheIndexPath readIndex, writeIndex, nextReadIndex;
+    PhyAddrPath readPhyAddr;
     ICacheTagPath readTag, writeTag;
     ICacheLineInsnPath readLineInsnList[ICACHE_WAY_NUM];
 
@@ -285,11 +257,12 @@ module ICache(
     endgenerate
     
     always_comb begin
-        // Set signal about read address.
-        readIndex  = GetICacheIndex( next.icReadAddrIn );
-        readTag = GetICacheTag( next.icReadAddrIn );
-        
-        nextReadIndex = GetICacheIndex( port.icNextReadAddrIn );
+        // Translate the current fetch for the physical tag comparison and miss request.
+        readPhyAddr = ToPhyAddrFromLogical(port.icReadAddrIn);
+        readIndex = GetICacheIndex(readPhyAddr);
+        readTag = GetICacheTag(readPhyAddr);
+
+        nextReadIndex = GetICacheIndex(ToPhyAddrFromLogical(port.icNextReadAddrIn));
 
         // Check cache hit 
         hit = |hitArray;
@@ -338,29 +311,19 @@ module ICache(
     end
 
     //
-    // HitLogic
-    // Check whether each read request is satisfied
-    //
-    ICacheLineInsnIndexPath wordPtr[ FETCH_WIDTH ];
-    ICacheHitLogic iCacheHitLogic (
-        .hitIn( hit && regPhase == ICACHE_PHASE_READ_CACHE && next.icRE ),
-        .headWordPtr( wordPtr[0] ),
-        .hitOut( next.icReadHit )
-    );
-    
-    //
     // ICache Read
     //
-    
+    ICacheLineInsnIndexPath wordPtr[ FETCH_WIDTH ];
     always_comb begin
-        wordPtr[0] = GetICacheLineInsnIndex( next.icReadAddrIn );
-        for ( int i = 1; i < FETCH_WIDTH; i++ ) begin
-            wordPtr[i] = wordPtr[0] + i;
+        port.icReadHit = hit && regPhase == ICACHE_PHASE_READ_CACHE && port.icRE;
+        wordPtr[0] = GetICacheLineInsnIndex( readPhyAddr );
+        for ( int fetchLane = 1; fetchLane < FETCH_WIDTH; fetchLane++ ) begin
+            wordPtr[fetchLane] = wordPtr[0] + fetchLane;
         end
         
-        // Send i-cache read data to FetchStage
-        for ( int i = 0; i < FETCH_WIDTH; i++ ) begin
-            next.icReadDataOut[i] = readLineInsnList[hitWay][ wordPtr[i] ];
+        // wordPtr maps each fetch lane to an instruction index within the cache line.
+        for ( int fetchLane = 0; fetchLane < FETCH_WIDTH; fetchLane++ ) begin
+            port.icReadDataOut[fetchLane] = readLineInsnList[hitWay][ wordPtr[fetchLane] ];
         end
     end
     
@@ -405,7 +368,7 @@ module ICache(
                 nextFlush = TRUE;
                 nextFlushReqAck = FALSE;
             end
-            else if ( next.icRE && !hit ) begin
+            else if ( port.icRE && !hit ) begin
                 // Read request -> i-cache miss:
                 // Change state to process a cache miss
                 nextPhase = ICACHE_PHASE_MISS_READ_MEM_REQUEST;
@@ -414,7 +377,7 @@ module ICache(
                 nextMissTag = readTag;
                 nextFlushReqAck = FALSE;
             end
-            else if ( next.icRE )begin
+            else if ( port.icRE )begin
                 // Read request -> i-cache hit:
                 // Update nru state
                 nruStateWE = TRUE;

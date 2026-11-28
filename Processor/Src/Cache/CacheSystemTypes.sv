@@ -277,7 +277,6 @@ package CacheSystemTypes;
     // Line as insn list
     localparam ICACHE_LINE_INSN_NUM = ICACHE_LINE_BYTE_NUM / INSN_BYTE_WIDTH;
     typedef logic [$clog2(ICACHE_LINE_INSN_NUM)-1:0] ICacheLineInsnIndexPath;
-    typedef logic [$clog2(ICACHE_LINE_INSN_NUM)  :0] ICacheLineInsnCountPath;
     typedef InsnPath [ICACHE_LINE_INSN_NUM-1:0] ICacheLineInsnPath;
 
     // Tag bits

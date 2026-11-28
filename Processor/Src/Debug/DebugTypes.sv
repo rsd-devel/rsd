@@ -39,11 +39,6 @@ typedef struct packed { //
 // --- Debug Register
 //
 
-typedef struct packed { // NextPCStageDebugRegister
-    logic valid;
-    OpSerial sid;
-} NextPCStageDebugRegister;
-
 typedef struct packed { // FetchStageDebugRegister
     logic valid;
     OpSerial sid;
@@ -316,7 +311,6 @@ typedef struct packed { // IssueQueueDebugRegister
 typedef struct packed { // DebugRegister
 
     // DebugRegister of each stage
-    NextPCStageDebugRegister [ FETCH_WIDTH-1:0 ] npReg;
     FetchStageDebugRegister   [ FETCH_WIDTH-1:0 ] ifReg;
     PreDecodeStageDebugRegister[ DECODE_WIDTH-1:0 ]   pdReg;
     DecodeStageDebugRegister   [ DECODE_WIDTH-1:0 ]   idReg;
@@ -360,7 +354,6 @@ typedef struct packed { // DebugRegister
     ActiveListCountPath activeListCount;
 
     // Pipeline control signal
-    PipelineControll npStagePipeCtrl;
     PipelineControll ifStagePipeCtrl;
     PipelineControll pdStagePipeCtrl;
     PipelineControll idStagePipeCtrl;

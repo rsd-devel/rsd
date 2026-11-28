@@ -9,6 +9,7 @@
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import MemoryMapTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
@@ -111,8 +112,7 @@ module RenameStage(
 
     // --- Pipeline registers
     RenameStageRegPath pipeReg[RENAME_WIDTH];
-    logic regFlush;
-    PC_Path regRecoveredPC;
+    FetchRedirectPath regRedirect;
 
 
 `ifndef RSD_SYNTHESIS
@@ -122,7 +122,7 @@ module RenameStage(
             for (int i = 0; i < RENAME_WIDTH; i++) begin
                 pipeReg[i] = '0;
             end
-            regRecoveredPC = '0;
+            regRedirect = '0;
         end
     `endif
 `endif
@@ -133,20 +133,17 @@ module RenameStage(
             for (int i = 0; i < RENAME_WIDTH; i++) begin
                 pipeReg[i].valid <= FALSE;
             end
-            regFlush <= '0;
-            regRecoveredPC <= '0;
+            regRedirect <= '0;
         end
         else if(!ctrl.rnStage.stall) begin             // write data
             pipeReg <= prev.nextStage;
-            regFlush <= prev.nextFlush;
-            regRecoveredPC <= prev.nextRecoveredPC;
+            regRedirect <= prev.nextRedirect;
         end
     end
 
     always_comb begin
-        recovery.recoverFromRename = regFlush;
-        recovery.recoveredPC_FromRename = regRecoveredPC;
-        ctrl.rnStageFlushUpper = regFlush;
+        recovery.redirectFromRename = regRedirect;
+        ctrl.rnStageFlushUpper = regRedirect.valid;
     end
 
 

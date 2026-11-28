@@ -107,6 +107,7 @@ module MemoryRegisterWriteStage(
             alWriteData[i].loadQueuePtr = pipeReg[i].loadQueueRecoveryPtr;
             alWriteData[i].storeQueuePtr = pipeReg[i].storeQueueRecoveryPtr;
 
+            alWriteData[i].predCtx = '0;
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = pipeReg[i].isStore;
             alWriteData[i].elp = pipeReg[i].elp;

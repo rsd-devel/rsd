@@ -40,11 +40,8 @@ TYPES = \
 # The order of the files in this section is arbitrary.
 CORE_MODULES = \
 	Core.sv \
-	Pipeline/FetchStage/NextPCStage.sv \
-	Pipeline/FetchStage/NextPCStageIF.sv \
 	Pipeline/FetchStage/FetchStage.sv \
 	Pipeline/FetchStage/FetchStageIF.sv \
-	Pipeline/FetchStage/PC.sv \
 	Pipeline/PreDecodeStage.sv \
 	Pipeline/PreDecodeStageIF.sv \
 	Pipeline/DecodeStage.sv \
@@ -128,6 +125,7 @@ CORE_MODULES = \
 	Decoder/Decoder.sv \
 	Decoder/DecodedBranchResolver.sv \
 	FetchUnit/BTB.sv \
+	FetchUnit/RAS.sv \
 	FetchUnit/BranchPredictor.sv \
 	FetchUnit/Gshare.sv \
 	FetchUnit/Bimodal.sv \
@@ -163,7 +161,6 @@ CORE_MODULES = \
 	IO/IO_UnitIF.sv \
 	IO/PLIC_Unit.sv \
 	IO/PLIC_UnitIF.sv \
-	Primitives/FlipFlop.sv \
 	Primitives/FreeList.sv \
 	Primitives/Queue.sv \
 	Primitives/RAM.sv \

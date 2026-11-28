@@ -7,6 +7,7 @@
 //
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import MicroOpTypes::*;
 import PipelineTypes::*;
 import RenameLogicTypes::*;
@@ -38,7 +39,7 @@ interface RecoveryManagerIF( input logic clk, rst );
     logic    toCommitPhase;
     AddrPath recoveredPC_FromCommitStage;
     AddrPath recoveredPC_FromRwStage;
-    AddrPath recoveredPC_FromRwCommit;      // Correct PC
+    BranchRecoveryPath recoveredPredCtx_FromCommitStage, recoveredPredCtx_FromRwStage;
 
     // For fault handling
     AddrPath faultingDataAddr;
@@ -49,9 +50,7 @@ interface RecoveryManagerIF( input logic clk, rst );
     ELP_State_Type elp_FromRwStage;
     ELP_State_Type nextELP_FromRwStage;
 
-    //　Miss prediction detected in RenameStage
-    logic    recoverFromRename;
-    AddrPath recoveredPC_FromRename;
+    FetchRedirectPath redirectFromRename, fetchRedirect;
 
     // Trigger recovery of each module
     logic toRecoveryPhase;
@@ -120,6 +119,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        recoveredPredCtx_FromCommitStage,
+        recoveredPredCtx_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,
@@ -127,10 +128,11 @@ interface RecoveryManagerIF( input logic clk, rst );
         notIssued,
         flushIQ_Entry,
         recoveryCauseFromCommitStage,
+        redirectFromRename,
     output
         phase,
         toRecoveryPhase,
-        recoveredPC_FromRwCommit,
+        fetchRedirect,
         toCommitPhase,
         flushRangeHeadPtr,
         flushRangeTailPtr,
@@ -142,8 +144,7 @@ interface RecoveryManagerIF( input logic clk, rst );
 
     modport RenameStage(
     output
-        recoverFromRename,
-        recoveredPC_FromRename
+        redirectFromRename
     );
 
     modport CommitStage(
@@ -158,13 +159,9 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveryCauseFromCommitStage
     );
 
-    modport NextPCStage(
+    modport FetchStage(
     input
-        toCommitPhase,
-        toRecoveryPhase,
-        recoveredPC_FromRwCommit,
-        recoverFromRename,
-        recoveredPC_FromRename
+        fetchRedirect
     );
 
     modport RenameLogic(
@@ -447,6 +444,8 @@ interface RecoveryManagerIF( input logic clk, rst );
         recoveredPC_FromCommitStage,
         recoveredPC_FromRwStage,
         faultingDataAddr,
+        recoveredPredCtx_FromCommitStage,
+        recoveredPredCtx_FromRwStage,
         elp_FromCommitStage,
         nextELP_FromCommitStage,
         elp_FromRwStage,

@@ -82,6 +82,8 @@ width = 19
 # Neither registers' raw offsets nor an SV L_SIZE/P_BEGIN constant are emitted.
 # type selects the MMT_MEMORY/MMT_IO result in GetMemoryMapType(); translation
 # and uncachable select the address expression/flags in ToPhyAddrFromLogical().
+# PHY_ADDR_OFFSET_WIDTH is derived from the bits preserved by every region;
+# the I-cache can use those logical address bits directly for its RAM index.
 # These settings generate function bodies rather than standalone constants.
 # Startup/loader region: 60 KiB at logical 0x1000..0xffff.
 # low_bits preserves the initial 0x1000 offset even though physical_base is 0.

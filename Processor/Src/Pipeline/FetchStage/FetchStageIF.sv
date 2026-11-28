@@ -13,56 +13,70 @@ import MemoryMapTypes::*;
 
 interface FetchStageIF( input logic clk, rst, rstStart );
 
-    // This Stage
-    logic  fetchStageIsValid[FETCH_WIDTH];
-    PC_Path fetchStagePC[FETCH_WIDTH];
+    // Registered PC used as the interrupt return address.
+    PC_Path  pcOut;
 
-    // BTB
+    // The BTB and PHT read and capture the predecessor's rows on the same edges.
+    logic btbUpdateAllowed, capturePredRows, brLookupValid;
+    BTB_SetIndexPath btbReadSet;
+    PHT_RowIndexPath phtReadRow;
+
+    // Executed branch results for updating a branch predictor.
+    // This signal is written back from a write back stage.
+    BranchResult brResult[ INT_ISSUE_WIDTH ];
+
+    // Interrupt
+    PC_Path interruptAddrIn;
+    logic interruptAddrWE;
+
+    // BTB/PHT results use groupOffset, in instructions from the aligned group base.
     PC_Path btbOut[FETCH_WIDTH];
     logic btbHit[FETCH_WIDTH];
-    logic readIsCondBr[FETCH_WIDTH];
-    
-    // BranchPredictor
-    logic updateBrHistory[FETCH_WIDTH];
+    BTB_WayIndexPath btbHitWay[FETCH_WIDTH];
+    BTB_BranchType readBrType[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
-    BranchGlobalHistoryPath brGlobalHistory[FETCH_WIDTH];
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
 
-    // I-Cache
-    logic     icReadHit [ FETCH_WIDTH ];
-    logic     icRE;
-    InsnPath  icReadDataOut[ FETCH_WIDTH ];
-    PhyAddrPath   icReadAddrIn; // Head addr to fetch
+    PC_Path rasTopPC;
+    RAS_IndexPath rasPtr;
 
-    // Pipeline register
-    PreDecodeStageRegPath nextStage[ FETCH_WIDTH ];
+    // Addresses for the next cache lookup and the response currently in Fetch.
+    AddrPath icNextReadAddrIn, icReadAddrIn;
+    logic icRE;
+    // A hit covers the cache line containing icReadAddrIn.
+    logic icReadHit;
+    // Lane 0 of the I-cache response and the group sent to PreDecode start at icReadAddrIn.
+    InsnPath icReadDataOut[FETCH_WIDTH];
+
+    PreDecodeStageRegPath nextStage;
 
     modport ThisStage(
     input
         clk,
         rst,
+        interruptAddrIn,
+        interruptAddrWE,
+        btbHit,
+        btbHitWay,
+        btbOut,
+        readBrType,
+        brPredTaken,
+        phtPrevValue,
+        rasTopPC,
+        rasPtr,
         icReadHit,
         icReadDataOut,
-        btbOut,
-        brPredTaken,
-        brGlobalHistory,
-        phtPrevValue,
     output
-        fetchStageIsValid,
-        fetchStagePC,
-        updateBrHistory,
-        nextStage,
+        pcOut,
+        phtReadRow,
+        btbUpdateAllowed,
+        capturePredRows,
+        btbReadSet,
+        brLookupValid,
+        icNextReadAddrIn,
+        icReadAddrIn,
         icRE,
-        icReadAddrIn
-    );
-
-    modport NextPCStage(
-    input
-        fetchStageIsValid,
-        fetchStagePC,
-        btbOut,
-        btbHit,
-        brPredTaken
+        nextStage
     );
 
     modport NextStage(
@@ -70,32 +84,76 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         nextStage
     );
 
+    modport IntegerRegisterWriteStage(
+    output
+        brResult
+    );
+
+    modport BTB(
+    input
+        clk,
+        rst,
+        rstStart,
+        pcOut,
+        btbUpdateAllowed,
+        capturePredRows,
+        btbReadSet,
+        brLookupValid,
+        brResult,
+    output
+        btbOut,
+        btbHit,
+        btbHitWay,
+        readBrType
+    );
+
+    modport RAS(
+    input
+        clk,
+        rst,
+        rstStart,
+        pcOut,
+        interruptAddrWE,
+        nextStage,
+    output
+        rasTopPC,
+        rasPtr
+    );
+
+    modport BranchPredictor(
+    input
+        clk,
+        rst,
+        rstStart,
+        phtReadRow,
+        capturePredRows,
+        brLookupValid,
+        brResult,
+    output
+        brPredTaken,
+        phtPrevValue
+    );
+
     modport ICache(
     input
-        icRE, // Read Enable
+        clk,
+        rst,
+        rstStart,
+        icNextReadAddrIn,
+        icRE,
         icReadAddrIn,
     output
         icReadHit,
         icReadDataOut
     );
 
-    modport BTB(
+    modport InterruptController(
+    input
+        pcOut,
     output
-        btbOut,
-        btbHit,
-        readIsCondBr
+        interruptAddrIn,
+        interruptAddrWE
     );
 
-    modport BranchPredictor(
-    input
-        updateBrHistory,
-        btbOut,
-        btbHit,
-        readIsCondBr,
-    output
-        brPredTaken,
-        brGlobalHistory,
-        phtPrevValue
-    );
 
 endinterface : FetchStageIF

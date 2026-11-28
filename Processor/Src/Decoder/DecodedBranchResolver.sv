@@ -4,7 +4,6 @@
 
 //
 // Resolve branch misprediction on the decode stage.
-// This unit includes a simple return address stack.
 //
 
 import BasicTypes::*;
@@ -17,65 +16,28 @@ import FetchUnitTypes::*;
 
 module DecodedBranchResolver(
 input
-    logic clk, rst, stall, decodeComplete,
     logic insnValidIn[DECODE_WIDTH],
     RISCV_ISF_Common [DECODE_WIDTH-1 : 0] isf,      // Unpacked array of structure corrupts in Modelsim.
     BranchPred [DECODE_WIDTH-1 : 0] brPredIn,
     PC_Path pc[DECODE_WIDTH],
     InsnInfo [DECODE_WIDTH-1 : 0] insnInfo,
+    BTB_BranchType [DECODE_WIDTH-1 : 0] brType,
 output 
     logic insnValidOut[DECODE_WIDTH],
     logic insnFlushed[DECODE_WIDTH],
     logic insnFlushTriggering[DECODE_WIDTH],
     logic flushTriggered,
     BranchPred brPredOut[DECODE_WIDTH],
-    PC_Path recoveredPC
+    PC_Path recoveredPC, rasReturnPC,
+    logic rasPush,
+    BranchRecoveryPath recoveredPredCtx
 );
-    // Return address stack.
-    parameter RAS_ENTRY_NUM = 4;
-    typedef logic [$clog2(RAS_ENTRY_NUM)-1 : 0] RAS_IndexPath;
-    PC_Path ras[RAS_ENTRY_NUM];
-    PC_Path nextRAS;
-    logic pushRAS;
-    logic popRAS;
-    RAS_IndexPath rasPtr;
-    RAS_IndexPath nextRAS_Ptr;
-
-    always_ff@(posedge clk) begin
-        if (rst) begin
-            for (int i = 0; i < RAS_ENTRY_NUM; i++) begin
-                ras[i] <= '0;
-            end
-            rasPtr <= '0;
-        end
-        else if (!stall && decodeComplete) begin
-            // 全 micro op のデコード完了時にだけ RAS を更新するようにしないと，
-            // 次のステージに送り込んだ micro op のターゲットと，ここから
-            // 出しているターゲットアドレスがずれて（ras の ptr が更新されるから）
-            // 正しく動かなくなる
-            if (pushRAS) begin
-                ras[nextRAS_Ptr] <= nextRAS;
-            end
-            rasPtr <= nextRAS_Ptr;
-        end
-        // if (pushRAS) begin
-        //     $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
-        // end 
-        // else if (popRAS) begin
-        //     $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
-        // end
-        // if (flushTriggered) begin
-        //     $display("flushTriggered @%x old:%p new:%p", pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
-        // end
-    end
-
-    
     PC_Path decodedPC[DECODE_WIDTH];
-    PC_Path nextPC[DECODE_WIDTH];
     RISCV_ISF_U isfU[DECODE_WIDTH];
 
     logic addrCheck;
     logic addrIncorrect;
+    logic predPush, rasMiss;
     DecodeLaneIndexPath addrCheckLane;
     typedef enum logic [1:0] 
     {
@@ -87,7 +49,6 @@ output
         BTT_SERIALIZED  = 3 
     } BranchTargetType;
     BranchTargetType brTargetType[DECODE_WIDTH];
-    logic addrMismatch[DECODE_WIDTH];
 
     always_comb begin
         
@@ -95,11 +56,6 @@ output
         flushTriggered = FALSE;
         recoveredPC = '0;
 
-        pushRAS = FALSE;
-        popRAS = FALSE;
-        nextRAS = 0;
-        nextRAS_Ptr = rasPtr;
-        
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             insnValidOut[i] = insnValidIn[i];
             insnFlushed[i] = FALSE;
@@ -148,9 +104,6 @@ output
                 brTargetType[i] == BTT_PC_RELATIVE && 
                 (isfU[i].opCode == RISCV_JAL || brPredIn[i].predTaken)   
             ) begin
-                // Update the RAS.
-                pushRAS = insnInfo[i].isCall;
-
                 addrCheckLane = i;
                 addrCheck = TRUE;
                 break;
@@ -158,21 +111,10 @@ output
             else if ( // JALR
                 brTargetType[i] == BTT_INDIRECT_JUMP
             ) begin
-                // Update theRAS.
-                pushRAS = insnInfo[i].isCall;
-                popRAS = insnInfo[i].isReturn;
-
-                if (popRAS) begin
-                    // Resolve branch pred using the PC read from RAS
-                    addrCheckLane = i;
-                    addrCheck = TRUE;
-                    break;
-                end
-                else if (pushRAS) begin
-                    // Push next PC to RAS．Do not resolve branch pred
-                    addrCheckLane = i;
-                    break;
-                end
+                // Decode can repair the RAS here. Execute resolves the indirect target.
+                addrCheckLane = i;
+                addrCheck = TRUE;
+                break;
             end
             else if (brTargetType[i] == BTT_SERIALIZED) begin
                 // The succeeding instructions are flushed.
@@ -185,7 +127,6 @@ output
         
         // Calculate target PC
         for (int i = 0; i < DECODE_WIDTH; i++) begin
-            nextPC[i] = pc[i] + INSN_BYTE_WIDTH;
             if (brTargetType[i] == BTT_PC_RELATIVE) begin
                 // Calculate target PC from displacement
                 if (isfU[i].opCode == RISCV_JAL) begin
@@ -195,43 +136,47 @@ output
                     decodedPC[i] = pc[i] + ExtendBranchDisplacement( GetBranchDisplacement(isfU[i]));
                 end
             end
-            else if (brTargetType[i] == BTT_INDIRECT_JUMP) begin
-                // Read branch target PC from RAS
-                decodedPC[i] = ras[rasPtr];
+            else if (brTargetType[i] == BTT_INDIRECT_JUMP && brPredIn[i].predTaken) begin
+                decodedPC[i] = brPredIn[i].takenAddr;
             end
             else begin
-                // non-branch instruction
-                decodedPC[i] = nextPC[i];
+                decodedPC[i] = pc[i] + INSN_BYTE_WIDTH;
             end
         end
         
         for (int i = 0; i < DECODE_WIDTH; i++) begin
-            addrMismatch[i] = brPredIn[i].predAddr != decodedPC[i];
-        end
-        
-        for (int i = 0; i < DECODE_WIDTH; i++) begin
-            if (((addrMismatch[i] && addrCheck) || addrIncorrect) && addrCheckLane == i) begin
+            // A direction miss redirects even when the target equals the fall-through PC.
+            if (addrCheckLane == i &&
+                (addrIncorrect || (addrCheck && brTargetType[i] == BTT_PC_RELATIVE &&
+                                   (!brPredIn[i].predTaken || brPredIn[i].takenAddr != decodedPC[i])))) begin
                 flushTriggered = TRUE;
-                brPredOut[i].predAddr = decodedPC[i];
-                brPredOut[i].predTaken = TRUE;
+                brPredOut[i].predTaken = insnInfo[i].writePC;
+                if (insnInfo[i].writePC) begin
+                    // Decode supplies the target on a redirect. Keep the Fetch hit way for training.
+                    brPredOut[i].takenAddrChangedAtDecode = TRUE;
+                    brPredOut[i].takenAddr = decodedPC[i];
+                end
                 break;
             end
         end
         recoveredPC = decodedPC[addrCheckLane];
+        // Repair the selected instruction's stack operation even when its target was correct.
+        predPush = brPredIn[addrCheckLane].predTaken && brPredIn[addrCheckLane].btbBrType == BTB_CALL;
+        rasPush = addrCheck && brType[addrCheckLane] == BTB_CALL && !predPush;
+        rasReturnPC = pc[addrCheckLane] + INSN_BYTE_WIDTH;
+        rasMiss = addrCheck && (predPush != (brType[addrCheckLane] == BTB_CALL) ||
+            (brPredIn[addrCheckLane].predTaken &&
+             (brPredIn[addrCheckLane].btbBrType inside {BTB_RETURN, BTB_RETURN_OFFSET}) !=
+             (brType[addrCheckLane] inside {BTB_RETURN, BTB_RETURN_OFFSET})));
+        flushTriggered = flushTriggered || rasMiss;
 
-        // Update the RAS.
-        nextRAS = nextPC[addrCheckLane];
-        if (pushRAS) begin
-            // $display("Call(%d) flush @%x old:%p new:%p", nextRAS_Ptr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
-            nextRAS_Ptr = rasPtr + 1;
-        end 
-        else if (popRAS) begin
-            // $display("Ret(%d)  @%x old:%p new:%p", rasPtr, pc[addrCheckLane], brPredIn[addrCheckLane].predAddr, decodedPC[addrCheckLane]);
-            nextRAS_Ptr = rasPtr - 1;
-        end
-        else begin
-            nextRAS_Ptr = rasPtr;
-        end
+        recoveredPredCtx.ctx = RecoverBranchHistory(
+            pc[addrCheckLane], brPredIn[addrCheckLane].brLookup, brPredOut[addrCheckLane].predTaken
+        );
+        // An unresolved indirect call pushes its link while following Fetch's prediction.
+        recoveredPredCtx.rasPtr = RecoverRAS_Ptr(
+            brPredIn[addrCheckLane].rasPtr, brType[addrCheckLane], brPredOut[addrCheckLane].predTaken || rasPush
+        );
 
         if (flushTriggered) begin
             for (int i = 0; i < DECODE_WIDTH; i++) begin

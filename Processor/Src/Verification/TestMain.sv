@@ -171,6 +171,25 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
         .*
     );
 
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+    // Serialization also flushes Decode. Only count redirects due to a prediction.
+    longint decodePredictionMisses;
+    always @(posedge main.main.core.perfCounterIF.clk) begin
+        if (main.main.core.perfCounterIF.rst)
+            decodePredictionMisses <= 0;
+        // Count a held redirect only when Rename accepts it.
+        else if (main.main.core.perfCounterIF.branchPredMissDetectedOnDecode &&
+                 !main.main.core.ctrlIF.rnStage.stall) begin
+            for (int i = 0; i < DECODE_WIDTH; i++) begin
+                if (main.main.core.idStage.insnFlushTriggering[i] && !main.main.core.idStage.insnInfo[i].isSerialized)
+                    decodePredictionMisses <= decodePredictionMisses + 1;
+            end
+        end
+    end
+`endif
+`endif
+
 `ifdef RSD_FUNCTIONAL_SIMULATION
 `ifndef RSD_POST_SYNTHESIS_SIMULATION
     // Simulation-only source controlled by UART DC1/DC3 when explicitly enabled.
@@ -392,6 +411,17 @@ parameter HOLD_PLUS_WAIT = HOLD + WAIT;
         $display("Num of store-load-forwarding misses: %d", debugRegister.perfCounter.numStoreLoadForwardingFail);
         $display("Num of branch prediction misses: %d", debugRegister.perfCounter.numBranchPredMiss);
         $display("Num of branch prediction misses detected on decode: %d", debugRegister.perfCounter.numBranchPredMissDetectedOnDecode);
+`ifndef RSD_POST_SYNTHESIS_SIMULATION
+`ifndef RSD_DISABLE_PERFORMANCE_COUNTER
+        if (numCommittedRISCV_Op > 0) begin
+            longint misses;
+            misses = decodePredictionMisses + longint'(debugRegister.perfCounter.numBranchPredMiss);
+            $display("Branch prediction misses: %0d (%0d decode, %0d backend, %.4f MPKI)",
+                     misses, decodePredictionMisses, debugRegister.perfCounter.numBranchPredMiss,
+                     1000.0 * misses / numCommittedRISCV_Op);
+        end
+`endif
+`endif
 
         $display( "Num of committed RISC-V-ops: %d", numCommittedRISCV_Op );
         $display( "Num of committed micro-ops: %d", numCommittedMicroOp );

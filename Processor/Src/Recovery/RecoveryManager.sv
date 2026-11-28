@@ -15,6 +15,7 @@
 `include "BasicMacros.sv"
 
 import BasicTypes::*;
+import FetchUnitTypes::*;
 import MicroOpTypes::*;
 import MemoryMapTypes::*;
 import PipelineTypes::*;
@@ -40,9 +41,8 @@ module RecoveryManager(
         // リカバリ要求
         // これらはステージの終わりのあたりで来ることが多いので，一旦レジスタに積んで
         // パイプライン化する
-        logic exceptionDetectedInCommitStage;
-        AddrPath recoveredPC_FromRwStage;
-        AddrPath recoveredPC_FromCommitStage;
+        PC_Path refetchBasePC; // Resolved successor on branch recovery, faulting PC on an exception.
+        BranchRecoveryPath predCtx;
 
         // Related to CSR 
         // これらもパイプライン化のため
@@ -94,9 +94,8 @@ module RecoveryManager(
             regState.recoveryFromRwStage <= FALSE;
             regState.refetchType <= REFETCH_TYPE_THIS_PC;
 
-            regState.exceptionDetectedInCommitStage <= '0;
-            regState.recoveredPC_FromRwStage <= '0;
-            regState.recoveredPC_FromCommitStage <= '0;
+            regState.refetchBasePC <= '0;
+            regState.predCtx <= '0;
 
             regState.excptCause <= EXEC_STATE_NOT_FINISHED;
             regState.excptCauseDataAddr <= '0;
@@ -133,16 +132,22 @@ module RecoveryManager(
         nextState.excptCauseDataAddr = port.faultingDataAddr;
         nextState.elp = port.exceptionDetectedInCommitStage ? port.elp_FromCommitStage : port.elp_FromRwStage;
         nextState.nextELP = port.exceptionDetectedInCommitStage ? port.nextELP_FromCommitStage : port.nextELP_FromRwStage;
-        nextState.exceptionDetectedInCommitStage = port.exceptionDetectedInCommitStage;
-        nextState.recoveredPC_FromRwStage = port.recoveredPC_FromRwStage;
-        nextState.recoveredPC_FromCommitStage = port.recoveredPC_FromCommitStage;
+        // Keep the refetch PC and predictor checkpoint from the same recovery request.
+        if (port.exceptionDetectedInCommitStage) begin
+            nextState.refetchBasePC = ToPC_FromAddr(port.recoveredPC_FromCommitStage);
+            nextState.predCtx = port.recoveredPredCtx_FromCommitStage;
+        end
+        else begin
+            nextState.refetchBasePC = ToPC_FromAddr(port.recoveredPC_FromRwStage);
+            nextState.predCtx = port.recoveredPredCtx_FromRwStage;
+        end
 
         // CSR への要求はすべて PHASE_RECOVER_0 に行う
         refetchFromCSR = regState.refetchType inside {
             REFETCH_TYPE_NEXT_PC_TO_CSR_TARGET, REFETCH_TYPE_THIS_PC_TO_CSR_TARGET
         };
         csrUnit.triggerExcpt = (regState.phase == PHASE_RECOVER_0) && refetchFromCSR;
-        csrUnit.excptCauseAddr = ToPC_FromAddr(regState.recoveredPC_FromCommitStage);
+        csrUnit.excptCauseAddr = regState.refetchBasePC;
         csrUnit.excptCause = regState.excptCause;
         csrUnit.excptCauseDataAddr = regState.excptCauseDataAddr;
         csrUnit.excptELP = regState.elp;
@@ -166,22 +171,11 @@ module RecoveryManager(
             if (refetchFromCSR) begin
                 recoveredPC = ToPC_FromAddr(csrUnit.excptTargetAddr);
             end
+            else if (regState.refetchType inside {REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC}) begin
+                recoveredPC = regState.refetchBasePC + INSN_BYTE_WIDTH;
+            end
             else begin
-                if (regState.refetchType inside {REFETCH_TYPE_THIS_PC, REFETCH_TYPE_THIS_PC_SERIALIZED}) begin
-                    recoveredPC = regState.exceptionDetectedInCommitStage ?
-                        ToPC_FromAddr(regState.recoveredPC_FromCommitStage) : 
-                        ToPC_FromAddr(regState.recoveredPC_FromRwStage);
-                end
-                else if (regState.refetchType inside{REFETCH_TYPE_NEXT_PC, REFETCH_TYPE_STORE_NEXT_PC}) begin
-                    recoveredPC = regState.exceptionDetectedInCommitStage ?
-                        ToPC_FromAddr(regState.recoveredPC_FromCommitStage) + INSN_BYTE_WIDTH : 
-                        ToPC_FromAddr(regState.recoveredPC_FromRwStage) + INSN_BYTE_WIDTH;
-                end
-                else begin // REFETCH_TYPE_BRANCH_TARGET
-                    recoveredPC = regState.exceptionDetectedInCommitStage ?
-                        ToPC_FromAddr(regState.recoveredPC_FromCommitStage) : 
-                        ToPC_FromAddr(regState.recoveredPC_FromRwStage);
-                end
+                recoveredPC = regState.refetchBasePC;
             end
         end
         else begin
@@ -203,8 +197,17 @@ module RecoveryManager(
 
         port.phase = regState.phase;
 
-        // Update a PC in a fetcher if branch misprediction occurs.
-        port.recoveredPC_FromRwCommit = recoveredPC;
+        // An older RW/Commit redirect takes precedence over a Decode correction from Rename.
+        if (regState.phase == PHASE_RECOVER_0) begin
+            port.fetchRedirect = '{
+                valid: TRUE, pc: recoveredPC, rasPush: FALSE, rasReturnPC: '0,
+                restorePredCtx: regState.refetchType == REFETCH_TYPE_BRANCH_TARGET,
+                predCtx: regState.predCtx
+            };
+        end
+        else begin
+            port.fetchRedirect = port.redirectFromRename;
+        end
         port.toCommitPhase = toCommitPhase;
 
         // To each logic to be recovered.

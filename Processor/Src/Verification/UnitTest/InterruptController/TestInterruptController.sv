@@ -37,7 +37,7 @@ module TestInterruptController;
                      .serialTxFull(1'b0), .serialWE(), .serialWriteDataOut());
     PerformanceCounterIF perf(.*);
     ControllerIF ctrl(.*);
-    NextPCStageIF fetchStage(.*);
+    FetchStageIF fetchStage(.*);
     DecodeStageIF decodeStage(.*);
     RecoveryManagerIF recovery(.*);
     PLIC_Unit plicUnit(plic, csr, ioPort);
@@ -437,7 +437,7 @@ module TestInterruptController;
                 assert (csr.csrWholeOut.mip.SSIP === 1'b1)
                     else $fatal(1, "SSIP was not pending before the clear");
                 WriteCSR(CSR_NUM_SIP, 0);
-                assert (ctrl.npStageSendBubbleLowerForInterrupt === 1'b0)
+                assert (ctrl.stopFetchForInterrupt === 1'b0)
                     else $fatal(1, "Clearing SSIP left the interrupt request active");
             end
             csr.csrNumber = kind == 0 ? CSR_NUM_SIE : CSR_NUM_SIP;
@@ -794,7 +794,7 @@ module TestInterruptController;
         expectedTarget = (toSupervisor ? SUPERVISOR_VECTOR_BASE : VECTOR_BASE) +
                          (vectorMode ? 4 * expectedCode : 0);
         beforeTrap = csr.csrWholeOut;
-        assert (ctrl.npStageSendBubbleLowerForInterrupt === expectedRequest)
+        assert (ctrl.stopFetchForInterrupt === expectedRequest)
             else $fatal(1, "Wrong fetch stop request (%s)", caseName);
 
         // Neither a nonempty pipeline nor a concurrent recovery may take a trap.
@@ -880,7 +880,7 @@ module TestInterruptController;
             assert (csr.privilegeLevel === origin &&
                     csr.csrWholeOut.mstatus.MIE === machineEnable &&
                     csr.csrWholeOut.mstatus.SIE === supervisorEnable &&
-                    ctrl.npStageSendBubbleLowerForInterrupt === 1'b1 &&
+                    ctrl.stopFetchForInterrupt === 1'b1 &&
                     (csr.csrWholeOut.mip & ALL_INTERRUPTS) === pending &&
                     csr.interruptCode === CSR_CAUSE_InterruptCodePath'(expectedCode) &&
                     ToAddrFromPC(fetchStage.interruptAddrIn) === expectedTarget)

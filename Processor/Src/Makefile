@@ -81,6 +81,8 @@ UNIT_TESTS = \
 	Divider \
 	MulDivUnit \
 	Memory \
+	BranchPredictorQueue \
+	BranchRecovery \
 	ICache \
 	DCache \
 	DecodeStage \

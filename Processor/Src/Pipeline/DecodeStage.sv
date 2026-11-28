@@ -158,51 +158,58 @@ module DecodeStage(
     
     // Early branch misprediction detection.
     RISCV_ISF_Common [DECODE_WIDTH-1:0] isfIn;
-    logic stallBranchResolver;
     logic insnValidIn[DECODE_WIDTH];
     BranchPred [DECODE_WIDTH-1:0] brPredIn;
     PC_Path pcIn[DECODE_WIDTH];
+    BTB_BranchType [DECODE_WIDTH-1:0] brType;
 
     logic insnValidOut[DECODE_WIDTH];
     logic insnFlushed[DECODE_WIDTH];
     logic insnFlushTriggering[DECODE_WIDTH];
     logic flushTriggered;
     BranchPred brPredOut[DECODE_WIDTH];
-    PC_Path recoveredPC;
+    PC_Path recoveredPC, rasReturnPC;
+    logic rasPush;
+    BranchRecoveryPath recoveredPredCtx;
 
     always_comb begin
-        stallBranchResolver = ctrl.idStage.stall && !ctrl.stallByDecodeStage;
         for (int i = 0; i < DECODE_WIDTH; i++) begin
             insnValidIn[i] = pipeReg[i].valid;
             isfIn[i] = pipeReg[i].insn;
             pcIn[i] = pipeReg[i].pc;
             brPredIn[i] = pipeReg[i].brPred;
+            // Decoder emits the single branch micro-op in slot 1. Landing-pad checking may replace it.
+            brType[i] = insnInfo[i].writePC ? microOps[i*MICRO_OP_MAX_NUM + 1].operand.brOp.brType : BTB_JUMP;
         end
     end
 
     DecodedBranchResolver decodeStageBranchResolver(
-        .clk(port.clk),
-        .rst(port.rst),
-        .stall(stallBranchResolver),
-        .decodeComplete(complete),
         .insnValidIn(insnValidIn),
         .isf(isfIn),
         .brPredIn(brPredIn),
         .pc(pcIn),
         .insnInfo(insnInfo),
+        .brType(brType),
         .insnValidOut(insnValidOut),
         .insnFlushed(insnFlushed),
         .insnFlushTriggering(insnFlushTriggering),
         .flushTriggered(flushTriggered),
         .brPredOut(brPredOut),
-        .recoveredPC(recoveredPC)
+        .recoveredPC(recoveredPC),
+        .rasReturnPC(rasReturnPC),
+        .rasPush(rasPush),
+        .recoveredPredCtx(recoveredPredCtx)
     );
     
+    logic redirectValid;
     always_comb begin
-        port.nextFlush = complete && flushTriggered && !clear;
-        port.nextRecoveredPC = recoveredPC;
+        redirectValid = complete && flushTriggered && !clear;
+        port.nextRedirect = '{
+            valid: redirectValid, pc: recoveredPC, restorePredCtx: TRUE, predCtx: recoveredPredCtx,
+            rasPush: redirectValid && rasPush, rasReturnPC: rasReturnPC
+        };
     end
-    
+
     AllDecodedMicroOpPath remainingValidMOps;
     AllDecodedMicroOpPath nextValidMOps;
 
@@ -250,7 +257,7 @@ module DecodeStage(
             if (port.serializeNextInsn) begin
                 currentSerializeNextInsn <= TRUE;
             end
-            else if (complete && !stallBranchResolver) begin
+            else if (complete && !(ctrl.idStage.stall && !ctrl.stallByDecodeStage)) begin
                 currentSerializeNextInsn <= nextSerializeNextInsn;
             end
         end
@@ -362,8 +369,6 @@ module DecodeStage(
                 ) begin
                     // Instruction access faults take priority over a landing pad fault.
                     modifiedInsnInfo[ToInsnLane(i)].writePC = FALSE;
-                    modifiedInsnInfo[ToInsnLane(i)].isCall = FALSE;
-                    modifiedInsnInfo[ToInsnLane(i)].isReturn = FALSE;
                     modifiedInsnInfo[ToInsnLane(i)].isRelBranch = FALSE;
                     modifiedInsnInfo[ToInsnLane(i)].isSerialized = TRUE;
 
@@ -454,7 +459,7 @@ module DecodeStage(
         port.nextStage = nextStage;
 
 `ifndef RSD_DISABLE_PERFORMANCE_COUNTER
-        perfCounter.branchPredMissDetectedOnDecode = complete && flushTriggered && !clear;
+        perfCounter.branchPredMissDetectedOnDecode = redirectValid;
 `endif
         // Debug Register
 `ifndef RSD_DISABLE_DEBUG_REGISTER

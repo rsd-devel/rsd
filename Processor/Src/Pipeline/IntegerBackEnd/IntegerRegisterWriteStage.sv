@@ -23,7 +23,7 @@ module IntegerRegisterWriteStage(
     //IntegerRegisterWriteStageIF.ThisStage port,
     IntegerExecutionStageIF.NextStage prev,
     SchedulerIF.IntegerRegisterWriteStage scheduler,
-    NextPCStageIF.IntegerRegisterWriteStage ifStage,
+    FetchStageIF.IntegerRegisterWriteStage fetchStage,
     RegisterFileIF.IntegerRegisterWriteStage registerFile,
     ActiveListIF.IntegerRegisterWriteStage activeList,
     RecoveryManagerIF.IntegerRegisterWriteStage recovery,
@@ -108,7 +108,10 @@ module IntegerRegisterWriteStage(
             // Branch results.
             brResult[i] = pipeReg[i].brResult;
             brResult[i].valid = pipeReg[i].brResult.valid && update[i] && regValid[i];
-            ifStage.brResult = brResult;
+            alWriteData[i].predCtx.ctx = RecoverBranchHistory(
+                brResult[i].brAddr, brResult[i].brLookup, brResult[i].execTaken
+            );
+            alWriteData[i].predCtx.rasPtr = RecoverRAS_Ptr(brResult[i].rasPtr, brResult[i].brType, brResult[i].execTaken);
 
             // ExecState
             if ( update[i] ) begin
@@ -148,6 +151,8 @@ module IntegerRegisterWriteStage(
             scheduler.intRecordEntry[i] = update[i] && !regValid[i];
             scheduler.intRecordData[i] = pipeReg[i].intQueueData;
         end
+
+        fetchStage.brResult = brResult;
 
         // Debug Register
         `ifndef RSD_DISABLE_DEBUG_REGISTER

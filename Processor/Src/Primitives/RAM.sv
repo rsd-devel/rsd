@@ -15,6 +15,47 @@
 // A simultaneous read and write to the same address returns the old value.
 //
 
+// Single-port block RAM (1RW). A write returns the previous value at rwa.
+module BlockSinglePortRAM #(
+    parameter ENTRY_NUM = 128,
+    parameter ENTRY_BIT_SIZE = 64,
+    parameter WRITE_SLICE_BIT_SIZE = ENTRY_BIT_SIZE
+)(
+    input logic clk,
+    input logic [ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE-1:0] we,
+    input logic [$clog2(ENTRY_NUM > 1 ? ENTRY_NUM : 2)-1:0] rwa,
+    input logic [ENTRY_BIT_SIZE-1:0] wv,
+    output logic [ENTRY_BIT_SIZE-1:0] rv
+);
+    typedef logic [ENTRY_BIT_SIZE-1:0] Value;
+
+    `RSD_STATIC_ASSERT(
+        ENTRY_BIT_SIZE > 0 && WRITE_SLICE_BIT_SIZE > 0 &&
+        ENTRY_BIT_SIZE % WRITE_SLICE_BIT_SIZE == 0,
+        "The entry width must be a positive multiple of the write slice width"
+    );
+
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "lsram"
+`elsif RSD_SYNTHESIS_VIVADO
+    (* ram_style = "block" *) Value array[ENTRY_NUM];
+`else
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "block_ram"
+`endif
+
+    always_ff @(posedge clk) begin
+        rv <= array[rwa];
+        for (int i = 0; i < ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE; i++) begin
+            if (we[i])
+                array[rwa][i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE] <=
+                    wv[i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE];
+        end
+    end
+
+    `RSD_ASSERT_CLK(clk, rwa < ENTRY_NUM, "Access outside the single-port RAM array.");
+endmodule : BlockSinglePortRAM
+
+
 // Simple Dual Port RAM ( 1-read / 1-write )
 module BlockDualPortRAM #( 
     parameter ENTRY_NUM = 128, 
@@ -57,6 +98,66 @@ module BlockDualPortRAM #(
     endgenerate
 
 endmodule : BlockDualPortRAM
+
+
+// Simple Dual Port RAM with independent write enables for fixed-width slices.
+// Reads return the whole entry after one cycle, including the old value on
+// a same-address read/write. Slice boundaries must match the target RAM.
+module BlockDualPortMaskedRAM #(
+    parameter ENTRY_NUM = 128,
+    parameter ENTRY_BIT_SIZE = 64,
+    parameter WRITE_SLICE_BIT_SIZE = 8
+)(
+    input logic clk,
+    input logic [ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE-1:0] we,
+    input logic [$clog2(ENTRY_NUM)-1: 0] wa,
+    input logic [ENTRY_BIT_SIZE-1: 0] wv,
+    input logic [$clog2(ENTRY_NUM)-1: 0] ra,
+    output logic [ENTRY_BIT_SIZE-1: 0] rv
+);
+    typedef logic [ENTRY_BIT_SIZE-1: 0] Value;
+
+    `RSD_STATIC_ASSERT(
+        ENTRY_BIT_SIZE > 0 && WRITE_SLICE_BIT_SIZE > 0 &&
+        ENTRY_BIT_SIZE % WRITE_SLICE_BIT_SIZE == 0,
+        "The entry width must be a positive multiple of the write slice width"
+    );
+
+`ifdef RSD_SYNTHESIS_OPT_MICROSEMI
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "lsram"
+`elsif RSD_SYNTHESIS_VIVADO
+    (* ram_style = "block" *) Value array[ENTRY_NUM];
+`else
+    Value array[ENTRY_NUM];   // synthesis syn_ramstyle = "block_ram"
+`endif
+
+    always_ff @(posedge clk) begin
+        rv <= array[ra];
+        // Fixed slices infer native write enables without a read-modify-write.
+        // Use a supported write granularity (e.g. 8 or 9 bits) for block RAM.
+        for (int i = 0; i < ENTRY_BIT_SIZE/WRITE_SLICE_BIT_SIZE; i++) begin
+            if (we[i])
+                array[wa][i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE] <=
+                    wv[i*WRITE_SLICE_BIT_SIZE+:WRITE_SLICE_BIT_SIZE];
+        end
+    end
+
+
+    generate
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !((|we) && wa >= ENTRY_NUM),
+            ("Write to the outside of the RAM array.")
+        );
+
+        `RSD_ASSERT_CLK_FMT(
+            clk,
+            !(ra >= ENTRY_NUM),
+            ("Read from the outside of the RAM array.")
+        );
+    endgenerate
+
+endmodule : BlockDualPortMaskedRAM
 
 
 // True Dual Port RAM ( 2-read/write )
@@ -623,6 +724,52 @@ module DistributedMultiPortRAM #(
 `endif
     
 endmodule
+
+
+// After rstStart, hold rst for at least ENTRY_NUM clocks to initialize all words.
+// The sweep uses write port 0 so the underlying distributed RAM needs no reset.
+module ResettableDistributedMultiPortRAM #(
+    parameter ENTRY_NUM = 64,
+    parameter ENTRY_BIT_SIZE = 63,
+    parameter READ_NUM = 3,
+    parameter WRITE_NUM = 3,
+    parameter logic [ENTRY_BIT_SIZE-1:0] RESET_VALUE = '0
+)(
+    input logic clk, rst, rstStart,
+    input logic we[WRITE_NUM],
+    input logic [$clog2(ENTRY_NUM)-1:0] wa[WRITE_NUM],
+    input logic [ENTRY_BIT_SIZE-1:0] wv[WRITE_NUM],
+    input logic [$clog2(ENTRY_NUM)-1:0] ra[READ_NUM],
+    output logic [ENTRY_BIT_SIZE-1:0] rv[READ_NUM]
+);
+    typedef logic [$clog2(ENTRY_NUM)-1:0] IndexPath;
+    IndexPath resetIndex, ramWA[WRITE_NUM];
+    logic ramWE[WRITE_NUM];
+    logic [ENTRY_BIT_SIZE-1:0] ramWV[WRITE_NUM];
+
+    always_ff @(posedge clk) begin
+        if (rstStart)
+            resetIndex <= '0;
+        else if (rst)
+            resetIndex <= resetIndex == IndexPath'(ENTRY_NUM-1) ? '0 : resetIndex + 1'b1;
+    end
+
+    always_comb begin
+        ramWE = we;
+        ramWA = wa;
+        ramWV = wv;
+        if (rst) begin
+            for (int i = 0; i < WRITE_NUM; i++)
+                ramWE[i] = 1'b0;
+            ramWE[0] = !rstStart;
+            ramWA[0] = resetIndex;
+            ramWV[0] = RESET_VALUE;
+        end
+    end
+
+    DistributedMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+        body(clk, ramWE, ramWA, ramWV, ra, rv);
+endmodule : ResettableDistributedMultiPortRAM
 
 
 //

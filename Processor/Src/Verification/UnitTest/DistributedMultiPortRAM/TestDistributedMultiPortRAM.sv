@@ -7,7 +7,7 @@ import BasicTypes::*;
 module TestDistributedMultiPortRAM;
     localparam STEP = 10;
     localparam HOLD = 2;
-    localparam ENTRY_NUM = 4;
+    localparam ENTRY_NUM = 5;
     localparam ENTRY_BIT_SIZE = 4;
     localparam READ_NUM = 2;
     localparam WRITE_NUM = 2;
@@ -27,11 +27,22 @@ module TestDistributedMultiPortRAM;
         .READ_NUM(READ_NUM), .WRITE_NUM(WRITE_NUM)
     ) distributedRAM (.*);
 
+    logic sweepReset, rstStart;
+    Value resetRV[READ_NUM];
+    localparam Value RESET_VALUE = 4'hb;
+    ResettableDistributedMultiPortRAM #(
+        .ENTRY_NUM(ENTRY_NUM), .ENTRY_BIT_SIZE(ENTRY_BIT_SIZE),
+        .READ_NUM(READ_NUM), .WRITE_NUM(WRITE_NUM), .RESET_VALUE(RESET_VALUE)
+    ) resettableRAM (.rst(sweepReset), .rv(resetRV), .*);
+
     task Check(input Value expectedValue[READ_NUM]);
         for (int i = 0; i < READ_NUM; i++) begin
             assert (rv[i] === expectedValue[i])
                 else $fatal(1, "Read port %0d: expected %h, got %h (ra=%0d)",
                             i, expectedValue[i], rv[i], ra[i]);
+            assert (resetRV[i] === expectedValue[i])
+                else $fatal(1, "Resettable RAM read port %0d: expected %h, got %h",
+                            i, expectedValue[i], resetRV[i]);
         end
     endtask
 
@@ -57,6 +68,8 @@ module TestDistributedMultiPortRAM;
     end
 
     initial begin
+        sweepReset = FALSE;
+        rstStart = FALSE;
         we = '{default: FALSE};
         wa = '{default: 0};
         wv = '{default: 0};
@@ -65,7 +78,7 @@ module TestDistributedMultiPortRAM;
         $display("========== Test Start ==========");
 
         // Initialize every entry through port 0 before checking stored values.
-        // Addresses 0..3 receive 1, 4, 7, and a, respectively.
+        // Addresses 0..4 receive 1, 4, 7, a, and d, respectively.
         for (int i = 0; i < ENTRY_NUM; i++) begin
             @(negedge clk);
             we[0] = TRUE;
@@ -100,6 +113,27 @@ module TestDistributedMultiPortRAM;
         Step('{1, 1}, '{1, 2}, '{0, 0}, '{1, 2}, '{4'h5, 4'hc}, '{0, 0});
         Step('{0, 0}, '{0, 0}, '{0, 0}, '{2, 1}, '{0, 0}, '{0, 0});
         Step('{1, 1}, '{2, 1}, '{4'ha, 4'h3}, '{1, 2}, '{0, 0}, '{4'h3, 4'ha});
+
+        // Keep both write requests active across a warm reset. Only the sweep may write.
+        @(negedge clk);
+        sweepReset = TRUE;
+        rstStart = TRUE;
+        @(negedge clk);
+        rstStart = FALSE;
+        for (int i = 0; i < ENTRY_NUM; i++) begin
+            ra[0] = Address'(i);
+            @(posedge clk);
+            #HOLD;
+            assert (resetRV[0] === RESET_VALUE) else $fatal(1, "Reset missed word %0d", i);
+            @(negedge clk);
+        end
+        sweepReset = FALSE;
+        we = '{default: FALSE};
+        for (int i = 0; i < ENTRY_NUM; i++) begin
+            ra[0] = Address'(i);
+            #HOLD;
+            assert (resetRV[0] === RESET_VALUE) else $fatal(1, "Reset word %0d overwritten", i);
+        end
 
         $display("========== Test Passed ==========");
         $finish;

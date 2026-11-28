@@ -21,15 +21,13 @@ input
     // Pipeline
     //
     // PipelineControll::stall は，そのステージの頭にあるパイプラインレジスタの
-    // 書き込み制御を行う．たとえば ifStage であれば PC の，idStage であれば，
-    // if/id ステージ間のパイプラインレジスタの WE に接続される．
+    // 書き込み制御を行う．
     //
     // PipelineControll::clear は，有効な場合，そのステージの次のステージに送り
     // 込む命令の valid を強制的に落とす（次のステージにNOPを送る）．
     // これは，そのサイクルにそのステージにいる命令を無効化し，
     // 次のステージにNOP を送り込むことを意味する．
     //
-    PipelineControll npStage;
     PipelineControll ifStage;
     PipelineControll pdStage;
     PipelineControll idStage;
@@ -52,8 +50,7 @@ input
     //
     // --- Requests from pipeline stages.
     //
-    logic npStageSendBubbleLower;
-    logic npStageSendBubbleLowerForInterrupt;
+    logic stopFetchForInterrupt;
     logic ifStageSendBubbleLower;
     logic idStageStallUpper;
     logic rnStageFlushUpper;
@@ -65,6 +62,8 @@ input
     // --- Special signals
     //
     logic stallByDecodeStage;
+    // Asserted when the interrupt request wins front-end arbitration.
+    logic drainFetchForInterrupt;
 
     modport Controller(
     input
@@ -74,9 +73,8 @@ input
         rnStageSendBubbleLower,
         idStageStallUpper,
         rnStageFlushUpper,
-        npStageSendBubbleLower,
         ifStageSendBubbleLower,
-        npStageSendBubbleLowerForInterrupt,
+        stopFetchForInterrupt,
         isStageStallUpper,
         ifStageEmpty,
         pdStageEmpty,
@@ -84,7 +82,7 @@ input
         rnStageEmpty,
         activeListEmpty,
     output
-        npStage,
+        drainFetchForInterrupt,
         ifStage,
         pdStage,
         idStage,
@@ -98,15 +96,9 @@ input
         wholePipelineEmpty
     );
 
-    modport NextPCStage(
-    input
-        npStage,
-    output
-        npStageSendBubbleLower
-    );
-
     modport FetchStage(
     input
+        drainFetchForInterrupt,
         ifStage,
     output
         ifStageSendBubbleLower,
@@ -298,7 +290,7 @@ input
     input 
         wholePipelineEmpty,
     output 
-        npStageSendBubbleLowerForInterrupt
+        stopFetchForInterrupt
     );
 
 endinterface : ControllerIF

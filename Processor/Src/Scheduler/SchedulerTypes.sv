@@ -125,6 +125,7 @@ typedef struct packed // ActiveListWriteData
     StoreQueueIndexPath storeQueuePtr;
     ExecutionState      state;
     PC_Path             pc;
+    BranchRecoveryPath predCtx; // Predictor state for the resolved successor.
     AddrPath            dataAddr;
     logic               isBranch;
     logic               isStore;
@@ -149,11 +150,22 @@ endfunction
 // --- OpInfo of Integer Pipeline
 //
 
+//
+typedef struct packed // BrOpInfo
+{
+    // 論理レジスタを読むかどうか
+    OpOperandType operandTypeA;
+    OpOperandType operandTypeB;
+
+    BTB_BranchType brType;
+    BranchPred bPred;
+    BranchDisplacement brDisp;        // 分岐ターゲット
+} BrOpSubInfo;
+
 // IntOpSubInfo と BrOpSubInfo のビット幅を合わせるための　padding の計算をする
 localparam INT_SUB_INFO_BIT_WIDTH = 
     $bits(OpOperandType) * 2 + $bits(IntALU_Code) + $bits(ShiftOperandType) + $bits(ShifterPath);
-localparam BR_SUB_INFO_BIT_WIDTH =
-    $bits(OpOperandType) * 2 + $bits(BranchPred) + $bits(BranchDisplacement);
+localparam BR_SUB_INFO_BIT_WIDTH = $bits(BrOpSubInfo);
     
 localparam INT_SUB_INFO_PADDING_BIT_WIDTH = 
     BR_SUB_INFO_BIT_WIDTH - INT_SUB_INFO_BIT_WIDTH;
@@ -175,17 +187,6 @@ typedef struct packed // IntOpInfo
     // BrOpSubInfo とビット幅を合わせるための padding
     logic [INT_SUB_INFO_PADDING_BIT_WIDTH-1:0] padding;
 } IntOpSubInfo;
-
-//
-typedef struct packed // BrOpInfo
-{
-    // 論理レジスタを読むかどうか
-    OpOperandType operandTypeA;
-    OpOperandType operandTypeB;
-
-    BranchPred bPred;
-    BranchDisplacement brDisp;        // 分岐ターゲット
-} BrOpSubInfo;
 
 typedef union packed    // IntOpInfo
 {

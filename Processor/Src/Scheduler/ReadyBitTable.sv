@@ -47,22 +47,23 @@ module ReadyBitTable #(
     logic readyRV[READY_READ_NUM];
     RegNumPath readyRA[READY_READ_NUM];
 
-    DistributedMultiPortRAM #(
-        1 << REG_NUM_BIT_WIDTH, 1, READY_READ_NUM, READY_WRITE_NUM
-    )
-    radyBitTable(clk, readyWE, readyWA, readyWV, readyRA, readyRV);
-
-
-    RegNumPath resetIndex;
-
-    always_ff @(posedge clk) begin
-        if(rstStart) begin
-            resetIndex <= 0;
-        end
-        else begin
-            resetIndex <= resetIndex + 1;
-        end
-    end
+    // All source operands start ready.
+    ResettableDistributedMultiPortRAM #(
+        .ENTRY_NUM(1 << REG_NUM_BIT_WIDTH),
+        .ENTRY_BIT_SIZE(1),
+        .READ_NUM(READY_READ_NUM),
+        .WRITE_NUM(READY_WRITE_NUM),
+        .RESET_VALUE('1)
+    ) readyBitTable (
+        .clk(clk),
+        .rst(rst),
+        .rstStart(rstStart),
+        .we(readyWE),
+        .wa(readyWA),
+        .wv(readyWV),
+        .ra(readyRA),
+        .rv(readyRV)
+    );
 
     always_comb begin
 
@@ -81,25 +82,6 @@ module ReadyBitTable #(
             //if( dispatch[i] && dispatchedDstValid[i] ) begin
             //    ready[ dispatchedDstRegNum[i] ] <= FALSE;
         end
-
-
-        // On reset, all entries are set to be ready.
-        // On flush, the ready bits are treated in the same way as the reset
-        //  case because all allocated entries are ready and non-allocated
-        // entries are never referred after flush.
-        if (rst) begin
-
-            // In a reset phase, indefinite signals may reach and destroy initialized ready bits.
-            for (int i = 0; i < READY_WRITE_NUM; i++) begin
-                readyWE[i] = FALSE;
-            end
-
-            // A write port 0 is used for reset.
-            readyWA[0] = resetIndex;
-            readyWV[0] = TRUE;
-            readyWE[0] = TRUE;
-        end
-
 
         for (int i = 0; i < DISPATCH_WIDTH; i++) begin
             for (int j = 0; j < SRC_OP_NUM; j++) begin

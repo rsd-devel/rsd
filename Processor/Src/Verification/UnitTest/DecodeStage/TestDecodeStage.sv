@@ -20,8 +20,17 @@ module TestDecodeStage;
     localparam InsnPath NOP = 32'h00000013;
     localparam InsnPath LPAD = 32'h00000017;
     localparam InsnPath JALR = 32'h00050067; // jalr x0, x10, 0
+    localparam InsnPath CALL = 32'h004000ef; // jal ra, +4
+    localparam InsnPath INDIRECT_CALL = 32'h000280e7; // jalr ra, x5, 0
+    localparam InsnPath RET = 32'h00008067;  // jalr x0, ra, 0
     localparam InsnPath JAL = 32'h0100006f;  // jal x0, +16
     localparam PC_Path START_PC = PC_Path'(32'h80001000);
+    localparam PC_Path PREDECESSOR_PC = START_PC - 'h34;
+    localparam BranchGlobalHistoryPath PREDECESSOR_HISTORY = USE_GSHARE ? 'h3 : '0;
+    localparam RAS_IndexPath STACK_TOP = RAS_IndexPath'(2);
+    localparam BranchLookupPath GROUP_LOOKUP = '{
+        valid: TRUE, ctx: MakeBranchHistoryContext(PREDECESSOR_PC, PREDECESSOR_HISTORY, TRUE)
+    };
 
     logic clk = FALSE;
     logic rst = TRUE;
@@ -124,12 +133,24 @@ module TestDecodeStage;
               "recovery respects the configured extension");
     endtask
 
-    task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid);
+    task LoadBundle(input InsnPath first, input InsnPath second, input logic secondValid,
+                    input logic predTaken = FALSE, input PC_Path takenAddr = '0, input logic btbHit = FALSE,
+                    input BTB_BranchType predType = BTB_JUMP);
         ClearInput();
         inputValid[0] = TRUE;
         inputValid[1] = secondValid;
         insn[0] = first;
         insn[1] = second;
+        prediction[0].brLookup = GROUP_LOOKUP;
+        prediction[1].brLookup = GROUP_LOOKUP;
+        prediction[0].predTaken = predTaken;
+        prediction[0].takenAddr = takenAddr;
+        prediction[0].btbHit = btbHit;
+        prediction[0].btbBrType = predType;
+        prediction[0].usedRAS = predTaken && predType == BTB_RETURN;
+        prediction[0].rasPtr = STACK_TOP;
+        prediction[1].rasPtr = STACK_TOP;
+        prediction[0].btbHitWay = btbHit ? '1 : '0; // Exercise a hit in the upper way.
         Tick();
         ClearInput();
         #1;
@@ -178,8 +199,7 @@ module TestDecodeStage;
         end
         Check(validOps == 1 && decodedInfo[0].isSerialized == illegal, description);
         if (illegal)
-            Check(!decodedInfo[0].writePC && !decodedInfo[0].isCall &&
-                  !decodedInfo[0].isReturn && !decodedInfo[0].isRelBranch, description);
+            Check(!decodedInfo[0].writePC && !decodedInfo[0].isRelBranch, description);
     endtask
 
     task CheckFPEncoding(input InsnPath encoding, input logic illegal,
@@ -198,6 +218,9 @@ module TestDecodeStage;
     end
 
     initial begin
+        logic legal;
+        MicroOpType expectedType;
+
         if (DECODE_WIDTH != 2)
             $fatal(1, "DecodeStage test requires two decode lanes");
 
@@ -244,8 +267,6 @@ module TestDecodeStage;
         for (int funct7 = 0; funct7 < 128; funct7++) begin
             for (int funct3 = 0; funct3 < 8; funct3++) begin
                 for (int rd = 0; rd <= 31; rd += 31) begin
-                    logic legal;
-                    MicroOpType expectedType;
                     legal = funct7 == 0 || funct7 == 1 ||
                             (funct7 == 'h20 && (funct3 == 0 || funct3 == 5));
 `ifdef RSD_ENABLE_ZBA
@@ -303,24 +324,154 @@ module TestDecodeStage;
         // An earlier corrected direct branch discards the later JALR.
         Reset();
         LoadBundle(JAL, JALR, TRUE);
-        Check(port.nextFlush && port.nextStage[0].valid && !port.nextStage[1].valid,
+        Check(port.nextRedirect.valid && port.nextStage[0].valid && !port.nextStage[1].valid,
               "branch correction discards the suffix");
         Tick();
         Check(port.elpState === LP_NOT_EXPECTED, "discarded JALR must not change ELP");
 
-        // If that prediction was correct, the second instruction is live.
         Reset();
+        LoadBundle(CALL, NOP, TRUE, FALSE, '0, TRUE, BTB_COND); // jal ra, +4
+        Check(port.nextRedirect.valid && !port.nextStage[1].valid && port.nextRedirect.pc == START_PC + 4 &&
+              port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == START_PC + 4 &&
+              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
+              "JAL direction correction supplies the target and retains the Fetch hit way");
+        Check(port.nextRedirect.rasPush && port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1) &&
+              port.nextRedirect.rasReturnPC == START_PC + 4, "A missed direct call repairs the RAS");
+        Check(port.nextStage[0].bPred.brLookup == GROUP_LOOKUP &&
+              port.nextRedirect.predCtx.ctx == MakeBranchHistoryContext(
+                  START_PC, USE_GSHARE ? AdvanceTakenHistory(PREDECESSOR_HISTORY, PREDECESSOR_PC) : '0, TRUE),
+              "a missed call preserves its training context and starts its target from the call");
+        LoadBundle(RET, NOP, TRUE, FALSE, '0, TRUE, BTB_COND);
+        Check(!port.nextRedirect.valid && !port.nextStage[0].bPred.predTaken,
+              "a return missed by Fetch remains unresolved until execution");
+        LoadBundle(RET, NOP, FALSE, TRUE, START_PC + 12, TRUE, BTB_RETURN);
+        Check(!port.nextRedirect.valid && port.nextStage[0].bPred.takenAddr == START_PC + 12 &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "Decode forwards a return target selected by Fetch");
+        LoadBundle(CALL, NOP, TRUE); // No BTB hit.
+        Check(port.nextRedirect.valid && !port.nextStage[0].bPred.btbHit && port.nextStage[0].bPred.takenAddrChangedAtDecode &&
+              port.nextStage[0].bPred.takenAddr == START_PC + 4, "Decode supplies the JAL target on a BTB miss");
+
+        LoadBundle(CALL, NOP, FALSE, TRUE, START_PC + 4, TRUE, BTB_CALL);
+        Check(!port.nextRedirect.valid && !port.nextRedirect.rasPush, "a correct Fetch call needs no Decode push");
+        LoadBundle(CALL, NOP, FALSE, TRUE, START_PC + 12, TRUE, BTB_CALL);
+        Check(port.nextRedirect.valid && !port.nextRedirect.rasPush && port.nextRedirect.pc == START_PC + 4 &&
+              port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1),
+              "correcting a call target retains the Fetch push");
+        LoadBundle(CALL, NOP, FALSE, TRUE, START_PC + 4, TRUE, BTB_JUMP);
+        Check(port.nextRedirect.valid && port.nextRedirect.rasPush && !port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "a correct direct target still needs the missing push");
+
+        LoadBundle(INDIRECT_CALL, NOP, TRUE);
+        Check(port.nextRedirect.valid && port.nextRedirect.rasPush && port.nextRedirect.rasReturnPC == START_PC + 4 &&
+              port.nextRedirect.pc == START_PC + 4 && !port.nextStage[1].valid &&
+              port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1) &&
+              !port.nextStage[0].bPred.predTaken && port.nextStage[0].bPred.takenAddr == '0 &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.rasPtr == STACK_TOP,
+              "a missed indirect call pushes its link and leaves the target for Execute");
+        if (FETCH_WIDTH > 1)
+            Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx,
+                  "provisional fall-through into the same group restores its original prediction rows");
+        externalStall = TRUE;
+        repeat (3) begin
+            Tick();
+            Check(port.nextRedirect.valid && port.nextRedirect.rasPush &&
+                  port.nextRedirect.rasReturnPC == START_PC + 4 &&
+                  port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1),
+                  "a held Decode call retains its link and checkpoint");
+        end
+        externalStall = FALSE;
+        #1;
+        Check(port.nextRedirect.valid && port.nextRedirect.rasPush, "the accepted indirect call supplies its link");
+        Tick();
+        Check(!port.nextRedirect.valid && !port.nextRedirect.rasPush, "an accepted indirect call pushes once");
+
+        LoadBundle(INDIRECT_CALL, NOP, FALSE, TRUE, START_PC + 12, TRUE, BTB_RETURN);
+        Check(port.nextRedirect.valid && port.nextRedirect.rasPush && port.nextRedirect.pc == START_PC + 12 &&
+              port.nextRedirect.predCtx.rasPtr == STACK_TOP + RAS_IndexPath'(1) &&
+              port.nextStage[0].bPred.usedRAS && port.nextStage[0].bPred.btbBrType == BTB_RETURN &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode,
+              "an indirect call predicted as a return replaces the pop and retains its predicted target");
+        LoadBundle(RET, NOP, FALSE, TRUE, START_PC + 12, TRUE, BTB_CALL);
+        Check(port.nextRedirect.valid && !port.nextRedirect.rasPush && port.nextRedirect.pc == START_PC + 12 &&
+              port.nextRedirect.predCtx.rasPtr == STACK_TOP - RAS_IndexPath'(1),
+              "a return predicted as a call replaces the push with a pop");
+        LoadBundle(INDIRECT_CALL, NOP, FALSE, TRUE, START_PC + 12, TRUE, BTB_CALL);
+        Check(!port.nextRedirect.valid && !port.nextRedirect.rasPush, "a predicted indirect call uses its Fetch push");
+
+        LoadBundle(INDIRECT_CALL, NOP, FALSE);
+        clear = TRUE;
+        #1;
+        Check(!port.nextRedirect.valid && !port.nextRedirect.rasPush, "a cleared indirect call cannot push");
+        Tick();
+        clear = FALSE;
+        LoadBundle(JAL, INDIRECT_CALL, TRUE);
+        Check(port.nextRedirect.valid && !port.nextRedirect.rasPush && !port.nextStage[1].valid,
+              "an older correction squashes the younger missed call");
+
+        // A BTB miss can expose the sequential instruction after an unresolved return.
+        LoadBundle(RET, INDIRECT_CALL, TRUE);
+        Check(!port.nextRedirect.valid && !port.nextRedirect.rasPush,
+              "an older unresolved return prevents a younger Decode push");
+        LoadBundle(32'h00001863, INDIRECT_CALL, TRUE, FALSE, '0, TRUE, BTB_COND); // bne x0, x0, +16
+        Check(port.nextRedirect.valid && port.nextRedirect.rasPush && port.nextStage[0].valid && port.nextStage[1].valid &&
+              port.nextRedirect.rasReturnPC == START_PC + 8 && port.nextRedirect.pc == START_PC + 8,
+              "an untaken conditional allows the sequential call to push");
+
+        Reset();
+        LoadBundle(32'h00000863, NOP, TRUE, FALSE, '0, TRUE, BTB_COND); // beq x0, x0, +16
+        Check(!port.nextRedirect.valid && port.nextStage[1].valid && !port.nextStage[0].bPred.predTaken &&
+              !port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.btbHitWay == '1,
+              "untaken conditional prediction keeps its hit way for execution");
+        LoadBundle(32'h00000863, NOP, FALSE, TRUE, START_PC + 8, TRUE, BTB_COND);
+        Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + 16 &&
+              port.nextStage[0].bPred.takenAddrChangedAtDecode && port.nextStage[0].bPred.takenAddr == START_PC + 16,
+              "taken conditional prediction with the wrong target redirects");
+        LoadBundle(NOP, NOP, FALSE, TRUE, START_PC + 8, TRUE);
+        Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + 4 && !port.nextStage[0].bPred.predTaken,
+              "non-branch predicted taken recovers to fall-through");
+        Check(!port.nextRedirect.rasPush && port.nextRedirect.predCtx.rasPtr == STACK_TOP,
+              "A false taken prediction restores the stack before the non-branch");
+        if (FETCH_WIDTH > 1)
+            Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx,
+                  "a redirect into the same fetch group retains the predecessor and its history");
+
+        // FENCE redirects to pc+4 even when Fetch predicted fall-through.
+        for (int slot = 0; slot < FETCH_WIDTH; slot++) begin
+            ClearInput();
+            inputValid[0] = TRUE;
+            pc[0] = START_PC + slot * INSN_BYTE_WIDTH;
+            insn[0] = 32'h0ff0000f; // fence iorw, iorw
+            prediction[0].brLookup = GROUP_LOOKUP;
+            prediction[0].rasPtr = STACK_TOP;
+            Tick();
+            ClearInput();
+            #1;
+            Check(port.nextRedirect.valid && port.nextRedirect.pc == START_PC + (slot + 1) * INSN_BYTE_WIDTH &&
+                  !port.nextRedirect.rasPush && port.nextRedirect.predCtx.rasPtr == STACK_TOP,
+                  "serialization resumes at the next instruction with the same RAS pointer");
+            if (slot + 1 < FETCH_WIDTH)
+                Check(port.nextRedirect.predCtx.ctx == GROUP_LOOKUP.ctx, "serialization within the group reuses its rows");
+            else
+                Check(port.nextRedirect.predCtx.ctx == MakeBranchHistoryContext(
+                      START_PC + slot * INSN_BYTE_WIDTH, USE_GSHARE ? BranchContextHistory(GROUP_LOOKUP.ctx) : '0, FALSE),
+                      "serialization at the end of the group reads the successor's rows");
+        end
+
+        // Fetch delivers the target of a taken branch in the next group.
+        Reset();
+        LoadBundle(JAL, NOP, FALSE, TRUE, START_PC + 16, TRUE);
+        Check(!port.nextRedirect.valid && port.nextStage[0].valid && !port.nextStage[1].valid,
+              "a correctly predicted JAL ends its fetch group");
         inputValid[0] = TRUE;
         inputValid[1] = TRUE;
-        insn[0] = JAL;
         insn[1] = JALR;
-        pc[1] = START_PC + 16;
-        prediction[0].predTaken = TRUE;
-        prediction[0].predAddr = START_PC + 16;
+        pc[0] = START_PC + 16;
+        pc[1] = START_PC + 20;
         Tick();
         ClearInput();
         #1;
-        Check(!port.nextFlush && port.nextStage[1].valid, "correct prediction keeps the suffix");
+        Check(!port.nextRedirect.valid && port.nextStage[1].valid, "JALR is live in the target group");
         Tick();
         Check(port.elpState === EXPECTED_ELP, "live suffix JALR advances ELP");
 

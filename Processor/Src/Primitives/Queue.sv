@@ -268,6 +268,65 @@ output
 
 endmodule
 
+// FIFO for predictor updates. Lower-numbered lanes take the available slots first.
+module TrainingQueue #(
+    parameter int ENTRY_NUM = 4,
+    parameter int DATA_WIDTH = 1,
+    parameter int PUSH_WIDTH = 2
+)(
+    input  logic clk, rst,
+    input  logic pushValid[PUSH_WIDTH],
+    input  logic [DATA_WIDTH-1:0] pushData[PUSH_WIDTH],
+    input  logic pop,
+    output logic headValid,
+    output logic [DATA_WIDTH-1:0] headData
+);
+    // Slot addresses wrap by truncation.
+    `RSD_STATIC_ASSERT(ENTRY_NUM >= 2 && (ENTRY_NUM & (ENTRY_NUM-1)) == 0, "Training queue depth must be a power of two.");
+    typedef logic [$clog2(ENTRY_NUM)-1:0] IndexPath;
+    typedef logic [$clog2(ENTRY_NUM):0] CountPath;
+
+    logic [DATA_WIDTH-1:0] entries[ENTRY_NUM];
+    IndexPath headPtr, tailPtr, writePtr[PUSH_WIDTH];
+    CountPath count, freeSlots;
+    logic popHead, writeEnable[PUSH_WIDTH];
+    logic [$clog2(PUSH_WIDTH):0] pushCount;
+
+    MultiWidthQueuePointer #(.SIZE(ENTRY_NUM), .PUSH_WIDTH(PUSH_WIDTH)) pointers (
+        .clk(clk), .rst(rst), .push(pushCount != 0), .pushCount(pushCount),
+        .pop(popHead), .popCount(1'b1), .headPtr(headPtr), .tailPtr(tailPtr), .count(count)
+    );
+
+    // Resetting the pointers and count invalidates every entry.
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < PUSH_WIDTH; i++) begin
+            if (writeEnable[i])
+                entries[writePtr[i]] <= pushData[i];
+        end
+    end
+
+    always_comb begin
+        headValid = !rst && count != 0;
+        headData = entries[headPtr];
+    end
+
+    always_comb begin
+        popHead = pop && headValid;
+        freeSlots = CountPath'(ENTRY_NUM) - count;
+        // The head is consumed at the same edge that stores the new requests.
+        if (popHead)
+            freeSlots++;
+
+        pushCount = '0;
+        for (int i = 0; i < PUSH_WIDTH; i++) begin
+            writePtr[i] = tailPtr + IndexPath'(pushCount);
+            writeEnable[i] = !rst && pushValid[i] && CountPath'(pushCount) < freeSlots;
+            if (writeEnable[i])
+                pushCount++;
+        end
+    end
+endmodule : TrainingQueue
+
 //
 // N-input/N-output queue.
 // The "tailPtr" points the address of a next pushed entry.

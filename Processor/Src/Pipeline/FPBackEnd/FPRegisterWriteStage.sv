@@ -101,6 +101,7 @@ module FPRegisterWriteStage(
             alWriteData[i].storeQueuePtr = iqData[i].storeQueueRecoveryPtr;
             alWriteData[i].pc = iqData[i].pc;
             alWriteData[i].dataAddr = '0;
+            alWriteData[i].predCtx = '0;
             alWriteData[i].isBranch = FALSE;
             alWriteData[i].isStore = FALSE;
             alWriteData[i].elp = LP_NOT_EXPECTED;

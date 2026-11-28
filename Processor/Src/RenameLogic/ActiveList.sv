@@ -10,6 +10,7 @@
 
 import BasicTypes::*;
 import MemoryMapTypes::*;
+import FetchUnitTypes::*;
 import MicroOpTypes::*;
 import RenameLogicTypes::*;
 import SchedulerTypes::*;
@@ -177,6 +178,7 @@ module ActiveList(
     typedef struct packed
     {
         PC_Path pc;
+        BranchRecoveryPath predCtx;
         AddrPath faultingDataAddr;
         ActiveListIndexPath ptr;
         LoadQueueIndexPath loadQueuePtr;
@@ -258,6 +260,7 @@ module ActiveList(
                 nextRecoveryReg.loadQueuePtr = writeData[i].loadQueuePtr;
                 nextRecoveryReg.storeQueuePtr = writeData[i].storeQueuePtr;
                 nextRecoveryReg.pc = writeData[i].pc;
+                nextRecoveryReg.predCtx = writeData[i].predCtx;
                 nextRecoveryReg.faultingDataAddr = writeData[i].dataAddr;
                 nextRecoveryReg.state = writeData[i].state;
 
@@ -302,6 +305,8 @@ module ActiveList(
         //これらのPCはRecoveryManagerのRecoveryRegisterを経由してFetchStageに送られる
         recovery.recoveredPC_FromCommitStage = ToAddrFromPC(recoveryReg.pc);
         recovery.recoveredPC_FromRwStage = ToAddrFromPC(nextRecoveryReg.pc);
+        recovery.recoveredPredCtx_FromCommitStage = recoveryReg.predCtx;
+        recovery.recoveredPredCtx_FromRwStage = nextRecoveryReg.predCtx;
 
         // Fault handling
         recovery.faultingDataAddr = recoveryReg.faultingDataAddr;
