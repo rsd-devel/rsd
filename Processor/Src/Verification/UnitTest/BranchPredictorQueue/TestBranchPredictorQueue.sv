@@ -169,8 +169,8 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
-        assert (port.nextStage.brPred[0].usedRAS && fetch.fetchRequestPC === MemoryMapTypes::PC_Path'(0))
-            else $fatal(1, "The cold circular RAS must supply its initialized entry");
+        assert (port.nextStage.brPred[0].usedRAS && fetch.fetchRequestPC === MemoryMapTypes::PC_Path'(32'h80000000))
+            else $fatal(1, "A reset RAS entry must predict the base of the return's 256 KiB region");
 
         recovery.fetchRedirect.valid = TRUE;
         ReadGroup(callOp.brAddr);
@@ -186,17 +186,18 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = TRUE;
         ctrl.ifStage.clear = TRUE;
 
-        // Decode corrects the missed call using its saved checkpoint.
+        // Decode supplies a link in the next 256 KiB region. Fetch takes bits [31:18]
+        // from the return instruction and retains all stored word-address bits [17:2].
         recovery.fetchRedirect.predCtx.rasPtr = RecoverRAS_Ptr(RAS_IndexPath'(2), BTB_CALL, TRUE);
         recovery.fetchRedirect.rasPush = TRUE;
-        recovery.fetchRedirect.rasReturnPC = callOp.brAddr + INSN_BYTE_WIDTH;
+        recovery.fetchRedirect.rasReturnPC = 32'h8007fffc;
         ReadGroupFrom(retOp.brAddr, callOp.brAddr, '0, TRUE);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.clear = FALSE;
         #1;
         assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3) && port.nextStage.brPred[0].usedRAS &&
-                fetch.fetchRequestPC == callOp.brAddr + INSN_BYTE_WIDTH)
-            else $fatal(1, "Decode must write the missing link at the restored top");
+                fetch.fetchRequestPC == MemoryMapTypes::PC_Path'(32'h8003fffc))
+            else $fatal(1, "The repaired RAS entry must predict the last word in the return's region");
         recovery.fetchRedirect.rasPush = FALSE;
         ctrl.ifStage.stall = TRUE;
         repeat (3) begin

@@ -10,10 +10,14 @@ module RAS(
     RecoveryManagerIF.FetchStage recovery
 );
     // Fetch speculates on BTB call/return types. Only an accepted group changes the stack.
-    PC_Path entries[RAS_ENTRY_NUM];
+    // A return predicts within its own aligned 256 KiB region.
+    localparam RAS_REGION_OFFSET_WIDTH = 18;
+    typedef logic [RAS_REGION_OFFSET_WIDTH-1:INSN_ADDR_BIT_WIDTH] RAS_WordOffsetPath;
+    RAS_WordOffsetPath entries[RAS_ENTRY_NUM];
     RAS_IndexPath rasPtr, nextRAS_Ptr;
     logic pushRAS, popRAS, rasWE;
-    PC_Path returnPC, rasWritePC;
+    PC_Path returnPC;
+    AddrPath rasWriteAddr, fetchAddr;
     always_ff @(posedge port.clk) begin
         rasPtr <= nextRAS_Ptr;
         if (port.rst) begin
@@ -21,12 +25,14 @@ module RAS(
                 entries[i] <= '0;
         end
         else if (rasWE)
-            entries[nextRAS_Ptr] <= rasWritePC;
+            entries[nextRAS_Ptr] <= rasWriteAddr[RAS_REGION_OFFSET_WIDTH-1:INSN_ADDR_BIT_WIDTH];
     end
 
     // Fetch reads the current top and checkpoints the pointer before the group advances.
     always_comb begin
-        port.rasTopPC = entries[rasPtr];
+        fetchAddr = ToAddrFromPC(port.pcOut);
+        port.rasTopPC = ToPC_FromAddr({fetchAddr[ADDR_WIDTH-1:RAS_REGION_OFFSET_WIDTH],
+                                       entries[rasPtr], {INSN_ADDR_BIT_WIDTH{1'b0}}});
         port.rasPtr = rasPtr;
     end
 
@@ -47,7 +53,7 @@ module RAS(
     always_comb begin
         nextRAS_Ptr = rasPtr;
         rasWE = FALSE;
-        rasWritePC = returnPC;
+        rasWriteAddr = ToAddrFromPC(returnPC);
         if (port.rst)
             nextRAS_Ptr = '0;
         else if (recovery.fetchRedirect.valid || port.interruptAddrWE) begin
@@ -55,7 +61,7 @@ module RAS(
             if (recovery.fetchRedirect.restorePredCtx && recovery.fetchRedirect.valid && !port.interruptAddrWE) begin
                 nextRAS_Ptr = recovery.fetchRedirect.predCtx.rasPtr;
                 rasWE = recovery.fetchRedirect.rasPush;
-                rasWritePC = recovery.fetchRedirect.rasReturnPC;
+                rasWriteAddr = ToAddrFromPC(recovery.fetchRedirect.rasReturnPC);
             end
         end
         else if (pushRAS) begin

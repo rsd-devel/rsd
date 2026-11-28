@@ -111,6 +111,7 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     input
         clk,
         rst,
+        pcOut,
         interruptAddrWE,
         nextStage,
     output
