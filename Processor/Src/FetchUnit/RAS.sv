@@ -13,26 +13,29 @@ module RAS(
     // A return predicts within its own aligned 256 KiB region.
     localparam RAS_REGION_OFFSET_WIDTH = 18;
     typedef logic [RAS_REGION_OFFSET_WIDTH-1:INSN_ADDR_BIT_WIDTH] RAS_WordOffsetPath;
-    RAS_WordOffsetPath entries[RAS_ENTRY_NUM];
+    RAS_WordOffsetPath top[1];
     RAS_IndexPath rasPtr, nextRAS_Ptr;
     logic pushRAS, popRAS, rasWE;
     PC_Path returnPC;
     AddrPath rasWriteAddr, fetchAddr;
     always_ff @(posedge port.clk) begin
         rasPtr <= nextRAS_Ptr;
-        if (port.rst) begin
-            for (int i = 0; i < RAS_ENTRY_NUM; i++)
-                entries[i] <= '0;
-        end
-        else if (rasWE)
-            entries[nextRAS_Ptr] <= rasWriteAddr[RAS_REGION_OFFSET_WIDTH-1:INSN_ADDR_BIT_WIDTH];
     end
+
+    ResettableDistributedMultiPortRAM #(
+        .ENTRY_NUM(RAS_ENTRY_NUM), .ENTRY_BIT_SIZE($bits(RAS_WordOffsetPath)),
+        .READ_NUM(1), .WRITE_NUM(1), .RESET_VALUE('0)
+    ) entries (
+        .clk(port.clk), .rst(port.rst), .rstStart(port.rstStart),
+        .we('{rasWE}), .wa('{nextRAS_Ptr}), .wv('{rasWriteAddr[RAS_REGION_OFFSET_WIDTH-1:INSN_ADDR_BIT_WIDTH]}),
+        .ra('{rasPtr}), .rv(top)
+    );
 
     // Fetch reads the current top and checkpoints the pointer before the group advances.
     always_comb begin
         fetchAddr = ToAddrFromPC(port.pcOut);
         port.rasTopPC = ToPC_FromAddr({fetchAddr[ADDR_WIDTH-1:RAS_REGION_OFFSET_WIDTH],
-                                       entries[rasPtr], {INSN_ADDR_BIT_WIDTH{1'b0}}});
+                                       top[0], {INSN_ADDR_BIT_WIDTH{1'b0}}});
         port.rasPtr = rasPtr;
     end
 

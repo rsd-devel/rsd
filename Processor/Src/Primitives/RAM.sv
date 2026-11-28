@@ -726,6 +726,52 @@ module DistributedMultiPortRAM #(
 endmodule
 
 
+// After rstStart, hold rst for at least ENTRY_NUM clocks to initialize all words.
+// The sweep uses write port 0 so the underlying distributed RAM needs no reset.
+module ResettableDistributedMultiPortRAM #(
+    parameter ENTRY_NUM = 64,
+    parameter ENTRY_BIT_SIZE = 63,
+    parameter READ_NUM = 3,
+    parameter WRITE_NUM = 3,
+    parameter logic [ENTRY_BIT_SIZE-1:0] RESET_VALUE = '0
+)(
+    input logic clk, rst, rstStart,
+    input logic we[WRITE_NUM],
+    input logic [$clog2(ENTRY_NUM)-1:0] wa[WRITE_NUM],
+    input logic [ENTRY_BIT_SIZE-1:0] wv[WRITE_NUM],
+    input logic [$clog2(ENTRY_NUM)-1:0] ra[READ_NUM],
+    output logic [ENTRY_BIT_SIZE-1:0] rv[READ_NUM]
+);
+    typedef logic [$clog2(ENTRY_NUM)-1:0] IndexPath;
+    IndexPath resetIndex, ramWA[WRITE_NUM];
+    logic ramWE[WRITE_NUM];
+    logic [ENTRY_BIT_SIZE-1:0] ramWV[WRITE_NUM];
+
+    always_ff @(posedge clk) begin
+        if (rstStart)
+            resetIndex <= '0;
+        else if (rst)
+            resetIndex <= resetIndex == IndexPath'(ENTRY_NUM-1) ? '0 : resetIndex + 1'b1;
+    end
+
+    always_comb begin
+        ramWE = we;
+        ramWA = wa;
+        ramWV = wv;
+        if (rst) begin
+            for (int i = 0; i < WRITE_NUM; i++)
+                ramWE[i] = 1'b0;
+            ramWE[0] = !rstStart;
+            ramWA[0] = resetIndex;
+            ramWV[0] = RESET_VALUE;
+        end
+    end
+
+    DistributedMultiPortRAM #(ENTRY_NUM, ENTRY_BIT_SIZE, READ_NUM, WRITE_NUM)
+        body(clk, ramWE, ramWA, ramWV, ra, rv);
+endmodule : ResettableDistributedMultiPortRAM
+
+
 //
 // LUT+FF
 //

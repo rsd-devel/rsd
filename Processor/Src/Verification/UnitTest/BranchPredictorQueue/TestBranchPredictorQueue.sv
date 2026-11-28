@@ -708,13 +708,27 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = TRUE;
     endtask
 
+    task CheckRAS_Entries(input bit expectZero);
+        // Restore each pointer with the fetch PC in region zero to observe the stored offset.
+        recovery.fetchRedirect.pc = '0;
+        recovery.fetchRedirect.valid = TRUE;
+        recovery.fetchRedirect.restorePredCtx = TRUE;
+        recovery.fetchRedirect.rasPush = FALSE;
+        for (int i = RAS_ENTRY_NUM - 1; i >= 0; i--) begin
+            @(negedge clk);
+            recovery.fetchRedirect.predCtx.rasPtr = RAS_IndexPath'(i);
+            @(posedge clk);
+            #1;
+            assert (port.rasPtr === RAS_IndexPath'(i) && ((port.rasTopPC == '0) == expectZero))
+                else $fatal(1, "RAS entry %0d returned %h, expected zero = %b", i, port.rasTopPC, expectZero);
+        end
+    endtask
+
     task ResetTables;
         @(negedge clk);
         rst = TRUE;
         rstStart = TRUE;
         @(negedge clk);
-        for (int i = 0; i < RAS_ENTRY_NUM; i++)
-            assert (ras.entries[i] === '0) else $fatal(1, "Reset did not clear RAS entry %0d on the first clock", i);
         assert (port.rasPtr === '0) else $fatal(1, "Reset did not restore the initial RAS pointer");
         rstStart = FALSE;
         repeat (RESET_CYCLES) @(negedge clk);
@@ -1177,14 +1191,14 @@ module TestBranchPredictorQueue;
         CheckPHTHistory();
         CheckBTBTraining();
         CheckUpperPHTRows();
+        CheckRAS_Entries(FALSE);
         @(negedge clk);
         port.brResult[0] = MakeResult(4);
         port.brResult[1] = MakeResult(5);
-        for (int i = 0; i < RAS_ENTRY_NUM; i++)
-            assert (ras.entries[i] != '0) else $fatal(1, "RAS entry %0d was not populated before reset", i);
         ResetTables();
         ClearResults();
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");
+        CheckRAS_Entries(TRUE);
         ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
         CheckAheadPHT();
         CheckStalledPHT();
