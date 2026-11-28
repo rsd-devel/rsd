@@ -38,8 +38,6 @@ typedef struct packed {
 } BTB_Tag;
 
 localparam BTB_QUEUE_SIZE = 4;
-localparam BTB_QUEUE_SIZE_BIT_WIDTH = $clog2(BTB_QUEUE_SIZE);
-typedef logic [BTB_QUEUE_SIZE_BIT_WIDTH-1:0] BTBQueuePointerPath;
 
 typedef struct packed {
     BTB_Tag tag;

@@ -135,7 +135,7 @@ module TestBranchPredictorQueue;
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.stall = TRUE;
         repeat (BTB_QUEUE_SIZE + 1) @(negedge clk);
-        assert (btb.count == 0) else $fatal(1, "BTB queue did not drain during a sustained stall");
+        assert (!btb.updatePending) else $fatal(1, "BTB queue did not drain during a sustained stall");
         ctrl.ifStage.stall = FALSE;
         recovery.fetchRedirect.valid = TRUE;
     endtask
@@ -284,14 +284,14 @@ module TestBranchPredictorQueue;
         port.brResult[0] = hit;
         port.brResult[1] = notTaken;
         #1;
-        assert (btb.btbEntryArray.we === '0 && btb.pushCount == 0)
+        assert (btb.btbEntryArray.we === '0 && !btb.updateValid[0] && !btb.updateValid[1])
             else $fatal(1, "Correct targets and untaken branches must leave the BTB unchanged");
         for (int i = 0; i < 2; i++) begin
             @(negedge clk);
             port.brResult[i] = hit;
             port.brResult[1-i] = miss;
             #1;
-            assert (btb.pushCount == 1 && btb.queueWE[1-i] && btb.btbEntryArray.we == '0)
+            assert (!btb.updateValid[i] && btb.updateValid[1-i] && btb.btbEntryArray.we == '0)
                 else $fatal(1, "Only the miss should enqueue while the prediction port is busy");
         end
         @(negedge clk);
@@ -316,7 +316,7 @@ module TestBranchPredictorQueue;
     for (genvar useGshare = 0; useGshare <= 1; useGshare++) begin : phtModel
         PHT_EntryPath counters[PHT_ENTRY_NUM];
         BranchResult pending[$];
-        bit rowReady;
+        bit rowReady, acceptedWhileFull;
         PHT_EntryPath [FETCH_WIDTH-1:0] ramCounters, capturedCounters;
         PHT_RowIndexPath ramIndex, capturedIndex;
         bit ramValid, capturedValid;
@@ -338,12 +338,13 @@ module TestBranchPredictorQueue;
             int freeSlots, count;
             samples = port.brResult;
             readRow = port.phtReadRow;
-            enqueue = useGshare ? gshare.queueWE : bimodal.queueWE;
-            count = useGshare ? gshare.count : bimodal.count;
+            enqueue = useGshare ? gshare.trainingQueue.writeEnable : bimodal.trainingQueue.writeEnable;
+            count = useGshare ? gshare.trainingQueue.count : bimodal.trainingQueue.count;
             readTraining = useGshare ? gshare.readTraining : bimodal.readTraining;
             writeEnable = useGshare ? gshare.writeEnable : bimodal.writeEnable;
             if (rst) begin
                 pending.delete();
+                acceptedWhileFull = FALSE;
                 rowReady = FALSE;
                 ramValid = FALSE;
                 capturedValid = FALSE;
@@ -393,7 +394,7 @@ module TestBranchPredictorQueue;
                     oldest = pending.pop_front();
                     counters[headIndex] = NextCounter(counters[headIndex], oldest.execTaken);
                     rowReady = FALSE;
-                    if (freeSlots != 0) freeSlots++;
+                    freeSlots++;
                 end
                 if (readTraining) rowReady = TRUE;
                 foreach (samples[i]) begin
@@ -403,6 +404,7 @@ module TestBranchPredictorQueue;
                         NextCounter(samples[i].phtPrevValue, samples[i].execTaken) != samples[i].phtPrevValue;
                     assert (enqueue[i] === accept) else $fatal(1, "PHT %m queue write mismatch on lane %0d", i);
                     if (accept) begin
+                        if (count == PHT_QUEUE_SIZE) acceptedWhileFull = TRUE;
                         freeSlots--;
                         pending.push_back(samples[i]);
                     end
@@ -426,7 +428,7 @@ module TestBranchPredictorQueue;
             repeat (2) ReadPHTGroup(0);
             repeat (2) ReadPHTGroup(FETCH_WIDTH * INSN_BYTE_WIDTH);
         end
-        assert (bimodal.count == 0 && gshare.count == 0) else $fatal(1, "PHT queues did not drain");
+        assert (!bimodal.updatePending && !gshare.updatePending) else $fatal(1, "PHT queues did not drain");
     endtask
 
     task CheckPHTHeadConflict;
@@ -444,11 +446,11 @@ module TestBranchPredictorQueue;
         SendResults(first, second);
         // A younger request to the free bank cannot pass the blocked head.
         repeat (3) ReadPHTGroup(first.brAddr);
-        assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "Blocked PHT head was bypassed");
+        assert (bimodal.trainingQueue.count == 2 && gshare.trainingQueue.count == 2) else $fatal(1, "Blocked PHT head was bypassed");
         // Allow only the training read, then use its bank for several fetches.
         ReadPHTGroup(second.brAddr);
         repeat (3) ReadPHTGroup(first.brAddr + 2 * FETCH_WIDTH * INSN_BYTE_WIDTH);
-        assert (bimodal.count == 2 && gshare.count == 2) else $fatal(1, "PHT wrote a busy bank");
+        assert (bimodal.trainingQueue.count == 2 && gshare.trainingQueue.count == 2) else $fatal(1, "PHT wrote a busy bank");
         ReadPHTGroup(second.brAddr); // Write the saved row while a different row is still on its bank output.
         ReadPHTGroup(first.brAddr);
         DrainPHT();
@@ -494,6 +496,8 @@ module TestBranchPredictorQueue;
         @(negedge clk);
         ClearResults();
         DrainPHT();
+        assert (phtModel[0].acceptedWhileFull && phtModel[1].acceptedWhileFull)
+            else $fatal(1, "Both full PHT queues must accept a result while writing their head");
         // The high issue lane also trains when it is the only valid result.
         @(negedge clk);
         result = MakeResult(RESULTS, TRUE);
@@ -639,7 +643,7 @@ module TestBranchPredictorQueue;
         else begin
             canWrite = pending.size() != 0 && !recovery.fetchRedirect.valid &&
                        ((previousStall && ctrl.ifStage.stall) || ctrl.drainFetchForInterrupt);
-            assert (btb.count == pending.size() && (|btb.btbEntryArray.we) == canWrite)
+            assert (btb.trainingQueue.count == pending.size() && (|btb.btbEntryArray.we) == canWrite)
                 else $fatal(1, "BTB queue occupancy or table write enable mismatch");
             if (canWrite) begin
                 BTB_Entry entry;
@@ -653,7 +657,7 @@ module TestBranchPredictorQueue;
             foreach (port.brResult[i]) begin
                 accept = port.brResult[i].valid && port.brResult[i].brLookup.valid && port.brResult[i].execTaken &&
                          !port.brResult[i].btbEntryCorrect && pending.size() < BTB_QUEUE_SIZE;
-                assert (btb.queueWE[i] === accept) else $fatal(1, "BTB queue write mismatch on lane %0d", i);
+                assert (btb.trainingQueue.writeEnable[i] === accept) else $fatal(1, "BTB queue write mismatch on lane %0d", i);
                 if (accept) pending.push_back(port.brResult[i]);
             end
             previousStall = ctrl.ifStage.stall;
@@ -670,17 +674,17 @@ module TestBranchPredictorQueue;
         port.brResult[0] = MakeResult(BTB_QUEUE_SIZE-1);
         port.brResult[1] = MakeResult(BTB_QUEUE_SIZE);
         #1;
-        assert (btb.queueWE[0] && !btb.queueWE[1]) else $fatal(1, "The last slot belongs to lane 0");
+        assert (btb.trainingQueue.writeEnable[0] && !btb.trainingQueue.writeEnable[1]) else $fatal(1, "The last slot belongs to lane 0");
         @(negedge clk);
         recovery.fetchRedirect.valid = FALSE;
         ctrl.ifStage.stall = TRUE;
         #1;
-        assert (btb.count == BTB_QUEUE_SIZE && btb.pushCount == 0 && !btb.writeEnable)
+        assert (btb.trainingQueue.count == BTB_QUEUE_SIZE && btb.trainingQueue.pushCount == 0 && !btb.writeEnable)
             else $fatal(1, "Entering a stall must preserve the prediction read");
         @(negedge clk);
         port.brResult[0] = '0;
         #1;
-        assert (btb.writeEnable && btb.pushCount == 1 && btb.queueWE[1])
+        assert (btb.writeEnable && btb.trainingQueue.pushCount == 1 && btb.trainingQueue.writeEnable[1])
             else $fatal(1, "Lane 1 can use the slot freed by a simultaneous write");
         @(negedge clk);
         ClearResults();
@@ -698,12 +702,12 @@ module TestBranchPredictorQueue;
         ctrl.drainFetchForInterrupt = TRUE;
         recovery.fetchRedirect.valid = TRUE;
         #1;
-        assert (!btb.writeEnable && btb.count == BTB_QUEUE_SIZE)
+        assert (!btb.writeEnable && btb.trainingQueue.count == BTB_QUEUE_SIZE)
             else $fatal(1, "A redirect must retain the RAM port during interrupt drain");
         @(negedge clk);
         recovery.fetchRedirect.valid = FALSE;
         repeat (BTB_QUEUE_SIZE) @(negedge clk);
-        assert (btb.count == 0) else $fatal(1, "An interrupt drain must service pending updates");
+        assert (!btb.updatePending) else $fatal(1, "An interrupt drain must service pending updates");
         ctrl.drainFetchForInterrupt = FALSE;
         recovery.fetchRedirect.valid = TRUE;
     endtask
@@ -1026,7 +1030,7 @@ module TestBranchPredictorQueue;
         result.phtPrevValue = port.phtPrevValue[0];
         SendResults(result);
         repeat (3) @(negedge clk);
-        assert (gshare.count == 0 && bimodal.count == 0) else $fatal(1, "Stalled PHT training did not finish");
+        assert (!gshare.updatePending && !bimodal.updatePending) else $fatal(1, "Stalled PHT training did not finish");
         ctrl.ifStage.stall = FALSE;
         port.icReadHit = TRUE;
         @(posedge clk);
@@ -1092,7 +1096,7 @@ module TestBranchPredictorQueue;
         ctrl.ifStage.clear = TRUE;
         first.brLookup.valid = FALSE;
         SendResults(first);
-        assert (btb.count == 0) else $fatal(1, "A cold lookup must not train an unrelated BTB set");
+        assert (!btb.updatePending) else $fatal(1, "A cold lookup must not train an unrelated BTB set");
         ReadGroupFrom(second.brAddr, predecessor2);
         CheckBTB(0, second);
 
@@ -1197,7 +1201,7 @@ module TestBranchPredictorQueue;
         port.brResult[1] = MakeResult(5);
         ResetTables();
         ClearResults();
-        assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");
+        assert (!btb.updatePending) else $fatal(1, "Reset must discard pending training requests");
         CheckRAS_Entries(TRUE);
         ReadAllPHTRows(); // A warm reset must restore both banks, including the trained high addresses.
         CheckAheadPHT();

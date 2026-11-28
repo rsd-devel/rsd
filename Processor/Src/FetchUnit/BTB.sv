@@ -26,13 +26,9 @@ module BTB(
         BTB_Entry entry;
         logic hit;
         BTB_WayIndexPath hitWay;
-    } Update;
-    Update queueIn[INT_ISSUE_WIDTH], queue[BTB_QUEUE_SIZE];
-    BTBQueuePointerPath queueWA[INT_ISSUE_WIDTH], headPtr, tailPtr;
-    logic queueWE[INT_ISSUE_WIDTH];
-    logic [$clog2(INT_ISSUE_WIDTH):0] pushCount;
-    logic [BTB_QUEUE_SIZE_BIT_WIDTH:0] count;
-    logic writeEnable;
+    } UpdatePath;
+    UpdatePath queueIn[INT_ISSUE_WIDTH], update;
+    logic updateValid[INT_ISSUE_WIDTH], updatePending, writeEnable;
 
     // A fetch miss allocates the way opposite the last write to this set.
     BTB_WayIndexPath victimWay, writeWay;
@@ -57,18 +53,6 @@ module BTB(
     always_ff @(posedge port.clk) begin
         if (port.capturePredRows)
             regReadRow <= readRow;
-    end
-
-    MultiWidthQueuePointer #(.SIZE(BTB_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) btbQueuePointer (
-        .clk(port.clk), .rst(port.rst), .push(pushCount != 0), .pushCount(pushCount),
-        .pop(writeEnable), .popCount(1'b1), .headPtr(headPtr), .tailPtr(tailPtr), .count(count)
-    );
-
-    always_ff @(posedge port.clk) begin
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if (queueWE[i])
-                queue[queueWA[i]] <= queueIn[i];
-        end
     end
 
     always_ff @(posedge port.clk) begin
@@ -116,8 +100,14 @@ module BTB(
         end
     end
 
+    TrainingQueue #(
+        .ENTRY_NUM(BTB_QUEUE_SIZE), .DATA_WIDTH($bits(UpdatePath)), .PUSH_WIDTH(INT_ISSUE_WIDTH)
+    ) trainingQueue (
+        .clk(port.clk), .rst(port.rst), .pushValid(updateValid), .pushData(queueIn),
+        .pop(writeEnable), .headValid(updatePending), .headData(update)
+    );
+
     always_comb begin
-        pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             queueIn[i].setIndex = BranchContextBTB_Set(port.brResult[i].brLookup.ctx);
             queueIn[i].entry.tag = ToBTB_Tag(port.brResult[i].brAddr);
@@ -125,20 +115,13 @@ module BTB(
             queueIn[i].entry.brType = port.brResult[i].brType;
             queueIn[i].hit = port.brResult[i].btbHit;
             queueIn[i].hitWay = port.brResult[i].btbHitWay;
-            queueWA[i] = tailPtr + BTBQueuePointerPath'(pushCount);
-            // Earlier lanes take the available slots, including a slot freed by this write.
-            queueWE[i] = !port.rst && port.brResult[i].valid && port.brResult[i].execTaken && port.brResult[i].brLookup.valid &&
-                         !port.brResult[i].btbEntryCorrect &&
-                         count + pushCount < BTB_QUEUE_SIZE + int'(writeEnable);
-            if (queueWE[i])
-                pushCount++;
+            updateValid[i] = port.brResult[i].valid && port.brResult[i].execTaken &&
+                             port.brResult[i].brLookup.valid && !port.brResult[i].btbEntryCorrect;
         end
     end
 
-    Update update;
     always_comb begin
-        update = queue[headPtr];
-        writeEnable = !port.rst && port.btbUpdateAllowed && count != 0;
+        writeEnable = port.btbUpdateAllowed && updatePending;
         writeSet = port.rst ? resetIndex : update.setIndex;
         arraySet = (port.rst || writeEnable) ? writeSet : port.btbReadSet;
         // A delayed hit may replace a newer occupant. Write its full tag and target together.

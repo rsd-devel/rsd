@@ -90,43 +90,26 @@ module Gshare(
         PHT_IndexPath index;
         logic taken;
     } UpdatePath;
-    typedef logic [$clog2(PHT_QUEUE_SIZE)-1:0] QueuePointerPath;
-    UpdatePath queueIn[INT_ISSUE_WIDTH], queue[PHT_QUEUE_SIZE], update;
-    QueuePointerPath queueWA[INT_ISSUE_WIDTH], headPtr, tailPtr;
-    logic queueWE[INT_ISSUE_WIDTH], rowReady;
-    logic [$clog2(INT_ISSUE_WIDTH):0] pushCount;
-    logic [$clog2(PHT_QUEUE_SIZE):0] count;
+    UpdatePath queueIn[INT_ISSUE_WIDTH], update;
+    logic updateValid[INT_ISSUE_WIDTH], updatePending, rowReady;
 
-    MultiWidthQueuePointer #(.SIZE(PHT_QUEUE_SIZE), .PUSH_WIDTH(INT_ISSUE_WIDTH)) queuePointer (
-        .clk(port.clk), .rst(port.rst), .push(pushCount != 0), .pushCount(pushCount),
-        .pop(writeEnable), .popCount(1'b1), .headPtr(headPtr), .tailPtr(tailPtr), .count(count)
+    TrainingQueue #(
+        .ENTRY_NUM(PHT_QUEUE_SIZE), .DATA_WIDTH($bits(UpdatePath)), .PUSH_WIDTH(INT_ISSUE_WIDTH)
+    ) trainingQueue (
+        .clk(port.clk), .rst(port.rst), .pushValid(updateValid), .pushData(queueIn),
+        .pop(writeEnable), .headValid(updatePending), .headData(update)
     );
 
-    always_ff @(posedge port.clk) begin
-        for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
-            if (queueWE[i])
-                queue[queueWA[i]] <= queueIn[i];
-        end
-    end
-
     always_comb begin
-        pushCount = '0;
         for (int i = 0; i < INT_ISSUE_WIDTH; i++) begin
             queueIn[i].index = ToPHT_TrainingIndex(port.brResult[i].brLookup.ctx, port.brResult[i].brAddr);
             queueIn[i].taken = port.brResult[i].execTaken;
-
-            // Drop arrivals when already full. On a read cycle a nearly full
-            // FIFO may have room for only the first eligible issue lane.
-            queueWA[i] = tailPtr + QueuePointerPath'(pushCount);
-            queueWE[i] = !port.rst && count < PHT_QUEUE_SIZE &&
-                         count + pushCount < PHT_QUEUE_SIZE + int'(writeEnable) &&
-                         port.brResult[i].valid && port.brResult[i].brLookup.valid && port.brResult[i].brType == BTB_COND &&
-                         (port.brResult[i].btbHit || port.brResult[i].execTaken) &&
-                         // Skip reinforcement of a counter already saturated at prediction time.
-                         (port.brResult[i].execTaken ? port.brResult[i].phtPrevValue != PHT_ENTRY_MAX
-                                                     : port.brResult[i].phtPrevValue != '0);
-            if (queueWE[i])
-                pushCount++;
+            // Skip reinforcement of a counter already saturated at prediction time.
+            updateValid[i] = port.brResult[i].valid && port.brResult[i].brLookup.valid &&
+                             port.brResult[i].brType == BTB_COND &&
+                             (port.brResult[i].btbHit || port.brResult[i].execTaken) &&
+                             (port.brResult[i].execTaken ? port.brResult[i].phtPrevValue != PHT_ENTRY_MAX
+                                                         : port.brResult[i].phtPrevValue != '0);
         end
     end
 
@@ -143,10 +126,9 @@ module Gshare(
     end
 
     always_comb begin
-        update = queue[headPtr];
         trainingRowIndex = PHT_RowIndexPath'(update.index / FETCH_WIDTH);
         headBank = trainingRowIndex[0];
-        readTraining = !port.rst && count != 0 && headBank != predictionBank && !rowReady;
+        readTraining = updatePending && headBank != predictionBank && !rowReady;
         writeEnable = !port.rst && headBank != predictionBank && rowReady;
         trainingRow = regReadTraining ? bankRow[headBank] : heldTrainingRow;
         writeRow = trainingRow;
