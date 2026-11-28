@@ -35,10 +35,11 @@ module TestBranchPredictorQueue;
         bimodalPort.brResult = port.brResult;
     end
 
-    function automatic BranchResult MakeResult(input int index);
+    function automatic BranchResult MakeResult(input int index, input bit btbHit = FALSE);
         BranchResult result;
         result = '0;
         result.valid = TRUE;
+        result.btbHit = btbHit;
         result.execTaken = TRUE;
         result.brType = BTB_COND;
         result.brAddr = 32'h80000000 + index * INSN_BYTE_WIDTH;
@@ -273,7 +274,7 @@ module TestBranchPredictorQueue;
     task CheckBTBTraining;
         BranchResult hit, miss, notTaken;
         DrainBTB();
-        hit = MakeResult(0);
+        hit = MakeResult(0, TRUE);
         miss = MakeResult(1);
         notTaken = miss;
         notTaken.execTaken = FALSE;
@@ -284,7 +285,7 @@ module TestBranchPredictorQueue;
         port.brResult[1] = notTaken;
         #1;
         assert (btb.btbEntryArray.we === '0 && btb.pushCount == 0)
-            else $fatal(1, "Correct targets and untaken branches must only train the PHT");
+            else $fatal(1, "Correct targets and untaken branches must leave the BTB unchanged");
         for (int i = 0; i < 2; i++) begin
             @(negedge clk);
             port.brResult[i] = hit;
@@ -398,6 +399,7 @@ module TestBranchPredictorQueue;
                 foreach (samples[i]) begin
                     bit accept;
                     accept = freeSlots > 0 && samples[i].valid && samples[i].brLookup.valid && samples[i].brType == BTB_COND &&
+                        (samples[i].btbHit || samples[i].execTaken) &&
                         NextCounter(samples[i].phtPrevValue, samples[i].execTaken) != samples[i].phtPrevValue;
                     assert (enqueue[i] === accept) else $fatal(1, "PHT %m queue write mismatch on lane %0d", i);
                     if (accept) begin
@@ -429,8 +431,8 @@ module TestBranchPredictorQueue;
 
     task CheckPHTHeadConflict;
         BranchResult first, second;
-        first = MakeResult(0);
-        second = MakeResult(FETCH_WIDTH);
+        first = MakeResult(0, TRUE);
+        second = MakeResult(FETCH_WIDTH, TRUE);
         first.execTaken = FALSE;
         second.execTaken = FALSE;
         first.phtPrevValue = PHT_ENTRY_MAX;
@@ -457,10 +459,19 @@ module TestBranchPredictorQueue;
     task CheckPHTQueue;
         localparam int RESULTS = 2 * PHT_QUEUE_SIZE * INT_ISSUE_WIDTH;
         BranchResult result, other;
+        // Use non-saturated counters to isolate BTB eligibility for both outcomes.
+        for (int taken = 0; taken <= 1; taken++) begin
+            result = MakeResult(RESULTS);
+            result.execTaken = taken;
+            result.phtPrevValue = PHT_ENTRY_MAX / 2 + 1;
+            other = result;
+            other.btbHit = TRUE;
+            SendResults(result, other);
+        end
         // A saturated snapshot skips the first lane while the opposite outcome
         // on the same snapshot can still use the first available queue slot.
         for (int taken = 0; taken <= 1; taken++) begin
-            result = MakeResult(RESULTS);
+            result = MakeResult(RESULTS, TRUE);
             result.phtPrevValue = taken ? PHT_ENTRY_MAX : '0;
             result.execTaken = taken;
             other = result;
@@ -474,7 +485,7 @@ module TestBranchPredictorQueue;
             recovery.fetchRedirect.pc = ((i / INT_ISSUE_WIDTH) % 2) * FETCH_WIDTH * INSN_BYTE_WIDTH;
             recovery.fetchRedirect.predCtx.ctx = MakeBranchHistoryContext(recovery.fetchRedirect.pc - FETCH_GROUP_BYTE_NUM, '0, FALSE);
             foreach (port.brResult[lane]) begin
-                result = MakeResult(i + lane);
+                result = MakeResult(i + lane, TRUE);
                 result.phtPrevValue = PHT_ENTRY_MAX / 2 + 1;
                 result.execTaken = ((i + lane) % 2 == 1);
                 port.brResult[lane] = result;
@@ -485,13 +496,13 @@ module TestBranchPredictorQueue;
         DrainPHT();
         // The high issue lane also trains when it is the only valid result.
         @(negedge clk);
-        result = MakeResult(RESULTS);
+        result = MakeResult(RESULTS, TRUE);
         result.phtPrevValue = '0;
         port.brResult[INT_ISSUE_WIDTH-1] = result;
         @(negedge clk);
         ClearResults();
         for (int i = 0; i <= RESULTS; i++) begin
-            result = MakeResult(i);
+            result = MakeResult(i, TRUE);
             ReadPHTGroup(result.brAddr);
         end
     endtask
@@ -500,9 +511,9 @@ module TestBranchPredictorQueue;
     // Deliberately supply stale lookup counters for every training request.
     task CheckPackedCounterUpdates;
         BranchResult first, adjacent, otherRow;
-        first = MakeResult(4 * FETCH_WIDTH);
-        adjacent = MakeResult(5 * FETCH_WIDTH - 1);
-        otherRow = MakeResult(6 * FETCH_WIDTH);
+        first = MakeResult(4 * FETCH_WIDTH, TRUE);
+        adjacent = MakeResult(5 * FETCH_WIDTH - 1, TRUE);
+        otherRow = MakeResult(6 * FETCH_WIDTH, TRUE);
         first.phtPrevValue = PHT_ENTRY_MAX;
         adjacent.phtPrevValue = PHT_ENTRY_MAX;
         first.execTaken = FALSE;
@@ -531,8 +542,8 @@ module TestBranchPredictorQueue;
 
     task CheckUpperPHTRows;
         BranchResult penultimate, last;
-        penultimate = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH - 1);
-        last = MakeResult(PHT_ENTRY_NUM - 1);
+        penultimate = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH - 1, TRUE);
+        last = MakeResult(PHT_ENTRY_NUM - 1, TRUE);
         // Distinguish the last word of each bank from its neighbors and from each other.
         penultimate.phtPrevValue = PHT_ENTRY_MAX;
         penultimate.execTaken = FALSE;
@@ -553,7 +564,7 @@ module TestBranchPredictorQueue;
     task CheckPHTHistory;
         BranchResult result;
         BranchGlobalHistoryPath history;
-        result = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH);
+        result = MakeResult(PHT_ENTRY_NUM - FETCH_WIDTH, TRUE);
         history = USE_GSHARE ? '1 : '0;
         result.phtPrevValue = PHT_ENTRY_MAX;
         result.execTaken = FALSE;
@@ -737,6 +748,7 @@ module TestBranchPredictorQueue;
         assert (!port.nextStage.brPred[0].predTaken) else $fatal(1, "A BTB miss predicted taken");
         // Leave a strongly not-taken counter at the address of the upcoming jump.
         updated = last;
+        updated.btbHit = TRUE;
         updated.brType = BTB_COND;
         updated.execTaken = FALSE;
         updated.phtPrevValue = PHT_ENTRY_MAX;
@@ -935,7 +947,7 @@ module TestBranchPredictorQueue;
             else $fatal(1, "Expected successor %h row %h, got PC %h valid %b row %h",
                         SUCCESSOR, sourceRow, port.nextStage.pc, port.nextStage.brPred[0].brLookup.valid,
                         BranchContextPHT_Row(port.nextStage.brPred[0].brLookup.ctx));
-        result = MakeResult(0);
+        result = MakeResult(0, TRUE);
         result.brAddr = SUCCESSOR;
         result.brLookup = port.nextStage.brPred[0].brLookup;
         result.phtPrevValue = port.nextStage.brPred[0].phtPrevValue;
@@ -993,7 +1005,7 @@ module TestBranchPredictorQueue;
         assert (port.pcOut == C && port.brLookupValid && port.phtPrevValue[0] != 0 &&
                 bimodalPort.phtPrevValue[0] == port.phtPrevValue[0])
             else $fatal(1, "Stall entry did not capture B's counters for C");
-        result = MakeResult(0);
+        result = MakeResult(0, TRUE);
         result.brAddr = C;
         result.brLookup.ctx = MakeBranchHistoryContext(B, '0, FALSE);
         result.execTaken = FALSE;

@@ -121,6 +121,7 @@ module Gshare(
             queueWE[i] = !port.rst && count < PHT_QUEUE_SIZE &&
                          count + pushCount < PHT_QUEUE_SIZE + int'(writeEnable) &&
                          port.brResult[i].valid && port.brResult[i].brLookup.valid && port.brResult[i].brType == BTB_COND &&
+                         (port.brResult[i].btbHit || port.brResult[i].execTaken) &&
                          // Skip reinforcement of a counter already saturated at prediction time.
                          (port.brResult[i].execTaken ? port.brResult[i].phtPrevValue != PHT_ENTRY_MAX
                                                      : port.brResult[i].phtPrevValue != '0);
