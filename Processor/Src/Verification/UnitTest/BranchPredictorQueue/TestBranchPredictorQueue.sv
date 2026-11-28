@@ -156,7 +156,6 @@ module TestBranchPredictorQueue;
         BranchResult callOp, retOp;
         localparam CALL_STRIDE = 3 * FETCH_GROUP_BYTE_NUM;
         BranchResult firstCall;
-        // Use a nonzero block tag to avoid aliasing the reset contents.
         callOp = MakeResult((BTB_SET_NUM + 12) * FETCH_WIDTH + FETCH_WIDTH - 1);
         retOp = MakeResult((BTB_SET_NUM + 17) * FETCH_WIDTH);
         callOp.brType = BTB_CALL;
@@ -757,10 +756,28 @@ module TestBranchPredictorQueue;
                         hitResetEntry, hitOtherBranch);
     endtask
 
+    task CheckResetBTB(input MemoryMapTypes::PC_Path predecessor);
+        BranchResult cold;
+        cold = MakeResult(0);
+        ReadGroupFrom(cold.brAddr, predecessor);
+        CheckBTB(0, '0);
+
+        // All tag bits are one, including the offset. The target and branch type reset to zero.
+        cold.brAddr = 32'hffff_fffc;
+        cold.nextAddr = ToRawAddrFromBTB_Addr('0, cold.brAddr);
+        cold.brType = BTB_JUMP;
+        ReadGroupFrom(cold.brAddr, predecessor);
+        for (int offset = 0; offset < FETCH_WIDTH - 1; offset++)
+            CheckBTB(offset, '0);
+        CheckBTB(FETCH_WIDTH-1, cold);
+        assert ((&btb.blockHit) && port.btbHitWay[FETCH_WIDTH-1] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
+            else $fatal(1, "Expected both reset tags to match and the highest way to supply the target");
+    endtask
+
     task CheckBTBWays;
         localparam int ALIAS_STRIDE = FETCH_WIDTH * BTB_SET_NUM;
         localparam int FIRST = ALIAS_STRIDE; // Keep the replacement checks clear of the reset tag.
-        BranchResult first, last, neighbor, aliasBranch, updated, cold;
+        BranchResult first, last, neighbor, aliasBranch, updated;
         BranchGlobalHistoryPath beforeBranch, afterBranch;
         first = MakeResult(FIRST);
         last = MakeResult(FIRST + FETCH_WIDTH - 1);
@@ -770,15 +787,7 @@ module TestBranchPredictorQueue;
         last.phtPrevValue = PHT_ENTRY_MAX;
         last.brType = BTB_JUMP;
 
-        // Both reset entries match this PC's zero block tag and offset.
-        cold = MakeResult(0);
-        cold.nextAddr = ToRawAddrFromBTB_Addr('0, cold.brAddr);
-        cold.brType = BTB_JUMP;
-        ReadGroup(cold.brAddr);
-        CheckBTB(0, cold);
-        assert (port.btbHitWay[0] === BTB_WayIndexPath'(BTB_WAY_NUM-1))
-            else $fatal(1, "Expected the highest way on a duplicate reset tag");
-        CheckBTB(FETCH_WIDTH-1, '0);
+        CheckResetBTB(first.brAddr - FETCH_GROUP_BYTE_NUM);
         ReadGroup(first.brAddr);
         CheckBTB(0, '0);
         assert (!port.nextStage.brPred[0].predTaken) else $fatal(1, "A BTB miss predicted taken");
@@ -952,8 +961,7 @@ module TestBranchPredictorQueue;
         CheckBTB(ToFetchGroupOffset(neighbor.brAddr), updated);
 
         ResetTables();
-        ReadGroup(cold.brAddr);
-        CheckBTB(0, cold);
+        CheckResetBTB(first.brAddr - FETCH_GROUP_BYTE_NUM);
         ReadGroup(first.brAddr);
         CheckBTB(0, '0);
         ReadGroup(aliasBranch.brAddr);

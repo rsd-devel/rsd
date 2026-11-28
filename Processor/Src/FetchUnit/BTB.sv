@@ -16,6 +16,8 @@ module BTB(
     // A lookup reads both ways. Byte-aligned ways let training update one
     // way in a single write while preserving the other.
     localparam BYTE_NUM = ($bits(BTB_Entry) + 7) / 8;
+    // An unwritten way can still hit. Use an all-ones tag to avoid matching zero-tag code.
+    localparam BTB_Entry RESET_ENTRY = '{tag: '1, data: '0, brType: BTB_JUMP};
     typedef logic [BYTE_NUM*8-1:0] WayPath;
     WayPath [BTB_WAY_NUM-1:0] readRow, regReadRow, writeRow;
     logic [BTB_WAY_NUM-1:0][BYTE_NUM-1:0] writeMask;
@@ -128,8 +130,7 @@ module BTB(
         writeWay = update.hit ? update.hitWay : victimWay;
         for (int w = 0; w < BTB_WAY_NUM; w++) begin
             writeMask[w] = {BYTE_NUM{port.rst || (writeEnable && writeWay == w)}};
-            // A reset entry can match tag and offset zero, like any other partial-tag alias.
-            writeRow[w] = port.rst ? '0 : WayPath'(update.entry);
+            writeRow[w] = port.rst ? WayPath'(RESET_ENTRY) : WayPath'(update.entry);
         end
     end
 endmodule : BTB
