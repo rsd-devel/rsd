@@ -128,7 +128,6 @@ localparam PHT_QUEUE_SIZE = 4;
 
 localparam PHT_ROW_NUM = PHT_ENTRY_NUM / FETCH_WIDTH;
 typedef logic [$clog2(PHT_ROW_NUM > 1 ? PHT_ROW_NUM : 2)-1:0] PHT_RowIndexPath;
-typedef logic [(FETCH_WIDTH > 1 ? $clog2(FETCH_WIDTH) : 1)-1:0] PHT_RowOffsetPath;
 
 // Read the successor's counter group using the predecessor's PC and entry history.
 function automatic PHT_RowIndexPath ToPHT_Row(PC_Path pc, BranchGlobalHistoryPath history);
@@ -136,13 +135,6 @@ function automatic PHT_RowIndexPath ToPHT_Row(PC_Path pc, BranchGlobalHistoryPat
     index = PHT_IndexPath'(pc >> INSN_ADDR_BIT_WIDTH);
     index[PHT_ENTRY_NUM_BIT_WIDTH-1 -: BRANCH_GLOBAL_HISTORY_BIT_WIDTH] ^= history;
     return PHT_RowIndexPath'(index / FETCH_WIDTH);
-endfunction
-
-// After the row arrives, the current group's PC selects the order within each counter pair.
-function automatic PHT_RowOffsetPath ToPHT_CounterOffset(PC_Path pc, PHT_RowOffsetPath groupOffset);
-    if (FETCH_WIDTH == 1)
-        return '0;
-    return groupOffset ^ PHT_RowOffsetPath'(pc[11]);
 endfunction
 
 // Both table addresses and the successor's entry history come from the same predecessor.
@@ -187,9 +179,7 @@ function automatic PHT_RowIndexPath BranchContextPHT_Row(BranchHistoryContextPat
 endfunction
 
 function automatic PHT_IndexPath ToPHT_TrainingIndex(BranchHistoryContextPath ctx, PC_Path branchPC);
-    PHT_RowOffsetPath offset;
-    offset = ToPHT_CounterOffset(branchPC, PHT_RowOffsetPath'(ToFetchGroupOffset(branchPC)));
-    return PHT_IndexPath'(BranchContextPHT_Row(ctx) * FETCH_WIDTH + offset);
+    return PHT_IndexPath'(BranchContextPHT_Row(ctx) * FETCH_WIDTH + ToFetchGroupOffset(branchPC));
 endfunction
 
 typedef struct packed {

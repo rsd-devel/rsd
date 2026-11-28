@@ -39,7 +39,7 @@ module Bimodal(
         ) counterArray (
             .clk(port.clk), .we(bankWE), .rwa(bankAddr), .wv(writeRow), .rv(bankRow[b])
         );
-        // Keep the raw counters before B selects its bank output and slot.
+        // Keep the raw counters before selecting the bank output.
         always_ff @(posedge port.clk) begin
             if (port.capturePredRows)
                 regBankRow[b] <= bankRow[b];
@@ -75,11 +75,9 @@ module Bimodal(
     PHT_EntryPath counters[FETCH_WIDTH];
     logic brPredTaken[FETCH_WIDTH];
     always_comb begin
-        // A issued this row. B selects the counter for each offset after the RAM.
+        // Each counter maps directly to its instruction offset in the fetch group.
         for (int groupOffset = 0; groupOffset < FETCH_WIDTH; groupOffset++) begin
-            PHT_RowOffsetPath offset;
-            offset = ToPHT_CounterOffset(port.pcOut, PHT_RowOffsetPath'(groupOffset));
-            counters[groupOffset] = port.brLookupValid ? readRow[offset] : '0;
+            counters[groupOffset] = port.brLookupValid ? readRow[groupOffset] : '0;
             brPredTaken[groupOffset] = counters[groupOffset][PHT_ENTRY_WIDTH-1];
         end
         port.brPredTaken = brPredTaken;

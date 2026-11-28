@@ -26,9 +26,8 @@ module TestBranchPredictorQueue;
     Gshare gshare(.port(port), .ctrl(ctrl));
     Bimodal bimodal(.port(bimodalPort));
 
-    // Exercise both predictors with the same fetch addresses and training results.
+    // Exercise both predictors with the same row requests and training results.
     always_comb begin
-        bimodalPort.pcOut = port.pcOut;
         bimodalPort.phtReadRow = port.phtReadRow;
         bimodalPort.brLookupValid = port.brLookupValid;
         bimodalPort.capturePredRows = port.capturePredRows;
@@ -306,10 +305,6 @@ module TestBranchPredictorQueue;
         if (!taken && v != 0) return v - 1'b1;
         return v;
     endfunction
-    // The byte PC selects the counter in each adjacent pair of the predecessor's row.
-    function automatic PHT_IndexPath CounterIndex(PHT_RowIndexPath row, MemoryMapTypes::PC_Path pc, int offset);
-        return PHT_IndexPath'(row * FETCH_WIDTH + (offset ^ int'(FETCH_WIDTH > 1 && pc[11])));
-    endfunction
 
     // A flat counter table and one FIFO per predictor model the two independent
     // instances. Only the oldest update can use the bank left free by fetch.
@@ -331,7 +326,7 @@ module TestBranchPredictorQueue;
         always @(posedge clk) begin
             BranchResult samples[INT_ISSUE_WIDTH], oldest;
             PHT_RowIndexPath readRow;
-            PHT_IndexPath index, headIndex;
+            PHT_IndexPath headIndex;
             PHT_EntryPath expected;
             logic enqueue[INT_ISSUE_WIDTH];
             bit readTraining, writeEnable, headCanRun;
@@ -374,7 +369,8 @@ module TestBranchPredictorQueue;
                 headCanRun = FALSE;
                 if (pending.size() != 0) begin
                     oldest = pending[0];
-                    headIndex = CounterIndex(BranchContextPHT_Row(oldest.brLookup.ctx), oldest.brAddr, ToFetchGroupOffset(oldest.brAddr));
+                    headIndex = PHT_IndexPath'(BranchContextPHT_Row(oldest.brLookup.ctx) * FETCH_WIDTH +
+                                               ToFetchGroupOffset(oldest.brAddr));
                     headCanRun = (headIndex / FETCH_WIDTH) % 2 != readRow[0];
                 end
                 assert (count == pending.size() && readTraining == (headCanRun && !rowReady) &&
@@ -382,12 +378,11 @@ module TestBranchPredictorQueue;
                     else $fatal(1, "PHT %m queue occupancy or head service mismatch");
 
                 foreach (port.phtPrevValue[i]) begin
-                    index = CounterIndex(capturedIndex, port.pcOut, i);
-                    expected = port.brLookupValid ? capturedCounters[index % FETCH_WIDTH] : '0;
+                    expected = port.brLookupValid ? capturedCounters[i] : '0;
                     assert ((useGshare ? port.phtPrevValue[i] : bimodalPort.phtPrevValue[i]) === expected &&
                             (useGshare ? port.brPredTaken[i] : bimodalPort.brPredTaken[i]) ===
                                 (expected > PHT_ENTRY_MAX / 2))
-                        else $fatal(1, "PHT %m prediction mismatch at %0d", index);
+                        else $fatal(1, "PHT %m prediction mismatch at row %h offset %0d", capturedIndex, i);
                 end
                 freeSlots = PHT_QUEUE_SIZE - pending.size();
                 if (writeEnable) begin
@@ -966,7 +961,7 @@ module TestBranchPredictorQueue;
     endtask
 
     task CheckAheadPHT;
-        localparam MemoryMapTypes::PC_Path SOURCE = 32'h80000000 + 3 * FETCH_GROUP_BYTE_NUM;
+        localparam MemoryMapTypes::PC_Path SOURCE = 32'h80000800 + 3 * FETCH_GROUP_BYTE_NUM;
         localparam MemoryMapTypes::PC_Path SUCCESSOR = SOURCE + FETCH_GROUP_BYTE_NUM;
         BranchGlobalHistoryPath history;
         BranchResult result;
@@ -1007,13 +1002,14 @@ module TestBranchPredictorQueue;
                 fetch.regFetchRequestHistory == ExpectedTakenHistory(history, SOURCE))
             else $fatal(1, "The taken predecessor must supply its trained row and advance the successor's history");
 
-        // Keep A fixed and flip B.pc[11]. The trained counter moves to its adjacent group offset.
+        // With A fixed, clearing B.pc[11] must leave the trained counter at offset zero.
         ReadGroupFrom(SUCCESSOR ^ 32'h800, SOURCE, history);
         for (int offset = 0; offset < FETCH_WIDTH; offset++) begin
             PHT_EntryPath expected;
-            expected = offset == (FETCH_WIDTH > 1 ? 1 : 0) ? 1 : 2;
+            expected = offset == 0 ? 1 : 2;
             assert (port.phtPrevValue[offset] == expected && bimodalPort.phtPrevValue[offset] == expected)
-                else $fatal(1, "B.pc[11] selected the wrong PHT counter at offset %0d", offset);
+                else $fatal(1, "Clearing B.pc[11] reordered PHT counters at offset %0d: Gshare %0d, Bimodal %0d, expected %0d",
+                            offset, port.phtPrevValue[offset], bimodalPort.phtPrevValue[offset], expected);
         end
 
         // A redirect without a predecessor must suppress both the prediction and its later update.

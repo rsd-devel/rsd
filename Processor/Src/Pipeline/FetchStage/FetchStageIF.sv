@@ -125,7 +125,6 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         clk,
         rst,
         rstStart,
-        pcOut,
         phtReadRow,
         capturePredRows,
         brLookupValid,
