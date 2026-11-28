@@ -37,6 +37,9 @@ interface FetchStageIF( input logic clk, rst, rstStart );
     logic brPredTaken[FETCH_WIDTH];
     PHT_EntryPath phtPrevValue[FETCH_WIDTH];
 
+    PC_Path rasTopPC;
+    RAS_IndexPath rasPtr;
+
     // Addresses for the next cache lookup and the response currently in Fetch.
     AddrPath icNextReadAddrIn, icReadAddrIn;
     logic icRE;
@@ -59,6 +62,8 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         readBrType,
         brPredTaken,
         phtPrevValue,
+        rasTopPC,
+        rasPtr,
         icReadHit,
         icReadDataOut,
     output
@@ -100,6 +105,17 @@ interface FetchStageIF( input logic clk, rst, rstStart );
         btbHit,
         btbHitWay,
         readBrType
+    );
+
+    modport RAS(
+    input
+        clk,
+        rst,
+        interruptAddrWE,
+        nextStage,
+    output
+        rasTopPC,
+        rasPtr
     );
 
     modport BranchPredictor(

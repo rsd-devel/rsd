@@ -22,6 +22,7 @@ module TestBranchPredictorQueue;
     PerformanceCounterIF perfCounter(.*);
     FetchStage fetch(.*);
     BTB btb(.port(port));
+    RAS ras(.port(port), .recovery(recovery));
     Gshare gshare(.port(port), .ctrl(ctrl));
     Bimodal bimodal(.port(bimodalPort));
 
@@ -201,14 +202,14 @@ module TestBranchPredictorQueue;
         repeat (3) begin
             @(posedge clk);
             #1;
-            assert (fetch.rasPtr == RAS_IndexPath'(3)) else $fatal(1, "A held return changed the RAS");
+            assert (port.rasPtr == RAS_IndexPath'(3)) else $fatal(1, "A held return changed the RAS");
         end
         ctrl.ifStage.stall = FALSE;
         #1;
         assert (port.nextStage.brPred[0].rasPtr == RAS_IndexPath'(3)) else $fatal(1, "Held return checkpoint changed");
         @(posedge clk);
         #1;
-        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A return must pop its checkpoint once");
+        assert (port.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A return must pop its checkpoint once");
         // Without a branch checkpoint an interrupt or cold redirect must leave that pointer alone.
         recovery.fetchRedirect.valid = TRUE;
         recovery.fetchRedirect.restorePredCtx = FALSE;
@@ -217,16 +218,16 @@ module TestBranchPredictorQueue;
         ctrl.ifStage.clear = TRUE;
         @(posedge clk);
         #1;
-        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "Interrupt entry changed the RAS pointer");
+        assert (port.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "Interrupt entry changed the RAS pointer");
         port.interruptAddrWE = FALSE;
         @(posedge clk);
         #1;
-        assert (fetch.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A cold redirect changed the RAS pointer");
+        assert (port.rasPtr == RAS_IndexPath'(2)) else $fatal(1, "A cold redirect changed the RAS pointer");
         recovery.fetchRedirect.predCtx.rasPtr = RecoverRAS_Ptr(RAS_IndexPath'(2), BTB_RETURN_OFFSET, TRUE);
         recovery.fetchRedirect.restorePredCtx = TRUE;
         @(posedge clk);
         #1;
-        assert (fetch.rasPtr == RAS_IndexPath'(1)) else $fatal(1, "An offset return must restore one pop");
+        assert (port.rasPtr == RAS_IndexPath'(1)) else $fatal(1, "An offset return must restore one pop");
         recovery.fetchRedirect.predCtx.rasPtr = '0;
 
         // One more call than slots overwrites the oldest target. Each call returns to a ret.
@@ -701,8 +702,8 @@ module TestBranchPredictorQueue;
         rstStart = TRUE;
         @(negedge clk);
         for (int i = 0; i < RAS_ENTRY_NUM; i++)
-            assert (fetch.ras[i] === '0) else $fatal(1, "Reset did not clear RAS entry %0d on the first clock", i);
-        assert (fetch.rasPtr === '0) else $fatal(1, "Reset did not restore the initial RAS pointer");
+            assert (ras.entries[i] === '0) else $fatal(1, "Reset did not clear RAS entry %0d on the first clock", i);
+        assert (port.rasPtr === '0) else $fatal(1, "Reset did not restore the initial RAS pointer");
         rstStart = FALSE;
         repeat (RESET_CYCLES) @(negedge clk);
         rst = FALSE;
@@ -1167,7 +1168,7 @@ module TestBranchPredictorQueue;
         port.brResult[0] = MakeResult(4);
         port.brResult[1] = MakeResult(5);
         for (int i = 0; i < RAS_ENTRY_NUM; i++)
-            assert (fetch.ras[i] != '0) else $fatal(1, "RAS entry %0d was not populated before reset", i);
+            assert (ras.entries[i] != '0) else $fatal(1, "RAS entry %0d was not populated before reset", i);
         ResetTables();
         ClearResults();
         assert (btb.count == 0) else $fatal(1, "Reset must discard pending training requests");

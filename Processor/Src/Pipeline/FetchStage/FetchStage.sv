@@ -102,43 +102,6 @@ module FetchStage(
         validByGroupOffset = {FETCH_WIDTH{pipeReg.valid}} << fetchStartOffset;
     end
 
-    // Fetch speculates on BTB call/return types. Only an accepted group changes the stack.
-    PC_Path ras[RAS_ENTRY_NUM];
-    RAS_IndexPath rasPtr, nextRAS_Ptr;
-    logic pushRAS, popRAS, rasWE;
-    PC_Path returnPC, rasWritePC;
-    always_ff @(posedge port.clk) begin
-        rasPtr <= nextRAS_Ptr;
-        if (port.rst) begin
-            for (int i = 0; i < RAS_ENTRY_NUM; i++)
-                ras[i] <= '0;
-        end
-        else if (rasWE)
-            ras[nextRAS_Ptr] <= rasWritePC;
-    end
-
-    always_comb begin
-        nextRAS_Ptr = rasPtr;
-        rasWE = FALSE;
-        rasWritePC = returnPC;
-        if (port.rst)
-            nextRAS_Ptr = '0;
-        else if (recovery.fetchRedirect.valid || port.interruptAddrWE) begin
-            // Cold redirects have no checkpoint. Preserve the circular stack as a prediction hint.
-            if (recovery.fetchRedirect.restorePredCtx && recovery.fetchRedirect.valid && !port.interruptAddrWE) begin
-                nextRAS_Ptr = recovery.fetchRedirect.predCtx.rasPtr;
-                rasWE = recovery.fetchRedirect.rasPush;
-                rasWritePC = recovery.fetchRedirect.rasReturnPC;
-            end
-        end
-        else if (pushRAS) begin
-            nextRAS_Ptr = rasPtr + RAS_IndexPath'(1);
-            rasWE = TRUE;
-        end
-        else if (popRAS)
-            nextRAS_Ptr = rasPtr - RAS_IndexPath'(1);
-    end
-
     PC_Path predictedTakenPC;
     logic advanceHistory;
     logic [FETCH_WIDTH-1:0] takenByGroupOffset;
@@ -153,7 +116,7 @@ module FetchStage(
                 if (port.readBrType[groupOffset] != BTB_COND || port.brPredTaken[groupOffset]) begin
                     // A return can select the current stack top in the same cycle as the BTB target.
                     nextPredCtx.usedRAS = port.readBrType[groupOffset] == BTB_RETURN;
-                    predictedPC = nextPredCtx.usedRAS ? ras[rasPtr] : port.btbOut[groupOffset];
+                    predictedPC = nextPredCtx.usedRAS ? port.rasTopPC : port.btbOut[groupOffset];
                     predictedTakenPC = ToFetchGroupBase(pipeReg.pc) | PC_Path'(groupOffset << INSN_ADDR_BIT_WIDTH);
                     takenByGroupOffset[groupOffset] = TRUE;
                     break;
@@ -282,24 +245,10 @@ module FetchStage(
             nextStage.brPred[fetchLane].btbHitWay = responsePrediction.btbHitWay[groupOffset];
             nextStage.brPred[fetchLane].phtPrevValue = responsePrediction.phtPrevValue[groupOffset];
             // The fetched group updates the stack only when it advances, even after a stall.
-            nextStage.brPred[fetchLane].rasPtr = rasPtr;
+            nextStage.brPred[fetchLane].rasPtr = port.rasPtr;
             nextStage.insn[fetchLane] = validByFetchLane[fetchLane] ? port.icReadDataOut[fetchLane] : '0;
         end
         port.nextStage = nextStage;
-    end
-
-    always_comb begin
-        pushRAS = FALSE;
-        popRAS = FALSE;
-        returnPC = '0;
-        for (int i = 0; i < FETCH_WIDTH; i++) begin
-            // A held I-cache response carries its original prediction until it advances.
-            if (nextStage.valid[i] && nextStage.brPred[i].predTaken) begin
-                pushRAS = nextStage.brPred[i].btbBrType == BTB_CALL;
-                popRAS = nextStage.brPred[i].btbBrType inside {BTB_RETURN, BTB_RETURN_OFFSET};
-                returnPC = pipeReg.pc + PC_Path'((i + 1) * INSN_BYTE_WIDTH);
-            end
-        end
     end
 
 `ifndef RSD_SYNTHESIS

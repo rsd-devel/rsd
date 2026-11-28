@@ -31,6 +31,7 @@ MODULES = \
 	Pipeline/FetchStage/FetchStageIF.sv \
 	Pipeline/FetchStage/FetchStage.sv \
 	FetchUnit/BTB.sv \
+	FetchUnit/RAS.sv \
 	FetchUnit/Gshare.sv \
 	FetchUnit/Bimodal.sv
 

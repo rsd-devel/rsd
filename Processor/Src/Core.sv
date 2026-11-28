@@ -137,6 +137,7 @@ output
 
     FetchStage ifStage( ifStageIF, recoveryManagerIF, ctrlIF, debugIF, perfCounterIF );
         BTB btb( ifStageIF );
+        RAS ras( ifStageIF, recoveryManagerIF );
         BranchPredictor brPred( ifStageIF, ctrlIF );
         ICache iCache( ifStageIF, cacheSystemIF );
     

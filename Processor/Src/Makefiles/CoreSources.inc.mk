@@ -123,6 +123,7 @@ CORE_MODULES = \
 	Decoder/Decoder.sv \
 	Decoder/DecodedBranchResolver.sv \
 	FetchUnit/BTB.sv \
+	FetchUnit/RAS.sv \
 	FetchUnit/BranchPredictor.sv \
 	FetchUnit/Gshare.sv \
 	FetchUnit/Bimodal.sv \

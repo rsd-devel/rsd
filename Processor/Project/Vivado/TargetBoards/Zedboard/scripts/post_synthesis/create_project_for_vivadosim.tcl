@@ -375,6 +375,7 @@ set files [list \
  [file normalize "${origin_dir}/../../../../Src/Decoder/Decoder.sv"] \
  [file normalize "${origin_dir}/../../../../Src/Decoder/DecodedBranchResolver.sv"] \
  [file normalize "${origin_dir}/../../../../Src/FetchUnit/BTB.sv"] \
+ [file normalize "${origin_dir}/../../../../Src/FetchUnit/RAS.sv"] \
  [file normalize "${origin_dir}/../../../../Src/FetchUnit/BranchPredictor.sv"] \
  [file normalize "${origin_dir}/../../../../Src/FetchUnit/Gshare.sv"] \
  [file normalize "${origin_dir}/../../../../Src/FetchUnit/Bimodal.sv"] \
@@ -962,6 +963,11 @@ set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
 
 set file "$origin_dir/../../../../Src/FetchUnit/BTB.sv"
+set file [file normalize $file]
+set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
+set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
+
+set file "$origin_dir/../../../../Src/FetchUnit/RAS.sv"
 set file [file normalize $file]
 set file_obj [get_files -of_objects [get_filesets sources_1] [list "*$file"]]
 set_property -name "file_type" -objects $file_obj -value "SystemVerilog"
